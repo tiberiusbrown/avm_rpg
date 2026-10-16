@@ -249,6 +249,10 @@ static void save_versions() {
     game.set_flag(FLAG_GATE_OPEN);
     game.set_flag(FLAG_BRIDGE_REPAIRED);
     game.set_flag(FLAG_WAYSTONE);
+    game.set_flag(FLAG_GUARD_RELOCATED);
+    game.set_flag(FLAG_COURIER_ARRIVED);
+    game.set_flag(FLAG_ROWAN_AWAY);
+    game.set_flag(FLAG_COURIER_DISPATCHED);
     save_encode(data);
     CHECK(save_decode(data));
     for(uint16_t bit = 0; bit < FLAG_COUNT; ++bit)
@@ -259,9 +263,11 @@ static void save_versions() {
         CHECK(!memcmp(&before, &game, sizeof(game)));
     }
     // Undefined bits, future flag counts and nonzero padding are rejected.
-    data[SAVE_HEADER_BYTES] |= 0x80;
-    refresh_crc(data, SAVE_BYTES);
-    CHECK(!save_decode(data));
+    if(FLAG_COUNT % 8) {
+        data[SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT - 1] |= (uint8_t)(1u << (FLAG_COUNT % 8));
+        refresh_crc(data, SAVE_BYTES);
+        CHECK(!save_decode(data));
+    }
     save_encode(data);
     data[18] = FLAG_COUNT + 1;
     refresh_crc(data, SAVE_BYTES);

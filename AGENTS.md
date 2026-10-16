@@ -1,4 +1,4 @@
-- Use C++17 for game code and native C++ tests.
+- Use C++20 for game code and native C++ tests.
 - Use snake_case for functions and variables, CamelCase for struct types, and ALL_CAPS for constants, macros, enum types, and enum values.
 - Indent with four spaces; do not use tabs.
 - Put spaces around binary and ternary operators and after commas.

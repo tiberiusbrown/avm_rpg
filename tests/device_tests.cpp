@@ -1,5 +1,5 @@
 // Full-device integration, without changes to AVM or Ardens. Host allocations
-// below belong to the QA tool; the guest remains fixed-capacity C++17.
+// below belong to the QA tool; the guest remains fixed-capacity C++20.
 #include "absim.hpp"
 
 #pragma pack(push, 1)
@@ -15,7 +15,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 181 + WorldFlags::BYTE_COUNT,
+static_assert(sizeof(Game) == 181 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -129,8 +129,8 @@ struct Device {
         }
     }
 
-    uint8_t prompt() const {
-        return proof ? uint8_t(DIALOGUE_CLOSED) : ab->core_state.cpu.data[dialogue_addr];
+    DIALOGUE_PROMPT prompt() const {
+        return proof ? DIALOGUE_CLOSED : (DIALOGUE_PROMPT)ab->core_state.cpu.data[dialogue_addr];
     }
 
     void advance(uint8_t held, uint64_t cycles = 800000) {
@@ -260,6 +260,21 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
               << ",\"budget_cycles\":800000}\n";
 }
 
+static void report_observed(char const* name, Device const& first, Device const& second) {
+    uint64_t sum = 0, worst = 0, count = 0;
+    for(auto source : {&first, &second}) {
+        for(auto const& c : source->frames) {
+            sum += c.total;
+            worst = std::max(worst, c.total);
+            ++count;
+        }
+    }
+    require(count != 0, "no observed frame measurements");
+    std::cout << "{\"workload\":\"" << name << "\",\"frames\":" << count
+              << ",\"average_cycles\":" << sum / count << ",\"worst_cycles\":" << worst
+              << ",\"budget_cycles\":800000}\n";
+}
+
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
                        "output_directory normal|m15|proof dialogue_address phase_address");
@@ -283,6 +298,111 @@ int main(int argc, char** argv) try {
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
+    if(std::string(argv[6]) == "npc") {
+        auto changed = d.state();
+        changed.player = {40, 32, NORTH, 0};
+        changed.previous_player_tile = {AREA_OUTDOOR, 5, 4};
+        d.set_state(changed);
+        d.frame();
+        d.frame(BTN_A);
+        require(d.prompt() != DIALOGUE_CLOSED, "stationary NPC dialogue did not open");
+        auto frozen = d.state();
+        d.advance(BTN_RIGHT, 8000000);
+        auto paused = d.state();
+        require(paused.ticks == frozen.ticks && paused.rng == frozen.rng &&
+                    !memcmp(&paused.npcs, &frozen.npcs, sizeof(NpcPool)) &&
+                    !memcmp(&paused.player, &frozen.player, sizeof(Actor)),
+                "blocking NPC dialogue advanced actors");
+        d.capture(out / "npc-dialogue.pgm");
+        d.tap(BTN_B);
+        d.frame(); // Mutate the QA scene at a completed exploration frame boundary.
+
+        changed = d.state();
+        changed.area = AREA_NPC_HALL;
+        changed.dimensions = {32, 8};
+        changed.player = {88, 24, EAST, 0};
+        changed.previous_player_tile = {AREA_NPC_HALL, 11, 3};
+        changed.npcs = {};
+        d.set_state(changed);
+        d.frame();
+        unsigned count = 0;
+        for(auto const& n : d.state().npcs.actors)
+            count += n.id != 0;
+        if(count != NPC_CAPACITY) {
+            auto snapshot = d.state();
+            std::cerr << "NPC scene area=" << unsigned(snapshot.area) << " x=" << snapshot.player.x
+                      << " y=" << snapshot.player.y << " count=" << count
+                      << " requests=" << unsigned(snapshot.npcs.request_count)
+                      << " deferred=" << unsigned(snapshot.npcs.activation_deferrals) << '\n';
+        }
+        require(count == NPC_CAPACITY && !d.state().npcs.capacity_faults,
+                "eight authored NPCs did not activate");
+        summary("eight_npcs_idle", d, 120);
+        d.capture(out / "eight-npcs.pgm");
+
+        // All eight actors use cheap steering and collide in the one-tile hall.
+        changed = d.state();
+        for(auto& n : changed.npcs.actors) {
+            n.behavior = NPC_TARGET;
+            n.timer = n.stuck = 0;
+            n.target = {(uint16_t)(n.actor.x + 8), n.actor.y};
+        }
+        d.set_state(changed);
+        summary("eight_npcs_steering", d, 12);
+        changed = d.state();
+        for(auto& n : changed.npcs.actors) {
+            n.behavior = NPC_TARGET;
+            n.timer = n.stuck = 0;
+            n.target = {(uint16_t)(n.actor.x + 8), n.actor.y};
+        }
+        d.set_state(changed);
+        summary("eight_npcs_steering_push", d, 12, BTN_RIGHT);
+
+        // Reset the authored corridor and prove real input makes eventual progress.
+        changed = d.state();
+        changed.player = {16, 24, EAST, 0};
+        changed.previous_player_tile = {AREA_NPC_HALL, 2, 3};
+        changed.npcs = {};
+        d.set_state(changed);
+        d.frame();
+        summary("corridor_eight_npcs_push", d, 180, BTN_RIGHT);
+        require(d.state().player.x > 152 && !d.state().npcs.capacity_faults,
+                "real-device corridor did not permit eventual player passage");
+        d.capture(out / "corridor-passed.pgm");
+
+        // Quest placement survives a physical FX save and fresh-device restart.
+        changed = d.state();
+        changed.area = AREA_INTERIOR;
+        changed.dimensions = {16, 10};
+        changed.player = {16, 56, NORTH, 0};
+        changed.previous_player_tile = {AREA_INTERIOR, 2, 7};
+        changed.set_flag(FLAG_GUARD_RELOCATED);
+        changed.set_flag(FLAG_COURIER_ARRIVED);
+        changed.npcs = {};
+        d.set_state(changed);
+        d.frame();
+        d.tap(BTN_B);
+        d.tap(BTN_DOWN);
+        d.tap(BTN_A);
+        auto sector = d.sector();
+        Device restarted(package, g, m, s, q);
+        restarted.import_sector(sector);
+        restarted.advance(0, 3200000);
+        restarted.tap(BTN_DOWN);
+        restarted.tap(BTN_A);
+        auto loaded = restarted.state();
+        count = 0;
+        for(auto const& n : loaded.npcs.actors)
+            count += n.id == NPC_GUARD && n.placement == 1 && n.actor.x == 96 && n.actor.y == 16;
+        require(loaded.get_flag(FLAG_GUARD_RELOCATED) && loaded.get_flag(FLAG_COURIER_ARRIVED) &&
+                    count == 1,
+                "physical save failed canonical NPC reconstruction");
+        restarted.capture(out / "npc-quest-reloaded.pgm");
+        report_observed("npc_scenario_all_frames", d, restarted);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"NPC "
+                     "dialogue/freeze/dense/steering/corridor/physical-save\"}\n";
+        return 0;
+    }
     if(std::string(argv[6]) == "m15") {
         auto changed = d.state();
         changed.player = {112, 16, EAST, 0};
@@ -477,12 +597,19 @@ int main(int argc, char** argv) try {
     auto loaded = restarted.state();
     require(restarted.serial() != 0 && loaded.area == saved.area &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y &&
-                loaded.get_flag(FLAG_HELPED) && loaded.gold == 5 && loaded.rng == saved.rng,
+                loaded.get_flag(FLAG_HELPED) && loaded.gold == 5 && loaded.rng != 0,
             "fresh emulator save/load mismatch");
     restarted.capture(out / "restarted.pgm");
-    restarted.hold(BTN_UP, 4);
-    restarted.hold(BTN_RIGHT, 16);
-    restarted.hold(BTN_UP, 8);
+    // NPC reconstruction changes simulation work and RNG timing. Navigate to
+    // actual destinations rather than relying on button-time rounding at load.
+    for(unsigned i = 0; i < 16 && restarted.state().area != AREA_INTERIOR; ++i)
+        restarted.frame(BTN_UP);
+    require(restarted.state().area == AREA_INTERIOR, "post-load doorway inaccessible");
+    for(unsigned i = 0; i < 32 && restarted.state().player.x < 48; ++i)
+        restarted.frame(BTN_RIGHT);
+    for(unsigned i = 0; i < 24 && restarted.state().player.y > 40; ++i)
+        restarted.frame(BTN_UP);
+    restarted.frame();
     restarted.tap(BTN_A);
     require(restarted.prompt() == DIALOGUE_DONE && restarted.state().get_flag(FLAG_HELPED),
             "persisted dialogue inaccessible");

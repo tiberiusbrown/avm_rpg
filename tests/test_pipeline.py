@@ -46,7 +46,7 @@ class Pipeline(unittest.TestCase):
 
     def test_gate_relocation_has_no_handwritten_changes(self):
         before = export_world(self.root)
-        handwritten = {p: p.read_bytes() for p in (self.root / "src/logic").glob("*")}
+        handwritten = {p: p.read_bytes() for p in (self.root / "src/logic").rglob("*") if p.is_file()}
         self.gate().set("x", "132")  # tile 15 -> 16; chunk 0 -> 1.
         self.write()
         after = export_world(self.root)
@@ -72,6 +72,79 @@ class Pipeline(unittest.TestCase):
         self.assertIn("switch((uint16_t)coord.y * 15 + coord.x)", result["chunk_dispatch.cpp"])
         data = result["map_assets.cpp"].split("OUTDOOR_TILES[] = {", 1)[1].split("};", 1)[0]
         self.assertEqual(len(re.findall(r"\d+", data)), 15 * 31 * 128)
+
+    def test_npc_anchor_moves_across_chunks(self):
+        before = export_world(self.root)
+        self.tree.find(".//object[@name='VillageGuardHome']").set("x", "132")
+        self.write()
+        after = export_world(self.root)
+        self.assertIn("VillageGuardHome{1, 16, 2}", after['map_positions.h'])
+        body = after['chunk_dispatch.cpp'].split('static void run_chunk_1_1_0()', 1)[1].split('\ntemplate <HandlerStage STAGE>', 1)[0]
+        self.assertIn('Handler<positions::VillageGuardHome, STAGE>', body)
+        self.assertNotEqual(before['chunk_dispatch.cpp'], after['chunk_dispatch.cpp'])
+        self.assertEqual((ROOT / 'src/logic/handlers.h').read_bytes(),
+                         (self.root / 'src/logic/handlers.h').read_bytes())
+
+    def test_routes_are_tile_rom_with_generated_ids_and_interior_markers(self):
+        before = export_world(self.root)
+        self.assertIn('CourierWalk = 3', before['npc_routes.h'])
+        self.assertIn('RoutePoint PROGMEM CourierWalk_POINTS', before['npc_routes.cpp'])
+        self.assertIn('{15, 4}', before['npc_routes.cpp'])
+        self.assertIn('ROUTE_ONCE, 6, 1', before['npc_routes.cpp'])
+        route = self.tree.find(".//object[@name='CourierWalk']")
+        self.assertIsNone(route.find("properties/property[@name='route_id']"))
+        # Like location objects, sub-tile offsets select the containing tile.
+        route.set('x', '124.5')
+        self.write()
+        self.assertEqual(before, export_world(self.root))
+        route.set('x', '132')
+        self.write()
+        after = export_world(self.root)
+        self.assertIn('{16, 4}', after['npc_routes.cpp'])
+        self.assertEqual(before['npc_routes.h'], after['npc_routes.h'])
+        self.assertEqual(before['chunk_dispatch.cpp'], after['chunk_dispatch.cpp'])
+        route.set('x', '128')
+        self.fails('inside tile boundaries')
+
+    def test_route_ids_are_automatic_sorted_and_independent_of_object_order(self):
+        before = export_world(self.root)
+        group = self.tree.find("objectgroup[@name='Routes']")
+        group[:] = list(reversed(list(group)))
+        self.write()
+        self.assertEqual(before, export_world(self.root))
+        route = ET.fromstring(ET.tostring(group[0]))
+        route.set('name', 'AddedRoute')
+        group.append(route)
+        self.write()
+        after = export_world(self.root)
+        self.assertIn('AddedRoute = 1', after['npc_routes.h'])
+        self.assertIn('CourierWalk = 4', after['npc_routes.h'])
+        self.assertEqual([1, 2, 3, 4], sorted(map(int, re.findall(r'= (\d+);', after['npc_routes.h']))))
+        self.assertEqual(after, export_world(self.root))
+
+    def test_routes_reject_authored_ids_bad_points_and_counts(self):
+        route = self.tree.find(".//object[@name='CourierWalk']")
+        line = route.find('polyline')
+        original = line.get('points')
+        for points, error in [('0,0', '2..255'), ('0,0 NaN,8', 'finite'),
+                              ('0,0 1000,0', 'map bounds'), ('0,0 4,0', 'inside tile boundaries'),
+                              (' '.join(['0,0'] * 256), '2..255')]:
+            line.set('points', points)
+            self.fails(error)
+        line.set('points', original)
+        ET.SubElement(route.find('properties'), 'property', name='route_id', value='7', type='int')
+        self.fails('exporter-assigned')
+
+    def test_route_byte_tile_coordinates_at_maximum_map_edge(self):
+        self.dimensions(240, 248)
+        route = self.tree.find(".//object[@name='CourierWalk']")
+        route.set('x', '1908')
+        route.set('y', '1972')
+        route.find('polyline').set('points', '0,0 8,8')
+        self.write()
+        result = export_world(self.root)
+        self.assertIn('{238, 246}', result['npc_routes.cpp'])
+        self.assertIn('{239, 247}', result['npc_routes.cpp'])
 
     def test_reject_dimensions(self):
         for w, h in ((248, 248), (256, 248), (241, 8), (16, 249), (16, 256), (0, 8)):
@@ -122,7 +195,7 @@ class Pipeline(unittest.TestCase):
         result = export_world(self.root)
         self.assertIn("uint8_t AREA_OUTDOOR = 1", result["area_ids.h"])
         self.assertNotRegex(result["area_ids.h"], r"uint8_t OUTDOOR =")
-        self.assertNotIn("Npc", "".join(result.values()))
+        self.assertIn("NpcRoute", result["npc_routes.cpp"])
 
     def test_partial_and_fractional_rectangles(self):
         gate = self.gate()
@@ -170,7 +243,8 @@ class Pipeline(unittest.TestCase):
             for obj in ET.parse(path).findall(".//object"):
                 self.assertNotIn("type", obj.attrib)
                 self.assertNotIn("class", obj.attrib)
-                self.assertLessEqual({p.get("name") for p in obj.findall("properties/property")}, {"handler"})
+                self.assertLessEqual({p.get("name") for p in obj.findall("properties/property")},
+                                     {"mode", "pause"} if obj.find("polyline") is not None else {"handler"})
         result = export_world(self.root)
         self.assertNotIn("portal_destination", result["map_assets.cpp"])
         self.assertNotIn("interaction_target", result["chunk_dispatch.cpp"])
@@ -208,7 +282,7 @@ class Pipeline(unittest.TestCase):
         (self.root / "src/logic/handlers.h").unlink()
         result = export_world(self.root)
         defaults = result["handler_defaults.h"]
-        self.assertIn("template <TilePos const& POS, HandlerStage STAGE>", defaults)
+        self.assertIn("template <TilePos POS, HandlerStage STAGE>", defaults)
         self.assertEqual(defaults.count("void pending_action(Tag<POS, STAGE>) {}"), 1)
         for i in range(2):
             self.assertIn(f"Handler<positions::Pending{i}, STAGE>", result["chunk_dispatch.cpp"])

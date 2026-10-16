@@ -28,8 +28,15 @@ offsets, parallax and hidden/translucent layers are unsupported.
 
 ## Uniform point and rectangle objects
 
+These rules apply to Logic/Locations objects. Routes use the separate polyline
+convention in the M1.6 section below.
+
 Put objects in a Logic or Locations layer. Objects have **no type or class**.
 All exported positions are TilePos values containing byte area/X/Y coordinates.
+Handlers and helpers take these as C++20 structural non-type template parameters:
+`template <TilePos POS>`. Generated constants, local constexpr values and inline
+`TilePos{area, x, y}` literals are accepted; equal coordinates select the same
+specialization. No address or linkage of a location object is required.
 The name is optional; when present it must be a globally unique C++ identifier.
 The only optional custom property is `handler`, naming a native function implemented
 in `src/logic/handlers.h`. There are no destination, stable_id, facing, interaction
@@ -72,29 +79,29 @@ and the following infrastructure for each distinct map handler name:
 ```cpp
 namespace handler_impl {
 
-template <TilePos const& POS, HandlerStage STAGE>
+template <TilePos POS, HandlerStage STAGE>
 struct Tag {};
 
-template <TilePos const& POS>
+template <TilePos POS>
 using Gameplay = Tag<POS, STAGE_GAMEPLAY>;
 
-template <TilePos const& POS>
+template <TilePos POS>
 using Tiles = Tag<POS, STAGE_TILES>;
 
-template <TilePos const& POS>
+template <TilePos POS>
 using Dialogue = Tag<POS, STAGE_DIALOGUE>;
 
-template <TilePos const& POS, HandlerStage STAGE>
+template <TilePos POS, HandlerStage STAGE>
 void update_north_gate(Tag<POS, STAGE>) {}
 
-template <TilePos const& POS, HandlerStage STAGE>
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_update_north_gate() {
     update_north_gate(Tag<POS, STAGE>{});
 }
 
 }
 
-template <TilePos const& POS, HandlerStage STAGE>
+template <TilePos POS, HandlerStage STAGE>
 struct Handler {
     void update_north_gate() {
         handler_impl::dispatch_update_north_gate<POS, STAGE>();
@@ -108,13 +115,13 @@ defaults. One stage overload can serve every position using that handler name:
 ```cpp
 namespace handler_impl {
 
-template <TilePos const& POS>
+template <TilePos POS>
 void update_north_gate(Tiles<POS>) {
     if(game.get_flag(FLAG_GATE_OPEN))
         set_tile<POS>(TILE_PATH);
 }
 
-template <TilePos const& POS>
+template <TilePos POS>
 void update_north_gate(Dialogue<POS>) {
     if(player_just_interacted<POS>() &&
        dialogue_ask(F("Toggle the north gate?")))
@@ -186,7 +193,7 @@ All tile helpers accept the tile as a template argument:
 ```cpp
 namespace handler_impl {
 
-template <TilePos const& POS>
+template <TilePos POS>
 void update_house_door(Gameplay<POS>) {
     if(player_is_walking_onto<POS>())
         teleport_player<positions::InteriorArrival>(NORTH);
@@ -242,4 +249,30 @@ player. SDK debugging uses `avm-lldb build/artifacts/rpg.elf`. D-pad moves; face
 the gate, a bridge tile or house lantern and press A. B opens the travel menu.
 Gate/bridge toggle independently; the lantern grants five gold once and remembers
 the answer after save/load. The platform is southeast, and the waystone is east
-of the central path. NPCs and combat remain separate future updates.
+of the central path. Essential NPCs are implemented in M1.6; combat remains deferred.
+
+## Essential NPC anchors and routes (M1.6)
+
+Logic/Locations point and rectangle rules above remain unchanged. NPC anchors
+use centered named point objects with native gameplay handlers, and explicit IDs
+are declared in C++, independently of Tiled object IDs. Moving an anchor across
+chunks updates generated calls automatically.
+
+Routes use a separate Routes object layer with named polylines, optional
+mode=once/loop/reverse and optional integer pause (0..255). There is no authored
+route_id property: the exporter sorts names and assigns transient IDs 1..255.
+Use generated constants (`routes::Name`) in C++; IDs can change when routes are
+added or renamed, and are not saved.
+
+Place each point **inside a tile, normally at its center (8*tx+4,8*ty+4)**. Corners
+and edges are rejected. Each absolute polyline point selects its containing tile
+exactly like a location point. Export emits two-byte tile-coordinate RoutePoint
+arrays and compact descriptors in npc_routes.h/.cpp. Moving a point within its
+tile has no effect. Runtime expands the current waypoint to a pixel target;
+movement stays pixel-based. Paths need 2..255 finite points inside the map, and
+there are at most 255 routes. Routes do not generate chunk handlers. Native
+code chooses their named route; no runtime scripting is added.
+
+See [essential_npcs.md](essential_npcs.md) for full authoring examples, pool
+capacity, collision guarantees and assignment ownership. The native and AVM
+scenarios test once/loop/reverse, pauses and chunk crossing.

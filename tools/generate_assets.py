@@ -1,4 +1,4 @@
-"""Deterministic finite TMX/TSX -> native C++17/AVM program assets."""
+"""Deterministic finite TMX/TSX -> native C++20/AVM program assets."""
 
 import argparse
 import re
@@ -102,10 +102,11 @@ class Map:
     data: list
     objects: list
     spawn: str
+    routes: list
 
 
 def load_world(root):
-    maps, metadata, names = [], {}, {}
+    maps, metadata, names, route_names = [], {}, {}, set()
     for path in sorted((root / "assets/maps").glob("*.tmx")):
         node = ET.parse(path).getroot()
         require(node.tag == "map" and node.get("orientation") == "orthogonal" and
@@ -131,7 +132,7 @@ def load_world(root):
                 old = metadata.get(tile["runtime"])
                 require(old is None or old == tile, path, "conflicting runtime tile IDs across tilesets")
                 metadata[tile["runtime"]] = tile
-        data, objects, layers = [255] * (w * h), [], 0
+        data, objects, routes, layers = [255] * (w * h), [], [], 0
         for child in node:
             require(child.tag in ("properties", "tileset", "layer", "objectgroup"), path,
                     f"unsupported map element {child.tag}")
@@ -160,8 +161,43 @@ def load_world(root):
                         data[index] = gids[gid]
                 layers += 1
                 continue
-            require(child.get("name") in ("Logic", "Locations"), path, "name object layers Logic or Locations")
+            require(child.get("name") in ("Logic", "Locations", "Routes"), path, "name object layers Logic, Locations or Routes")
             for obj in child.findall("object"):
+                if child.get("name") == "Routes":
+                    where = f'{path}:{obj.get("name")}'
+                    name = identifier(obj.get("name"), where)
+                    props = properties(obj, where)
+                    require(set(props) <= {"mode", "pause"}, where, "route properties: mode, pause; route_id is exporter-assigned")
+                    mode, pause = props.get("mode", "once"), props.get("pause", 8)
+                    require(name not in route_names, where, "duplicate route name")
+                    require(mode in ("once", "loop", "reverse") and type(pause) is int and 0 <= pause <= 255,
+                            where, "invalid route mode or pause")
+                    line = obj.find("polyline")
+                    require(line is not None and not obj.get("type") and not obj.get("class") and
+                            not obj.get("gid") and not obj.get("template") and
+                            float(obj.get("rotation", "0")) == 0 and
+                            all(c.tag in ("properties", "polyline") for c in obj), where, "routes must be unrotated polylines")
+                    try:
+                        ox, oy = Decimal(obj.get("x", "0")), Decimal(obj.get("y", "0"))
+                    except InvalidOperation:
+                        raise ValueError(f"{where}: invalid route origin") from None
+                    require(ox.is_finite() and oy.is_finite(), where, "route origin must be finite")
+                    points = []
+                    for pair in line.get("points", "").split():
+                        try:
+                            dx, dy = map(Decimal, pair.split(","))
+                        except (ValueError, InvalidOperation):
+                            raise ValueError(f"{where}: invalid route point") from None
+                        require(dx.is_finite() and dy.is_finite(), where, "route points must be finite")
+                        x, y = ox + dx, oy + dy
+                        require(0 <= x < w * 8 and 0 <= y < h * 8, where, "route point out of map bounds")
+                        require(x % 8 != 0 and y % 8 != 0, where, "route markers must be inside tile boundaries, not on corners/edges")
+                        # Like location objects, each marker selects its containing tile.
+                        points.append((int(x // 8), int(y // 8)))
+                    require(2 <= len(points) <= 255, where, "routes need 2..255 waypoints")
+                    routes.append(dict(name=name, mode=mode, pause=pause, points=points))
+                    route_names.add(name)
+                    continue
                 name = obj.get("name") or None
                 if name is not None:
                     identifier(name, path)
@@ -207,8 +243,13 @@ def load_world(root):
                 objects.append(record)
         require(layers > 0, path, "at least one tile layer required")
         maps.append(Map(area, symbol, w, h, (w + 15) // 16, (h + 7) // 8, data,
-                        sorted(objects, key=lambda o: (o["name"] is None, o["name"] or "", o["index"])), p.get("spawn")))
+                        sorted(objects, key=lambda o: (o["name"] is None, o["name"] or "", o["index"])), p.get("spawn"),
+                        sorted(routes, key=lambda r: r['name'])))
     require(maps, root, "no maps found in assets/maps")
+    all_routes = sorted((route for m in maps for route in m.routes), key=lambda route: route['name'])
+    require(len(all_routes) <= 255, root, "at most 255 routes are supported")
+    for route_id, route in enumerate(all_routes, 1):
+        route['id'] = route_id
     require(set(metadata) == set(range(len(metadata))) and len({t["symbol"] for t in metadata.values()}) == len(metadata),
             root, "runtime tile IDs must be dense from zero; tile symbols must be unique")
     symbols = set()
@@ -261,6 +302,21 @@ def export_world(root=ROOT):
         if o['rectangle']:
             positions.append(f'inline constexpr TileRegion {name}Region' + '{{' + f'{o["area"]}, {o["tx"]}, {o["ty"]}' + '}, ' + f'{o["rw"]}, {o["rh"]}' + '};')
     positions.append('}')
+    route_header = [prologue, '#pragma once', '#include "npc.h"', 'namespace routes {']
+    route_source = [prologue, '#include "npc_routes.h"']
+    for m in maps:
+        for route in m.routes:
+            name = route['name']
+            route_header.append(f'inline constexpr uint8_t {name} = {route["id"]};')
+            route_source.append(f'static constexpr RoutePoint PROGMEM {name}_POINTS[] = {{')
+            route_source += [f'    {{{x}, {y}}},' for x, y in route['points']]
+            route_source += ['};', f'static constexpr NpcRoute PROGMEM {name}_ROUTE' + '{' +
+                             f'{name}_POINTS, {len(route["points"])}, ROUTE_{route["mode"].upper()}, {route["pause"]}, {m.area}' + '};']
+    route_header.append('}')
+    route_source += ['NpcRoute const PROGMEM* npc_route(uint8_t id) {', '    switch(id) {']
+    for m in maps:
+        route_source += [f'        case {r["id"]}: return &{r["name"]}_ROUTE;' for r in m.routes]
+    route_source += ['        default: return nullptr;', '    }', '}']
     ids = [prologue, '#pragma once', '#include <stdint.h>']
     ids += [f'inline constexpr uint8_t TILE_{t["symbol"]} = {i};' for i, t in sorted(metadata.items())]
     ids.append(f'inline constexpr uint8_t TILE_COUNT = {len(metadata)};')
@@ -308,15 +364,15 @@ def export_world(root=ROOT):
         defaults.append('}')
     handler_names = sorted({o['handler'] for m in maps for o in m.objects if o['handler']})
     defaults += ['namespace handler_impl {',
-                 'template <TilePos const& POS, HandlerStage STAGE> struct Tag {};']
+                 'template <TilePos POS, HandlerStage STAGE> struct Tag {};']
     for name, stage in [('Gameplay', 'STAGE_GAMEPLAY'), ('Tiles', 'STAGE_TILES'), ('Dialogue', 'STAGE_DIALOGUE')]:
-        defaults += [f'template <TilePos const& POS> using {name} = Tag<POS, {stage}>;']
+        defaults += [f'template <TilePos POS> using {name} = Tag<POS, {stage}>;']
     for name in handler_names:
-        defaults += ['template <TilePos const& POS, HandlerStage STAGE>', f'void {name}(Tag<POS, STAGE>) {{}}']
+        defaults += ['template <TilePos POS, HandlerStage STAGE>', f'void {name}(Tag<POS, STAGE>) {{}}']
     for name in handler_names:
-        defaults += ['template <TilePos const& POS, HandlerStage STAGE>', f'void dispatch_{name}() {{',
+        defaults += ['template <TilePos POS, HandlerStage STAGE>', f'void dispatch_{name}() {{',
                      f'    {name}(Tag<POS, STAGE>{{}});', '}']
-    defaults += ['}', 'template <TilePos const& POS, HandlerStage STAGE>', 'struct Handler {']
+    defaults += ['}', 'template <TilePos POS, HandlerStage STAGE>', 'struct Handler {']
     for name in handler_names:
         defaults += [f'    void {name}() {{', f'        handler_impl::dispatch_{name}<POS, STAGE>();', '    }']
     defaults.append('};')
@@ -355,7 +411,8 @@ def export_world(root=ROOT):
                  'template void run_chunk<STAGE_DIALOGUE>(ChunkCoord);']
     return {name: '\n'.join(lines) + '\n' for name, lines in
             [('area_ids.h', areas), ('map_positions.h', positions), ('tile_ids.h', ids), ('world_assets.h', header),
-             ('handler_defaults.h', defaults), ('map_assets.cpp', assets), ('chunk_dispatch.cpp', dispatch)]}
+             ('handler_defaults.h', defaults), ('map_assets.cpp', assets), ('chunk_dispatch.cpp', dispatch),
+             ('npc_routes.h', route_header), ('npc_routes.cpp', route_source)]}
 
 
 def read_sprite_sheet(name, columns, rows, root=ROOT):

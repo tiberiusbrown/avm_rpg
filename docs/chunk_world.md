@@ -58,7 +58,7 @@ from assets and are not serialized.
    only from the cache, then the player with the fixed camera, and display/clear
    the framebuffer. The following update follows the new player position.
 
-The exporter emits `Handler<TilePos const& POS, HandlerStage STAGE>` with forwarding
+The exporter emits `Handler<TilePos POS, HandlerStage STAGE>` with forwarding
 methods for each authored handler name. `HandlerStage` has STAGE_GAMEPLAY,
 STAGE_TILES and STAGE_DIALOGUE. Generated `handler_impl::Tag<POS, STAGE>` types and
 Gameplay/Tiles/Dialogue aliases select ordinary handwritten overloads. Generated
@@ -160,8 +160,7 @@ logical region and the player's foot-center tile `(x+4,y+6)/8`. Right and bottom
 edges are exclusive. The waystone and tile-entry helper share this membership rule. Facing interactions
 check exactly one adjacent tile. The position-templated helpers player_is_walking_onto<POS>,
 player_just_interacted<POS> and teleport_player<TARGET> are free helpers in chunk.h. The A edge is
-consumed at the first matching call, with no persistent object identity. NPC
-content, runtime state, collisions and stress targets are deferred.
+consumed at the first matching call, with no persistent object identity. Essential NPCs extend these stages as described in [essential_npcs.md](essential_npcs.md).
 
 Flags are explicit stable bit indices declared in `src/flags.h`; append flags
 before `FLAG_COUNT`. `FlagSet<FLAG_COUNT>` uses exactly ceil(FLAG_COUNT/8) bytes,
@@ -174,7 +173,7 @@ little-endian. CRC-16/CCITT-FALSE covers the record before its trailing checksum
 The layout is magic[2], version[1], length[1], area[1], facing[1], x[2], y[2],
 hp[1], max_hp[1], level[1], reserved-zero[1], gold[2], rng[2], flag_count[2],
 flag bytes, zero padding, CRC[2]. Record size is max(24, 22+flag_bytes).
-The current four flags need one byte and the record remains 24 bytes.
+The current eight flags need one byte and the record remains 24 bytes.
 
 The decoder accepts valid version-1 and version-2 24-byte records. It maps the
 old lantern/gate/bridge/waystone masks to indexed flags and discards the retired
@@ -191,5 +190,18 @@ Cache and animation time are not serialized. Transient time restarts at zero,
 giving periodic terrain a deterministic load phase.
 
 The machine contracts in AVM `docs/arch.md`, `docs/stack-analysis.md` and
-`docs/profiling.md` are unchanged. See `m1_5_measurements.md` for actual static
+`docs/profiling.md` are unchanged. See `m1_6_measurements.md` for actual static
 RAM, complete stack bounds and emulator cycle evidence.
+
+## M1.6 essential actor integration
+
+After the complete tile stage and player overlap repair, reconcile requests, repair
+invalid NPC terrain positions and update each cached live NPC once. NPC targeting
+consumes fresh A before STAGE_DIALOGUE; movement then checks terrain and NPC bodies.
+A frames freeze NPC simulation and time. Existing visible actors retain their live
+positions without needing repeated anchor requests. A clipped actor whose feet
+leave the cache pauses until cached again or fully offscreen. Teleports clear the
+old pool and retain destination-tiles-only ordering; destination NPC requests run
+on the next ordinary update. world_enter/load admits actors without moving them
+or consuming RNG. The cache, byte coordinate contracts and stage dispatch remain
+unchanged. See [NPC ownership and travel](essential_npcs.md).

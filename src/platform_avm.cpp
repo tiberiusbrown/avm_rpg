@@ -14,7 +14,7 @@ extern "C" __attribute__((noinline)) void rpg_frame_begin() {
 
 extern "C" __attribute__((noinline)) void rpg_frame_end() {
     frame_marker = 0;
-    ++frame_serial;
+    frame_serial = (uint16_t)(frame_serial + 1);
 }
 
 extern "C" __attribute__((noinline)) void rpg_render_begin() {

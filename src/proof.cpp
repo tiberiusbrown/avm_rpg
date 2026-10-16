@@ -55,5 +55,5 @@ extern "C" void loop() {
     proof_present();
     proof_marker = 3;
     proof_marker = 0;
-    ++proof_serial;
+    proof_serial = (uint16_t)(proof_serial + 1);
 }

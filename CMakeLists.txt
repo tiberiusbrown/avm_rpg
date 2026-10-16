@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(avm_rpg LANGUAGES CXX)
 include(CTest)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -15,7 +15,7 @@ set(AVM_SOURCE_ROOT "" CACHE PATH "Optional AVM source checkout for full-device 
 set(AVM_BUILD_ROOT "" CACHE PATH "Matching RelWithDebInfo AVM build")
 if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
     add_executable(rpg_device_tests tests/device_tests.cpp)
-    target_compile_features(rpg_device_tests PRIVATE cxx_std_17)
+    target_compile_features(rpg_device_tests PRIVATE cxx_std_20)
     target_include_directories(rpg_device_tests PRIVATE src generated
         "${AVM_SOURCE_ROOT}/deps/Ardens/src"
         "${AVM_SOURCE_ROOT}/deps/Ardens/deps"
@@ -35,9 +35,11 @@ if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
 endif()
 set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
-set(RULES src/game.cpp src/world.cpp src/save.cpp
-    generated/map_assets.cpp generated/chunk_dispatch.cpp)
+file(GLOB_RECURSE LOGIC_HEADERS CONFIGURE_DEPENDS src/logic/*.h src/logic/*.inc)
+set(RULES src/game.cpp src/world.cpp src/save.cpp src/npc.cpp src/logic/npc_logic.cpp
+    generated/map_assets.cpp generated/chunk_dispatch.cpp generated/npc_routes.cpp)
 add_library(rpg_rules STATIC ${RULES})
+target_compile_features(rpg_rules PUBLIC cxx_std_20)
 target_include_directories(rpg_rules PUBLIC src generated)
 if(MSVC)
     target_compile_options(rpg_rules PRIVATE /W4)
@@ -48,6 +50,12 @@ add_executable(rpg_tests tests/test_core.cpp)
 target_link_libraries(rpg_tests PRIVATE rpg_rules)
 target_include_directories(rpg_tests PRIVATE generated)
 add_test(NAME core COMMAND rpg_tests)
+add_executable(rpg_npc_tests tests/test_npc.cpp)
+target_link_libraries(rpg_npc_tests PRIVATE rpg_rules)
+add_test(NAME essential_npcs COMMAND rpg_npc_tests)
+add_executable(rpg_npc_hook_tests tests/test_npc_hooks.cpp)
+target_link_libraries(rpg_npc_hook_tests PRIVATE rpg_rules)
+add_test(NAME npc_lifecycle_hooks COMMAND rpg_npc_hook_tests)
 add_executable(rpg_flag_tests tests/test_flags.cpp)
 target_include_directories(rpg_flag_tests PRIVATE src)
 add_test(NAME flags COMMAND rpg_flag_tests)
@@ -60,7 +68,7 @@ add_test(NAME generated_assets COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOU
 add_test(NAME content COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_content.py)
 file(GLOB_RECURSE ASSET_INPUTS CONFIGURE_DEPENDS assets/*.tmx assets/*.tsx assets_src/*.png)
 set(ASSET_OUTPUTS)
-foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp chunk_dispatch.cpp sprites.cpp)
+foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp chunk_dispatch.cpp npc_routes.h npc_routes.cpp sprites.cpp)
     list(APPEND ASSET_OUTPUTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/${asset}")
 endforeach()
 add_custom_command(OUTPUT ${ASSET_OUTPUTS}
@@ -116,10 +124,10 @@ if(RPG_BUILD_GUEST)
             set(defines -DRPG_AVM=1)
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"
-                COMMAND "${AVM_CLANG}" -std=c++17 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
+                COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/logic/handlers.h ${ASSET_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h ${LOGIC_HEADERS} tests/npc_scenarios.h ${ASSET_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
@@ -144,13 +152,14 @@ if(RPG_BUILD_GUEST)
     endfunction()
     guest(m0_proof src/proof.cpp)
     guest(m15_probe ${RULES} tests/world_probe.cpp)
+    guest(m16_probe ${RULES} tests/npc_probe.cpp)
     set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
     guest(rpg ${RULES} ${PLATFORM})
     if(EXISTS "${AVM_LLDB}")
         add_custom_target(rpg_integration
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"
                 --sdk "${AVM_SDK_ROOT}" --build "${CMAKE_CURRENT_BINARY_DIR}"
-            DEPENDS rpg m0_proof m15_probe VERBATIM)
+            DEPENDS rpg m0_proof m15_probe m16_probe VERBATIM)
         if(TARGET rpg_device_tests)
             add_dependencies(rpg_integration rpg_device_tests)
         endif()

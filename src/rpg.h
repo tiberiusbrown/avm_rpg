@@ -53,8 +53,11 @@ enum DIALOGUE_PROMPT : uint8_t { DIALOGUE_CLOSED, DIALOGUE_MORE, DIALOGUE_DONE, 
 
 struct Actor {
     uint16_t x, y;
-    uint8_t facing, walking;
+    DIRECTION facing;
+    uint8_t walking;
 };
+
+#include "npc_types.h"
 
 struct Camera {
     uint16_t x, y;
@@ -70,6 +73,7 @@ struct Game {
     MapDimensions dimensions; // Active area dimensions, cached on entry or teleport.
     TilePos previous_player_tile;
     bool can_interact;
+    NpcPool npcs;
 
     bool get_flag(FLAG flag) const {
         return flags.get_flag(flag);
@@ -89,7 +93,7 @@ struct Game {
 
     bool player_is_on_tile(TilePos tile) const;
 
-    template <TilePos const& POS> bool player_is_on_tile() const {
+    template <TilePos POS> bool player_is_on_tile() const {
         return POS.area == area && dimensions.pixel_bounds(player.x, player.y) &&
                ((player.x + 4) >> 3) == POS.x && ((player.y + 6) >> 3) == POS.y;
     }
@@ -122,12 +126,12 @@ bool tile_portal(uint8_t tile);
 uint8_t cached_tile(TilePos p);
 bool terrain_clear(uint16_t x, uint16_t y);
 void reload_tile_cache();
-bool update_visible_world(uint8_t pressed = 0);
-void world_enter(uint8_t area, uint16_t x, uint16_t y, uint8_t facing);
+bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
+void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);
 uint16_t rng_next();
 void game_new();
 void game_update(uint8_t held, uint8_t pressed = 0);
-bool actor_move(Actor* actor, uint8_t dir, uint8_t pixels);
+bool actor_move(Actor* actor, DIRECTION dir, uint8_t pixels);
 Camera game_camera();
 // Block until acknowledged (true) or dismissed with B (false).
 bool dialogue_show(char const PROGMEM* words);

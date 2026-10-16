@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <type_traits>
 
 static unsigned checks;
 #define CHECK(test)                                                                                \
@@ -27,7 +28,7 @@ static TileCache expected_dialogue_cache;
 bool dialogue_ask(char const PROGMEM*) {
     if(verify_dialogue_cache) {
         CHECK(chunk_trace_count[STAGE_TILES] == 4);
-        CHECK(feature_trace_count[STAGE_TILES] == 10);
+        CHECK(feature_trace_count[STAGE_TILES] == 16);
         CHECK(!memcmp(&expected_dialogue_cache, &game.cache, sizeof(game.cache)));
     }
     return true;
@@ -77,7 +78,7 @@ static void mutations_and_frames() {
     for(unsigned i = 0; i < 4; ++i)
         CHECK(chunk_trace[STAGE_GAMEPLAY][i] == i && chunk_trace[STAGE_TILES][i] == i);
     unsigned features = feature_trace_count[STAGE_GAMEPLAY];
-    CHECK(features == 10); // Gate, six bridge cells, door, two waystone cells.
+    CHECK(features == 16); // Gate, six bridge cells, door, two waystone cells.
     game_update(0);
     CHECK(chunk_trace_count[STAGE_GAMEPLAY] == 4 && chunk_trace_count[STAGE_TILES] == 4 &&
           feature_trace_count[STAGE_GAMEPLAY] == features &&
@@ -107,9 +108,9 @@ static void mutations_and_frames() {
     CHECK(game.cache.origin_tx == 16);
     CHECK(cached_tile({AREA_OUTDOOR, 15, 7}) == TILE_OUTSIDE);
     CHECK(game.cache.tiles[(7 - game.cache.origin_ty) * 17] == TILE_PATH);
-    CHECK(feature_trace_count[STAGE_GAMEPLAY] == 5 &&
+    CHECK(feature_trace_count[STAGE_GAMEPLAY] == 7 &&
           feature_trace_count[STAGE_TILES] ==
-              5); // Four bridge cells and one waystone cell in the live chunks.
+              7); // Four bridge cells and one waystone cell in the live chunks.
     game.ticks = 16;
     world_enter(AREA_OUTDOOR, 208, 144, NORTH);
     CHECK(tile_solid(cached_tile(positions::TidalPlatform)));
@@ -187,6 +188,10 @@ static void regions() {
 }
 
 inline constexpr TilePos TEST_LEFT{AREA_OUTDOOR, 4, 3};
+inline constexpr TilePos TEST_LEFT_COPY = TEST_LEFT;
+static_assert(std::is_same_v<handler_impl::Tiles<TEST_LEFT>, handler_impl::Tiles<TEST_LEFT_COPY>>);
+static_assert(std::is_same_v<handler_impl::Tiles<TEST_LEFT>,
+                             handler_impl::Tiles<TilePos{AREA_OUTDOOR, 4, 3}>>);
 inline constexpr TilePos TEST_RIGHT{AREA_OUTDOOR, 8, 3};
 inline constexpr TilePos TEST_INTERIOR_RIGHT{AREA_INTERIOR, 16, 7};
 inline constexpr TilePos TEST_INTERIOR_BOTTOM{AREA_INTERIOR, 15, 10};
@@ -303,7 +308,7 @@ inline constexpr TilePos TEST_WEST{AREA_OUTDOOR, 7, 10};
 inline constexpr TilePos TEST_BAD_AREA{0, 2, 7};
 inline constexpr TilePos TEST_BAD_X{AREA_INTERIOR, 16, 0};
 
-template <TilePos const& TARGET> void check_facing(uint8_t facing) {
+template <TilePos TARGET> void check_facing(DIRECTION facing) {
     game.player.facing = facing;
     frame_pressed = BTN_A;
     CHECK(!player_just_interacted<TEST_OTHER_AREA>());
@@ -319,6 +324,9 @@ template <TilePos const& TARGET> void check_facing(uint8_t facing) {
 static void chunk_events() {
     game_new();
     world_enter(AREA_OUTDOOR, 64, 80, NORTH);
+    constexpr TilePos local_tile{AREA_OUTDOOR, 8, 10};
+    CHECK(game.player_is_on_tile<local_tile>());
+    CHECK((game.player_is_on_tile<TilePos{AREA_OUTDOOR, 8, 10}>()));
     frame_pressed = BTN_A;
     check_facing<TEST_NORTH>(NORTH);
     check_facing<TEST_EAST>(EAST);
@@ -406,8 +414,8 @@ static void three_stage_dispatch() {
     game.previous_player_tile = {AREA_OUTDOOR, 12, 6};
     game_update(0);
     CHECK(teleported && game.area == AREA_INTERIOR && !game.player.walking);
-    CHECK(chunk_trace_count[STAGE_GAMEPLAY] == 1 && feature_trace_count[STAGE_GAMEPLAY] == 2);
-    CHECK(chunk_trace_count[STAGE_TILES] == 2 && feature_trace_count[STAGE_TILES] == 2);
+    CHECK(chunk_trace_count[STAGE_GAMEPLAY] == 1 && feature_trace_count[STAGE_GAMEPLAY] == 4);
+    CHECK(chunk_trace_count[STAGE_TILES] == 2 && feature_trace_count[STAGE_TILES] == 3);
     CHECK(chunk_trace_count[STAGE_DIALOGUE] == 0);
     CHECK(!game.get_flag(FLAG_HELPED) && !frame_pressed);
     game_update(0);

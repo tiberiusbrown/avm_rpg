@@ -1,9 +1,9 @@
 # M0/M1 performance evidence
 
-The measurements below are retained historical evidence. Current M1.5 resource,
-stage-cost and full-device results are in [m1_5_measurements.md](m1_5_measurements.md)
-and [m1_5_evidence.json](m1_5_evidence.json). Reproduce them with the commands in
-[tiled_pipeline.md](tiled_pipeline.md). Current measurements exclude NPCs, which are deferred to a separate update.
+The measurements below are retained historical evidence. Current M1.6 resource,
+stage-cost and full-device results are in [m1_6_measurements.md](m1_6_measurements.md)
+and [m1_6_evidence.json](m1_6_evidence.json). Reproduce them with the commands in
+[tiled_pipeline.md](tiled_pipeline.md). Current measurements include eight essential actors, steering and corridor passage.
 
 Measured 2026-10-15 on Windows x64; MSVC 19.51.36260.0; Ninja; RelWithDebInfo. Exact input schedules,
 ELF/image/interpreter hashes, section sizes, source fingerprint and native test
@@ -28,7 +28,7 @@ and all 12 NPC slots are reserved even in the normal build. Host Game is 124
 bytes; no host sizeof value is used as guest resource evidence. No heap exists
 in guest rules. M1 leaves 869 static bytes and 84 stack bytes of margin.
 
-All game rules and native C++ tests use C++17. Guest full LTO specializes the
+All game rules and native C++ tests use C++20. Guest full LTO specializes the
 shared Game references to the single global object: game_new and save_decode
 retain no arguments, world_enter retains area/position/facing, and position_clear
 retains position/actor-ignore values. Other rules are inlined. Each link saves

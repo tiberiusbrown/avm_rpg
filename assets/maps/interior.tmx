@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="16" height="10" tilewidth="8" tileheight="8" infinite="0" nextobjectid="101">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="16" height="10" tilewidth="8" tileheight="8" infinite="0" nextobjectid="102" nextlayerid="3">
  <properties>
   <property name="area_id" value="2" type="int" />
   <property name="symbol" value="INTERIOR" type="string" />
@@ -35,6 +35,12 @@
     <property name="handler" value="update_lantern" />
    </properties>
    <point />
+  </object>
+  <object name="CastleGuardPost" x="100" y="20" id="101">
+   <point />
+   <properties>
+    <property name="handler" value="update_castle_guard" />
+   </properties>
   </object>
  </objectgroup>
 </map>

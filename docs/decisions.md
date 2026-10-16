@@ -34,11 +34,13 @@ or dedup table. All three stages share one generated ordered handler list. Overl
 handlers execute in that order; persistent guards protect shared rewards.
 Global `teleported` ends outgoing gameplay; destination tiles still all run.
 
-NPC content and runtime are deferred to a separate update. Ordinary chunk
+M1.6 essential NPC ownership and implementation are documented in [essential_npcs.md](essential_npcs.md). Ordinary chunk
 handlers retain the lantern choice, gate/bridge controls and paired teleports.
 Map objects carry optional names and native handler references, with no types.
-All coordinates are TilePos values. C++17 reference template parameters bind
-each tile; named rectangles also retain optional contains-query metadata.
+All coordinates are TilePos values. C++20 structural non-type template parameters
+bind each tile by value; named rectangles also retain optional contains-query metadata.
+Equal area/X/Y values share a specialization, and inline or local constexpr
+TilePos arguments do not require an exported object's identity or linkage.
 Unnamed handlers use private constexpr positions with no public location names. Walking-entry, facing-A and
 teleport helpers replace exported portal routing and interaction registries. Point markers
 are centered; tile regions include all tiles partially overlapped by a rectangle.
@@ -48,7 +50,7 @@ Indexed quest flags use a bitset sized by FLAG_COUNT, with getter/setter/clearer
 toggler methods; player region checks share Game::player_is_in_region. Save
 version 3 serializes the count and packed bytes and migrates validated v1/v2
 records, dropping the retired NPC flag. The tile cache and timer are never saved.
-See current [measurements](m1_5_measurements.md) for resource proofs and margins.
+See current [measurements](m1_6_measurements.md) for resource proofs and margins.
 
 Gameplay uses one unconditional `Game game`, defined in game.cpp and declared in
 rpg.h, in native and AVM builds. Engine, screen, render and save functions access
@@ -188,3 +190,33 @@ glyph advances allow more text within the 128-pixel display; descenders and a
 seven-pixel line height preserve readability. Dialogue measures chunks with the
 runtime text renderer and reads its line height from the SDK font. There is no
 copied font-metrics fixture or native test for authored dialogue fit.
+
+## M1.6 essential character decisions
+
+Stable IDs select PROGMEM definitions; quest flags derive canonical named placement
+even when destination chunks are offscreen. Native generated chunk handlers only
+request admission. Eight 18-byte live records preserve physical state across
+repeated frames and chunk crossings. Visible incumbents are retained; requests
+prioritize definition priority then ID, with explicit saturating overflow evidence.
+
+Use authored tile-coordinate polyline routes with exporter-assigned named IDs and two-axis steering with bounded stuck
+time. Finish dispatched courier travel logically when it leaves view; defer visible
+inter-area guard relocation until offscreen. Retain transient live pixels only in RAM.
+Four appended quest flags (relocation, arrival, absence and dispatch) fit the
+existing save byte/version/24-byte record. Saving a dispatched journey completes
+it logically at the destination on reconstruction.
+
+Preserve terrain authority and the 17x9 cache. After eight push frames, check two
+short player walkaround lanes. If either is clear, the NPC holds its position and
+ordinary collision. Otherwise plan a side step and animate one pixel per update;
+if no step is safe or it becomes blocked, allow only that player/NPC relationship
+to overlap until separation. This guarantees progress without immediate jumping.
+Story barriers use terrain/quest logic. Character definitions, placement, initial
+behavior, dialogue and lifecycle handlers belong in `src/logic/npcs`. A single
+native roster produces direct identity dispatch without callbacks stored in RAM.
+The engine reports typed movement events and retirement reasons; it retains
+generic movement, targeting and input consumption. Restore hooks resolve durable
+quest state after pool reconstruction, including saves with no live actor.
+No enemy, ambient spawning, general pathfinding or scripting systems are introduced.
+Current measurements and exact commands are in
+[m1_6_measurements.md](m1_6_measurements.md).

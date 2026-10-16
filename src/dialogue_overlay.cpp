@@ -7,7 +7,7 @@ static constexpr uint8_t LEFT = 6, RIGHT = 122, FIRST_LINE = 39, LAST_LINE = 53;
 static uint8_t dialogue_x, dialogue_y;
 
 // Exposed for debugger/device QA; no dialogue state lives in Game or its save.
-volatile uint8_t dialogue_prompt;
+volatile DIALOGUE_PROMPT dialogue_prompt;
 
 static bool separator(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
@@ -34,7 +34,7 @@ static void close_overlay() {
     avm_display(true);
 }
 
-static bool wait_for_input(uint8_t prompt) {
+static bool wait_for_input(DIALOGUE_PROMPT prompt) {
     avm_draw_text(LEFT, 62,
                   prompt == DIALOGUE_MORE     ? F("A more / B leave")
                   : prompt == DIALOGUE_CHOICE ? F("A yes / B no")

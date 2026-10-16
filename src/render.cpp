@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "tile_ids.h"
+#include "npc.h"
 
 #include <avm.h>
 
@@ -26,6 +27,15 @@ void rpg_render_world() {
     }
 
     avm_set_sprite(ACTOR_SPRITES);
+    for(auto const& n : game.npcs.actors) {
+        if(!n.id || !npc_visible(n.actor.x, n.actor.y))
+            continue;
+        int16_t x = (int16_t)n.actor.x - (int16_t)c.x;
+        int16_t y = (int16_t)n.actor.y - (int16_t)c.y;
+        avm_draw_plus_mask(x, y,
+                           n.actor.facing * 2 + (n.actor.walking ? ((game.ticks >> 2) & 1) : 0));
+        avm_draw_filled_rect_white(x + 2, y, 4, 1);
+    }
     avm_draw_plus_mask(
         (int16_t)game.player.x - (int16_t)c.x, (int16_t)game.player.y - (int16_t)c.y,
         (uint16_t)(game.player.facing * 2 + (game.player.walking ? ((game.ticks >> 2) & 1) : 0)));
@@ -36,7 +46,7 @@ void rpg_render_world() {
 
 void render_title(bool can_continue, uint8_t selection) {
     avm_draw_text(14, 12, F("AVM / WAYFARER"));
-    avm_draw_text(14, 26, F("M1.5 chunk world"));
+    avm_draw_text(14, 26, F("M1.6 essential NPCs"));
 
     avm_draw_text(22, 40, F("New game"));
     avm_draw_text(22, 49, can_continue ? F("Continue") : F("No valid save"));

@@ -112,14 +112,17 @@ def main():
         "blank M0 framebuffer"
     )
     measurements = []
-    output = lldb(sdk, artifacts / "m15_probe.elf", [
-        "breakpoint set --name probe_done", "run", "expr (int)probe_checks",
-        "expr (int)probe_failure"], work / "m15-probe.log")
-    values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
-    assert len(values) == 2 and values[0] >= 32 and values[1] == 0, f"M1.5 guest probe: {values}"
+    guest_checks = {}
+    for name, minimum in [("m15_probe", 32), ("m16_probe", 4000)]:
+        output = lldb(sdk, artifacts / f"{name}.elf", [
+            "breakpoint set --name probe_done", "run", "expr (int)probe_checks",
+            "expr (int)probe_failure"], work / f"{name}.log")
+        values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
+        assert len(values) == 2 and values[0] >= minimum and values[1] == 0, f"{name}: {values}"
+        guest_checks[name] = values[0]
     device = build / ("rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests")
     if device.exists():
-        for name, mode in [("m0_proof", "proof"), ("rpg", "normal"), ("rpg", "m15")]:
+        for name, mode in [("m0_proof", "proof"), ("rpg", "normal"), ("rpg", "m15"), ("rpg", "npc")]:
             refs = symbols(artifacts / f"{name}.elf")
             addresses = (
                 [0, refs["proof_marker"]["address"], refs["proof_serial"]["address"]]
@@ -178,11 +181,11 @@ def main():
         "procedural_screen_calls": True,
         "m0_execution_and_drawing": True,
         "full_device": device.exists(),
-        "m15_guest_checks": values[0],
+        "guest_checks": guest_checks,
         "measurements": measurements,
         "elf_sha256": {
             name: hashlib.sha256((artifacts / f"{name}.elf").read_bytes()).hexdigest()
-            for name in ["m0_proof", "rpg", "m15_probe"]
+            for name in ["m0_proof", "rpg", "m15_probe", "m16_probe"]
         },
     }
     (work / "results.json").write_text(json.dumps(report, indent=2) + "\n")

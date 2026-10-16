@@ -12,12 +12,12 @@ static uint8_t record[SAVE_BYTES];
 static volatile uint16_t probe_dialogues, probe_choices;
 
 bool dialogue_show(char const PROGMEM*) {
-    ++probe_dialogues;
+    probe_dialogues = (uint16_t)(probe_dialogues + 1);
     return true;
 }
 
 bool dialogue_ask(char const PROGMEM*) {
-    ++probe_choices;
+    probe_choices = (uint16_t)(probe_choices + 1);
     return true;
 }
 
@@ -37,7 +37,7 @@ static volatile uint8_t edge_x = 239, edge_y = 247;
 static volatile uint16_t wide_flag = 36;
 
 static void check(bool value, uint16_t line) {
-    ++probe_checks;
+    probe_checks = (uint16_t)(probe_checks + 1);
     if(!value && !probe_failure)
         probe_failure = line;
 }

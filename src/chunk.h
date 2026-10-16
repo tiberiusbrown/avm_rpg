@@ -2,6 +2,7 @@
 #define CHUNK_H
 
 #include "rpg.h"
+#include "npc.h"
 
 enum HandlerStage : uint8_t { STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE };
 
@@ -11,7 +12,7 @@ extern bool teleported;
 
 void set_tile(TilePos pos, uint8_t tile);
 
-template <TilePos const& POS> void set_tile(uint8_t tile) {
+template <TilePos POS> void set_tile(uint8_t tile) {
     if(POS.area != game.area || POS.x >= game.dimensions.width_tiles ||
        POS.y >= game.dimensions.height_tiles)
         return;
@@ -21,13 +22,13 @@ template <TilePos const& POS> void set_tile(uint8_t tile) {
         game.cache.tiles[y * CACHE_WIDTH + x] = tile;
 }
 
-template <TilePos const& POS> bool player_is_walking_onto() {
+template <TilePos POS> bool player_is_walking_onto() {
     return game.player.walking && game.player_is_on_tile<POS>() &&
            (game.previous_player_tile.area != POS.area || game.previous_player_tile.x != POS.x ||
             game.previous_player_tile.y != POS.y);
 }
 
-template <TilePos const& POS> bool player_just_interacted() {
+template <TilePos POS> bool player_just_interacted() {
     if(POS.area != game.area || !game.dimensions.pixel_bounds(game.player.x, game.player.y))
         return false;
     int16_t x = (int16_t)((game.player.x + 4) >> 3), y = (int16_t)((game.player.y + 6) >> 3);
@@ -57,7 +58,7 @@ template <TilePos const& POS> bool player_just_interacted() {
     return true;
 }
 
-template <TilePos const& TARGET> bool teleport_player(uint8_t facing = STILL) {
+template <TilePos TARGET> bool teleport_player(DIRECTION facing = STILL) {
     if(teleported || facing > STILL)
         return false;
     MapDimensions dimensions = game.dimensions;
@@ -70,6 +71,7 @@ template <TilePos const& TARGET> bool teleport_player(uint8_t facing = STILL) {
     if(TARGET.x >= dimensions.width_tiles || TARGET.y >= dimensions.height_tiles)
         return false;
     game.area = TARGET.area;
+    npc_reset();
     game.dimensions = dimensions;
     game.player = {(uint16_t)((uint16_t)TARGET.x * 8), (uint16_t)((uint16_t)TARGET.y * 8),
                    facing == STILL ? game.player.facing : facing, 0};

@@ -115,7 +115,7 @@ bool Game::player_is_in_region(TileRegion region) const {
 static bool eject_actor(Actor& actor) {
     uint16_t x = actor.x, y = actor.y;
     for(uint8_t radius = 1; radius <= 8; ++radius) {
-        for(uint8_t dir = NORTH; dir <= WEST; ++dir) {
+        for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
             int16_t nx = (int16_t)x, ny = (int16_t)y;
             if(dir == NORTH)
                 ny -= radius;
@@ -175,10 +175,11 @@ static void repair_player_overlap() {
     }
 }
 
-bool update_visible_world(uint8_t pressed) {
+bool update_visible_world(uint8_t pressed, bool simulate) {
     frame_pressed = pressed;
     teleported = false;
     game.can_interact = false;
+    npc_begin_frame();
 #ifndef RPG_AVM
     memset(chunk_trace_count, 0, sizeof(chunk_trace_count));
     memset(feature_trace_count, 0, sizeof(feature_trace_count));
@@ -190,7 +191,12 @@ bool update_visible_world(uint8_t pressed) {
     refresh_tile_cache();
     RPG_PHASE(6);
     repair_player_overlap();
+    npc_reconcile();
+    npc_repair();
     if(!teleported) {
+        if(simulate && !(pressed & BTN_A))
+            npc_update();
+        npc_interact();
         // Blocking work sees the complete cache. Flag changes wait for the next tiles pass.
         RPG_PHASE(5);
         process_all_chunks<STAGE_DIALOGUE>();
@@ -206,15 +212,16 @@ bool update_visible_world(uint8_t pressed) {
     return teleported;
 }
 
-void world_enter(uint8_t area, uint16_t x, uint16_t y, uint8_t facing) {
+void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     Area const PROGMEM* a = world_area(area);
     if(!a)
         return;
     game.area = area;
+    npc_reset();
     game.dimensions = {a->width, a->height};
     game.player = {x, y, facing, 0};
     game.previous_player_tile = {area, (uint8_t)((x + 4) >> 3), (uint8_t)((y + 6) >> 3)};
-    update_visible_world();
+    update_visible_world(0, false);
 }
 
 template void process_all_chunks<STAGE_GAMEPLAY>();

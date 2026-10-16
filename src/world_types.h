@@ -11,6 +11,8 @@ inline constexpr uint8_t TILE_OUTSIDE = 255;
 
 struct TilePos {
     uint8_t area, x, y;
+
+    constexpr bool operator==(TilePos const&) const = default;
 };
 
 struct ChunkCoord {

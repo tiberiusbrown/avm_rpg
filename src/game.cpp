@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "map_positions.h"
+#include "npc.h"
 
 #include <string.h>
 
@@ -28,7 +29,7 @@ void game_new() {
     world_enter(AREA_OUTDOOR, area->spawn.x, area->spawn.y, EAST);
 }
 
-static uint8_t direction(uint8_t held) {
+static DIRECTION direction(uint8_t held) {
     bool vup = (held & BTN_UP) != 0, vdown = (held & BTN_DOWN) != 0;
     bool left = (held & BTN_LEFT) != 0, right = (held & BTN_RIGHT) != 0;
 
@@ -39,7 +40,7 @@ static uint8_t direction(uint8_t held) {
     return STILL;
 }
 
-bool actor_move(Actor* a, uint8_t dir, uint8_t pixels) {
+bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
     bool moved = false;
 
     a->walking = 0;
@@ -66,7 +67,7 @@ bool actor_move(Actor* a, uint8_t dir, uint8_t pixels) {
         if(dir == EAST)
             ++x;
 
-        if(!terrain_clear(x, y))
+        if(!terrain_clear(x, y) || (a == &game.player && !npc_player_clear(x, y, dir)))
             break;
 
         a->x = x;
@@ -110,6 +111,7 @@ void game_update(uint8_t held, uint8_t pressed) {
     if(pressed & BTN_A)
         return;
     RPG_PHASE(6);
+    npc_player_begin(direction(held));
     if(!did_teleport)
         actor_move(&game.player, direction(held), 2);
     RPG_PHASE(0);

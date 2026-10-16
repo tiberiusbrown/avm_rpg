@@ -209,7 +209,7 @@ Audible behavior on this RPG and physical speakers is **Unverified**.
 **Verified and Measured:** official driver commands are:
 
 ```sh
-avm-clang -O2 -g -std=c++17 -flto=full -c source.cpp -o source.o
+avm-clang -O2 -g -std=c++20 -flto=full -c source.cpp -o source.o
 avm-clang -O2 -g -flto=full --avm-startup=crt0_sketch.o source.o \
   -Wl,--avm-print-stack-usage,--avm-print-stack-gaps -o game.elf
 # Driver also emits game.bin (development layout).

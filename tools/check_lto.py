@@ -39,9 +39,9 @@ def inspect_lto(compiler, elf):
         assert "@game = internal global %struct.Game " in ir, "expected one guest Game object"
         assert not signatures, "Game-reference helpers should use the singleton directly"
     if elf.stem != "m0_proof":
-        # Reference NTTPs must resolve to immediate coordinates, not RAM position objects.
+        # Value NTTPs must resolve to immediate coordinates, including template parameter objects.
         stored_positions = re.findall(
-            r"^@[^\n]*(?:positions|GENERATED_TILE)[^\n]*(?:global|constant) %struct\.TilePos[^\n]*",
+            r"^@[^\n]*(?:global|constant) %struct\.TilePos\b[^\n]*",
             ir, re.MULTILINE)
         assert not stored_positions, f"map tile position storage survived LTO: {stored_positions}"
     result = {

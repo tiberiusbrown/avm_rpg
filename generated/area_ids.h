@@ -4,3 +4,4 @@
 #include <stdint.h>
 inline constexpr uint8_t AREA_OUTDOOR = 1;
 inline constexpr uint8_t AREA_INTERIOR = 2;
+inline constexpr uint8_t AREA_NPC_HALL = 3;

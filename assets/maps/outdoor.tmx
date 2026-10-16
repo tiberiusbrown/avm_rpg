@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="8" tileheight="8" infinite="0">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="8" tileheight="8" infinite="0" nextobjectid="110" nextlayerid="4">
  <properties>
   <property name="area_id" value="1" type="int" />
   <property name="symbol" value="OUTDOOR" type="string" />
@@ -67,6 +67,68 @@
    <properties>
     <property name="handler" value="update_waystone" />
    </properties>
+  </object>
+  <object name="GuideHome" x="44" y="28" id="100">
+   <point />
+   <properties>
+    <property name="handler" value="update_guide" />
+   </properties>
+  </object>
+  <object name="RowanHome" x="60" y="84" id="101">
+   <point />
+   <properties>
+    <property name="handler" value="update_rowan" />
+   </properties>
+  </object>
+  <object name="VillageGuardHome" x="108" y="20" id="102">
+   <point />
+   <properties>
+    <property name="handler" value="update_village_guard" />
+   </properties>
+  </object>
+  <object name="CourierStart" x="124" y="36" id="103">
+   <point />
+   <properties>
+    <property name="handler" value="update_courier" />
+   </properties>
+  </object>
+  <object name="CourierFinish" x="188" y="52" id="104">
+   <point />
+   <properties>
+    <property name="handler" value="update_courier" />
+   </properties>
+  </object>
+  <object name="NpcHallDoor" x="212" y="84" id="105">
+   <point />
+   <properties>
+    <property name="handler" value="update_hall_door" />
+   </properties>
+  </object>
+  <object name="NpcHallReturn" x="212" y="92" id="106">
+   <point />
+  </object>
+ </objectgroup>
+ <objectgroup name="Routes" id="3">
+  <object name="CourierWalk" x="124" y="36" id="107">
+   <properties>
+    <property name="pause" value="6" type="int" />
+    <property name="mode" value="once" type="string" />
+   </properties>
+   <polyline points="0,0 32,0 32,16 64,16" />
+  </object>
+  <object name="CourierLoop" x="124" y="36" id="108">
+   <properties>
+    <property name="mode" value="loop" type="string" />
+    <property name="pause" value="2" type="int" />
+   </properties>
+   <polyline points="0,0 16,0" />
+  </object>
+  <object name="CourierReverse" x="124" y="36" id="109">
+   <properties>
+    <property name="mode" value="reverse" type="string" />
+    <property name="pause" value="2" type="int" />
+   </properties>
+   <polyline points="0,0 16,0" />
   </object>
  </objectgroup>
 </map>

@@ -104,6 +104,6 @@ bool save_decode(uint8_t const* in, uint16_t length) {
     game.gold = get16(in + 14);
     game.flags = flags;
     game.rng = rng;
-    world_enter(in[4], x, y, in[5]);
+    world_enter(in[4], x, y, (DIRECTION)in[5]);
     return true;
 }

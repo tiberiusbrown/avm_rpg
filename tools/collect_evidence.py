@@ -1,5 +1,4 @@
-"""Collect verification reports and raw profiles under the ignored build directory."""
-
+"""Collect reproducible M1.6 guest, device, profile and native evidence."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -7,281 +6,159 @@ import json
 from pathlib import Path
 import platform
 import subprocess
-
+import sys
 from elf import symbols
 
 ROOT = Path(__file__).resolve().parents[1]
+GUESTS = ['m0_proof', 'rpg', 'm15_probe', 'm16_probe']
 
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def git_revision(directory):
-    if directory is None:
-        return "unavailable (SDK only)"
+def revision(directory):
+    if not directory:
+        return 'unavailable (SDK only)'
     try:
-        return subprocess.check_output(
-            ["git", "-C", str(directory), "rev-parse", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
+        return subprocess.check_output(['git', '-C', str(directory), 'rev-parse', 'HEAD'],
+                                       stderr=subprocess.DEVNULL, text=True).strip()
     except (OSError, subprocess.CalledProcessError):
-        return "unavailable"
-
-
-def collect_revisions(build, work):
-    cache = {}
-    for line in (build / "CMakeCache.txt").read_text().splitlines():
-        if line and not line.startswith(("#", "//")) and "=" in line:
-            key, value = line.split("=", 1)
-            cache[key.split(":", 1)[0]] = value
-    avm_root = Path(cache["AVM_SOURCE_ROOT"]) if cache.get("AVM_SOURCE_ROOT") else None
-    return {
-        "verification_date": datetime.fromtimestamp(
-            (work / "results.json").stat().st_mtime, timezone.utc
-        )
-        .date()
-        .isoformat(),
-        "avm_revision": git_revision(avm_root),
-        "rpg_revision": git_revision(ROOT),
-        "host": f"{platform.system()} {platform.machine()}; "
-        f"{cache.get('CMAKE_GENERATOR', 'unknown generator')}; RelWithDebInfo",
-    }
+        return 'unavailable'
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--build", type=Path, default=ROOT / "build")
-    parser.add_argument("--write-docs", action="store_true")
+    parser.add_argument('--build', type=Path, default=ROOT / 'build')
+    parser.add_argument('--write-docs', action='store_true')
     args = parser.parse_args()
     build = args.build.resolve()
-    work = Path((build / "latest-verification.txt").read_text().strip())
-    result = json.loads((work / "results.json").read_text())
-    assert result["result"] == "PASS" and result["full_device"]
-    revisions = collect_revisions(build, work)
-    resources = {}
-    artifacts = {}
-    lto = {}
-    for name in ["m0_proof", "rpg", "m15_probe"]:
-        elf = build / "artifacts" / f"{name}.elf"
-        assert digest(elf) == result["elf_sha256"][name], "verification is stale"
-        if name != "m15_probe":
-            assert json.loads((work / f"{name}.avmp").read_text())["identity"]["elf_sha256"] == digest(elf), "profile is stale"
-        resources[name] = json.loads(Path(str(elf) + ".resources.json").read_text())
-        lto[name] = json.loads(Path(str(elf) + ".lto.json").read_text())
-        assert lto[name]["game_reference_arguments_eliminated"]
-        if name != "m0_proof":
-            assert lto[name]["unconditional_global_game"]
-        assert lto[name]["map_tile_position_storage_eliminated"]
-        for extension in ["elf", "bin", "arduboy"]:
-            p = elf.with_suffix("." + extension)
-            artifacts[p.name] = {"sha256": digest(p), "bytes": p.stat().st_size}
-    source_files = [
-        ROOT / name for name in ["CMakeLists.txt", ".gitignore", ".gitattributes", ".clang-format", "AGENTS.md"]
-    ]
-    for directory in ["src", "tests", "tools", "generated", "assets_src", "assets"]:
-        source_files += [
-            p for p in (ROOT / directory).rglob("*") if p.is_file() and "__pycache__" not in p.parts
-        ]
-    manifest = {
-        str(p.relative_to(ROOT)).replace("\\", "/"): digest(p) for p in sorted(source_files)
-    }
-    fingerprint = hashlib.sha256(
-        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    work = Path((build / 'latest-verification.txt').read_text().strip())
+    result = json.loads((work / 'results.json').read_text())
+    assert result['result'] == 'PASS' and result['full_device']
+    cache = {}
+    for line in (build / 'CMakeCache.txt').read_text().splitlines():
+        if line and not line.startswith(('#', '//')) and '=' in line:
+            key, value = line.split('=', 1)
+            cache[key.split(':')[0]] = value
+    revisions = dict(verification_date=datetime.fromtimestamp((work / 'results.json').stat().st_mtime,
+                    timezone.utc).date().isoformat(), avm_revision=revision(cache.get('AVM_SOURCE_ROOT')),
+                    rpg_revision=revision(ROOT), host=f'{platform.system()} {platform.machine()}; '
+                    f'{cache.get("CMAKE_GENERATOR")}; RelWithDebInfo')
+    resources, artifacts, lto, stack_reports = {}, {}, {}, {}
+    for name in GUESTS:
+        elf = build / 'artifacts' / f'{name}.elf'
+        assert digest(elf) == result['elf_sha256'][name], 'verification is stale'
+        resources[name] = json.loads(Path(str(elf) + '.resources.json').read_text())
+        lto[name] = json.loads(Path(str(elf) + '.lto.json').read_text())
+        assert lto[name]['game_reference_arguments_eliminated']
+        assert lto[name]['map_tile_position_storage_eliminated']
+        stack_reports[name] = elf.with_suffix('.link.txt').read_text()
+        for ext in ['elf', 'bin', 'arduboy']:
+            path = elf.with_suffix('.' + ext)
+            artifacts[path.name] = dict(sha256=digest(path), bytes=path.stat().st_size)
+    assert digest(ROOT / 'rpg.arduboy') == artifacts['rpg.arduboy']['sha256']
+    files = [ROOT / n for n in ['CMakeLists.txt', 'AGENTS.md', '.clang-format', '.gitattributes', '.gitignore']]
+    for directory in ['src', 'tests', 'tools', 'generated', 'assets', 'assets_src']:
+        files += [p for p in (ROOT / directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts]
+    manifest = {p.relative_to(ROOT).as_posix(): digest(p) for p in sorted(files)}
+    fingerprint = hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     units = {}
-    for name in ["rpg_tests", "rpg_flag_tests", "rpg_world_tests"]:
-        exe = build / (name + (".exe" if __import__("sys").platform == "win32" else ""))
+    for name in ['rpg_tests', 'rpg_flag_tests', 'rpg_world_tests', 'rpg_npc_tests', 'rpg_npc_hook_tests']:
+        exe = build / (name + ('.exe' if sys.platform == 'win32' else ''))
         units[name] = subprocess.check_output([str(exe)], text=True).strip()
-    profile = json.loads((work / "rpg.avmp").read_text())
-    pcs = profile["pcs"]
-
-    def cost(predicate):
-        rows = [r for r in pcs if predicate(r)]
-        return {
-            "cycles": sum(int(r["cycles"]) for r in rows),
-            "executions": sum(int(r["count"]) for r in rows),
-        }
-
-    breakdown = {
-        "program_load_instructions": cost(lambda r: r["assembly"].startswith("ldp")),
-        "sprite_overwrite_sys": cost(lambda r: r["assembly"] == "sys draw_overwrite"),
-        "sprite_plus_mask_sys": cost(lambda r: r["assembly"] == "sys draw_plus_mask"),
-        "display_sys": cost(lambda r: r["assembly"] == "sys display"),
-    }
-    evidence = {
-        "revisions": revisions,
-        "source_fingerprint_sha256": fingerprint,
-        "source_manifest": manifest,
-        "artifacts": artifacts,
-        "resources": resources,
-        "stack_reports": {
-            name: (build / "artifacts" / f"{name}.link.txt").read_text()
-            for name in resources
-        },
-        "lto": lto,
-        "native_tests": units,
-        "integration": result,
-        "profile_window": profile["window"],
-        "profile_identity": profile["identity"],
-        "profile_instruction_costs": breakdown,
-        "raw_evidence_directory": str(work),
-    }
-    repro_path = build / "repro-m15.json"
+    profiles = {}
+    for name in ['m0_proof', 'rpg']:
+        value = json.loads((work / f'{name}.avmp').read_text())
+        assert value['identity']['elf_sha256'] == artifacts[f'{name}.elf']['sha256']
+        assert value['window']['complete'] and int(value['window']['partial_cycles']) == 0
+        profiles[name] = {k: value[k] for k in ['window', 'identity']}
+    evidence = dict(revisions=revisions, source_fingerprint_sha256=fingerprint,
+                    source_manifest=manifest, artifacts=artifacts, resources=resources,
+                    stack_reports=stack_reports, lto=lto, native_tests=units, integration=result,
+                    profiles=profiles, game_bytes=symbols(build / 'artifacts/rpg.elf')['game']['bytes'],
+                    npc_capacity=8, npc_bytes=18, pool_bytes=156, raw_evidence_directory=str(work))
+    repro_path = build / 'repro-m16.json'
     if repro_path.exists():
-        repro = json.loads(repro_path.read_text(encoding="utf-8-sig"))
-        assert repro["result"] == "PASS" and repro["package_sha256"] == artifacts["rpg.arduboy"]["sha256"]
-        evidence["reproducibility"] = repro
-    root_package = ROOT / "rpg.arduboy"
-    assert digest(root_package) == artifacts["rpg.arduboy"]["sha256"], "root package is stale"
-    (build / "revisions.json").write_text(json.dumps(revisions, indent=2) + "\n")
-    (build / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
-    rows = []
-    for m in result["measurements"]:
-        if "workload" not in m:
-            continue
-        rows.append(
-            f"| {m['workload']} | {m['frames']} | {m['average_cycles']:,} | {m['worst_cycles']:,} | "
-            + (
-                f"{m['average_render_display_cycles']:,}"
-                if "average_render_display_cycles" in m
-                else "—"
-            )
-            + " | "
-            + (str(m["observed_fps"]) if "observed_fps" in m and m["frames"] > 1 else "single operation")
-            + " |"
-        )
-    table = "\n".join(rows)
-    loads = breakdown["program_load_instructions"]
-    sprites = breakdown["sprite_overwrite_sys"]
-    display = breakdown["display_sys"]
-    rpg_resources = resources["rpg"]
-    game_bytes = symbols(build / "artifacts/rpg.elf")["game"]["bytes"]
-    repro_note = (
-        "An independent SDK-only RelWithDebInfo build in `build/m15-repro` also passed all\n"
-        "six CTest entries and emitted a byte-for-byte identical playable RPG package."
-        if "reproducibility" in evidence else
-        "No independent rebuild report was supplied for this measurement."
-    )
-    text = f"""# M1.5 measured evidence
-
-Measured {revisions['verification_date']} on {revisions['host']}.
-Source fingerprint: `{fingerprint}`. AVM revision: `{revisions['avm_revision']}`.
-All changes are uncommitted. Machine-readable hashes, source manifest and exact
-link/LTO reports are in `m1_5_evidence.json`; raw profiles remain in
-`build/{work.name}`. Historical M0/M1 results remain in `performance.md`.
-
-| Guest | saved | ordinary data | total static / 1024 | code | PROGMEM data | complete stack / 256 |
-|---|---:|---:|---:|---:|---:|---:|
-"""
+        repro = json.loads(repro_path.read_text(encoding='utf-8-sig'))
+        assert repro['result'] == 'PASS' and repro['package_sha256'] == artifacts['rpg.arduboy']['sha256']
+        evidence['reproducibility'] = repro
+    (build / 'evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+    (build / 'revisions.json').write_text(json.dumps(revisions, indent=2) + '\n')
+    lines = [f'# M1.6 measured evidence\n',
+             f'Measured {revisions["verification_date"]} on {revisions["host"]}.',
+             f'AVM revision `{revisions["avm_revision"]}`; RPG base `{revisions["rpg_revision"]}`.',
+             f'Source fingerprint `{fingerprint}`. Changes remain uncommitted.',
+             'Exact source/package hashes, complete link paths and LTO checks are in',
+             '`m1_6_evidence.json`. Raw LLDB logs, PGM captures, source profiles and HTML',
+             f'reports are retained in `build/{work.name}`.\n',
+             '| Guest | saved | ordinary data | total static / 1024 | code | PROGMEM | complete stack / 256 |',
+             '|---|---:|---:|---:|---:|---:|---:|']
     for name, r in resources.items():
-        text += f"| {name} | {r['saved_bytes']} | {r['ordinary_data_bytes']} | {r['static_bytes']} | {r['text_bytes']} | {r['rodata_bytes']} | {r['stack_bytes']} |\n"
-    text += f"""
-Every link has a complete bound and zero analysis gaps. Native and AVM gameplay
-use one global Game with no Game-reference parameters. Full LTO verifies the
-guest singleton and absence of retained Game-reference helpers. Guest Game is
-{game_bytes} bytes. Flags use one byte per eight declared flags (rounded up). The only resident map
-cache is 153 tile bytes plus two byte origins. Static RAM leaves
-{1024 - rpg_resources['static_bytes']} bytes; stack margin is {256 - rpg_resources['stack_bytes']} bytes.
-Active area width/height use Game's existing two-byte MapDimensions cache. Camera,
-chunk enumeration, tile loading/setters, membership, interaction and collision
-bounds use it; area changes refresh it before destination processing. Save
-validation reads the candidate area's dimensions before committing active state.
-Bounds include finalized spills, outgoing arguments and three-byte return records.
-The 1024-byte framebuffer and native AVR hardware stack are separate.
-`world_types.h`, `rpg.h`, and `chunk.h` compile-time assertions enforce byte tile,
-chunk, origin, map/grid dimension fields and 16-bit pixel fields in both host and guest.
-The probe actually reads chunk 464 in a 240x248-tile PROGMEM map, beyond a 16-bit
-program address boundary through cache loading; its large asset adds no resident map RAM.
-Runtime tile reads use only the resident cache. Wrong-area and out-of-window
-reads return the solid outside sentinel, with no single-tile projection fallback.
-Save decoding checks format, CRC, fields and map bounds before commit, then builds
-the loaded cache and relocates blocked positions to nearby clear terrain or spawn.
-The exporter generates Tag<POS, STAGE>, Gameplay/Tiles/Dialogue aliases, generic
-empty handler functions, dependent dispatch helpers and a forwarding Handler facade.
-Ordinary handler_impl overloads target stages, positions or exact pairs; missing
-implementations remain no-ops. A separate native fixture compiles dispatch with
-new named/repeated/unnamed unimplemented handlers. Every live chunk completes
-STAGE_GAMEPLAY before baseline reload and STAGE_TILES; STAGE_DIALOGUE starts only
-after every tile chunk completes. Dialogue terrain flag changes wait for the next
-tile pass unless explicitly refreshed. Native rules verify late overload lookup,
-exact-match precedence and the complete-cache barrier before blocking dialogue.
-WorldState and both contexts are removed. Frame input and teleported are transient globals. A teleport aborts
-outgoing gameplay while destination tile dispatch always completes.
-
-Elapsed emulated AVR cycles at 16 MHz; budget 800,000 cycles per 20 FPS frame.
-Markers exclude pacing wait and include rendering, OLED transfer and interrupts.
-The device test rejects any sampled exploration frame exceeding budget.
-
-| Workload | frames | average cycles | worst observed | average render/display | FPS |
-|---|---:|---:|---:|---:|---:|
-{table}
-
-Stage averages and maxima are measured independently. Chunk costs include gameplay,
-tile and dialogue dispatches with their direct native handlers. Blocking prompt
-loops are outside exploration timing markers. Collision includes player overlap
-repair and movement.
-These are operational stage costs, not isolated instruction estimates.
-
-| Workload | reload avg / worst | chunks avg / worst | collision avg / worst |
-|---|---:|---:|---:|
-"""
+        lines.append('| ' + name + ' | ' + ' | '.join(str(r[k]) for k in
+                     ['saved_bytes','ordinary_data_bytes','static_bytes','text_bytes','rodata_bytes','stack_bytes']) + ' |')
+    r = resources['rpg']
+    lines += ['', f'Every link reports a complete bound and zero gaps. Playable guest Game is {evidence["game_bytes"]} bytes.',
+              'Eight live actors use 18 bytes each; the entire NPC pool/request scratch uses 156 bytes.',
+              f'Static margin is {1024-r["static_bytes"]} bytes; guest stack margin is {256-r["stack_bytes"]} bytes.',
+              'The separate 1024-byte framebuffer and native AVR hardware stack are excluded.',
+              'Full LTO verifies one Game, no Game-reference helper parameters and no stored TilePos constants.',
+              'All maps, definitions, routes, sprites and text remain in PROGMEM. The 17x9 cache is unchanged.\n',
+              'Elapsed emulated AVR cycles at 16 MHz, measured using full-device frame markers.',
+              'The 20 FPS budget is 800,000 cycles. Pacing waits are excluded; simulation,',
+              'rendering, OLED transfers and interrupts are included. Every sampled exploration',
+              'frame is checked against the budget, including frames outside the summary windows.\n',
+              '| Workload | frames | average cycles | worst observed | average render/display | FPS |',
+              '|---|---:|---:|---:|---:|---:|']
     for m in result['measurements']:
-        if 'average_reload_cycles' not in m or m['workload'] == 'm0_proof':
+        if 'workload' not in m:
             continue
-        text += '| ' + m['workload'] + ' | ' + ' | '.join(
-            f"{m['average_' + key + '_cycles']:,} / {m['worst_' + key + '_cycles']:,}"
-            for key in ['reload', 'chunk', 'collision']) + ' |\n'
-    text += f"""
-The stationary view runs four chunks every frame, even unchanged. Reload uses
-9 rows of contiguous PROGMEM copy spans, split at chunk boundaries. It always
-reconstructs all 153 entries. The reload phase includes camera clamping and
-origin setup as well as the program-copy work. No compression, incremental patching or resident
-full chunks are used. NPCs and their stress build have been removed for a separate
-update. Historical M1 timings include NPC work and are not the same workload.
-Cached rendering reduces
-repeated program reads. The full source profile reconciles
-{int(profile['window']['completed_cycles']) if 'completed_cycles' in profile['window'] else int(profile['window']['end_cycle']) - int(profile['window']['start_cycle']):,} elapsed cycles,
-with zero partial cycles and discontinuities. Program load instructions account
-for {loads['cycles']:,} cycles / {loads['executions']:,} executions; background
-sprite services {sprites['cycles']:,} / {sprites['executions']:,}; display services
-{display['cycles']:,} / {display['executions']:,}. Native interrupt/service work is
-included, and source attribution of inlined code may be distributed across lines.
-
-Native results:
-
-```text
-"""
-    text += '\n'.join(units.values()) + '\n```\n'
-    text += f"""
-Six CTest entries pass, including the exporter unittest suite and generated-asset
-freshness. The SDK probe passes {result['m15_guest_checks']} guest-executed checks.
-Full-device tests retain the M1 new/walk/portals/dialogue/menu/status/corrupt-save
-scenario and add closed/open/reset gate graphics and collision, cross-chunk bridge
-clipping, periodic baseline restoration, and persistent quest flags after
-physical FX-sector save and fresh-emulator load. Native and guest checks exercise
-walking-entry edges, facing-gated fresh A input and teleport arrival suppression.
-Map objects have optional names and handlers, with no types. Rectangles expand
-into per-tile C++17 template calls; named region metadata remains for contains
-queries. Unnamed objects use private constants. LTO verifies no tile position
-storage survives. No portal/interaction tables are generated. The flag tests exercise 37-bit
-and 257-bit sets, every bit, adjacent bytes and invalid indices.
-
-{repro_note}
-
-Observed maxima are sample bounds, not universal WCET proofs. Physical hardware,
-audio-enabled workloads and other host platforms are unverified. Large authored
-handler bodies require new resource/timing checks.
-See `tiled_pipeline.md` and `chunk_world.md` for exact reproduction commands and
-content constraints. No AVM compiler, interpreter or runtime sources changed.
-"""
-    (build / "performance.md").write_text(text, encoding="utf-8", newline="\n")
+        lines.append(f'| {m["workload"]} | {m["frames"]} | {m["average_cycles"]:,} | {m["worst_cycles"]:,} | '
+                     f'{m.get("average_render_display_cycles", "-")} | {m.get("observed_fps", "-")} |')
+    lines += ['', '| Workload | reload avg / worst | chunk handlers avg / worst | NPC/player collision avg / worst |',
+              '|---|---:|---:|---:|']
+    for m in result['measurements']:
+        if 'average_reload_cycles' in m and m['workload'] != 'm0_proof':
+            lines.append('| ' + m['workload'] + ' | ' + ' | '.join(
+                         f'{m["average_"+k+"_cycles"]:,} / {m["worst_"+k+"_cycles"]:,}'
+                         for k in ['reload','chunk','collision']) + ' |')
+    lines += ['', 'Stage maxima are independently observed and need not occur in the same frame.',
+              'Eight-NPC steering measures eight simultaneous targets, including body congestion.',
+              'The corridor workload uses actual held RIGHT input and asserts player X > 152',
+              'within 180 frames. The same scenarios also run natively and in the real AVM probe.',
+              'NPC definition/route population size adds no per-definition simulation or RAM cost.\n',
+              'Seven CTest suites pass: core, essential_npcs, flags, chunk_world, tiled_pipeline,',
+              'generated_assets and content. The exporter includes anchor relocation and tile-interior',
+              'route-marker validation. Exact native totals:\n', '```text', *units.values(), '```', '',
+              f'AVM guest checks: {result["guest_checks"]}.',
+              'Full-device PASS covers new/walk/paired portals, paginated dialogue, choices,',
+              'menus/status freeze, corrupt save rejection, dynamic gate/bridge/platform tiles,',
+              'NPC dialogue and live-pool freeze, eight visible actors, steering, corridor passage,',
+              'and physical FX save with a fresh-device NPC quest reconstruction.',
+              'The two source profiles have complete windows and zero partial cycles.\n']
+    if 'reproducibility' in evidence:
+        lines.append(f'An independent SDK-only RelWithDebInfo build passed all {repro["ctest_suites"]} suites and produced a byte-identical playable package.\n')
+    lines += ['Exact commands from the RPG repository root (set SDK paths for the installed SDK):\n', '```powershell',
+              './tools/build.ps1 -SdkRoot ../../build/avm-sdk-install',
+              'cmake --build build --config RelWithDebInfo --parallel 4',
+              'ctest --test-dir build -C RelWithDebInfo --output-on-failure',
+              'python tools/generate_assets.py --check',
+              'python tests/guest_integration.py --sdk ../../build/avm-sdk-install --build build',
+              'python tools/collect_evidence.py --build build --write-docs', '```', '',
+              'For full-device QA, configure AVM_SOURCE_ROOT and matching AVM_BUILD_ROOT as described',
+              'in tiled_pipeline.md. Build with the matching MSVC developer environment (build.ps1',
+              'initializes it on Windows). SDK-only builds still run all guest probes and source profiles.',
+              'Observed maxima are sample bounds, not a universal WCET proof. Physical hardware,',
+              'audio-enabled workloads and other host platforms remain unverified. No AVM compiler,',
+              'interpreter or runtime sources changed. See essential_npcs.md for movement, capacity,',
+              'offscreen travel and save limitations.']
+    report = '\n'.join(lines) + '\n'
+    (build / 'performance.md').write_text(report, encoding='utf-8', newline='\n')
     if args.write_docs:
-        (ROOT / "docs/m1_5_measurements.md").write_text(text, encoding="utf-8", newline="\n")
-        (ROOT / "docs/m1_5_evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
-    print(f"Collected evidence for {fingerprint}; reports in {build}; raw profiles in {work}")
+        (ROOT / 'docs/m1_6_measurements.md').write_text(report, encoding='utf-8', newline='\n')
+        (ROOT / 'docs/m1_6_evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+    print(f'Collected M1.6 evidence for {fingerprint}; raw profiles in {work}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
