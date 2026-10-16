@@ -20,29 +20,21 @@ static bool accept_dialogue = true, accept_choice = true;
 static unsigned shown_dialogues, asked_choices;
 static char const* last_dialogue;
 
-bool dialogue_show(Game& g, char const PROGMEM* words) {
+bool dialogue_show(Game&, char const PROGMEM* words) {
     ++shown_dialogues;
     last_dialogue = words;
-    g.previous_buttons = accept_dialogue ? BTN_A : BTN_B;
     return accept_dialogue;
 }
 
-bool dialogue_ask(Game& g, char const PROGMEM*) {
+bool dialogue_ask(Game&, char const PROGMEM*) {
     ++asked_choices;
-    g.previous_buttons = accept_choice ? BTN_A : BTN_B;
     return accept_choice;
-}
-
-static void press(Game& g, uint8_t button) {
-    game_tick(g, 0);
-    game_tick(g, button);
-    game_tick(g, 0);
 }
 
 static void hold(Game& g, uint8_t button, unsigned frames) {
     while(frames--)
-        game_tick(g, button);
-    game_tick(g, 0);
+        game_update(g, button);
+    game_update(g, 0);
 }
 
 static void movement() {
@@ -50,18 +42,18 @@ static void movement() {
     unsigned i;
 
     game_new(g);
-    game_tick(g, BTN_RIGHT);
+    game_update(g, BTN_RIGHT);
     CHECK(g.player.x == 34);
     CHECK(g.player.x % 8 != 0);
-    game_tick(g, BTN_LEFT);
+    game_update(g, BTN_LEFT);
     CHECK(g.player.x == 32);
     CHECK(g.player.facing == WEST);
-    game_tick(g, BTN_UP | BTN_DOWN | BTN_RIGHT);
+    game_update(g, BTN_UP | BTN_DOWN | BTN_RIGHT);
     CHECK(g.player.x == 34);
-    game_tick(g, BTN_UP | BTN_RIGHT);
+    game_update(g, BTN_UP | BTN_RIGHT);
     CHECK(g.player.y == 38);
     CHECK(g.player.x == 34);
-    game_tick(g, BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT);
+    game_update(g, BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT);
     CHECK(!g.player.walking);
 
     g.player.x = 8;
@@ -79,7 +71,7 @@ static void movement() {
     world_enter(g, INTERIOR, 64, 40, EAST);
     hold(g, BTN_RIGHT, 80);
     CHECK(g.player.x == 65);
-    game_tick(g, BTN_UP);
+    game_update(g, BTN_UP);
     CHECK(g.player.y == 38); /* slide away from a corner */
 
     world_enter(g, OUTDOOR, 96, 56, SOUTH);
@@ -104,8 +96,8 @@ static void movement() {
 
     for(i = 0; i < 2000; ++i) {
         uint8_t input = (uint8_t)((i % 5 == 0) ? BTN_LEFT : BTN_DOWN);
-        game_tick(a, input);
-        game_tick(b, input);
+        game_update(a, input);
+        game_update(b, input);
         CHECK(memcmp(&a, &b, sizeof(a)) == 0);
     }
 }
@@ -155,8 +147,8 @@ static void npcs() {
 #endif
 
     for(i = 0; i < 10000; ++i) {
-        game_tick(a, 0);
-        game_tick(b, 0);
+        game_update(a, 0);
+        game_update(b, 0);
         CHECK(memcmp(&a, &b, sizeof(a)) == 0);
         for(j = 0; j < a.npc_count; ++j) {
             Npc const* n = &a.npcs[j];
@@ -191,7 +183,7 @@ static void npcs() {
     CHECK(!actors_overlap(a.player.x, a.player.y, a.npcs[0].actor.x, a.npcs[0].actor.y));
 }
 
-static void dialogue_menu() {
+static void dialogue_consequences() {
     Game g;
 
     game_new(g);
@@ -199,19 +191,16 @@ static void dialogue_menu() {
     CHECK(interaction_target(g) == 1);
     Npc frozen = g.npcs[0];
     uint16_t ticks = g.ticks, rng = g.rng;
-    press(g, BTN_A);
-    CHECK(g.mode == EXPLORE);
+    dialogue_talk(g, interaction_target(g));
     CHECK(g.flags & FLAG_HELPED);
     CHECK(g.gold == 5);
-    CHECK(g.ticks == ticks + 2);
-    CHECK(g.rng == rng);
+    CHECK(g.ticks == ticks && g.rng == rng);
     CHECK(memcmp(&frozen, &g.npcs[0], sizeof(frozen)) == 0);
     CHECK(shown_dialogues == 2 && asked_choices == 1);
 
-    press(g, BTN_A);
+    dialogue_talk(g, 1);
     CHECK(strstr(last_dialogue, "remember") != NULL);
-    CHECK(g.gold == 5);
-    CHECK(asked_choices == 1);
+    CHECK(g.gold == 5 && asked_choices == 1);
 
     g.flags = 0;
     g.gold = 0;
@@ -219,7 +208,6 @@ static void dialogue_menu() {
     dialogue_talk(g, 1);
     CHECK(!g.flags && !g.gold);
     CHECK(strstr(last_dialogue, "another day") != NULL);
-    CHECK(g.mode == EXPLORE);
 
     accept_dialogue = false;
     unsigned choices = asked_choices;
@@ -229,26 +217,10 @@ static void dialogue_menu() {
     accept_dialogue = true;
     accept_choice = true;
 
-    g.mode = MENU;
+    Game before = g;
     dialogue_talk(g, 2);
-    CHECK(g.mode == MENU);
+    CHECK(memcmp(&g, &before, sizeof(g)) == 0);
     CHECK(strstr(last_dialogue, "rest") != NULL);
-    g.mode = EXPLORE;
-    press(g, BTN_B);
-    CHECK(g.mode == MENU);
-    press(g, BTN_A);
-    CHECK(g.mode == STATUS);
-    press(g, BTN_B);
-    CHECK(g.mode == MENU);
-    press(g, BTN_UP);
-    CHECK(g.selection == 2);
-    press(g, BTN_DOWN);
-    CHECK(g.selection == 0);
-    press(g, BTN_DOWN);
-    game_tick(g, 0);
-    CHECK(game_tick(g, BTN_A) == SAVE_COMMAND);
-    press(g, BTN_B);
-    CHECK(g.mode == EXPLORE);
 }
 
 static void persistence() {
@@ -302,58 +274,41 @@ static void persistence() {
     for(i = 0; i < loaded.npc_count; ++i)
         CHECK(!actors_overlap(loaded.player.x, loaded.player.y, loaded.npcs[i].actor.x,
                               loaded.npcs[i].actor.y));
-
-    game_boot(g, false);
-    CHECK(g.mode == TITLE);
-    press(g, BTN_DOWN);
-    press(g, BTN_A);
-    CHECK(g.mode == TITLE);
-    press(g, BTN_UP);
-    press(g, BTN_A);
-    CHECK(g.mode == EXPLORE && !g.flags);
 }
 
 static void complete_demo() {
     Game g, restarted;
     uint8_t data[SAVE_BYTES];
 
-    game_boot(g, false);
-    press(g, BTN_A);
+    game_new(g);
     hold(g, BTN_RIGHT, 30);
     CHECK(g.area == INTERIOR);
     CHECK(g.player.x == 16);
     hold(g, BTN_RIGHT, 16);
     hold(g, BTN_UP, 8);
     CHECK(interaction_target(g) == 1);
-    press(g, BTN_A);
-    CHECK(g.mode == EXPLORE && (g.flags & FLAG_HELPED));
+    dialogue_talk(g, interaction_target(g));
+    CHECK(g.flags & FLAG_HELPED);
     hold(g, BTN_LEFT, 16);
     hold(g, BTN_DOWN, 9);
     CHECK(g.area == OUTDOOR);
-    press(g, BTN_B);
-    press(g, BTN_DOWN);
-    game_tick(g, 0);
-    CHECK(game_tick(g, BTN_A) == SAVE_COMMAND);
 
     save_encode(g, data);
-    game_boot(restarted, true);
-    press(restarted, BTN_DOWN);
-    game_tick(restarted, 0);
-    CHECK(game_tick(restarted, BTN_A) == LOAD_COMMAND);
+    game_new(restarted);
     CHECK(save_decode(restarted, data));
     CHECK(restarted.area == OUTDOOR && restarted.player.x == g.player.x &&
           restarted.player.y == g.player.y);
     CHECK(restarted.flags & FLAG_HELPED);
     CHECK(restarted.gold == 5);
 
-    puts("PASS complete M1 demo: new -> walk -> enter -> choice -> exit -> save -> restart/load");
+    puts("PASS M1 rules: new -> walk -> enter -> choice -> exit -> save -> restart/load");
 }
 
 int main() {
     movement();
     camera_and_portals();
     npcs();
-    dialogue_menu();
+    dialogue_consequences();
     persistence();
     complete_demo();
     printf("PASS %u checks; host Game=%u bytes, NPC=%u bytes (guest report is authoritative)\n",

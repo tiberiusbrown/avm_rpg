@@ -9,7 +9,10 @@
 - Separate semantically distinct sections within a function with a blank line.
 - Follow `.clang-format` for C++ formatting.
 - Use `PROGMEM` and `F()` for program data and text; provide their non-AVM definitions for native tests.
+- Call `avm_*` methods directly; avoid platform wrappers such as `text()` in `render.cpp`.
+- Use the C++ AVM overloads instead of `_P` variants.
 - Declare generated assets `constexpr`.
+- Use procedural screen functions with local input/display loops; call and return instead of global mode dispatch.
 - Pass game state as `Game&` / `const Game&`, use `Game` member functions, or access the single global game directly.
 - Keep guest full LTO enabled and verify that the single global `Game` removes game-reference arguments from optimized guest functions.
 - Preserve deterministic rules, fixed capacities, and AVM memory/stack budgets.

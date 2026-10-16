@@ -56,20 +56,28 @@ def main():
         "avm run-for 100ms",
         "avm button set",
         "avm run-for 100ms",
-        "expr (int)game.mode",
+        "expr (int)game.ticks",
         "expr (int)game.player.x",
         "avm button set DOWN",
         "avm run-for 400ms",
         "expr (int)game.player.y",
+        "expr (int)game.ticks",
         "avm button set B",
         "avm run-for 100ms",
-        "expr (int)game.mode",
+        "expr (int)game.ticks",
+        "thread backtrace",
+        "avm button set",
+        "avm run-for 100ms",
+        "avm button set A",
+        "avm run-for 100ms",
+        "thread backtrace",
     ]
     output = lldb(sdk, artifacts / "rpg.elf", commands, work / "sdk-input.log")
     values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
-    assert values[:2] == [1, 32] and values[2] in [54, 56] and values[3] == 2, (
+    assert values[0] > 0 and values[1] == 32 and values[2] in [54, 56] and values[3] == values[4], (
         f"AVM shared rules/input diverged: {values}"
     )
+    assert "menu_screen" in output and "status_screen" in output and "explore" in output
     proof = [
         "breakpoint set --name loop",
         "run",
@@ -161,6 +169,7 @@ def main():
     report = {
         "result": "PASS",
         "sdk_input": True,
+        "procedural_screen_calls": True,
         "m0_execution_and_drawing": True,
         "full_device": device.exists(),
         "measurements": measurements,

@@ -3,8 +3,8 @@
 ## Shared deterministic C++17 rules
 
 `Game` owns durable character/world fields and fixed-capacity transient actors.
-`game_tick(Game&, held_buttons)` returns a platform command for deliberate save
-or load; it never draws, sleeps or performs IO. The same `game.cpp`, `world.cpp`,
+`game_update(Game&, held_buttons)` advances exploration rules without drawing,
+waiting or performing IO. Screen functions call save/load directly. The same `game.cpp`, `world.cpp`,
 `dialogue.cpp`, `save.cpp` are linked into native tests and the guest. Areas and NPCs
 have explicit stable IDs. Immutable ROM definitions are read directly, so map
 size affects program space rather than guest RAM. Only the active area's NPCs
@@ -13,11 +13,9 @@ are simulated. Player/actor facing, walking and coordinates are independent.
 Pass state by `Game&` / `const Game&` to keep native tests independent. The AVM
 guest has one global `Game`, so full LTO specializes the rules to it. Guest links
 inspect optimized LLVM IR and fail if a game-reference argument survives. In the
-current build, `game_new` and `save_decode` have no runtime arguments;
-`world_enter` retains only area/position/facing, and `position_clear` retains only
-position/actor-ignore values. Other shared rules are inlined. Source/debug names
-still describe C++ reference signatures, while the actual calls omit the game
-reference. The state/save layout is unchanged by the language migration.
+linked guest, source/debug names still describe C++ reference signatures while
+the actual calls omit the game reference. Exact retained signatures are recorded
+in `build/artifacts/*.elf.lto.json`. The save format is independent of struct layout.
 
 Use `PROGMEM` for assets and `F()` for flash strings. Native builds define these
 macros in `rpg.h`. Structs use CamelCase, enum types/values and constants use
@@ -68,9 +66,16 @@ flags and RNG survive transitions; NPC scratch does not.
 
 ## UI and saves
 
-Modes are Title, Explore, Menu, Status, and a reserved Tactical value.
+`title_screen`, `explore`, `menu_screen`, and `status_screen` own their input,
+rendering, and display loops. Exploration calls the menu, which calls status;
+returning resumes the caller. Selections and feedback are local variables.
+`Game` contains no mode, pending command, or input/UI bookkeeping.
+`input_wait_press` requires release before a fresh press; `input_wait_frame`
+uses the SDK frame limiter. Exploration uses `input_pressed` for actions and
+`input_held` for movement. Returning from a screen synchronizes button edges.
+
 `dialogue_show(game, F("..."))` and `dialogue_ask(game, F("..."))` are blocking
-calls usable from game logic without changing mode. They render a fixed lower
+calls usable from game logic. They render a fixed lower
 overlay over the frozen world, wrap and paginate flash text using the runtime
 font, and return to their caller. A advances or confirms; B dismisses or declines.
 Each prompt requires a fresh press. Five-byte text scratch lives in shallow
@@ -92,8 +97,9 @@ rules requiring exact ambient continuation would need extra serialized fields.
 ## Future strategic combat boundary (M3)
 
 Add an encounter-entry function that receives a stable encounter ID and captures
-the exploration area, pixel return position and facing. It changes mode to
-Tactical and freezes the exploration tick. Battle rules operate on a separate
+the exploration area, pixel return position and facing. Call a tactical screen
+that owns its input/display loop and returns when finished; exploration stays
+paused in its caller. Battle rules operate on a separate
 small structure with grid-cell unit coordinates, turn state and explicit input
 actions; they share character statistics, flags, RNG and stable entity IDs with
 the durable world. Returning applies native outcomes and restores exploration.
@@ -104,7 +110,7 @@ services. Shared pure rules remain host-testable. Save-format changes must decid
 whether saving is restricted to exploration safe points or serializes a bounded
 battle state. Turn order, AP, range, damage and initiative are deliberately open.
 Likely costs are unit occupancy, range/line-of-sight scratch, combat UI, extra
-stack depth and audio interrupts. A mode-local union can eventually share NPC
+stack depth and audio interrupts. A lifetime-scoped union can eventually share NPC
 scratch with battle scratch once their lifetimes are tested. Use the current
 link-time static and stack reports when planning additions; measure each battle
 path and avoid deep action/AI dispatch chains.

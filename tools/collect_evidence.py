@@ -162,9 +162,9 @@ AVM revision: `{revisions["avm_revision"]}`.
         text += f"| {name} | {r['saved_bytes']} | {r['ordinary_data_bytes']} | {r['static_bytes']} | {r['text_bytes']} | {r['rodata_bytes']} | {r['stack_bytes']} |\n"
     text += f"""
 All three links report **complete bound: yes**, with zero analysis gaps. The
-M1 maximum path is CRT -> loop -> save_decode -> game_new -> world_enter ->
-position_clear; its {rpg_resources["stack_bytes"]}-byte bound includes spills, outgoing arguments and
+M1 {rpg_resources["stack_bytes"]}-byte bound includes spills, outgoing arguments and
 three-byte return records. SYS native AVR stack is outside the guest stack.
+The exact maximum paths are retained in build/artifacts/*.link.txt.
 The framebuffer is a separate 1024 bytes. Guest Game is {game_bytes} bytes, NPC 8 bytes,
 and all 12 NPC slots are reserved even in the normal build. Native sizeof values
 are not used as guest resource evidence. No heap exists in guest rules. M1 leaves
@@ -185,7 +185,7 @@ guest opcode counts or host wall-clock times. Markers bracket accepted simulatio
 frames; pacing wait between frames is excluded. Render/display markers include
 the full screen render and avm_display(true), with tiny marker overhead. FPS is
 measured from the interval between frame beginnings, including pacing wait.
-Blocking dialogue waits are checked separately and are not frame-cost samples.
+Procedural menu/status/dialogue waits are checked separately and are not frame-cost samples.
 
 | Workload | Samples | Average cycles | Worst observed cycles | Average render + display | Emulated FPS |
 |---|---:|---:|---:|---:|---:|
@@ -193,18 +193,19 @@ Blocking dialogue waits are checked separately and are not frame-cost samples.
 
 Normal exploration and the 12-NPC workload sustain **20 FPS** in these windows.
 The observed maxima are samples, not a mathematical universal worst-case bound.
-Safe-point saving/loading were measured separately, on an initially erased save
-sector. Saving is deliberate rather than performed every frame.
+Save/readback and continuation are verified by the device scenario, without
+including time spent waiting for UI input in the frame samples.
 
 The full-device scenario exercises stationary display, intermediate player pixels,
 scrolling, NPC movement, dense terrain collision, dialogue/choices, both portals,
 menu/status, saving, a new emulator instance loading the physical sector, changed
 dialogue after restart, and corrupt-data startup. Native tests additionally cover
 unsupported formats, bounds/corners, directions, deterministic wandering/limits,
-spawn relocation, UI freeze, refusal choices, checksum failures and unchanged
+spawn relocation, dialogue consequences, checksum failures and unchanged
 state after failed load. CTest has four passing tests; exact rule-check counts are
-in evidence.json. An independent build/repro directory also built and passed all four,
-and its playable package is byte-for-byte identical to the primary package.
+in evidence.json. Device checks cover paused procedural screens, held-button
+release gates, and returning through nested screens. SDK backtraces verify that
+status runs inside menu_screen inside explore, with no mode dispatcher.
 
 ## Source profiling and asset access
 

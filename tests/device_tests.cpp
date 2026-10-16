@@ -14,7 +14,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 121, "update QA reader if the guest state layout changes");
+static_assert(sizeof(Game) == 116, "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
     if(!ok)
@@ -133,9 +133,9 @@ struct Device {
     }
 
     void tap(uint8_t held) {
-        frame();
-        frame(held);
-        frame();
+        advance(0);
+        advance(held);
+        advance(0, 1600000);
     }
 
     void capture(fs::path const& path) {
@@ -224,11 +224,11 @@ int main(int argc, char** argv) try {
         return 0;
     }
 
-    d.frame();
-    d.frame();
+    d.advance(0, 3200000);
+    require(d.serial() == 0, "title unexpectedly advanced exploration");
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
-    require(d.state().mode == EXPLORE, "new game did not start");
+    require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
     if(std::string(argv[6]) == "stress") {
         require(d.state().npc_count == 12, "stress did not activate 12 NPCs");
         summary("twelve_npcs_stationary", d, 240);
@@ -262,13 +262,13 @@ int main(int argc, char** argv) try {
             "held opening A skipped a dialogue page");
     d.hold(BTN_RIGHT, 20);
     auto paused = d.state();
-    require(paused.mode == EXPLORE && paused.ticks == frozen.ticks && paused.rng == frozen.rng &&
+    require(paused.ticks == frozen.ticks && paused.rng == frozen.rng &&
                 !memcmp(&paused.player, &frozen.player, sizeof(Actor)) &&
                 !memcmp(paused.npcs, frozen.npcs, sizeof(paused.npcs)),
-            "dialogue changed mode or advanced the world");
+            "dialogue advanced the world");
     d.capture(out / "dialogue.pgm");
     d.tap(BTN_B);
-    require(d.prompt() == DIALOGUE_CLOSED && d.state().mode == EXPLORE && !d.state().flags,
+    require(d.prompt() == DIALOGUE_CLOSED && !d.state().flags,
             "early dialogue dismissal did not return to its caller");
 
     d.tap(BTN_A);
@@ -287,7 +287,7 @@ int main(int argc, char** argv) try {
     d.capture(out / "consequence.pgm");
 
     d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CLOSED && d.state().mode == EXPLORE, "dialogue did not return");
+    require(d.prompt() == DIALOGUE_CLOSED, "dialogue did not return");
     d.hold(BTN_LEFT, 16);
     d.hold(BTN_DOWN, 9);
     require(d.state().area == OUTDOOR, "return path failed");
@@ -303,16 +303,25 @@ int main(int argc, char** argv) try {
     }
 
     d.tap(BTN_B);
-    d.tap(BTN_A);
-    require(d.state().mode == STATUS, "status menu");
+    auto menu_state = d.state();
+    unsigned menu_serial = d.serial();
+    d.advance(0, 3200000);
+    auto after_menu_wait = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_menu_wait, sizeof(Game)),
+            "menu did not pause exploration");
+    d.capture(out / "menu.pgm");
+    auto menu_pixels = d.ab->peripherals.display.ram;
+    d.advance(BTN_A, 4000000);
+    auto after_status_wait = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_status_wait, sizeof(Game)),
+            "status did not pause exploration or held A returned through multiple screens");
+    require(d.ab->peripherals.display.ram != menu_pixels, "status did not draw its own screen");
     d.capture(out / "status.pgm");
 
     d.tap(BTN_B);
     d.tap(BTN_DOWN);
-    d.frame(BTN_A);
-    auto saving = d.last;
-    d.frame();
-    require(d.state().save_valid && d.state().feedback, "real AVM persistence readback failed");
+    d.tap(BTN_A);
+    d.capture(out / "saved.pgm");
 
     auto saved = d.state();
     auto sector = d.sector();
@@ -322,33 +331,25 @@ int main(int argc, char** argv) try {
         std::ofstream f(out / "fxsave.bin", std::ios::binary);
         f.write(reinterpret_cast<char const*>(sector.data()), sector.size());
     }
-    std::cout << "{\"workload\":\"save_and_readback\",\"frames\":1,\"average_cycles\":"
-              << saving.total << ",\"worst_cycles\":" << saving.total << "}\n";
-
     Device restarted(package, g, m, s, q);
     restarted.import_sector(sector);
-    restarted.frame();
-    restarted.frame();
-    require(restarted.state().save_valid, "restart did not find saved game");
+    restarted.advance(0, 3200000);
+    require(restarted.serial() == 0 && restarted.state().flags == FLAG_HELPED &&
+                restarted.state().gold == 5 && restarted.state().rng == saved.rng,
+            "title did not validate the saved game");
     restarted.tap(BTN_DOWN);
-    restarted.frame(BTN_A);
-    auto loading = restarted.last;
-    restarted.frame();
+    restarted.tap(BTN_A);
     auto loaded = restarted.state();
-    require(loaded.mode == EXPLORE && loaded.area == saved.area &&
+    require(restarted.serial() != 0 && loaded.area == saved.area &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y &&
                 loaded.flags == FLAG_HELPED && loaded.gold == 5 && loaded.rng == saved.rng,
             "fresh emulator save/load mismatch");
     restarted.capture(out / "restarted.pgm");
-    std::cout << "{\"workload\":\"continue_load\",\"frames\":1,\"average_cycles\":" << loading.total
-              << ",\"worst_cycles\":" << loading.total << "}\n";
-
     restarted.hold(BTN_UP, 4);
     restarted.hold(BTN_RIGHT, 16);
     restarted.hold(BTN_UP, 8);
     restarted.tap(BTN_A);
-    require(restarted.prompt() == DIALOGUE_DONE && restarted.state().mode == EXPLORE &&
-                restarted.state().flags == FLAG_HELPED,
+    require(restarted.prompt() == DIALOGUE_DONE && restarted.state().flags == FLAG_HELPED,
             "persisted dialogue inaccessible");
     restarted.capture(out / "persisted-dialogue.pgm");
     restarted.tap(BTN_B);
@@ -358,12 +359,23 @@ int main(int argc, char** argv) try {
     sector[8] ^= 0x40;
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
-    corrupt.frame();
-    corrupt.frame();
-    require(corrupt.state().mode == TITLE && !corrupt.state().save_valid, "corrupt save accepted");
+    corrupt.advance(0, 3200000);
+    corrupt.tap(BTN_DOWN);
+    corrupt.tap(BTN_A);
+    require(corrupt.serial() == 0 && corrupt.state().ticks == 0 && !corrupt.state().flags,
+            "corrupt save accepted or disabled Continue entered exploration");
 
     // Representative pixel scrolling and dense terrain, after closing the menu.
     d.tap(BTN_B);
+    require(d.serial() > menu_serial, "B did not return from menu to exploration");
+    d.tap(BTN_B);
+    unsigned return_serial = d.serial();
+    d.tap(BTN_UP);
+    d.advance(BTN_A, 4000000);
+    require(d.serial() > return_serial && d.prompt() == DIALOGUE_CLOSED,
+            "Return did not resume exploration or its held A leaked into gameplay");
+    d.advance(0);
+
     summary("pixel_scroll", d, 70, BTN_DOWN);
     summary("dense_collision", d, 120, BTN_LEFT);
     d.capture(out / "outdoor.pgm");

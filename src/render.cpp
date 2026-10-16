@@ -46,46 +46,40 @@ void rpg_render_world(Game const& g) {
 
     if(interaction_target(g))
         text(110, 7, F("A"));
-
-    if(g.feedback)
-        text(3, 62, g.mode == MENU ? F("Saved and checked") : F("Face someone + A"));
 }
 
-void rpg_render(Game const& g) {
-    if(g.mode == TITLE) {
-        text(14, 12, F("AVM / WAYFARER"));
-        text(14, 26, F("M1 exploration lab"));
+void render_title(bool can_continue, uint8_t selection) {
+    text(14, 12, F("AVM / WAYFARER"));
+    text(14, 26, F("M1 exploration lab"));
 
-        text(22, 40, F("New game"));
-        text(22, 49, g.save_valid ? F("Continue") : F("No valid save"));
-        text(10, (int16_t)(40 + g.selection * 9), F(">"));
+    text(22, 40, F("New game"));
+    text(22, 49, can_continue ? F("Continue") : F("No valid save"));
+    text(10, (int16_t)(40 + selection * 9), F(">"));
 
-        text(14, 60, F("D-pad choose / A"));
-        return;
-    }
+    text(14, 60, F("D-pad choose / A"));
+}
 
+void render_menu(Game const& g, uint8_t selection, char const PROGMEM* feedback) {
     rpg_render_world(g);
+    panel();
+    text(6, 11, F("TRAVEL MENU"));
 
-    if(g.mode == MENU) {
-        panel();
-        text(6, 11, F("TRAVEL MENU"));
+    text(22, 25, F("Status"));
+    text(22, 35, F("Save game"));
+    text(22, 45, F("Return"));
+    text(8, (int16_t)(25 + selection * 10), F(">"));
 
-        text(22, 25, F("Status"));
-        text(22, 35, F("Save game"));
-        text(22, 45, F("Return"));
-        text(8, (int16_t)(25 + g.selection * 10), F(">"));
+    text(6, 58, feedback ? feedback : F("A select / B back"));
+}
 
-        text(6, 58,
-             g.feedback ? (g.save_valid ? F("Saved and checked") : F("Save failed"))
-                        : F("A select / B back"));
-    } else if(g.mode == STATUS) {
-        panel();
-        text(6, 11, F("TRAVELER"));
+void render_status(Game const& g) {
+    rpg_render_world(g);
+    panel();
+    text(6, 11, F("TRAVELER"));
 
-        avm_draw_textf_P(6, 25, F("HP %u/%u"), g.hp, g.max_hp);
-        avm_draw_textf_P(6, 35, F("Lv %u Gold %u"), g.level, g.gold);
-        text(6, 45, g.flags & FLAG_HELPED ? F("Lantern: lit") : F("Lantern: unlit"));
+    avm_draw_textf_P(6, 25, F("HP %u/%u"), g.hp, g.max_hp);
+    avm_draw_textf_P(6, 35, F("Lv %u Gold %u"), g.level, g.gold);
+    text(6, 45, g.flags & FLAG_HELPED ? F("Lantern: lit") : F("Lantern: unlit"));
 
-        text(6, 58, F("A / B return"));
-    }
+    text(6, 58, F("A / B return"));
 }

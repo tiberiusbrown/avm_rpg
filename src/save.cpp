@@ -68,6 +68,5 @@ bool save_decode(Game& g, uint8_t const in[SAVE_BYTES]) {
     g.rng = get16(in + 18);
 
     world_enter(g, in[4], x, y, in[5]);
-    g.save_valid = 1;
     return true;
 }

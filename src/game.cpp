@@ -20,16 +20,8 @@ void game_new(Game& g) {
     g.hp = 20;
     g.max_hp = 20;
     g.level = 1;
-    g.mode = EXPLORE;
 
     world_enter(g, OUTDOOR, 32, 40, EAST);
-}
-
-void game_boot(Game& g, bool valid) {
-    game_new(g);
-
-    g.mode = TITLE;
-    g.save_valid = (uint8_t)valid;
 }
 
 static uint8_t direction(uint8_t held) {
@@ -138,82 +130,9 @@ uint8_t interaction_target(Game const& g) {
     return 0;
 }
 
-COMMAND game_tick(Game& g, uint8_t held) {
-    uint8_t pressed = (uint8_t)(held & (uint8_t)~g.previous_buttons);
-    uint8_t dir = direction(held);
-
-    g.previous_buttons = held;
-    if(g.feedback)
-        --g.feedback;
-
-    switch(g.mode) {
-
-        case TITLE:
-            if(pressed & (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT))
-                g.selection ^= 1;
-
-            if(pressed & BTN_A) {
-                if(g.selection && g.save_valid)
-                    return LOAD_COMMAND;
-                if(!g.selection) {
-                    game_new(g);
-                    g.previous_buttons = held;
-                }
-            }
-            break;
-
-        case EXPLORE:
-            if(pressed & BTN_B) {
-                g.mode = MENU;
-                g.selection = 0;
-                g.feedback = 0;
-                break;
-            }
-
-            if(pressed & BTN_A) {
-                uint8_t id = interaction_target(g);
-
-                if(id) {
-                    dialogue_talk(g, id);
-                    break;
-                }
-                g.feedback = 20;
-            }
-
-            actor_move(g, &g.player, dir, 2, -1);
-            if(!portals_update(g))
-                npcs_update(g);
-            ++g.ticks;
-            break;
-
-        case MENU:
-            if(pressed & BTN_B) {
-                g.mode = EXPLORE;
-                g.feedback = 0;
-            } else if(pressed & (BTN_DOWN | BTN_RIGHT))
-                g.selection = (uint8_t)((g.selection + 1) % 3);
-            else if(pressed & (BTN_UP | BTN_LEFT))
-                g.selection = (uint8_t)((g.selection + 2) % 3);
-            else if(pressed & BTN_A) {
-                if(g.selection == 0)
-                    g.mode = STATUS;
-                if(g.selection == 1)
-                    return SAVE_COMMAND;
-                if(g.selection == 2) {
-                    g.mode = EXPLORE;
-                    g.feedback = 0;
-                }
-            }
-            break;
-
-        case STATUS:
-            if(pressed & (BTN_A | BTN_B))
-                g.mode = MENU;
-            break;
-
-        case TACTICAL_RESERVED:
-            break;
-    }
-
-    return NO_COMMAND;
+void game_update(Game& g, uint8_t held) {
+    actor_move(g, &g.player, direction(held), 2, -1);
+    if(!portals_update(g))
+        npcs_update(g);
+    ++g.ticks;
 }

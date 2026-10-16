@@ -111,8 +111,9 @@ if(RPG_BUILD_GUEST)
         endif()
     endfunction()
     guest(m0_proof src/proof.cpp)
-    guest(rpg ${RULES} src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
-    guest(rpg_stress ${RULES} src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
+    set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
+    guest(rpg ${RULES} ${PLATFORM})
+    guest(rpg_stress ${RULES} ${PLATFORM})
     if(EXISTS "${AVM_LLDB}")
         add_custom_target(rpg_integration
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"

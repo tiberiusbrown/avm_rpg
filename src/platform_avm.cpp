@@ -25,50 +25,29 @@ extern "C" __attribute__((noinline)) void rpg_render_end() {
     frame_marker = 3;
 }
 
-static bool restore() {
-    return avm_load() && save_decode(game, saved_record);
+bool game_load(Game& g) {
+    return avm_load() && save_decode(g, saved_record);
+}
+
+bool game_save(Game const& g) {
+    save_encode(g, saved_record);
+    uint16_t expected_crc = save_checksum(saved_record);
+    avm_save();
+
+    // Read back and validate before reporting success; the write API has no result.
+    return avm_load() && saved_record[22] == (uint8_t)expected_crc &&
+           saved_record[23] == (uint8_t)(expected_crc >> 8) &&
+           save_checksum(saved_record) == expected_crc;
 }
 
 extern "C" void setup() {
-    bool valid = avm_save_exists() && restore();
-
-    game_boot(game, valid);
-
     avm_set_frame_rate(20);
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    game_new(game);
 }
 
 extern "C" void loop() {
-    COMMAND command;
-    uint16_t expected_crc;
-
-    if(!avm_next_frame())
-        return;
-
-    rpg_frame_begin();
-    avm_poll_buttons();
-    command = game_tick(game, avm_buttons());
-
-    if(command == SAVE_COMMAND) {
-        save_encode(game, saved_record);
-        expected_crc = save_checksum(saved_record);
-        avm_save();
-
-        /* The API has no write result; read back and validate before reporting success. */
-        game.save_valid = (uint8_t)(avm_load() && saved_record[22] == (uint8_t)expected_crc &&
-                                    saved_record[23] == (uint8_t)(expected_crc >> 8) &&
-                                    save_checksum(saved_record) == expected_crc);
-        game.feedback = 40;
-    } else if(command == LOAD_COMMAND) {
-        if(!restore())
-            game_boot(game, false);
-        game.previous_buttons = avm_buttons();
-    }
-
-    rpg_render_begin();
-    rpg_render(game);
-    avm_display(true);
-    rpg_render_end();
-    rpg_frame_end();
+    title_screen(game);
+    explore(game);
 }

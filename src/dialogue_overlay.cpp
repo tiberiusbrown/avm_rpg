@@ -34,7 +34,7 @@ static void close_overlay(Game const& g) {
     avm_display(true);
 }
 
-static bool wait_for_input(Game& g, uint8_t prompt) {
+static bool wait_for_input(uint8_t prompt) {
     avm_draw_text_P(LEFT, 62,
                     prompt == DIALOGUE_MORE     ? F("A more / B leave")
                     : prompt == DIALOGUE_CHOICE ? F("A yes / B no")
@@ -42,26 +42,19 @@ static bool wait_for_input(Game& g, uint8_t prompt) {
     avm_display(false);
     dialogue_prompt = prompt;
 
-    // The press that opened this overlay/page must not acknowledge it too.
-    while(avm_buttons() & (BTN_A | BTN_B))
-        avm_idle();
-    do {
-        avm_idle();
-        g.previous_buttons = avm_buttons();
-    } while(!(g.previous_buttons & (BTN_A | BTN_B)));
-
+    uint8_t pressed = input_wait_press(BTN_A | BTN_B);
     dialogue_prompt = DIALOGUE_CLOSED;
-    return !(g.previous_buttons & BTN_B);
+    return !(pressed & BTN_B);
 }
 
-static bool next_line(Game& g) {
+static bool next_line() {
     if(dialogue_y + AVM_FONT_BR5D->line_height <= LAST_LINE) {
         dialogue_x = LEFT;
         dialogue_y += AVM_FONT_BR5D->line_height;
         return true;
     }
 
-    if(!wait_for_input(g, DIALOGUE_MORE))
+    if(!wait_for_input(DIALOGUE_MORE))
         return false;
     clear_overlay();
     return true;
@@ -104,7 +97,7 @@ __attribute__((noinline)) static uint8_t draw_chunk(char const PROGMEM* word) {
     return count;
 }
 
-static bool stream_text(Game& g, char const PROGMEM* words) {
+static bool stream_text(char const PROGMEM* words) {
     while(*words) {
         if(separator(*words)) {
             char c = *words++;
@@ -114,7 +107,7 @@ static bool stream_text(Game& g, char const PROGMEM* words) {
                     ++next;
                 if(!*next)
                     return true;
-                if(!next_line(g))
+                if(!next_line())
                     return false;
             }
             continue;
@@ -123,7 +116,7 @@ static bool stream_text(Game& g, char const PROGMEM* words) {
         if(dialogue_x != LEFT) {
             uint8_t space = (uint8_t)avm_text_width_P(F(" "));
             if(dialogue_x + space + word_width(words) > RIGHT) {
-                if(!next_line(g))
+                if(!next_line())
                     return false;
             } else {
                 dialogue_x += space;
@@ -132,7 +125,7 @@ static bool stream_text(Game& g, char const PROGMEM* words) {
 
         while(*words && !separator(*words)) {
             uint8_t count = draw_chunk(words);
-            if(!count && !next_line(g))
+            if(!count && !next_line())
                 return false;
             words += count;
         }
@@ -150,14 +143,14 @@ bool dialogue_show(Game& g, char const PROGMEM* words) {
         return true;
 
     open_overlay(g);
-    bool accepted = stream_text(g, words) && wait_for_input(g, DIALOGUE_DONE);
+    bool accepted = stream_text(words) && wait_for_input(DIALOGUE_DONE);
     close_overlay(g);
     return accepted;
 }
 
 bool dialogue_ask(Game& g, char const PROGMEM* question) {
     open_overlay(g);
-    bool accepted = (!question || stream_text(g, question)) && wait_for_input(g, DIALOGUE_CHOICE);
+    bool accepted = (!question || stream_text(question)) && wait_for_input(DIALOGUE_CHOICE);
     close_overlay(g);
     return accepted;
 }
