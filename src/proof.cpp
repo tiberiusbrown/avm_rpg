@@ -47,9 +47,9 @@ extern "C" void loop() {
     if(area)
         avm_draw_filled_rect_white(70, 20, 16, 24);
     avm_draw_sprite_self_masked(x, y, PLAYER_SPRITE, 0);
-    avm_draw_text_P(2, 8, area ? F("Area 2 / A switch") : F("Area 1 / A switch"));
+    avm_draw_text(2, 8, area ? F("Area 2 / A switch") : F("Area 1 / A switch"));
     if(action)
-        avm_draw_text_P(2, 62, F("B toggles this line"));
+        avm_draw_text(2, 62, F("B toggles this line"));
 
     proof_marker = 2;
     proof_present();

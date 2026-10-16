@@ -1,27 +1,31 @@
 #include "rpg.h"
+#include "map_positions.h"
 
 #include <string.h>
 
-uint16_t rng_next(Game& g) {
-    uint16_t x = g.rng;
+Game game{};
+
+uint16_t rng_next() {
+    uint16_t x = game.rng;
 
     x ^= (uint16_t)(x << 7);
     x ^= (uint16_t)(x >> 9);
     x ^= (uint16_t)(x << 8);
 
-    g.rng = x;
+    game.rng = x;
     return x;
 }
 
-void game_new(Game& g) {
-    memset(&g, 0, sizeof(g));
+void game_new() {
+    memset(&game, 0, sizeof(game));
 
-    g.rng = 0xbabe;
-    g.hp = 20;
-    g.max_hp = 20;
-    g.level = 1;
+    game.rng = 0xbabe;
+    game.hp = 20;
+    game.max_hp = 20;
+    game.level = 1;
 
-    world_enter(g, OUTDOOR, 32, 40, EAST);
+    Area const PROGMEM* area = world_area(AREA_OUTDOOR);
+    world_enter(AREA_OUTDOOR, area->spawn.x, area->spawn.y, EAST);
 }
 
 static uint8_t direction(uint8_t held) {
@@ -35,7 +39,7 @@ static uint8_t direction(uint8_t held) {
     return STILL;
 }
 
-bool actor_move(Game& g, Actor* a, uint8_t dir, uint8_t pixels, int8_t ignore) {
+bool actor_move(Actor* a, uint8_t dir, uint8_t pixels) {
     bool moved = false;
 
     a->walking = 0;
@@ -62,7 +66,7 @@ bool actor_move(Game& g, Actor* a, uint8_t dir, uint8_t pixels, int8_t ignore) {
         if(dir == EAST)
             ++x;
 
-        if(!position_clear(g, x, y, ignore))
+        if(!terrain_clear(x, y))
             break;
 
         a->x = x;
@@ -74,10 +78,10 @@ bool actor_move(Game& g, Actor* a, uint8_t dir, uint8_t pixels, int8_t ignore) {
     return moved;
 }
 
-Camera game_camera(Game const& g) {
-    Area const PROGMEM* a = world_area(g.area);
-    int16_t x = (int16_t)g.player.x - 60, y = (int16_t)g.player.y - 28;
-    int16_t mx = (int16_t)a->width * 8 - 128, my = (int16_t)a->height * 8 - 64;
+Camera game_camera() {
+    int16_t x = (int16_t)game.player.x - 60, y = (int16_t)game.player.y - 28;
+    int16_t mx = (int16_t)game.dimensions.width_tiles * 8 - 128;
+    int16_t my = (int16_t)game.dimensions.height_tiles * 8 - 64;
     Camera c;
 
     if(mx < 0)
@@ -100,39 +104,14 @@ Camera game_camera(Game const& g) {
     return c;
 }
 
-uint8_t interaction_target(Game const& g) {
-    uint8_t i;
-    int16_t px = (int16_t)g.player.x, py = (int16_t)g.player.y;
-
-    for(i = 0; i < g.npc_count; ++i) {
-        int16_t dx = (int16_t)g.npcs[i].actor.x - px;
-        int16_t dy = (int16_t)g.npcs[i].actor.y - py;
-        bool found = false;
-
-        switch(g.player.facing) {
-            case NORTH:
-                found = dy < 0 && dy >= -14 && dx >= -6 && dx <= 6;
-                break;
-            case SOUTH:
-                found = dy > 0 && dy <= 14 && dx >= -6 && dx <= 6;
-                break;
-            case EAST:
-                found = dx > 0 && dx <= 14 && dy >= -6 && dy <= 6;
-                break;
-            case WEST:
-                found = dx < 0 && dx >= -14 && dy >= -6 && dy <= 6;
-                break;
-        }
-
-        if(found)
-            return g.npcs[i].id;
-    }
-    return 0;
-}
-
-void game_update(Game& g, uint8_t held) {
-    actor_move(g, &g.player, direction(held), 2, -1);
-    if(!portals_update(g))
-        npcs_update(g);
-    ++g.ticks;
+void game_update(uint8_t held, uint8_t pressed) {
+    bool did_teleport = update_visible_world(pressed);
+    // A runs ordinary chunk logic, including blocking dialogue, with movement paused.
+    if(pressed & BTN_A)
+        return;
+    RPG_PHASE(6);
+    if(!did_teleport)
+        actor_move(&game.player, direction(held), 2);
+    RPG_PHASE(0);
+    ++game.ticks;
 }

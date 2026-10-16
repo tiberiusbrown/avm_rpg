@@ -13,7 +13,8 @@
 - Use the C++ AVM overloads instead of `_P` variants.
 - Declare generated assets `constexpr`.
 - Use procedural screen functions with local input/display loops; call and return instead of global mode dispatch.
-- Pass game state as `Game&` / `const Game&`, use `Game` member functions, or access the single global game directly.
-- Keep guest full LTO enabled and verify that the single global `Game` removes game-reference arguments from optimized guest functions.
+- Access the single global `game` directly for gameplay; do not pass `Game&` through engine or screen APIs. Customize generated `Handler<POS, HandlerStage>` through ordinary `handler_impl` overloads accepting `Gameplay<POS>`, `Tiles<POS>` or `Dialogue<POS>` tags. Generated generic functions provide empty defaults. Complete all `STAGE_GAMEPLAY` work, reload the cache, complete all `STAGE_TILES` work, then run `STAGE_DIALOGUE`. Blocking interactions belong in Dialogue; its terrain flag changes take effect on the next tile pass unless explicitly refreshed. Newly authored handler names must export/compile without handwritten definitions. Do not reintroduce context objects or a frozen world snapshot. `teleported` and consumed frame input are transient globals.
+- Runtime tile reads use `cached_tile`; wrong-area and out-of-window reads return `TILE_OUTSIDE`. Do not add offscreen projection or direct PROGMEM tile lookup APIs. Saves validate structure/bounds before loading, then repair blocked positions using the loaded cache.
+- Keep guest full LTO enabled and verify the single global `Game`, the absence of game-reference helper arguments and elimination of map tile-position storage.
 - Preserve deterministic rules, fixed capacities, and AVM memory/stack budgets.
 - Build and test in RelWithDebInfo; keep the playable `rpg.arduboy` updated in the repository root.

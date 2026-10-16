@@ -1,4 +1,10 @@
-# AVM v1 contract — M0
+# AVM v1 contract — M0 through M1.5
+
+M1.5 changes only RPG code/assets. AVM machine/compiler/runtime contracts remain
+unchanged. Current application resource proofs and emulator timings are in
+[m1_5_measurements.md](m1_5_measurements.md); the architecture is in
+[chunk_world.md](chunk_world.md). Earlier revision observations below are retained
+as historical qualification, not a claim that the remote repositories are unchanged.
 
 Evidence labels: **Verified** means checked against the cited repository source
 and/or compiled interfaces; **Measured** means observed in this build/emulator;
@@ -113,7 +119,8 @@ plus `avm_draw_overwrite` / `avm_draw_plus_mask` removes repeated pointer argume
 Services clip signed coordinates. Sprite assets begin with width,height;
 8×8 frames are eight page-major column bytes. Plus-mask frames interleave each
 image byte with its mask. `avm_draw_filled_rect_white/black` accept signed x/y and
-8-bit width/height. RPG renders partial tiles directly; no RAM tile cache exists.
+8-bit width/height. M1.5 renders effective partial tiles from its 153-byte live
+cache, with byte tile origins and a 16-bit pixel camera snapshot.
 
 `avm_set_text_font(AVM_FONT_BR5D)` selects the preferred variable-width ASCII
 font, with five pixels above the baseline, descenders, and seven-pixel line
@@ -166,7 +173,7 @@ compatibility. Equal-length new versions still require application validation.
 | Offset | Bytes | Value |
 |---:|---:|---|
 | 0 | 2 | `RP` magic |
-| 2 | 1 | version 1 |
+| 2 | 1 | version 2; explicit validated version-1 migration |
 | 3 | 1 | record length 24 |
 | 4 | 1 | stable area ID (1 outdoor, 2 interior) |
 | 5 | 1 | facing 0..3 |
@@ -177,8 +184,10 @@ compatibility. Equal-length new versions still require application validation.
 | 20 | 2 | reserved zero |
 | 22 | 2 | CRC-16/CCITT-FALSE, bytes 0..21 |
 
-Load validates magic, version, length, CRC, fields, terrain, bounds and the
-stationary NPC's collision box before mutating live state. No pointers, padding,
+Load validates magic, version, length, CRC, fields, projected effective terrain, bounds and the
+stationary NPC's quest-conditioned collision box before mutating live state. Version 1
+permits only its original lantern flag; version 2 permits defined bits 0..4.
+No pointers, padding,
 UI state or NPC scratch are serialized. Ambient spawns relocate within authored
 bounds if a loaded player occupies them. Save feedback requires physical load
 readback with the expected checksum, not merely SAVE_EXISTS. CRC is corruption

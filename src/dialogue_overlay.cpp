@@ -20,25 +20,25 @@ static void clear_overlay() {
     dialogue_y = FIRST_LINE;
 }
 
-static void open_overlay(Game const& g) {
+static void open_overlay() {
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     avm_draw_filled_rect_black(0, 0, 128, 64);
-    rpg_render_world(g);
+    rpg_render_world();
     clear_overlay();
 }
 
-static void close_overlay(Game const& g) {
+static void close_overlay() {
     avm_draw_filled_rect_black(0, 0, 128, 64);
-    rpg_render_world(g);
+    rpg_render_world();
     avm_display(true);
 }
 
 static bool wait_for_input(uint8_t prompt) {
-    avm_draw_text_P(LEFT, 62,
-                    prompt == DIALOGUE_MORE     ? F("A more / B leave")
-                    : prompt == DIALOGUE_CHOICE ? F("A yes / B no")
-                                                : F("A / B close"));
+    avm_draw_text(LEFT, 62,
+                  prompt == DIALOGUE_MORE     ? F("A more / B leave")
+                  : prompt == DIALOGUE_CHOICE ? F("A yes / B no")
+                                              : F("A / B close"));
     avm_display(false);
     dialogue_prompt = prompt;
 
@@ -114,7 +114,7 @@ static bool stream_text(char const PROGMEM* words) {
         }
 
         if(dialogue_x != LEFT) {
-            uint8_t space = (uint8_t)avm_text_width_P(F(" "));
+            uint8_t space = (uint8_t)avm_text_width(F(" "));
             if(dialogue_x + space + word_width(words) > RIGHT) {
                 if(!next_line())
                     return false;
@@ -134,7 +134,7 @@ static bool stream_text(char const PROGMEM* words) {
     return true;
 }
 
-bool dialogue_show(Game& g, char const PROGMEM* words) {
+bool dialogue_show(char const PROGMEM* words) {
     if(!words)
         return true;
     while(separator(*words))
@@ -142,15 +142,15 @@ bool dialogue_show(Game& g, char const PROGMEM* words) {
     if(!*words)
         return true;
 
-    open_overlay(g);
+    open_overlay();
     bool accepted = stream_text(words) && wait_for_input(DIALOGUE_DONE);
-    close_overlay(g);
+    close_overlay();
     return accepted;
 }
 
-bool dialogue_ask(Game& g, char const PROGMEM* question) {
-    open_overlay(g);
+bool dialogue_ask(char const PROGMEM* question) {
+    open_overlay();
     bool accepted = (!question || stream_text(question)) && wait_for_input(DIALOGUE_CHOICE);
-    close_overlay(g);
+    close_overlay();
     return accepted;
 }

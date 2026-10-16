@@ -53,6 +53,7 @@ def collect_revisions(build, work):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", type=Path, default=ROOT / "build")
+    parser.add_argument("--write-docs", action="store_true")
     args = parser.parse_args()
     build = args.build.resolve()
     work = Path((build / "latest-verification.txt").read_text().strip())
@@ -62,22 +63,24 @@ def main():
     resources = {}
     artifacts = {}
     lto = {}
-    for name in ["m0_proof", "rpg", "rpg_stress"]:
+    for name in ["m0_proof", "rpg", "m15_probe"]:
         elf = build / "artifacts" / f"{name}.elf"
         assert digest(elf) == result["elf_sha256"][name], "verification is stale"
-        assert json.loads((work / f"{name}.avmp").read_text())["identity"]["elf_sha256"] == digest(
-            elf
-        ), "profile is stale"
+        if name != "m15_probe":
+            assert json.loads((work / f"{name}.avmp").read_text())["identity"]["elf_sha256"] == digest(elf), "profile is stale"
         resources[name] = json.loads(Path(str(elf) + ".resources.json").read_text())
         lto[name] = json.loads(Path(str(elf) + ".lto.json").read_text())
         assert lto[name]["game_reference_arguments_eliminated"]
+        if name != "m0_proof":
+            assert lto[name]["unconditional_global_game"]
+        assert lto[name]["map_tile_position_storage_eliminated"]
         for extension in ["elf", "bin", "arduboy"]:
             p = elf.with_suffix("." + extension)
             artifacts[p.name] = {"sha256": digest(p), "bytes": p.stat().st_size}
     source_files = [
-        ROOT / name for name in ["CMakeLists.txt", ".gitignore", ".clang-format", "AGENTS.md"]
+        ROOT / name for name in ["CMakeLists.txt", ".gitignore", ".gitattributes", ".clang-format", "AGENTS.md"]
     ]
-    for directory in ["src", "tests", "tools", "generated", "assets_src"]:
+    for directory in ["src", "tests", "tools", "generated", "assets_src", "assets"]:
         source_files += [
             p for p in (ROOT / directory).rglob("*") if p.is_file() and "__pycache__" not in p.parts
         ]
@@ -88,7 +91,7 @@ def main():
         json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     units = {}
-    for name in ["rpg_tests", "rpg_stress_tests"]:
+    for name in ["rpg_tests", "rpg_flag_tests", "rpg_world_tests"]:
         exe = build / (name + (".exe" if __import__("sys").platform == "win32" else ""))
         units[name] = subprocess.check_output([str(exe)], text=True).strip()
     profile = json.loads((work / "rpg.avmp").read_text())
@@ -113,6 +116,10 @@ def main():
         "source_manifest": manifest,
         "artifacts": artifacts,
         "resources": resources,
+        "stack_reports": {
+            name: (build / "artifacts" / f"{name}.link.txt").read_text()
+            for name in resources
+        },
         "lto": lto,
         "native_tests": units,
         "integration": result,
@@ -121,6 +128,11 @@ def main():
         "profile_instruction_costs": breakdown,
         "raw_evidence_directory": str(work),
     }
+    repro_path = build / "repro-m15.json"
+    if repro_path.exists():
+        repro = json.loads(repro_path.read_text(encoding="utf-8-sig"))
+        assert repro["result"] == "PASS" and repro["package_sha256"] == artifacts["rpg.arduboy"]["sha256"]
+        evidence["reproducibility"] = repro
     root_package = ROOT / "rpg.arduboy"
     assert digest(root_package) == artifacts["rpg.arduboy"]["sha256"], "root package is stale"
     (build / "revisions.json").write_text(json.dumps(revisions, indent=2) + "\n")
@@ -137,7 +149,7 @@ def main():
                 else "—"
             )
             + " | "
-            + (str(m["observed_fps"]) if "observed_fps" in m else "single operation")
+            + (str(m["observed_fps"]) if "observed_fps" in m and m["frames"] > 1 else "single operation")
             + " |"
         )
     table = "\n".join(rows)
@@ -146,128 +158,128 @@ def main():
     display = breakdown["display_sys"]
     rpg_resources = resources["rpg"]
     game_bytes = symbols(build / "artifacts/rpg.elf")["game"]["bytes"]
-    text = f"""# M0/M1 performance evidence
+    repro_note = (
+        "An independent SDK-only RelWithDebInfo build in `build/m15-repro` also passed all\n"
+        "six CTest entries and emitted a byte-for-byte identical playable RPG package."
+        if "reproducibility" in evidence else
+        "No independent rebuild report was supplied for this measurement."
+    )
+    text = f"""# M1.5 measured evidence
 
-Measured {revisions["verification_date"]} on {revisions["host"]}. Exact input schedules,
-ELF/image/interpreter hashes, section sizes, source fingerprint and native test
-results are in [evidence.json](evidence.json). Source fingerprint: `{fingerprint}`.
-AVM revision: `{revisions["avm_revision"]}`.
+Measured {revisions['verification_date']} on {revisions['host']}.
+Source fingerprint: `{fingerprint}`. AVM revision: `{revisions['avm_revision']}`.
+All changes are uncommitted. Machine-readable hashes, source manifest and exact
+link/LTO reports are in `m1_5_evidence.json`; raw profiles remain in
+`build/{work.name}`. Historical M0/M1 results remain in `performance.md`.
 
-## Memory and complete link-time stack bounds
-
-| Guest | .saved | ordinary .data | total static / 1024 | code | read-only data | stack / 256 |
+| Guest | saved | ordinary data | total static / 1024 | code | PROGMEM data | complete stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
 """
     for name, r in resources.items():
         text += f"| {name} | {r['saved_bytes']} | {r['ordinary_data_bytes']} | {r['static_bytes']} | {r['text_bytes']} | {r['rodata_bytes']} | {r['stack_bytes']} |\n"
     text += f"""
-All three links report **complete bound: yes**, with zero analysis gaps. The
-M1 {rpg_resources["stack_bytes"]}-byte bound includes spills, outgoing arguments and
-three-byte return records. SYS native AVR stack is outside the guest stack.
-The exact maximum paths are retained in build/artifacts/*.link.txt.
-The framebuffer is a separate 1024 bytes. Guest Game is {game_bytes} bytes, NPC 8 bytes,
-and all 12 NPC slots are reserved even in the normal build. Native sizeof values
-are not used as guest resource evidence. No heap exists in guest rules. M1 leaves
-{1024 - rpg_resources["static_bytes"]} static bytes and {256 - rpg_resources["stack_bytes"]} stack bytes of margin.
+Every link has a complete bound and zero analysis gaps. Native and AVM gameplay
+use one global Game with no Game-reference parameters. Full LTO verifies the
+guest singleton and absence of retained Game-reference helpers. Guest Game is
+{game_bytes} bytes. Flags use one byte per eight declared flags (rounded up). The only resident map
+cache is 153 tile bytes plus two byte origins. Static RAM leaves
+{1024 - rpg_resources['static_bytes']} bytes; stack margin is {256 - rpg_resources['stack_bytes']} bytes.
+Active area width/height use Game's existing two-byte MapDimensions cache. Camera,
+chunk enumeration, tile loading/setters, membership, interaction and collision
+bounds use it; area changes refresh it before destination processing. Save
+validation reads the candidate area's dimensions before committing active state.
+Bounds include finalized spills, outgoing arguments and three-byte return records.
+The 1024-byte framebuffer and native AVR hardware stack are separate.
+`world_types.h`, `rpg.h`, and `chunk.h` compile-time assertions enforce byte tile,
+chunk, origin, map/grid dimension fields and 16-bit pixel fields in both host and guest.
+The probe actually reads chunk 464 in a 240x248-tile PROGMEM map, beyond a 16-bit
+program address boundary through cache loading; its large asset adds no resident map RAM.
+Runtime tile reads use only the resident cache. Wrong-area and out-of-window
+reads return the solid outside sentinel, with no single-tile projection fallback.
+Save decoding checks format, CRC, fields and map bounds before commit, then builds
+the loaded cache and relocates blocked positions to nearby clear terrain or spawn.
+The exporter generates Tag<POS, STAGE>, Gameplay/Tiles/Dialogue aliases, generic
+empty handler functions, dependent dispatch helpers and a forwarding Handler facade.
+Ordinary handler_impl overloads target stages, positions or exact pairs; missing
+implementations remain no-ops. A separate native fixture compiles dispatch with
+new named/repeated/unnamed unimplemented handlers. Every live chunk completes
+STAGE_GAMEPLAY before baseline reload and STAGE_TILES; STAGE_DIALOGUE starts only
+after every tile chunk completes. Dialogue terrain flag changes wait for the next
+tile pass unless explicitly refreshed. Native rules verify late overload lookup,
+exact-match precedence and the complete-cache barrier before blocking dialogue.
+WorldState and both contexts are removed. Frame input and teleported are transient globals. A teleport aborts
+outgoing gameplay while destination tile dispatch always completes.
 
-All game rules and native C++ tests use C++17. Guest full LTO specializes the
-shared Game references to the single global object: game_new and save_decode
-retain no arguments, world_enter retains area/position/facing, and position_clear
-retains position/actor-ignore values. Other rules are inlined. Each link saves
-optimized LLVM IR and checks that the Game reference is absent from retained
-rule signatures. The exact signatures are recorded in evidence.json under lto.
+Elapsed emulated AVR cycles at 16 MHz; budget 800,000 cycles per 20 FPS frame.
+Markers exclude pacing wait and include rendering, OLED transfer and interrupts.
+The device test rejects any sampled exploration frame exceeding budget.
 
-## Full-frame costs (elapsed emulated AVR cycles)
-
-The clock is 16 MHz; the 20 FPS / 50 ms budget is **800,000 cycles**. These are
-actual interpreter/device costs including interrupts and OLED transfers, not
-guest opcode counts or host wall-clock times. Markers bracket accepted simulation
-frames; pacing wait between frames is excluded. Render/display markers include
-the full screen render and avm_display(true), with tiny marker overhead. FPS is
-measured from the interval between frame beginnings, including pacing wait.
-Procedural menu/status/dialogue waits are checked separately and are not frame-cost samples.
-
-| Workload | Samples | Average cycles | Worst observed cycles | Average render + display | Emulated FPS |
+| Workload | frames | average cycles | worst observed | average render/display | FPS |
 |---|---:|---:|---:|---:|---:|
 {table}
 
-Normal exploration and the 12-NPC workload sustain **20 FPS** in these windows.
-The observed maxima are samples, not a mathematical universal worst-case bound.
-Save/readback and continuation are verified by the device scenario, without
-including time spent waiting for UI input in the frame samples.
+Stage averages and maxima are measured independently. Chunk costs include gameplay,
+tile and dialogue dispatches with their direct native handlers. Blocking prompt
+loops are outside exploration timing markers. Collision includes player overlap
+repair and movement.
+These are operational stage costs, not isolated instruction estimates.
 
-The full-device scenario exercises stationary display, intermediate player pixels,
-scrolling, NPC movement, dense terrain collision, dialogue/choices, both portals,
-menu/status, saving, a new emulator instance loading the physical sector, changed
-dialogue after restart, and corrupt-data startup. Native tests additionally cover
-unsupported formats, bounds/corners, directions, deterministic wandering/limits,
-spawn relocation, dialogue consequences, checksum failures and unchanged
-state after failed load. CTest has four passing tests; exact rule-check counts are
-in evidence.json. Device checks cover paused procedural screens, held-button
-release gates, and returning through nested screens. SDK backtraces verify that
-status runs inside menu_screen inside explore, with no mode dispatcher.
+| Workload | reload avg / worst | chunks avg / worst | collision avg / worst |
+|---|---:|---:|---:|
+"""
+    for m in result['measurements']:
+        if 'average_reload_cycles' not in m or m['workload'] == 'm0_proof':
+            continue
+        text += '| ' + m['workload'] + ' | ' + ' | '.join(
+            f"{m['average_' + key + '_cycles']:,} / {m['worst_' + key + '_cycles']:,}"
+            for key in ['reload', 'chunk', 'collision']) + ' |\n'
+    text += f"""
+The stationary view runs four chunks every frame, even unchanged. Reload uses
+9 rows of contiguous PROGMEM copy spans, split at chunk boundaries. It always
+reconstructs all 153 entries. The reload phase includes camera clamping and
+origin setup as well as the program-copy work. No compression, incremental patching or resident
+full chunks are used. NPCs and their stress build have been removed for a separate
+update. Historical M1 timings include NPC work and are not the same workload.
+Cached rendering reduces
+repeated program reads. The full source profile reconciles
+{int(profile['window']['completed_cycles']) if 'completed_cycles' in profile['window'] else int(profile['window']['end_cycle']) - int(profile['window']['start_cycle']):,} elapsed cycles,
+with zero partial cycles and discontinuities. Program load instructions account
+for {loads['cycles']:,} cycles / {loads['executions']:,} executions; background
+sprite services {sprites['cycles']:,} / {sprites['executions']:,}; display services
+{display['cycles']:,} / {display['executions']:,}. Native interrupt/service work is
+included, and source attribution of inlined code may be distributed across lines.
 
-## Source profiling and asset access
+Native results:
 
-Each SDK profile uses one second of warmup and an eight-second measurement
-window with tests/replays/exploration.json, deterministic named-button events
-at cycle offsets. M0, normal and 12-NPC profiles all completed. The normal
-window contains 128,000,000 reconciled cycles, 160 displayed frames, zero
-partial cycles and zero discontinuities. Native active/waiting costs are
-separate from guest-PC attribution. Optimized inline sites retain source
-identity; an unmapped source row does not mean an unaccounted cycle.
+```text
+"""
+    text += '\n'.join(units.values()) + '\n```\n'
+    text += f"""
+Six CTest entries pass, including the exporter unittest suite and generated-asset
+freshness. The SDK probe passes {result['m15_guest_checks']} guest-executed checks.
+Full-device tests retain the M1 new/walk/portals/dialogue/menu/status/corrupt-save
+scenario and add closed/open/reset gate graphics and collision, cross-chunk bridge
+clipping, periodic baseline restoration, and persistent quest flags after
+physical FX-sector save and fresh-emulator load. Native and guest checks exercise
+walking-entry edges, facing-gated fresh A input and teleport arrival suppression.
+Map objects have optional names and handlers, with no types. Rectangles expand
+into per-tile C++17 template calls; named region metadata remains for contains
+queries. Unnamed objects use private constants. LTO verifies no tile position
+storage survives. No portal/interaction tables are generated. The flag tests exercise 37-bit
+and 257-bit sets, every bit, adjacent bytes and invalid indices.
 
-Within that normal eight-second profile:
+{repro_note}
 
-* Direct AS1 program-load instructions: {loads["cycles"]:,} cycles across
-  {loads["executions"]:,} executions ({loads["cycles"] / loads["executions"]:.1f} cycles/execution).
-  This includes map bytes, area descriptors and NPC definitions, with interpreter
-  dispatch/interrupt intervals; it is not isolated flash chip latency.
-* Background sprite SYS calls: {sprites["cycles"]:,} cycles / {sprites["executions"]:,}
-  calls ({sprites["cycles"] / sprites["executions"]:.1f} cycles/call). Sprite FX reads and
-  native blits are included here, not in the direct guest program-load count.
-* Display SYS calls: {display["cycles"]:,} cycles / {display["executions"]:,} calls
-  ({display["cycles"] / display["executions"]:.1f} cycles/call). This excludes argument
-  setup but includes the native transfer and interrupt activity.
-
-The map loop and sprite rendering dominate useful frame work. Selected-sprite
-services and skipping blank path/interior tiles already avoid needless transfers.
-No cache, compression, dirty rectangle scheme or lower frame rate was necessary.
-The 12-NPC test remains within budget with pixel motion intact. Further detail,
-audio or battle rendering requires new profiles; current timings are not reserved
-capacity for those additions.
-
-## Reproduce
-
-From the RPG root with SDK on PATH and a matching MSVC developer environment:
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DAVM_SDK_ROOT=/path/to/sdk
-cmake --build build --config RelWithDebInfo --parallel 4
-ctest --test-dir build -C RelWithDebInfo --output-on-failure
-```
-
-For complete visible/persistence/per-frame QA, configure the existing matching
-AVM source/build library with -DAVM_SOURCE_ROOT=/path/to/avm and
--DAVM_BUILD_ROOT=/path/to/avm/build, then build. The core installed-SDK command is:
-
-```sh
-python tests/guest_integration.py --sdk /path/to/sdk --build build
-python tools/collect_evidence.py --build build
-```
-
-The integration script creates a fresh directory, launches actual ELF and package
-guests, runs frame-based input scenarios, and records avm-prof traces/HTML reports.
-Raw evidence for this run is `{work.name}` under build/; latest-verification.txt
-points to it. SDK-only users can execute the LLDB/replay checks, but full-device
-per-frame/restart checks are explicitly skipped without the optional harness.
-
-Limitations: Windows/MSVC and emulated device verified; physical hardware, other
-host platforms and audio-enabled workloads remain unverified. The installed SDK's unfiltered visible buffer can be
-stale, so full-device QA refreshes it using Ardens advance(0). No VM/toolchain
-source changes were made to work around that capture issue.
+Observed maxima are sample bounds, not universal WCET proofs. Physical hardware,
+audio-enabled workloads and other host platforms are unverified. Large authored
+handler bodies require new resource/timing checks.
+See `tiled_pipeline.md` and `chunk_world.md` for exact reproduction commands and
+content constraints. No AVM compiler, interpreter or runtime sources changed.
 """
     (build / "performance.md").write_text(text, encoding="utf-8", newline="\n")
+    if args.write_docs:
+        (ROOT / "docs/m1_5_measurements.md").write_text(text, encoding="utf-8", newline="\n")
+        (ROOT / "docs/m1_5_evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
     print(f"Collected evidence for {fingerprint}; reports in {build}; raw profiles in {work}")
 
 

@@ -7,8 +7,8 @@ extern "C" void rpg_frame_end();
 extern "C" void rpg_render_begin();
 extern "C" void rpg_render_end();
 
-__attribute__((noinline)) void title_screen(Game& g) {
-    bool can_continue = game_load(g);
+__attribute__((noinline)) void title_screen() {
+    bool can_continue = game_load();
     uint8_t selection = 0;
 
     for(;;) {
@@ -20,28 +20,28 @@ __attribute__((noinline)) void title_screen(Game& g) {
             selection ^= 1;
         if(pressed & BTN_A) {
             if(!selection) {
-                game_new(g);
+                game_new();
                 return;
             }
-            if(can_continue && game_load(g))
+            if(can_continue && game_load())
                 return;
             can_continue = false;
         }
     }
 }
 
-__attribute__((noinline)) void status_screen(Game const& g) {
-    render_status(g);
+__attribute__((noinline)) void status_screen() {
+    render_status();
     avm_display(true);
     input_wait_press(BTN_A | BTN_B);
 }
 
-__attribute__((noinline)) void menu_screen(Game& g) {
+__attribute__((noinline)) void menu_screen() {
     uint8_t selection = 0;
     char const PROGMEM* feedback = nullptr;
 
     for(;;) {
-        render_menu(g, selection, feedback);
+        render_menu(selection, feedback);
         avm_display(true);
         uint8_t pressed = input_wait_press();
 
@@ -53,16 +53,16 @@ __attribute__((noinline)) void menu_screen(Game& g) {
             selection = (uint8_t)((selection + 2) % 3);
         else if(pressed & BTN_A) {
             if(selection == 0)
-                status_screen(g);
+                status_screen();
             else if(selection == 1)
-                feedback = game_save(g) ? F("Saved and checked") : F("Save failed");
+                feedback = game_save() ? F("Saved and checked") : F("Save failed");
             else
                 return;
         }
     }
 }
 
-__attribute__((noinline)) void explore(Game& g) {
+__attribute__((noinline)) void explore() {
     input_sync();
 
     for(;;) {
@@ -70,24 +70,20 @@ __attribute__((noinline)) void explore(Game& g) {
         uint8_t pressed = input_pressed();
 
         if(pressed & BTN_B) {
-            menu_screen(g);
+            menu_screen();
             input_sync();
             continue;
         }
         if(pressed & BTN_A) {
-            uint8_t id = interaction_target(g);
-            if(id)
-                dialogue_talk(g, id);
-            else
-                dialogue_show(g, F("Face someone and press A to talk."));
+            game_update(0, pressed);
             input_sync();
             continue;
         }
 
         rpg_frame_begin();
-        game_update(g, input_held());
+        game_update(input_held());
         rpg_render_begin();
-        rpg_render_world(g);
+        rpg_render_world();
         avm_display(true);
         rpg_render_end();
         rpg_frame_end();

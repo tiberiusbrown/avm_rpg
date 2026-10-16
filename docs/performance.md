@@ -1,5 +1,10 @@
 # M0/M1 performance evidence
 
+The measurements below are retained historical evidence. Current M1.5 resource,
+stage-cost and full-device results are in [m1_5_measurements.md](m1_5_measurements.md)
+and [m1_5_evidence.json](m1_5_evidence.json). Reproduce them with the commands in
+[tiled_pipeline.md](tiled_pipeline.md). Current measurements exclude NPCs, which are deferred to a separate update.
+
 Measured 2026-10-15 on Windows x64; MSVC 19.51.36260.0; Ninja; RelWithDebInfo. Exact input schedules,
 ELF/image/interpreter hashes, section sizes, source fingerprint and native test
 results are generated locally in `build/evidence.json`. Source fingerprint for this

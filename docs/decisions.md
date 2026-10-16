@@ -1,4 +1,70 @@
-# M0/M1 technical decisions
+# Technical decisions
+
+## M1.5 world architecture
+
+Current world behavior is specified in [chunk_world.md](chunk_world.md) and
+authoring/build behavior in [tiled_pipeline.md](tiled_pipeline.md). Tiled is the
+map authority; generated native C++ calls associate each footprint with all
+intersecting chunks. Moving an anchor moves its constants and dispatch without
+handwritten ownership changes. No custom interpreter or runtime registry exists.
+
+The sole resident tile cache is 17x9 bytes with byte origins, fully reloaded every
+simulation frame. Chunks remain in PROGMEM. Byte tile/chunk/map dimensions enforce
+the 240x248 limit, while pixels and flattened indices use uint16_t. Logical
+bounds clip padded storage and camera edges. Active area dimensions are cached in
+Game's existing two-byte MapDimensions on entry or
+cross-area teleport. Runtime camera, chunk, cache, setter and membership bounds
+use those RAM values; save validation still checks the candidate area before
+committing. The cache adds no RAM or save fields. Every live chunk completes its
+`STAGE_GAMEPLAY` gameplay stage before cache reload and the `STAGE_TILES` terrain
+stage. Only after every tile chunk completes does `STAGE_DIALOGUE` run potentially
+blocking interactions. The exporter generates Tag<POS, STAGE>, stage aliases,
+generic empty handler functions, dependent dispatch helpers and a forwarding
+Handler<POS, STAGE> interface. Ordinary overloads in handler_impl supply behavior
+for a stage, position or exact pair; unimplemented combinations remain no-ops.
+Tile setters and input/teleport helpers access globals directly.
+TileContext, ChunkContext and WorldState have been removed. The tile stage reads
+the gameplay flags/time and produces consistent terrain during the same update.
+Dialogue terrain changes take effect on the next tile pass unless explicitly
+refreshed with refresh_tile_cache().
+
+Tile reads are cache-only; misses return the solid outside sentinel. Rectangles
+expand into independent tile specializations, with no runtime region ownership
+or dedup table. All three stages share one generated ordered handler list. Overlapping
+handlers execute in that order; persistent guards protect shared rewards.
+Global `teleported` ends outgoing gameplay; destination tiles still all run.
+
+NPC content and runtime are deferred to a separate update. Ordinary chunk
+handlers retain the lantern choice, gate/bridge controls and paired teleports.
+Map objects carry optional names and native handler references, with no types.
+All coordinates are TilePos values. C++17 reference template parameters bind
+each tile; named rectangles also retain optional contains-query metadata.
+Unnamed handlers use private constexpr positions with no public location names. Walking-entry, facing-A and
+teleport helpers replace exported portal routing and interaction registries. Point markers
+are centered; tile regions include all tiles partially overlapped by a rectangle.
+Generated area IDs use AREA_. Chunk origins trust validated exporter output.
+
+Indexed quest flags use a bitset sized by FLAG_COUNT, with getter/setter/clearer/
+toggler methods; player region checks share Game::player_is_in_region. Save
+version 3 serializes the count and packed bytes and migrates validated v1/v2
+records, dropping the retired NPC flag. The tile cache and timer are never saved.
+See current [measurements](m1_5_measurements.md) for resource proofs and margins.
+
+Gameplay uses one unconditional `Game game`, defined in game.cpp and declared in
+rpg.h, in native and AVM builds. Engine, screen, render and save functions access
+it directly. Tests reset the singleton and use host-only snapshots for
+deterministic comparisons. Frame events are transient globals outside Game.
+Single-tile projection queries and direct PROGMEM tile lookup APIs remain absent.
+Saves validate structure/bounds, then load the cache and repair blocked positions.
+See [three-stage handlers](chunk_world.md#global-gameplay-state-and-three-stage-handlers).
+Full LTO checks the singleton and rejects surviving Game-reference helpers or
+stored map position objects. The save schema is independent of this API change.
+
+## Historical M0/M1 decisions
+
+The following records describe the preserved starting point. M1.5 supersedes
+their direct-map rendering, actor simulation, save schema, explicit Game arguments
+and no-cache decisions.
 
 ## Shared deterministic C++17 rules
 

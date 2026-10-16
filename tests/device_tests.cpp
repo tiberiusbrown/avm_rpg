@@ -4,6 +4,7 @@
 
 #pragma pack(push, 1)
 #include "rpg.h"
+#include "tile_ids.h"
 #pragma pack(pop)
 
 #include <filesystem>
@@ -14,7 +15,8 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 116, "update QA reader if the guest state layout changes");
+static_assert(sizeof(Game) == 181 + WorldFlags::BYTE_COUNT,
+              "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
     if(!ok)
@@ -23,11 +25,15 @@ static void require(bool ok, char const* message) {
 
 struct Cost {
     uint64_t total = 0, render = 0, begin = 0, end = 0;
+    uint64_t reload = 0, chunks = 0, collision = 0;
 };
 
 struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
-    unsigned game_addr, marker_addr, serial_addr, dialogue_addr;
+    unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
+    uint8_t previous_phase = 0;
+    uint64_t phase_begin = 0;
+    Cost stages;
     uint8_t buttons = 0, previous_marker = 0;
     bool started = false;
     bool proof = false;
@@ -51,6 +57,17 @@ struct Device {
         Game g;
         memcpy(&g, &ab->core_state.cpu.data[game_addr], sizeof(g));
         return g;
+    }
+
+    void set_state(Game const& g) {
+        memcpy(&ab->core_state.cpu.data[game_addr], &g, sizeof(g));
+    }
+
+    uint8_t cached_tile(uint8_t x, uint8_t y) const {
+        Game g = state();
+        int dx = int(x) - g.cache.origin_tx, dy = int(y) - g.cache.origin_ty;
+        require(dx >= 0 && dx < 17 && dy >= 0 && dy < 9, "QA tile is outside the live cache");
+        return g.cache.tiles[dy * 17 + dx];
     }
 
     unsigned serial() const {
@@ -77,7 +94,10 @@ struct Device {
         if(marker != previous_marker) {
             if(marker == 1) {
                 begin = cpu.cycle_count;
-                if(proof || (state().area == OUTDOOR && state().hp == 20))
+                stages = {};
+                previous_phase = 0;
+                phase_begin = begin;
+                if(proof || (state().area == AREA_OUTDOOR && state().hp == 20))
                     started = true;
             }
             if(marker == 2)
@@ -85,9 +105,27 @@ struct Device {
             if(marker == 0 && previous_marker == 3 && begin) {
                 last = {cpu.cycle_count - begin, cpu.cycle_count - render_begin, begin,
                         cpu.cycle_count};
+                last.reload = stages.reload;
+                last.chunks = stages.chunks;
+                last.collision = stages.collision;
+                require(last.total <= 800000, "exploration frame exceeded 800000-cycle budget");
                 frames.push_back(last);
             }
             previous_marker = marker;
+        }
+        if(phase_addr && marker) {
+            uint8_t phase = cpu.data[phase_addr];
+            if(phase != previous_phase) {
+                uint64_t elapsed = cpu.cycle_count - phase_begin;
+                if(previous_phase == 4)
+                    stages.reload += elapsed;
+                if(previous_phase == 5)
+                    stages.chunks += elapsed;
+                if(previous_phase == 6)
+                    stages.collision += elapsed;
+                previous_phase = phase;
+                phase_begin = cpu.cycle_count;
+            }
         }
     }
 
@@ -187,12 +225,20 @@ struct Device {
 static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
     std::vector<Cost> costs;
     uint64_t sum = 0, worst = 0, render = 0, first = 0, last = 0;
+    uint64_t reload = 0, chunks = 0, collision = 0;
+    uint64_t reload_worst = 0, chunks_worst = 0, collision_worst = 0;
 
     for(unsigned i = 0; i < n; ++i) {
         d.frame(held);
         auto c = d.last;
         sum += c.total;
         render += c.render;
+        reload += c.reload;
+        chunks += c.chunks;
+        collision += c.collision;
+        reload_worst = std::max(reload_worst, c.reload);
+        chunks_worst = std::max(chunks_worst, c.chunks);
+        collision_worst = std::max(collision_worst, c.collision);
         worst = std::max(worst, c.total);
         if(!i)
             first = c.begin;
@@ -201,21 +247,29 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
     }
 
     double fps = n > 1 ? double(n - 1) * 16000000.0 / double(last - first) : 0;
+    require(worst <= 800000, "exploration frame exceeded 800000-cycle budget");
     std::cout << "{\"workload\":\"" << name << "\",\"frames\":" << n
               << ",\"average_cycles\":" << sum / n << ",\"worst_cycles\":" << worst
               << ",\"average_render_display_cycles\":" << render / n << ",\"observed_fps\":" << fps
+              << ",\"average_reload_cycles\":" << reload / n
+              << ",\"worst_reload_cycles\":" << reload_worst
+              << ",\"average_chunk_cycles\":" << chunks / n
+              << ",\"worst_chunk_cycles\":" << chunks_worst
+              << ",\"average_collision_cycles\":" << collision / n
+              << ",\"worst_collision_cycles\":" << collision_worst
               << ",\"budget_cycles\":800000}\n";
 }
 
 int main(int argc, char** argv) try {
-    require(argc == 8, "device_tests package game_address marker_address serial_address "
-                       "output_directory normal|stress dialogue_address");
+    require(argc == 9, "device_tests package game_address marker_address serial_address "
+                       "output_directory normal|m15|proof dialogue_address phase_address");
 
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
     unsigned q = std::stoul(argv[7]);
     Device d(package, g, m, s, q, std::string(argv[6]) == "proof");
+    d.phase_addr = std::stoul(argv[8]);
     if(d.proof) {
         d.frame();
         d.frame();
@@ -229,11 +283,93 @@ int main(int argc, char** argv) try {
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
-    if(std::string(argv[6]) == "stress") {
-        require(d.state().npc_count == 12, "stress did not activate 12 NPCs");
-        summary("twelve_npcs_stationary", d, 240);
-        summary("twelve_npcs_collision", d, 120, BTN_DOWN);
-        d.capture(out / "stress.pgm");
+    if(std::string(argv[6]) == "m15") {
+        auto changed = d.state();
+        changed.player = {112, 16, EAST, 0};
+        d.set_state(changed);
+        d.frame();
+        require(d.cached_tile(15, 2) == TILE_WALL, "gate baseline was not closed");
+        d.capture(out / "gate-closed.pgm");
+        auto closed = d.ab->peripherals.display.ram;
+        d.hold(BTN_RIGHT, 4);
+        require(d.state().player.x == 113, "closed gate did not block pixel collision");
+        changed = d.state();
+        changed.flags = {};
+        changed.set_flag(FLAG_GATE_OPEN);
+        d.set_state(changed);
+        d.frame();
+        require(d.cached_tile(15, 2) == TILE_PATH, "gate flag did not project next frame");
+        d.capture(out / "gate-open.pgm");
+        require(d.ab->peripherals.display.ram != closed, "effective gate did not change graphics");
+        d.hold(BTN_RIGHT, 6);
+        require(d.state().player.x > 120, "open gate still blocked movement");
+        changed = d.state();
+        changed.player = {120, 16, EAST, 0};
+        changed.flags = {};
+        d.set_state(changed);
+        summary("occupied_gate_closing", d, 1);
+        require(d.cached_tile(15, 2) == TILE_WALL, "baseline reset left a stale gate mutation");
+        require(d.state().player.x != 120 || d.state().player.y != 16,
+                "closing gate failed deterministic player ejection");
+
+        changed = d.state();
+        changed.player = {200, 72, EAST, 0};
+        changed.flags = {};
+        changed.set_flag(FLAG_BRIDGE_REPAIRED);
+        d.set_state(changed);
+        d.frame();
+        require(d.state().cache.origin_tx == 16 && d.cached_tile(16, 7) == TILE_PATH &&
+                    d.cached_tile(17, 8) == TILE_PATH,
+                "partial multi-chunk bridge did not project into the live cache");
+        d.capture(out / "bridge-repaired.pgm");
+        summary("partial_dynamic_bridge", d, 120);
+        changed = d.state();
+        changed.flags = {};
+        d.set_state(changed);
+        d.frame();
+        require(d.cached_tile(16, 7) == TILE_WATER, "bridge baseline failed to reset");
+        d.capture(out / "bridge-baseline.pgm");
+
+        changed = d.state();
+        changed.player = {208, 144, NORTH, 0};
+        changed.ticks = 0;
+        d.set_state(changed);
+        d.frame();
+        require(d.cached_tile(21, 16) == TILE_PATH, "per-frame platform failed its open phase");
+        d.capture(out / "platform-open.pgm");
+        for(unsigned i = 0; i < 16; ++i)
+            d.frame();
+        require(d.cached_tile(21, 16) == TILE_WATER,
+                "per-frame platform did not return to baseline");
+        d.capture(out / "platform-closed.pgm");
+        summary("periodic_platform", d, 120);
+
+        changed = d.state();
+        changed.player = {92, 40, EAST, 0};
+        changed.flags = {};
+        changed.set_flag(FLAG_GATE_OPEN);
+        changed.set_flag(FLAG_BRIDGE_REPAIRED);
+        changed.previous_player_tile = {AREA_OUTDOOR, 11, 5};
+        changed.player.walking = 1;
+        d.set_state(changed);
+        d.frame();
+        require(d.state().area == AREA_INTERIOR, "portal transition did not enter the interior");
+        d.tap(BTN_B);
+        d.tap(BTN_DOWN);
+        d.tap(BTN_A);
+        auto sector = d.sector();
+        Device restarted(package, g, m, s, q);
+        restarted.import_sector(sector);
+        restarted.advance(0, 3200000);
+        restarted.tap(BTN_DOWN);
+        restarted.tap(BTN_A);
+        require(restarted.state().get_flag(FLAG_GATE_OPEN) &&
+                    restarted.state().get_flag(FLAG_BRIDGE_REPAIRED) &&
+                    restarted.state().area == AREA_INTERIOR,
+                "fresh-device save/load lost quest flags or area");
+        restarted.capture(out / "quest-reloaded.pgm");
+        std::cout
+            << "{\"result\":\"PASS\",\"scenario\":\"M1.5 gate/bridge/timer/physical-save\"}\n";
         return 0;
     }
 
@@ -241,7 +377,7 @@ int main(int argc, char** argv) try {
     d.frame(BTN_RIGHT);
     require(d.state().player.x == 34, "player did not advance through intermediate pixels");
     d.hold(BTN_RIGHT, 29);
-    require(d.state().area == INTERIOR, "door entry failed");
+    require(d.state().area == AREA_INTERIOR, "door entry failed");
     d.capture(out / "interior.pgm");
 
     d.hold(BTN_RIGHT, 16);
@@ -249,7 +385,7 @@ int main(int argc, char** argv) try {
     d.capture(out / "before-dialogue.pgm");
     auto world_screen = d.ab->peripherals.display.ram;
     d.frame(BTN_A);
-    require(d.prompt() == DIALOGUE_MORE, "NPC did not open the paginated overlay");
+    require(d.prompt() == DIALOGUE_MORE, "Lantern did not open the paginated overlay");
     auto frozen = d.state();
     auto first_screen = d.ab->peripherals.display.ram;
     for(unsigned i = 0; i < 128 * 4; ++i) {
@@ -263,12 +399,11 @@ int main(int argc, char** argv) try {
     d.hold(BTN_RIGHT, 20);
     auto paused = d.state();
     require(paused.ticks == frozen.ticks && paused.rng == frozen.rng &&
-                !memcmp(&paused.player, &frozen.player, sizeof(Actor)) &&
-                !memcmp(paused.npcs, frozen.npcs, sizeof(paused.npcs)),
+                !memcmp(&paused.player, &frozen.player, sizeof(Actor)),
             "dialogue advanced the world");
     d.capture(out / "dialogue.pgm");
     d.tap(BTN_B);
-    require(d.prompt() == DIALOGUE_CLOSED && !d.state().flags,
+    require(d.prompt() == DIALOGUE_CLOSED && !d.state().get_flag(FLAG_HELPED),
             "early dialogue dismissal did not return to its caller");
 
     d.tap(BTN_A);
@@ -282,7 +417,7 @@ int main(int argc, char** argv) try {
     require(d.prompt() == DIALOGUE_CHOICE, "callable question did not follow the message");
     d.capture(out / "choice.pgm");
     d.tap(BTN_A);
-    require(d.state().flags == FLAG_HELPED && d.state().gold == 5 && d.prompt() == DIALOGUE_DONE,
+    require(d.state().get_flag(FLAG_HELPED) && d.state().gold == 5 && d.prompt() == DIALOGUE_DONE,
             "synchronous choice consequence failed");
     d.capture(out / "consequence.pgm");
 
@@ -290,7 +425,7 @@ int main(int argc, char** argv) try {
     require(d.prompt() == DIALOGUE_CLOSED, "dialogue did not return");
     d.hold(BTN_LEFT, 16);
     d.hold(BTN_DOWN, 9);
-    require(d.state().area == OUTDOOR, "return path failed");
+    require(d.state().area == AREA_OUTDOOR, "return path failed");
     {
         uint64_t sum = 0, worst = 0;
         for(auto c : d.transitions) {
@@ -334,7 +469,7 @@ int main(int argc, char** argv) try {
     Device restarted(package, g, m, s, q);
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
-    require(restarted.serial() == 0 && restarted.state().flags == FLAG_HELPED &&
+    require(restarted.serial() == 0 && restarted.state().get_flag(FLAG_HELPED) &&
                 restarted.state().gold == 5 && restarted.state().rng == saved.rng,
             "title did not validate the saved game");
     restarted.tap(BTN_DOWN);
@@ -342,14 +477,14 @@ int main(int argc, char** argv) try {
     auto loaded = restarted.state();
     require(restarted.serial() != 0 && loaded.area == saved.area &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y &&
-                loaded.flags == FLAG_HELPED && loaded.gold == 5 && loaded.rng == saved.rng,
+                loaded.get_flag(FLAG_HELPED) && loaded.gold == 5 && loaded.rng == saved.rng,
             "fresh emulator save/load mismatch");
     restarted.capture(out / "restarted.pgm");
     restarted.hold(BTN_UP, 4);
     restarted.hold(BTN_RIGHT, 16);
     restarted.hold(BTN_UP, 8);
     restarted.tap(BTN_A);
-    require(restarted.prompt() == DIALOGUE_DONE && restarted.state().flags == FLAG_HELPED,
+    require(restarted.prompt() == DIALOGUE_DONE && restarted.state().get_flag(FLAG_HELPED),
             "persisted dialogue inaccessible");
     restarted.capture(out / "persisted-dialogue.pgm");
     restarted.tap(BTN_B);
@@ -362,7 +497,8 @@ int main(int argc, char** argv) try {
     corrupt.advance(0, 3200000);
     corrupt.tap(BTN_DOWN);
     corrupt.tap(BTN_A);
-    require(corrupt.serial() == 0 && corrupt.state().ticks == 0 && !corrupt.state().flags,
+    require(corrupt.serial() == 0 && corrupt.state().ticks == 0 &&
+                !corrupt.state().get_flag(FLAG_HELPED),
             "corrupt save accepted or disabled Continue entered exploration");
 
     // Representative pixel scrolling and dense terrain, after closing the menu.

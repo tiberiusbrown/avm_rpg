@@ -16,7 +16,7 @@ set(AVM_BUILD_ROOT "" CACHE PATH "Matching RelWithDebInfo AVM build")
 if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
     add_executable(rpg_device_tests tests/device_tests.cpp)
     target_compile_features(rpg_device_tests PRIVATE cxx_std_17)
-    target_include_directories(rpg_device_tests PRIVATE src
+    target_include_directories(rpg_device_tests PRIVATE src generated
         "${AVM_SOURCE_ROOT}/deps/Ardens/src"
         "${AVM_SOURCE_ROOT}/deps/Ardens/deps"
         "${AVM_SOURCE_ROOT}/deps/Ardens/deps/bitsery/include")
@@ -35,9 +35,10 @@ if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
 endif()
 set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
-set(RULES src/game.cpp src/world.cpp src/dialogue.cpp src/save.cpp)
+set(RULES src/game.cpp src/world.cpp src/save.cpp
+    generated/map_assets.cpp generated/chunk_dispatch.cpp)
 add_library(rpg_rules STATIC ${RULES})
-target_include_directories(rpg_rules PUBLIC src PRIVATE generated)
+target_include_directories(rpg_rules PUBLIC src generated)
 if(MSVC)
     target_compile_options(rpg_rules PRIVATE /W4)
 else()
@@ -46,16 +47,49 @@ endif()
 add_executable(rpg_tests tests/test_core.cpp)
 target_link_libraries(rpg_tests PRIVATE rpg_rules)
 target_include_directories(rpg_tests PRIVATE generated)
-add_executable(rpg_stress_tests tests/test_core.cpp ${RULES})
-target_include_directories(rpg_stress_tests PRIVATE src generated)
-target_compile_definitions(rpg_stress_tests PRIVATE RPG_STRESS=1)
 add_test(NAME core COMMAND rpg_tests)
-add_test(NAME twelve_npcs COMMAND rpg_stress_tests)
+add_executable(rpg_flag_tests tests/test_flags.cpp)
+target_include_directories(rpg_flag_tests PRIVATE src)
+add_test(NAME flags COMMAND rpg_flag_tests)
+add_executable(rpg_world_tests tests/test_world.cpp)
+target_link_libraries(rpg_world_tests PRIVATE rpg_rules)
+target_include_directories(rpg_world_tests PRIVATE generated)
+add_test(NAME chunk_world COMMAND rpg_world_tests)
+add_test(NAME tiled_pipeline COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_pipeline.py)
 add_test(NAME generated_assets COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_assets.py --check)
 add_test(NAME content COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_content.py)
-add_custom_target(rpg_assets
+file(GLOB_RECURSE ASSET_INPUTS CONFIGURE_DEPENDS assets/*.tmx assets/*.tsx assets_src/*.png)
+set(ASSET_OUTPUTS)
+foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp chunk_dispatch.cpp sprites.cpp)
+    list(APPEND ASSET_OUTPUTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/${asset}")
+endforeach()
+add_custom_command(OUTPUT ${ASSET_OUTPUTS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_assets.py
+    DEPENDS tools/generate_assets.py ${ASSET_INPUTS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} VERBATIM)
+add_custom_target(rpg_assets DEPENDS ${ASSET_OUTPUTS})
+add_dependencies(rpg_rules rpg_assets)
+add_dependencies(rpg_world_tests rpg_assets)
+
+# Compile exported dispatch with new, unimplemented named/unnamed handlers.
+# Keep the fixture unlinked so its generated Handler definition is independent.
+set(HANDLER_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/handler-fixture")
+set(HANDLER_FIXTURE_OUTPUTS)
+foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp chunk_dispatch.cpp)
+    list(APPEND HANDLER_FIXTURE_OUTPUTS "${HANDLER_FIXTURE_DIR}/${asset}")
+endforeach()
+add_custom_command(OUTPUT ${HANDLER_FIXTURE_OUTPUTS}
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_pipeline.py"
+        --write-handler-fixture "${HANDLER_FIXTURE_DIR}"
+    DEPENDS tests/test_pipeline.py tools/generate_assets.py ${ASSET_INPUTS}
+    VERBATIM)
+add_library(rpg_handler_fixture OBJECT "${HANDLER_FIXTURE_DIR}/chunk_dispatch.cpp")
+target_include_directories(rpg_handler_fixture PRIVATE src "${HANDLER_FIXTURE_DIR}")
+add_dependencies(rpg_world_tests rpg_handler_fixture)
+
+if(TARGET rpg_device_tests)
+    add_dependencies(rpg_device_tests rpg_assets)
+endif()
 
 if(RPG_BUILD_GUEST)
     if(NOT AVM_SDK_ROOT)
@@ -80,15 +114,12 @@ if(RPG_BUILD_GUEST)
             get_filename_component(stem "${source}" NAME_WE)
             set(object "${CMAKE_CURRENT_BINARY_DIR}/${name}/${stem}.o")
             set(defines -DRPG_AVM=1)
-            if(name STREQUAL "rpg_stress")
-                list(APPEND defines -DRPG_STRESS=1)
-            endif()
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"
                 COMMAND "${AVM_CLANG}" -std=c++17 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h generated/world_assets.h ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/logic/handlers.h ${ASSET_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
@@ -109,16 +140,17 @@ if(RPG_BUILD_GUEST)
         else()
             add_custom_target(${name} ALL DEPENDS "${package}" "${elf}.resources.json")
         endif()
+        add_dependencies(${name} rpg_assets)
     endfunction()
     guest(m0_proof src/proof.cpp)
+    guest(m15_probe ${RULES} tests/world_probe.cpp)
     set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
     guest(rpg ${RULES} ${PLATFORM})
-    guest(rpg_stress ${RULES} ${PLATFORM})
     if(EXISTS "${AVM_LLDB}")
         add_custom_target(rpg_integration
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"
                 --sdk "${AVM_SDK_ROOT}" --build "${CMAKE_CURRENT_BINARY_DIR}"
-            DEPENDS rpg m0_proof rpg_stress VERBATIM)
+            DEPENDS rpg m0_proof m15_probe VERBATIM)
         if(TARGET rpg_device_tests)
             add_dependencies(rpg_integration rpg_device_tests)
         endif()

@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="16" height="10" tilewidth="8" tileheight="8" infinite="0" nextobjectid="101">
+ <properties>
+  <property name="area_id" value="2" type="int" />
+  <property name="symbol" value="INTERIOR" type="string" />
+  <property name="spawn" value="InteriorArrival" />
+ </properties>
+ <tileset firstgid="1" source="../tilesets/world.tsx" />
+ <layer id="1" name="Ground" width="16" height="10">
+  <data encoding="csv">
+2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,2,2,2,2,1,1,2,
+2,1,1,1,1,1,1,1,1,2,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,2,1,1,1,1,1,2,
+2,1,4,1,1,1,1,1,1,2,1,1,1,1,1,2,
+2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
+</data>
+ </layer>
+ <objectgroup id="2" name="Logic">
+  <object id="1" name="InteriorArrival" x="20" y="60" width="0" height="0">
+   <point />
+  </object>
+  <object id="2" name="InteriorExit" x="20" y="68" width="0" height="0">
+   <point />
+   <properties>
+    <property name="handler" value="update_interior_exit" />
+   </properties>
+  </object>
+  <object x="52" y="36" id="100">
+   <properties>
+    <property name="handler" value="update_lantern" />
+   </properties>
+   <point />
+  </object>
+ </objectgroup>
+</map>

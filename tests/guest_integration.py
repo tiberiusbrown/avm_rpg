@@ -112,9 +112,14 @@ def main():
         "blank M0 framebuffer"
     )
     measurements = []
+    output = lldb(sdk, artifacts / "m15_probe.elf", [
+        "breakpoint set --name probe_done", "run", "expr (int)probe_checks",
+        "expr (int)probe_failure"], work / "m15-probe.log")
+    values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
+    assert len(values) == 2 and values[0] >= 32 and values[1] == 0, f"M1.5 guest probe: {values}"
     device = build / ("rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests")
     if device.exists():
-        for name, mode in [("m0_proof", "proof"), ("rpg", "normal"), ("rpg_stress", "stress")]:
+        for name, mode in [("m0_proof", "proof"), ("rpg", "normal"), ("rpg", "m15")]:
             refs = symbols(artifacts / f"{name}.elf")
             addresses = (
                 [0, refs["proof_marker"]["address"], refs["proof_serial"]["address"]]
@@ -129,6 +134,7 @@ def main():
                     work / mode,
                     mode,
                     0 if mode == "proof" else refs["dialogue_prompt"]["address"],
+                    0 if mode == "proof" else refs["world_phase"]["address"],
                 ],
                 work / f"{mode}.log",
             )
@@ -140,7 +146,7 @@ def main():
         )
     profiler = sdk / "bin" / ("avm-prof.exe" if sys.platform == "win32" else "avm-prof")
     replay = ROOT / "tests/replays/exploration.json"
-    for name in ["m0_proof", "rpg", "rpg_stress"]:
+    for name in ["m0_proof", "rpg"]:
         path = work / f"{name}.avmp"
         run(
             [
@@ -172,10 +178,11 @@ def main():
         "procedural_screen_calls": True,
         "m0_execution_and_drawing": True,
         "full_device": device.exists(),
+        "m15_guest_checks": values[0],
         "measurements": measurements,
         "elf_sha256": {
             name: hashlib.sha256((artifacts / f"{name}.elf").read_bytes()).hexdigest()
-            for name in ["m0_proof", "rpg", "rpg_stress"]
+            for name in ["m0_proof", "rpg", "m15_probe"]
         },
     }
     (work / "results.json").write_text(json.dumps(report, indent=2) + "\n")

@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="8" tileheight="8" infinite="0">
+ <properties>
+  <property name="area_id" value="1" type="int" />
+  <property name="symbol" value="OUTDOOR" type="string" />
+  <property name="spawn" value="PlayerStart" />
+ </properties>
+ <tileset firstgid="1" source="../tilesets/world.tsx" />
+ <layer id="1" name="Ground" width="32" height="20">
+  <data encoding="csv">
+2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,2,3,3,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,5,5,5,5,5,5,5,5,4,5,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,2,5,5,5,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,2,2,5,2,2,3,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,5,1,1,3,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,2,1,1,1,1,1,5,5,5,5,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,2,1,1,1,1,1,5,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,2,2,5,2,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,3,3,3,3,3,3,3,3,5,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,3,3,3,3,3,3,3,3,5,1,1,1,1,1,5,1,1,3,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,5,5,5,5,5,5,5,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
+</data>
+ </layer>
+ <objectgroup id="2" name="Logic">
+  <object id="1" name="PlayerStart" x="36" y="44" width="0" height="0">
+   <point />
+  </object>
+  <object id="2" name="OutdoorArrival" x="100" y="52" width="0" height="0">
+   <point />
+  </object>
+  <object id="3" name="HouseDoor" x="100" y="44" width="0" height="0">
+   <point />
+   <properties>
+    <property name="handler" value="update_house_door" />
+   </properties>
+  </object>
+  <object id="4" name="NorthGate" x="124" y="20">
+   <properties>
+    <property name="handler" value="update_north_gate" type="string" />
+   </properties>
+   <point />
+  </object>
+  <object id="5" name="EasternBridge" x="122" y="58" width="20" height="12">
+   <properties>
+    <property name="handler" value="update_bridge" type="string" />
+   </properties>
+  </object>
+  <object id="6" name="TidalPlatform" x="172" y="132">
+   <properties>
+    <property name="handler" value="update_platform" type="string" />
+   </properties>
+   <point />
+  </object>
+  <object id="7" name="VillageWell" x="180" y="28" width="0" height="0">
+   <point />
+  </object>
+  <object id="99" name="Waystone" x="122" y="82" width="12" height="4">
+   <properties>
+    <property name="handler" value="update_waystone" />
+   </properties>
+  </object>
+ </objectgroup>
+</map>
