@@ -344,7 +344,7 @@ This is a planning allocation, **not a measured binary**. The final compiler may
 
 ### 11.4 Storage and persistence
 
-The initial integration study must establish: guest executable and asset size ceilings; how the guest addresses larger read-only data; random-access cost; save location and capacity; write endurance; reset behavior; and compatibility with the current sound subsystem. Do not assume ordinary SRAM, EEPROM, or FX-flash semantics without checking AVM code.
+The initial integration study must establish: guest executable and asset size ceilings; how the guest addresses larger read-only data; random-access cost; save location and capacity; reset behavior; and compatibility with the current sound subsystem. Do not assume ordinary SRAM, EEPROM, or FX-flash semantics without checking AVM code.
 
 A durable save must include a version/header/checksum, stable player position, stats, inventory, world flags, quest phases, and relationship state. Loading invalid or incompatible data must fail safely. If multiple save slots are not feasible, provide one dependable save slot with safe overwrite behavior. Prefer migration support when IDs or layouts change; otherwise clearly mark a development build as save-breaking.
 

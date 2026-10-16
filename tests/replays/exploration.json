@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "events": [
+    {"cycle": 0, "pressed": []},
+    {"cycle": 4000000, "pressed": ["A"]},
+    {"cycle": 5600000, "pressed": []},
+    {"cycle": 8000000, "pressed": ["DOWN"]},
+    {"cycle": 64000000, "pressed": ["RIGHT"]},
+    {"cycle": 96000000, "pressed": ["UP"]},
+    {"cycle": 128000000, "pressed": []}
+  ]
+}

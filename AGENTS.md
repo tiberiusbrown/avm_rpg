@@ -1,0 +1,16 @@
+- Use C++17 for game code and native C++ tests.
+- Use snake_case for functions and variables, CamelCase for struct types, and ALL_CAPS for constants, macros, enum types, and enum values.
+- Indent with four spaces; do not use tabs.
+- Put spaces around binary and ternary operators and after commas.
+- Do not put a space before opening parentheses after function names or control words: `if(condition)`, `update(game)`.
+- Separate for-loop fields with spaces: `for(int i = 0; i < n; ++i)`.
+- Put each statement on its own line; avoid multiple semicolon-delimited statements per line.
+- Separate function definitions, include groups, and global-declaration groups with a blank line.
+- Separate semantically distinct sections within a function with a blank line.
+- Follow `.clang-format` for C++ formatting.
+- Use `PROGMEM` and `F()` for program data and text; provide their non-AVM definitions for native tests.
+- Declare generated assets `constexpr`.
+- Pass game state as `Game&` / `const Game&`, use `Game` member functions, or access the single global game directly.
+- Keep guest full LTO enabled and verify that the single global `Game` removes game-reference arguments from optimized guest functions.
+- Preserve deterministic rules, fixed capacities, and AVM memory/stack budgets.
+- Build and test in RelWithDebInfo; keep the playable `rpg.arduboy` updated in the repository root.
