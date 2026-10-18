@@ -5,10 +5,12 @@
 #include "flags.h"
 
 inline constexpr uint8_t TILE = 16, TILE_SHIFT = 4;
-inline constexpr uint8_t FOOT_LEFT = 2, FOOT_RIGHT = 13;
-inline constexpr uint8_t FOOT_TOP = 6, FOOT_BOTTOM = 15;
-inline constexpr uint8_t FOOT_CENTER_X = 8, FOOT_CENTER_Y = 12;
-inline constexpr uint8_t FOOT_WIDTH = 12, FOOT_HEIGHT = 10;
+inline constexpr uint8_t FOOT_WIDTH = 8, FOOT_HEIGHT = 8;
+inline constexpr uint8_t FOOT_LEFT = (TILE - FOOT_WIDTH) / 2;
+inline constexpr uint8_t FOOT_RIGHT = FOOT_LEFT + FOOT_WIDTH - 1;
+inline constexpr uint8_t FOOT_TOP = TILE - FOOT_HEIGHT, FOOT_BOTTOM = TILE - 1;
+inline constexpr uint8_t FOOT_CENTER_X = FOOT_LEFT + FOOT_WIDTH / 2;
+inline constexpr uint8_t FOOT_CENTER_Y = FOOT_TOP + FOOT_HEIGHT / 2;
 inline constexpr uint8_t CHUNK_WIDTH = 8, CHUNK_HEIGHT = 4;
 inline constexpr uint8_t CACHE_WIDTH = 9, CACHE_HEIGHT = 5;
 inline constexpr uint8_t MAX_MAP_WIDTH = 240, MAX_MAP_HEIGHT = 248;

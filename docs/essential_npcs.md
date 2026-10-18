@@ -41,7 +41,7 @@ Wandering obeys a pixel leash. Steering tries two axes and has a bounded stuck
 fallback. Each live actor updates once after the full terrain cache, regardless of
 how many chunks are visible. A frames, menus and blocking dialogue freeze simulation.
 
-Player and NPC collision use a 12x10 foot box at (2,6), rather than the whole
+Player and NPC collision use an 8x8 foot box at (4,8), rather than the whole
 16x16 artwork. A partly clipped actor freezes when its feet leave cached terrain;
 it is never simulated against arbitrary offscreen tiles. Terrain repair tries
 nearby positions before retiring a blocked actor.
@@ -49,9 +49,19 @@ nearby positions before retiring a blocked actor.
 After eight sustained push frames, two short walkaround lanes are checked. Where
 the player can detour, the NPC holds position. Otherwise a safe short side step
 is animated; if none fits or a yield becomes blocked, only that player/NPC pair
-may overlap until separation. This preserves progress through one-tile corridors.
+may overlap until separation. The 8x8 footprints can fit side by side in a 16-pixel lane
+when aligned appropriately, so the NPC holds still and permits an actual player
+detour there. Centered tight lanes still yield or allow temporary passage. Yield
+search checks up to 15 pixels to cover contacts offset by as much as seven pixels.
 Native and guest fixtures cover wandering, scaled footprints, targeting, clipping,
-terrain repair, sign input priority and corridor passage.
+terrain repair, sign input priority, walkaround, eight-pixel animated yields
+and tight-corridor passage. Both host and AVM probes check exact foot-box edges.
+
+Rendering sorts the visible NPC slots together with the player by ascending Y.
+A stable insertion sort stores at most nine byte indices on the stack, leaving
+the simulation pool untouched. Lower actors draw last; equal Y preserves slot
+order and places the player last. Full-device tests verify masked overlap pixels
+with the player between two NPCs deliberately stored in reverse depth order.
 
 Only player state and flags are saved. Live NPC pixels/timers are transient and
 reconstructed on load. The new content boundary rejects all pre-version-4 saves.

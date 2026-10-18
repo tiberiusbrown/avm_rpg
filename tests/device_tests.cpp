@@ -8,6 +8,7 @@
 #pragma pack(pop)
 
 #include <filesystem>
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <numeric>
@@ -223,6 +224,71 @@ struct Device {
     }
 };
 
+static void verify_actor_layers(Device& d, fs::path const& out) {
+    Game original = d.state();
+    Game fixture = original;
+    fixture.player = {104, 88, SOUTH, 0};
+    fixture.npcs = {};
+    // Deliberately reverse the NPC slots relative to depth, with the player between.
+    fixture.npcs.actors[0].id = NPC_VILLAGER;
+    fixture.npcs.actors[0].actor = {116, 92, SOUTH, 0};
+    fixture.npcs.actors[1].id = NPC_WANDERER;
+    fixture.npcs.actors[1].actor = {112, 80, SOUTH, 0};
+    d.set_state(fixture);
+    d.frame();
+    d.frame();
+    Game rendered = d.state();
+    require(rendered.player.y == 88 && rendered.npcs.actors[0].actor.y == 92 &&
+                rendered.npcs.actors[1].actor.y == 80,
+            "depth fixture unexpectedly moved");
+
+    std::array<uint8_t, 1024> expected{}, covered{}, old_order{};
+    auto compose = [&](std::array<uint8_t, 1024>& pixels, Actor const& actor, uint8_t row) {
+        uint16_t frame = (uint16_t)row * 12 + SOUTH * 3;
+        uint8_t const* bytes = ACTOR_SPRITES + 2 + frame * 64;
+        int left = int(actor.x) - rendered.camera.x, top = int(actor.y) - rendered.camera.y;
+        for(int y = 0; y < 16; ++y) {
+            for(int x = 0; x < 16; ++x) {
+                int sx = left + x, sy = top + y;
+                if(sx < 0 || sx >= 128 || sy < 0 || sy >= 64)
+                    continue;
+                unsigned source = ((y / 8) * 16 + x) * 2;
+                if(!(bytes[source + 1] & (1u << (y % 8))))
+                    continue;
+                unsigned dest = (sy / 8) * 128 + sx;
+                uint8_t bit = (uint8_t)(1u << (sy % 8));
+                covered[dest] |= bit;
+                if(bytes[source] & (1u << (y % 8)))
+                    pixels[dest] |= bit;
+                else
+                    pixels[dest] &= (uint8_t)~bit;
+            }
+        }
+    };
+    compose(expected, rendered.npcs.actors[1].actor, 2);
+    compose(expected, rendered.player, 0);
+    compose(expected, rendered.npcs.actors[0].actor, 1);
+    compose(old_order, rendered.npcs.actors[0].actor, 1);
+    compose(old_order, rendered.npcs.actors[1].actor, 2);
+    compose(old_order, rendered.player, 0);
+    require(expected != old_order, "depth fixture does not distinguish the previous draw order");
+    d.capture(out / "actor-depth.pgm");
+    auto const& actual = d.ab->peripherals.display.ram;
+    for(unsigned i = 0; i < expected.size(); ++i) {
+        // OLED segment remapping reverses physical RAM columns on the Arduboy.
+        unsigned column = d.ab->peripherals.display.segment_remap ? 127 - i % 128 : i % 128;
+        unsigned physical = (i / 128) * 128 + column;
+        if((actual[physical] & covered[i]) != expected[i])
+            std::cerr << "Depth pixel byte=" << i << " actual=" << unsigned(actual[physical])
+                      << " expected=" << unsigned(expected[i]) << " mask=" << unsigned(covered[i])
+                      << " camera=" << rendered.camera.x << ',' << rendered.camera.y << '\n';
+        require((actual[physical] & covered[i]) == expected[i],
+                "masked actor occlusion has the wrong depth order");
+    }
+    d.set_state(original);
+    d.frame();
+}
+
 static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
     std::vector<Cost> costs;
     uint64_t sum = 0, worst = 0, render = 0, first = 0, last = 0;
@@ -290,6 +356,7 @@ int main(int argc, char** argv) try {
     for(auto const& n : d.state().npcs.actors)
         actors += n.id != NPC_NONE;
     require(actors == 2, "sample NPCs did not activate");
+    verify_actor_layers(d, out);
     summary("idle_grove", d, 30);
     d.capture(out / "grove.pgm");
 

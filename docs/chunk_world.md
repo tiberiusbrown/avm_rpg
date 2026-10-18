@@ -35,15 +35,23 @@ is no offscreen projection or arbitrary PROGMEM tile lookup API.
    handler explicitly refreshes the cache.
 7. Move the player two pixels per update, checking every intermediate pixel
    against terrain and NPCs. Fresh A or a teleport pauses movement/time.
-8. Advance the tick and render opaque terrain, then alpha-masked NPCs/player,
-   from the fixed camera/cache. The next frame follows the updated player.
+8. Advance the tick and render opaque terrain, then all alpha-masked actors
+   in ascending foot Y, from the fixed camera/cache. Lower actors cover higher
+   actors, including the player. The next frame follows the updated player.
 
-The collision footprint scales to 12x10 pixels at sprite offset (2,6), inclusive
-bounds (2..13,6..15). Tile membership and facing interactions use foot center
+The collision footprint is 8x8 pixels at sprite offset (4,8), inclusive
+bounds (4..11,8..15): centered horizontally and flush with the sprite bottom.
+Tile membership and facing interactions use foot center
 (8,12). Overlap repair tries N/E/S/W at distances 1..16, then the authored safe
 spawn. NPC yielding retains its packed nibble distance (at most 15 pixels),
-enough to clear the 12x10 foot box; unsafe yields allow temporary passage until
+enough to separate even offset 8x8 contacts; unsafe yields allow temporary passage until
 separation. Cache clipping, bounds and camera edges are covered by host and AVM tests.
+
+Actor rendering uses stable insertion sort over at most nine byte slot indices
+(eight NPCs and the player). Only visible NPCs enter the list. Equal Y preserves
+NPC slot order and puts the player last. Nine local scratch bytes and at most
+36 comparisons/shifts avoid heap or persistent RAM and leave NPC simulation order
+unchanged. All sprites have equal height, so sorting origin Y also sorts feet Y.
 
 ## Compile-time dispatch and singleton state
 

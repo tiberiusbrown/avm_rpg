@@ -237,3 +237,17 @@ reinterpret their pixels/flags. No schema migration is promised for this content
 reset. The cache alone saves 108 RAM bytes; current link/emulator evidence is in
 tiles16_measurements.md. Performance comparisons also reflect the smaller content
 and different NPC workload, so they do not isolate the effect of tile size.
+
+## Smaller foot boxes and actor depth (2026-10-18)
+
+Use an 8x8 collision footprint at (4,8) within every 16x16 character sprite.
+Derive bounds and center from its dimensions; player and NPC terrain/collision,
+cache clipping and detour checks share the same constants. Keep the full 15-pixel
+packed yield range because an offset eight-pixel contact can need that much space.
+Aligned actors may now walk around each other within a single 16-pixel floor lane.
+
+Draw player and visible NPCs in ascending Y through stable insertion sort of at
+most nine byte slot indices. Equal-depth ties keep NPC slot order, then player.
+This is bounded to 36 comparisons/shifts and nine scratch bytes without moving
+the simulation pool or adding persistent state. Equal sprite heights make origin
+Y equivalent to foot Y. Saves retain version 4 and the existing Game layout.

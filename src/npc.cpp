@@ -18,7 +18,7 @@ bool npc_visible(uint16_t x, uint16_t y) {
 }
 
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
-    // Both use the player's 12x10 foot box at (2,6).
+    // Both use the same 8x8 foot box at (4,8), so its offsets cancel here.
     return x < ox + FOOT_WIDTH && ox < x + FOOT_WIDTH && y < oy + FOOT_HEIGHT &&
            oy < y + FOOT_HEIGHT;
 }
@@ -441,11 +441,16 @@ static bool player_can_detour(Npc const& n, DIRECTION dir) {
 }
 
 static bool plan_yield(Npc& n, uint16_t px, uint16_t py, DIRECTION dir) {
+    // Offset contacts can need almost two foot widths to separate. Keep the
+    // complete 1..15 range available, including off-center 8x8 encounters.
+    uint8_t max_distance = 2 * (dir == EAST || dir == WEST ? FOOT_HEIGHT : FOOT_WIDTH) - 1;
+    static_assert(2 * FOOT_WIDTH - 1 <= 15 && 2 * FOOT_HEIGHT - 1 <= 15,
+                  "yield distance fits the low nibble of stuck");
     // Validate a short side step without moving the actor in the collision call.
     for(uint8_t side = 1; side <= 3; side += 2) {
         DIRECTION escape = (DIRECTION)((dir + side) & 3);
         int16_t x = (int16_t)n.actor.x, y = (int16_t)n.actor.y;
-        for(uint8_t distance = 1; distance < TILE; ++distance) {
+        for(uint8_t distance = 1; distance <= max_distance; ++distance) {
             if(escape == NORTH)
                 --y;
             if(escape == EAST)

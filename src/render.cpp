@@ -1,6 +1,7 @@
 #include "rpg.h"
 #include "tile_ids.h"
 #include "npc.h"
+#include "actor_draw_order.h"
 
 #include <avm.h>
 
@@ -26,16 +27,16 @@ void rpg_render_world() {
     }
 
     avm_set_sprite(ACTOR_SPRITES);
-    for(auto const& n : game.npcs.actors) {
-        if(!n.id || !npc_visible(n.actor.x, n.actor.y))
-            continue;
-        int16_t x = (int16_t)n.actor.x - (int16_t)c.x;
-        int16_t y = (int16_t)n.actor.y - (int16_t)c.y;
-        avm_draw_plus_mask(x, y,
-                           actor_frame(n.actor, npc_definition(n.id)->sprite_row, game.ticks));
+    uint8_t order[NPC_CAPACITY + 1];
+    uint8_t count = actor_draw_order(order);
+    for(uint8_t i = 0; i < count; ++i) {
+        uint8_t slot = order[i];
+        Actor const& actor = actor_in_draw_slot(slot);
+        uint8_t row =
+            slot == PLAYER_DRAW_SLOT ? 0 : npc_definition(game.npcs.actors[slot].id)->sprite_row;
+        avm_draw_plus_mask((int16_t)actor.x - (int16_t)c.x, (int16_t)actor.y - (int16_t)c.y,
+                           actor_frame(actor, row, game.ticks));
     }
-    avm_draw_plus_mask((int16_t)game.player.x - (int16_t)c.x, (int16_t)game.player.y - (int16_t)c.y,
-                       actor_frame(game.player, 0, game.ticks));
 
     if(game.can_interact)
         avm_draw_text(110, 7, F("A"));

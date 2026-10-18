@@ -61,13 +61,13 @@ static void movement() {
     CHECK(!game.player.walking);
     game_new();
     CHECK(actor_move(&game.player, NORTH, 8)); // Feet can approach the solid sign.
-    CHECK(game.player.y == 74);
+    CHECK(game.player.y == 72);
     CHECK(!actor_move(&game.player, NORTH, 1) && !game.player.walking);
     world_enter(AREA_OUTDOOR, 2 * TILE, 7 * TILE, EAST);
     npc_reset();
     for(unsigned i = 0; i < 200; ++i)
         game_update(BTN_RIGHT);
-    CHECK(game.player.x == 258 && terrain_clear(game.player.x, game.player.y));
+    CHECK(game.player.x == 260 && terrain_clear(game.player.x, game.player.y));
     CHECK(!game.dimensions.pixel_bounds(65535, 0));
     CHECK(!terrain_clear(0, 0) && !terrain_clear(65535, 65535));
 

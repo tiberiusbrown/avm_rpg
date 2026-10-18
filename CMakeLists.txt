@@ -14,7 +14,7 @@ endif()
 set(AVM_SOURCE_ROOT "" CACHE PATH "Optional AVM source checkout for full-device QA")
 set(AVM_BUILD_ROOT "" CACHE PATH "Matching RelWithDebInfo AVM build")
 if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
-    add_executable(rpg_device_tests tests/device_tests.cpp)
+    add_executable(rpg_device_tests tests/device_tests.cpp generated/sprites.cpp)
     target_compile_features(rpg_device_tests PRIVATE cxx_std_20)
     target_include_directories(rpg_device_tests PRIVATE src generated
         "${AVM_SOURCE_ROOT}/deps/Ardens/src"
@@ -127,7 +127,7 @@ if(RPG_BUILD_GUEST)
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h ${ASSET_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h ${ASSET_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
