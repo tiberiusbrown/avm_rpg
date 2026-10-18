@@ -4,17 +4,8 @@
 #include <stdint.h>
 
 // Stable bit indices, not masks. Append new flags before FLAG_COUNT.
-enum FLAG : uint16_t {
-    FLAG_HELPED = 0,
-    FLAG_GATE_OPEN = 1,
-    FLAG_BRIDGE_REPAIRED = 2,
-    FLAG_WAYSTONE = 3,
-    FLAG_GUARD_RELOCATED = 4,
-    FLAG_COURIER_ARRIVED = 5,
-    FLAG_ROWAN_AWAY = 6,
-    FLAG_COURIER_DISPATCHED = 7,
-    FLAG_COUNT
-};
+// No quests in this sample; keep one reserved bit for the generic save/flag API.
+enum FLAG : uint16_t { FLAG_RESERVED = 0, FLAG_COUNT };
 
 template <uint16_t COUNT> struct FlagSet {
     static_assert(COUNT > 0, "a flag set needs at least one flag");

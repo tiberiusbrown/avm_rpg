@@ -13,13 +13,14 @@ Npc* npc_find(NPC_ID id) {
 }
 
 bool npc_visible(uint16_t x, uint16_t y) {
-    return x < game.camera.x + 128 && x + 8 > game.camera.x && y < game.camera.y + 64 &&
-           y + 8 > game.camera.y;
+    return x < game.camera.x + 128 && x + TILE > game.camera.x && y < game.camera.y + 64 &&
+           y + TILE > game.camera.y;
 }
 
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
-    // Both use the player's 6x5 foot box at (1,3).
-    return x < ox + 6 && ox < x + 6 && y < oy + 5 && oy < y + 5;
+    // Both use the player's 12x10 foot box at (2,6).
+    return x < ox + FOOT_WIDTH && ox < x + FOOT_WIDTH && y < oy + FOOT_HEIGHT &&
+           oy < y + FOOT_HEIGHT;
 }
 
 void npc_reset() {
@@ -66,8 +67,8 @@ void npc_request(NPC_ID id, TilePos anchor) {
        home.y != anchor.y)
         return;
     Camera camera = game_camera();
-    uint16_t x = (uint16_t)home.x * 8, y = (uint16_t)home.y * 8;
-    if(x >= camera.x + 128 || x + 8 <= camera.x || y >= camera.y + 64 || y + 8 <= camera.y)
+    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
+    if(x >= camera.x + 128 || x + TILE <= camera.x || y >= camera.y + 64 || y + TILE <= camera.y)
         return;
     auto& pool = game.npcs;
     for(uint8_t i = 0; i < pool.request_count; ++i)
@@ -101,15 +102,17 @@ static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
 }
 
 static bool foot_cached(Npc const& n) {
-    uint16_t left = (uint16_t)game.cache.origin_tx * 8;
-    uint16_t top = (uint16_t)game.cache.origin_ty * 8;
-    return n.actor.x + 1 >= left && n.actor.y + 3 >= top &&
-           n.actor.x + 6 < left + CACHE_WIDTH * 8 && n.actor.y + 7 < top + CACHE_HEIGHT * 8;
+    uint16_t left = (uint16_t)game.cache.origin_tx * TILE;
+    uint16_t top = (uint16_t)game.cache.origin_ty * TILE;
+    return n.actor.x + FOOT_LEFT >= left && n.actor.y + FOOT_TOP >= top &&
+           n.actor.x + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
+           n.actor.y + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
 }
 
 static bool spawn_clear(Npc const* self, uint16_t x, uint16_t y) {
     return npc_visible(x, y) && position_clear(self, x, y) &&
-           !tile_portal(cached_tile({game.area, (uint8_t)((x + 4) >> 3), (uint8_t)((y + 6) >> 3)}));
+           !tile_portal(cached_tile({game.area, (uint8_t)((x + FOOT_CENTER_X) >> TILE_SHIFT),
+                                     (uint8_t)((y + FOOT_CENTER_Y) >> TILE_SHIFT)}));
 }
 
 static void retire(Npc& n, NPC_RETIRE_REASON reason) {
@@ -129,7 +132,7 @@ void npc_reconcile() {
             continue;
         uint8_t placement = npc_placement(id);
         TilePos home = npc_home(id, placement);
-        uint16_t x = (uint16_t)home.x * 8, y = (uint16_t)home.y * 8;
+        uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
         if(home.area != game.area || !spawn_clear(nullptr, x, y)) {
             saturate(game.npcs.activation_deferrals);
             continue;
@@ -162,8 +165,8 @@ static bool leashed(Npc const& n, uint16_t x, uint16_t y) {
         return true;
     TilePos home = npc_home(n.id, n.placement);
     auto def = npc_definition(n.id);
-    int16_t dx = (int16_t)x - (int16_t)((uint16_t)home.x * 8);
-    int16_t dy = (int16_t)y - (int16_t)((uint16_t)home.y * 8);
+    int16_t dx = (int16_t)x - (int16_t)((uint16_t)home.x * TILE);
+    int16_t dy = (int16_t)y - (int16_t)((uint16_t)home.y * TILE);
     return dx >= -(int16_t)def->leash_x && dx <= def->leash_x && dy >= -(int16_t)def->leash_y &&
            dy <= def->leash_y;
 }
@@ -349,7 +352,7 @@ void npc_repair() {
         if(!n.id || !foot_cached(n) || terrain_clear(n.actor.x, n.actor.y))
             continue;
         bool repaired = false;
-        for(uint8_t radius = 1; radius <= 8 && !repaired; ++radius) {
+        for(uint8_t radius = 1; radius <= TILE && !repaired; ++radius) {
             for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
                 int16_t x = (int16_t)n.actor.x, y = (int16_t)n.actor.y;
                 if(dir == NORTH)
@@ -416,14 +419,15 @@ static bool player_can_detour(Npc const& n, DIRECTION dir) {
     // Two fixed three-segment lanes around this foot box; no path search/grid.
     bool horizontal = dir == EAST || dir == WEST;
     int16_t forward = (int16_t)(horizontal ? n.actor.x : n.actor.y);
-    forward += (dir == EAST || dir == SOUTH ? 1 : -1) * (horizontal ? 6 : 5);
+    forward += (dir == EAST || dir == SOUTH ? 1 : -1) * (horizontal ? FOOT_WIDTH : FOOT_HEIGHT);
     int16_t advance = forward - (int16_t)(horizontal ? game.player.x : game.player.y);
     if(advance < 0)
         advance = -advance;
     for(uint8_t side = 1; side <= 3; side += 2) {
         DIRECTION escape = (DIRECTION)((dir + side) & 3);
         int16_t offset = (int16_t)(horizontal ? n.actor.y : n.actor.x);
-        offset += (escape == EAST || escape == SOUTH ? 1 : -1) * (horizontal ? 5 : 6);
+        offset +=
+            (escape == EAST || escape == SOUTH ? 1 : -1) * (horizontal ? FOOT_HEIGHT : FOOT_WIDTH);
         offset -= (int16_t)(horizontal ? game.player.y : game.player.x);
         if(offset < 0)
             offset = -offset;
@@ -441,7 +445,7 @@ static bool plan_yield(Npc& n, uint16_t px, uint16_t py, DIRECTION dir) {
     for(uint8_t side = 1; side <= 3; side += 2) {
         DIRECTION escape = (DIRECTION)((dir + side) & 3);
         int16_t x = (int16_t)n.actor.x, y = (int16_t)n.actor.y;
-        for(uint8_t distance = 1; distance <= 8; ++distance) {
+        for(uint8_t distance = 1; distance < TILE; ++distance) {
             if(escape == NORTH)
                 --y;
             if(escape == EAST)
@@ -496,7 +500,7 @@ void npc_interact() {
     Npc* best = nullptr;
     uint16_t nearest = 65535;
     for(auto& n : game.npcs.actors) {
-        if(!n.id)
+        if(!n.id || !npc_definition(n.id)->talkable)
             continue;
         int16_t dx = (int16_t)n.actor.x - (int16_t)game.player.x;
         int16_t dy = (int16_t)n.actor.y - (int16_t)game.player.y;
@@ -521,9 +525,9 @@ void npc_interact() {
             case STILL:
                 continue;
         }
-        if(forward < 1 || forward > 12 || side < -5 || side > 5)
+        if(forward < 1 || forward > 24 || side < -10 || side > 10)
             continue;
-        uint16_t distance = (uint16_t)forward * 8 + (uint16_t)(side < 0 ? -side : side);
+        uint16_t distance = (uint16_t)forward * TILE + (uint16_t)(side < 0 ? -side : side);
         if(distance < nearest || (distance == nearest && best && n.id < best->id)) {
             best = &n;
             nearest = distance;

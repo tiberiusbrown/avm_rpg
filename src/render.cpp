@@ -18,11 +18,10 @@ void rpg_render_world() {
     for(ty = 0; ty < CACHE_HEIGHT; ++ty) {
         for(tx = 0; tx < CACHE_WIDTH; ++tx) {
             uint8_t tile = game.cache.tiles[(uint16_t)ty * CACHE_WIDTH + tx];
-            if(tile == TILE_OUTSIDE || (game.area == AREA_INTERIOR && tile == TILE_GRASS) ||
-               tile == TILE_PATH)
+            if(tile == TILE_OUTSIDE)
                 continue;
-            avm_draw_overwrite((int16_t)tx * 8 - (int16_t)(c.x & 7),
-                               (int16_t)ty * 8 - (int16_t)(c.y & 7), tile);
+            avm_draw_overwrite((int16_t)tx * TILE - (int16_t)(c.x & (TILE - 1)),
+                               (int16_t)ty * TILE - (int16_t)(c.y & (TILE - 1)), tile);
         }
     }
 
@@ -33,12 +32,10 @@ void rpg_render_world() {
         int16_t x = (int16_t)n.actor.x - (int16_t)c.x;
         int16_t y = (int16_t)n.actor.y - (int16_t)c.y;
         avm_draw_plus_mask(x, y,
-                           n.actor.facing * 2 + (n.actor.walking ? ((game.ticks >> 2) & 1) : 0));
-        avm_draw_filled_rect_white(x + 2, y, 4, 1);
+                           actor_frame(n.actor, npc_definition(n.id)->sprite_row, game.ticks));
     }
-    avm_draw_plus_mask(
-        (int16_t)game.player.x - (int16_t)c.x, (int16_t)game.player.y - (int16_t)c.y,
-        (uint16_t)(game.player.facing * 2 + (game.player.walking ? ((game.ticks >> 2) & 1) : 0)));
+    avm_draw_plus_mask((int16_t)game.player.x - (int16_t)c.x, (int16_t)game.player.y - (int16_t)c.y,
+                       actor_frame(game.player, 0, game.ticks));
 
     if(game.can_interact)
         avm_draw_text(110, 7, F("A"));
@@ -46,7 +43,7 @@ void rpg_render_world() {
 
 void render_title(bool can_continue, uint8_t selection) {
     avm_draw_text(14, 12, F("AVM / WAYFARER"));
-    avm_draw_text(14, 26, F("M1.6 essential NPCs"));
+    avm_draw_text(14, 26, F("Nocturne Grove"));
 
     avm_draw_text(22, 40, F("New game"));
     avm_draw_text(22, 49, can_continue ? F("Continue") : F("No valid save"));
@@ -75,7 +72,7 @@ void render_status() {
 
     avm_draw_textf(6, 25, F("HP %u/%u"), game.hp, game.max_hp);
     avm_draw_textf(6, 35, F("Lv %u Gold %u"), game.level, game.gold);
-    avm_draw_text(6, 45, game.get_flag(FLAG_HELPED) ? F("Lantern: lit") : F("Lantern: unlit"));
+    avm_draw_text(6, 45, F("Nocturne Grove"));
 
     avm_draw_text(6, 58, F("A / B return"));
 }

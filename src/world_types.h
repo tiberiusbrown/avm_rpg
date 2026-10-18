@@ -4,8 +4,13 @@
 #include <stdint.h>
 #include "flags.h"
 
-inline constexpr uint8_t CHUNK_WIDTH = 16, CHUNK_HEIGHT = 8;
-inline constexpr uint8_t CACHE_WIDTH = 17, CACHE_HEIGHT = 9;
+inline constexpr uint8_t TILE = 16, TILE_SHIFT = 4;
+inline constexpr uint8_t FOOT_LEFT = 2, FOOT_RIGHT = 13;
+inline constexpr uint8_t FOOT_TOP = 6, FOOT_BOTTOM = 15;
+inline constexpr uint8_t FOOT_CENTER_X = 8, FOOT_CENTER_Y = 12;
+inline constexpr uint8_t FOOT_WIDTH = 12, FOOT_HEIGHT = 10;
+inline constexpr uint8_t CHUNK_WIDTH = 8, CHUNK_HEIGHT = 4;
+inline constexpr uint8_t CACHE_WIDTH = 9, CACHE_HEIGHT = 5;
 inline constexpr uint8_t MAX_MAP_WIDTH = 240, MAX_MAP_HEIGHT = 248;
 inline constexpr uint8_t TILE_OUTSIDE = 255;
 
@@ -23,7 +28,8 @@ struct MapDimensions {
     uint8_t width_tiles, height_tiles;
 
     bool pixel_bounds(uint16_t x, uint16_t y) const {
-        return x <= (uint16_t)width_tiles * 8 - 8 && y <= (uint16_t)height_tiles * 8 - 8;
+        return x <= (uint16_t)width_tiles * TILE - TILE &&
+               y <= (uint16_t)height_tiles * TILE - TILE;
     }
 };
 
@@ -50,7 +56,7 @@ struct TileCache {
 static_assert(sizeof(TilePos) == 3 && sizeof(ChunkCoord) == 3, "byte tile/chunk coordinates");
 static_assert(sizeof(MapDimensions) == 2, "byte map dimensions");
 static_assert(sizeof(PixelPos) == 4, "16-bit pixel coordinates");
-static_assert(sizeof(TileCache) == 155 && sizeof(TileCache::tiles) == 153, "only 153 tile entries");
+static_assert(sizeof(TileCache) == 47 && sizeof(TileCache::tiles) == 45, "only 45 tile entries");
 static_assert(sizeof(TileRegion) == 5, "byte feature footprint/origin");
 
 #endif

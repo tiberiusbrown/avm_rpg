@@ -53,41 +53,24 @@ void save_encode(uint8_t out[SAVE_BYTES]) {
 bool save_decode(uint8_t const* in, uint16_t length) {
     if(length < 4 || in[0] != 'R' || in[1] != 'P')
         return false;
-    bool legacy = in[2] == 1 || in[2] == 2;
     uint16_t size = in[3];
-    if((!legacy && in[2] != SAVE_VERSION) || size < 24 || size > length || (legacy && size != 24) ||
+    if(in[2] != SAVE_VERSION || size < 24 || size > length ||
        get16(in + size - 2) != save_checksum(in, size - 2))
         return false;
 
     WorldFlags flags{};
     uint16_t rng;
-    if(legacy) {
-        uint16_t old = get16(in + 16);
-        if((old & (uint16_t)~(in[2] == 1 ? 1 : 31)) || in[20] || in[21])
+    uint16_t count = get16(in + 18);
+    uint16_t bytes = count / 8 + (count % 8 != 0);
+    if(!count || count > FLAG_COUNT || SAVE_HEADER_BYTES + bytes > size - 2)
+        return false;
+    if(count % 8 && (in[SAVE_HEADER_BYTES + bytes - 1] >> (count % 8)))
+        return false;
+    for(uint16_t i = SAVE_HEADER_BYTES + bytes; i < size - 2; ++i)
+        if(in[i])
             return false;
-        if(old & 1)
-            flags.set_flag(FLAG_HELPED);
-        if(old & 2)
-            flags.set_flag(FLAG_GATE_OPEN);
-        if(old & 4)
-            flags.set_flag(FLAG_BRIDGE_REPAIRED);
-        // Retired NPC bit 3 is intentionally discarded; waystone was bit 4.
-        if(old & 16)
-            flags.set_flag(FLAG_WAYSTONE);
-        rng = get16(in + 18);
-    } else {
-        uint16_t count = get16(in + 18);
-        uint16_t bytes = count / 8 + (count % 8 != 0);
-        if(!count || count > FLAG_COUNT || SAVE_HEADER_BYTES + bytes > size - 2)
-            return false;
-        if(count % 8 && (in[SAVE_HEADER_BYTES + bytes - 1] >> (count % 8)))
-            return false;
-        for(uint16_t i = SAVE_HEADER_BYTES + bytes; i < size - 2; ++i)
-            if(in[i])
-                return false;
-        memcpy(flags.bytes, in + SAVE_HEADER_BYTES, bytes);
-        rng = get16(in + 16);
-    }
+    memcpy(flags.bytes, in + SAVE_HEADER_BYTES, bytes);
+    rng = get16(in + 16);
     uint16_t x = get16(in + 6), y = get16(in + 8);
     Area const PROGMEM* area = world_area(in[4]);
     if(!area || in[5] > WEST || !in[11] || in[10] > in[11] || !in[12] || in[13] || !rng)

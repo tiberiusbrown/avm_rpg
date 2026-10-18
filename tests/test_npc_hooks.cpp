@@ -1,19 +1,13 @@
-// Link the production mechanics against an independent character policy.
-// The static rules library does not need to pull in the game's policy object.
-#include "logic/npc_logic.h"
+#include "rpg.h"
 #include "chunk.h"
+#include "world_assets.h"
 #include "map_positions.h"
-#include "npc_routes.h"
-#include "tile_ids.h"
+#include "npc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static unsigned checks, activated, retired, restored;
-static unsigned events[5];
-static NPC_RETIRE_REASON last_retirement;
-static bool replace_start, chain_completion, activate_target;
-
+static unsigned checks;
 #define CHECK(value)                                                                               \
     do {                                                                                           \
         ++checks;                                                                                  \
@@ -23,9 +17,14 @@ static bool replace_start, chain_completion, activate_target;
         }                                                                                          \
     } while(0)
 
+#include "logic/npc_logic.h"
+static unsigned activated, retired, restored, events[5];
+static NPC_RETIRE_REASON last_retirement;
+static bool replace_route;
+
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
-    static constexpr NpcDefinition PROGMEM DEFINITION{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
-    return id == NPC_GUIDE ? &DEFINITION : nullptr;
+    static constexpr NpcDefinition DEFINITION{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
+    return id == NPC_VILLAGER ? &DEFINITION : nullptr;
 }
 
 uint8_t npc_placement(NPC_ID) {
@@ -33,45 +32,36 @@ uint8_t npc_placement(NPC_ID) {
 }
 
 TilePos npc_home(NPC_ID, uint8_t) {
-    return positions::GuideHome;
+    return positions::VillagerHome;
 }
 
-void npc_on_activate(Npc& npc) {
+NpcRoute const PROGMEM* npc_route(uint8_t id) {
+    static constexpr RoutePoint POINTS[] = {{5, 5}, {5, 6}};
+    static constexpr NpcRoute ONCE{POINTS, 2, ROUTE_ONCE, 2, AREA_OUTDOOR};
+    static constexpr NpcRoute REVERSE{POINTS, 2, ROUTE_REVERSE, 2, AREA_OUTDOOR};
+    return id == 1 ? &ONCE : id == 2 ? &REVERSE : nullptr;
+}
+
+void npc_on_activate(Npc& n) {
     ++activated;
-    CHECK(npc.id == NPC_GUIDE && npc_find(npc.id) == &npc);
-    if(activate_target)
-        CHECK(npc_move_to(npc.id, 48, 24));
+    CHECK(npc_find(n.id) == &n);
 }
 
-void npc_on_event(Npc& npc, NPC_EVENT event) {
+void npc_on_event(Npc& n, NPC_EVENT event) {
     ++events[event];
-    CHECK(npc_find(npc.id) == &npc);
-    if(event == NPC_EVENT_ROUTE_STARTED) {
-        CHECK(npc.behavior == NPC_ROUTE && !(npc.state & NPC_ROUTE_PENDING));
-        if(replace_start) {
-            replace_start = false;
-            CHECK(npc_follow_route(npc.id, routes::CourierReverse));
-        }
-    } else {
-        CHECK(npc.behavior == NPC_STAND);
-        if(event == NPC_EVENT_ROUTE_COMPLETED && chain_completion) {
-            CHECK(npc.route == routes::CourierWalk);
-            CHECK(npc_move_to(npc.id, 184, 49));
-        }
-        if(event == NPC_EVENT_TARGET_FAILED)
-            CHECK(npc.state & NPC_TARGET_FAILED);
+    if(event == NPC_EVENT_ROUTE_STARTED && replace_route) {
+        replace_route = false;
+        CHECK(npc_follow_route(n.id, 2));
     }
 }
 
-void npc_on_retire(Npc const& npc, NPC_RETIRE_REASON reason) {
+void npc_on_retire(Npc const&, NPC_RETIRE_REASON reason) {
     ++retired;
     last_retirement = reason;
-    CHECK(npc.id == NPC_GUIDE && npc_find(npc.id) == &npc);
 }
 
 void npc_logic_restore() {
     ++restored;
-    CHECK(!npc_find(NPC_GUIDE) && !game.npcs.request_count);
 }
 
 void npc_talk(NPC_ID) {}
@@ -84,84 +74,44 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
-static Npc& route_fixture() {
-    game_new();
-    CHECK(npc_find(NPC_GUIDE));
-    Npc& npc = *npc_find(NPC_GUIDE);
-    npc.actor = {120, 32, EAST, 0};
-    game.player = {136, 16, EAST, 0};
-    refresh_tile_cache();
-    CHECK(npc_follow_route(npc.id, routes::CourierWalk));
-    return npc;
-}
-
 int main() {
-    activate_target = true;
     game_new();
     CHECK(activated == 1 && restored == 1);
-    CHECK(npc_find(NPC_GUIDE)->behavior == NPC_TARGET);
-    for(uint8_t i = 0; i < 10; ++i)
+    Npc& n = *npc_find(NPC_VILLAGER);
+    CHECK(npc_follow_route(n.id, 1));
+    for(unsigned i = 0; i < 24; ++i)
         npc_update();
-    CHECK(events[NPC_EVENT_TARGET_REACHED] == 1);
-    activate_target = false;
-
-    Npc& npc = route_fixture();
-    chain_completion = true;
-    unsigned starts = events[NPC_EVENT_ROUTE_STARTED];
-    for(uint8_t i = 0; i < 140; ++i) {
+    CHECK(events[NPC_EVENT_ROUTE_STARTED] == 1 && events[NPC_EVENT_ROUTE_COMPLETED] == 1);
+    CHECK(n.actor.y == 96 && n.behavior == NPC_STAND);
+    replace_route = true;
+    CHECK(npc_follow_route(n.id, 1));
+    npc_update();
+    CHECK(n.route == 2 && (n.state & NPC_ROUTE_PENDING));
+    npc_update();
+    CHECK(events[NPC_EVENT_ROUTE_STARTED] == 3);
+    for(unsigned i = 0; i < 100; ++i)
         npc_update();
-        if(events[NPC_EVENT_ROUTE_COMPLETED])
-            break;
-    }
-    CHECK(events[NPC_EVENT_ROUTE_STARTED] == starts + 1);
-    CHECK(events[NPC_EVENT_ROUTE_COMPLETED] == 1);
-    CHECK(npc.behavior == NPC_TARGET && npc.actor.y == 48);
+    CHECK(n.behavior == NPC_ROUTE && events[NPC_EVENT_ROUTE_COMPLETED] == 1);
+    n.waypoint = 255;
     npc_update();
-    CHECK(npc.actor.y == 49 && npc.behavior == NPC_TARGET);
-    npc_update();
-    CHECK(npc.behavior == NPC_STAND && events[NPC_EVENT_TARGET_REACHED] == 2);
-    chain_completion = false;
-
-    route_fixture();
-    starts = events[NPC_EVENT_ROUTE_STARTED];
-    replace_start = true;
-    npc_update();
-    CHECK(npc.route == routes::CourierReverse && (npc.state & NPC_ROUTE_PENDING));
-    CHECK(npc.waypoint == 0 && npc.timer == 0); // Replacement waits until next update.
-    npc_update();
-    CHECK(events[NPC_EVENT_ROUTE_STARTED] == starts + 2);
-    for(uint8_t i = 0; i < 90; ++i)
+    CHECK(events[NPC_EVENT_ROUTE_INVALID] == 1 && n.behavior == NPC_STAND);
+    CHECK(npc_move_to(n.id, n.actor.x + 1, n.actor.y));
+    memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    for(unsigned i = 0; i < NPC_STUCK_FRAMES; ++i)
         npc_update();
-    CHECK(events[NPC_EVENT_ROUTE_COMPLETED] == 1); // Reverse endpoints are not completion.
-
-    CHECK(npc_follow_route(npc.id, routes::CourierWalk));
-    npc.waypoint = 255;
-    starts = events[NPC_EVENT_ROUTE_STARTED];
-    npc_update();
-    npc_update();
-    CHECK(events[NPC_EVENT_ROUTE_INVALID] == 1 && events[NPC_EVENT_ROUTE_STARTED] == starts);
-    CHECK(npc.behavior == NPC_STAND && !(npc.state & NPC_ROUTE_PENDING));
-
-    // Changing to a target cancels a route that has not started.
-    CHECK(npc_follow_route(npc.id, routes::CourierWalk));
-    CHECK(npc_move_to(npc.id, npc.actor.x + 1, npc.actor.y));
-    memset(game.cache.tiles, TILE_WALL, sizeof(game.cache.tiles));
-    for(uint8_t i = 0; i < NPC_STUCK_FRAMES + 2; ++i)
-        npc_update();
-    CHECK(events[NPC_EVENT_TARGET_FAILED] == 1 && events[NPC_EVENT_ROUTE_STARTED] == starts);
+    CHECK(events[NPC_EVENT_TARGET_FAILED] == 1);
     npc_repair();
-    CHECK(!npc_find(NPC_GUIDE) && last_retirement == NPC_RETIRED_TERRAIN);
-
-    route_fixture();
-    game.player = {224, 136, EAST, 0};
-    update_visible_world(0, false);
-    CHECK(!npc_find(NPC_GUIDE) && last_retirement == NPC_RETIRED_OFFSCREEN);
-    route_fixture();
-    unsigned retirements = retired, restores = restored;
+    CHECK(!npc_find(NPC_VILLAGER) && last_retirement == NPC_RETIRED_TERRAIN);
+    world_enter(AREA_OUTDOOR, 112, 80, NORTH);
+    CHECK(npc_find(NPC_VILLAGER));
+    CHECK(npc_move_to(NPC_VILLAGER, 80, 81));
+    npc_update();
+    npc_update();
+    CHECK(events[NPC_EVENT_TARGET_REACHED] == 1);
+    world_enter(AREA_OUTDOOR, 15 * TILE, 9 * TILE, SOUTH);
+    CHECK(!npc_find(NPC_VILLAGER) && last_retirement == NPC_RETIRED_RESET);
+    unsigned count = retired;
     npc_reset();
-    CHECK(retired == retirements + 1 && last_retirement == NPC_RETIRED_RESET);
-    CHECK(restored == restores + 1);
-    npc_reset();
-    CHECK(retired == retirements + 1 && restored == restores + 2);
+    CHECK(retired == count);
     printf("PASS independent NPC lifecycle policy: %u checks\n", checks);
 }

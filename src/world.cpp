@@ -21,14 +21,14 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
     }
     uint8_t width = dimensions.width_tiles, height = dimensions.height_tiles;
     uint8_t columns = (uint8_t)(((uint16_t)width + CHUNK_WIDTH - 1) / CHUNK_WIDTH);
-    uint16_t max_x = width > 16 ? (uint16_t)(width - 16) * 8 : 0;
-    uint16_t max_y = height > 8 ? (uint16_t)(height - 8) * 8 : 0;
+    uint16_t max_x = width > CHUNK_WIDTH ? (uint16_t)(width - CHUNK_WIDTH) * TILE : 0;
+    uint16_t max_y = height > CHUNK_HEIGHT ? (uint16_t)(height - CHUNK_HEIGHT) * TILE : 0;
     if(camera.x > max_x)
         camera.x = max_x;
     if(camera.y > max_y)
         camera.y = max_y;
-    cache.origin_tx = (uint8_t)(camera.x >> 3);
-    cache.origin_ty = (uint8_t)(camera.y >> 3);
+    cache.origin_tx = (uint8_t)(camera.x >> TILE_SHIFT);
+    cache.origin_ty = (uint8_t)(camera.y >> TILE_SHIFT);
     uint8_t* dst = cache.tiles;
 
     // Contiguous row spans use the native program-memory copy service. No full
@@ -40,13 +40,14 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
         uint8_t done = 0;
         if(y < height) {
             while(done < CACHE_WIDTH && x < width) {
-                uint8_t count = (uint8_t)(16 - (x & 15));
+                uint8_t count = (uint8_t)(CHUNK_WIDTH - (x & (CHUNK_WIDTH - 1)));
                 if(count > CACHE_WIDTH - done)
                     count = (uint8_t)(CACHE_WIDTH - done);
                 if(count > width - x)
                     count = (uint8_t)(width - x);
-                uint16_t chunk = (y >> 3) * columns + (x >> 4);
-                uint16_t offset = chunk * 128 + (y & 7) * 16 + (x & 15);
+                uint16_t chunk = (y / CHUNK_HEIGHT) * columns + (x / CHUNK_WIDTH);
+                uint16_t offset = chunk * (CHUNK_WIDTH * CHUNK_HEIGHT) +
+                                  (y & (CHUNK_HEIGHT - 1)) * CHUNK_WIDTH + (x & (CHUNK_WIDTH - 1));
                 memcpy(dst + done, tiles + offset, count);
                 done = (uint8_t)(done + count);
                 x += count;
@@ -85,8 +86,10 @@ bool terrain_clear(uint16_t x, uint16_t y) {
     if(!game.dimensions.pixel_bounds(x, y))
         return false;
     // Pixel bounds checked before narrowing to byte tile coordinates.
-    uint8_t x1 = (uint8_t)((x + 1) >> 3), x2 = (uint8_t)((x + 6) >> 3);
-    uint8_t y1 = (uint8_t)((y + 3) >> 3), y2 = (uint8_t)((y + 7) >> 3);
+    uint8_t x1 = (uint8_t)((x + FOOT_LEFT) >> TILE_SHIFT),
+            x2 = (uint8_t)((x + FOOT_RIGHT) >> TILE_SHIFT);
+    uint8_t y1 = (uint8_t)((y + FOOT_TOP) >> TILE_SHIFT),
+            y2 = (uint8_t)((y + FOOT_BOTTOM) >> TILE_SHIFT);
     for(uint8_t ty = y1; ty <= y2; ++ty)
         for(uint8_t tx = x1; tx <= x2; ++tx)
             if(tile_solid(cached_tile({game.area, tx, ty})))
@@ -96,7 +99,8 @@ bool terrain_clear(uint16_t x, uint16_t y) {
 
 bool Game::player_is_on_tile(TilePos tile) const {
     return tile.area == area && dimensions.pixel_bounds(player.x, player.y) &&
-           (player.x + 4) >> 3 == tile.x && (player.y + 6) >> 3 == tile.y;
+           (player.x + FOOT_CENTER_X) >> TILE_SHIFT == tile.x &&
+           (player.y + FOOT_CENTER_Y) >> TILE_SHIFT == tile.y;
 }
 
 bool Game::player_is_in_region(TileRegion region) const {
@@ -107,14 +111,15 @@ bool Game::player_is_in_region(TileRegion region) const {
     if(!region.width || !region.height || right > dimensions.width_tiles ||
        bottom > dimensions.height_tiles)
         return false;
-    uint16_t x = (player.x + 4) >> 3, y = (player.y + 6) >> 3;
+    uint16_t x = (player.x + FOOT_CENTER_X) >> TILE_SHIFT,
+             y = (player.y + FOOT_CENTER_Y) >> TILE_SHIFT;
     return region.contains({area, (uint8_t)x, (uint8_t)y});
 }
 
-// A closing feature ejects N/E/S/W at increasing distances of 1..8 pixels.
+// A closing feature ejects N/E/S/W at increasing distances of 1..16 pixels.
 static bool eject_actor(Actor& actor) {
     uint16_t x = actor.x, y = actor.y;
-    for(uint8_t radius = 1; radius <= 8; ++radius) {
+    for(uint8_t radius = 1; radius <= TILE; ++radius) {
         for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
             int16_t nx = (int16_t)x, ny = (int16_t)y;
             if(dir == NORTH)
@@ -138,15 +143,15 @@ static bool eject_actor(Actor& actor) {
 
 template <HandlerStage STAGE> void process_all_chunks() {
     Camera camera = STAGE == STAGE_GAMEPLAY ? game_camera() : game.camera;
-    uint8_t left = (uint8_t)(camera.x >> 3), top = (uint8_t)(camera.y >> 3);
+    uint8_t left = (uint8_t)(camera.x >> TILE_SHIFT), top = (uint8_t)(camera.y >> TILE_SHIFT);
     uint16_t right = (uint16_t)left + CACHE_WIDTH - 1;
     uint16_t bottom = (uint16_t)top + CACHE_HEIGHT - 1;
     if(right >= game.dimensions.width_tiles)
         right = game.dimensions.width_tiles - 1;
     if(bottom >= game.dimensions.height_tiles)
         bottom = game.dimensions.height_tiles - 1;
-    for(uint8_t cy = (uint8_t)(top >> 3); cy <= bottom >> 3; ++cy) {
-        for(uint8_t cx = (uint8_t)(left >> 4); cx <= right >> 4; ++cx) {
+    for(uint8_t cy = (uint8_t)(top / CHUNK_HEIGHT); cy <= bottom / CHUNK_HEIGHT; ++cy) {
+        for(uint8_t cx = (uint8_t)(left / CHUNK_WIDTH); cx <= right / CHUNK_WIDTH; ++cx) {
             run_chunk<STAGE>({game.area, cx, cy});
             if constexpr(STAGE != STAGE_TILES) {
                 if(teleported)
@@ -207,8 +212,9 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
         }
     }
     RPG_PHASE(6);
-    game.previous_player_tile = {game.area, (uint8_t)((game.player.x + 4) >> 3),
-                                 (uint8_t)((game.player.y + 6) >> 3)};
+    game.previous_player_tile = {game.area,
+                                 (uint8_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
+                                 (uint8_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT)};
     return teleported;
 }
 
@@ -220,7 +226,8 @@ void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     npc_reset();
     game.dimensions = {a->width, a->height};
     game.player = {x, y, facing, 0};
-    game.previous_player_tile = {area, (uint8_t)((x + 4) >> 3), (uint8_t)((y + 6) >> 3)};
+    game.previous_player_tile = {area, (uint8_t)((x + FOOT_CENTER_X) >> TILE_SHIFT),
+                                 (uint8_t)((y + FOOT_CENTER_Y) >> TILE_SHIFT)};
     update_visible_world(0, false);
 }
 

@@ -117,9 +117,9 @@ interpreter owns the SPI transfer; interpreter startup configures the display.
 pixel x/y, a program-space sprite pointer, and a frame index. `avm_set_sprite`
 plus `avm_draw_overwrite` / `avm_draw_plus_mask` removes repeated pointer arguments.
 Services clip signed coordinates. Sprite assets begin with width,height;
-8×8 frames are eight page-major column bytes. Plus-mask frames interleave each
+16×16 frames are 32 page-major column bytes (16 columns for each eight-pixel page). Plus-mask frames interleave each
 image byte with its mask. `avm_draw_filled_rect_white/black` accept signed x/y and
-8-bit width/height. M1.5 renders effective partial tiles from its 153-byte live
+8-bit width/height. The current RPG renders effective partial tiles from its 45-byte live
 cache, with byte tile origins and a 16-bit pixel camera snapshot.
 
 `avm_set_text_font(AVM_FONT_BR5D)` selects the preferred variable-width ASCII

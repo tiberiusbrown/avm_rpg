@@ -2,21 +2,7 @@
 #define NPC_TYPES_H
 
 // Explicit identities are save/quest contracts, never slot or authoring indices.
-enum NPC_ID : uint8_t {
-    NPC_NONE = 0,
-    NPC_GUIDE = 1,
-    NPC_ROWAN = 17,
-    NPC_GUARD = 42,
-    NPC_COURIER = 91,
-    NPC_HALL_1 = 121,
-    NPC_HALL_2 = 122,
-    NPC_HALL_3 = 123,
-    NPC_HALL_4 = 124,
-    NPC_HALL_5 = 125,
-    NPC_HALL_6 = 126,
-    NPC_HALL_7 = 127,
-    NPC_HALL_8 = 128
-};
+enum NPC_ID : uint8_t { NPC_NONE = 0, NPC_VILLAGER = 1, NPC_WANDERER = 2 };
 
 enum NPC_BEHAVIOR : uint8_t { NPC_STAND, NPC_WANDER, NPC_TARGET, NPC_ROUTE };
 

@@ -26,7 +26,7 @@ void game_new() {
     game.level = 1;
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);
-    world_enter(AREA_OUTDOOR, area->spawn.x, area->spawn.y, EAST);
+    world_enter(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);
 }
 
 static DIRECTION direction(uint8_t held) {
@@ -80,9 +80,10 @@ bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
 }
 
 Camera game_camera() {
-    int16_t x = (int16_t)game.player.x - 60, y = (int16_t)game.player.y - 28;
-    int16_t mx = (int16_t)game.dimensions.width_tiles * 8 - 128;
-    int16_t my = (int16_t)game.dimensions.height_tiles * 8 - 64;
+    int16_t x = (int16_t)game.player.x - (128 - TILE) / 2,
+            y = (int16_t)game.player.y - (64 - TILE) / 2;
+    int16_t mx = (int16_t)game.dimensions.width_tiles * TILE - 128;
+    int16_t my = (int16_t)game.dimensions.height_tiles * TILE - 64;
     Camera c;
 
     if(mx < 0)

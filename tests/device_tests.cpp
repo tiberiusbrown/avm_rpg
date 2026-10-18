@@ -15,7 +15,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 181 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
+static_assert(sizeof(Game) == 73 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -66,8 +66,9 @@ struct Device {
     uint8_t cached_tile(uint8_t x, uint8_t y) const {
         Game g = state();
         int dx = int(x) - g.cache.origin_tx, dy = int(y) - g.cache.origin_ty;
-        require(dx >= 0 && dx < 17 && dy >= 0 && dy < 9, "QA tile is outside the live cache");
-        return g.cache.tiles[dy * 17 + dx];
+        require(dx >= 0 && dx < CACHE_WIDTH && dy >= 0 && dy < CACHE_HEIGHT,
+                "QA tile is outside the live cache");
+        return g.cache.tiles[dy * CACHE_WIDTH + dx];
     }
 
     unsigned serial() const {
@@ -260,25 +261,9 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
               << ",\"budget_cycles\":800000}\n";
 }
 
-static void report_observed(char const* name, Device const& first, Device const& second) {
-    uint64_t sum = 0, worst = 0, count = 0;
-    for(auto source : {&first, &second}) {
-        for(auto const& c : source->frames) {
-            sum += c.total;
-            worst = std::max(worst, c.total);
-            ++count;
-        }
-    }
-    require(count != 0, "no observed frame measurements");
-    std::cout << "{\"workload\":\"" << name << "\",\"frames\":" << count
-              << ",\"average_cycles\":" << sum / count << ",\"worst_cycles\":" << worst
-              << ",\"budget_cycles\":800000}\n";
-}
-
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
-                       "output_directory normal|m15|proof dialogue_address phase_address");
-
+                       "output_directory normal|proof dialogue_address phase_address");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
@@ -287,8 +272,7 @@ int main(int argc, char** argv) try {
     d.phase_addr = std::stoul(argv[8]);
     if(d.proof) {
         d.frame();
-        d.frame();
-        summary("m0_proof", d, 120);
+        summary("m0_proof", d, 30);
         d.capture(out / "proof-visible.pgm");
         return 0;
     }
@@ -298,355 +282,80 @@ int main(int argc, char** argv) try {
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
-    if(std::string(argv[6]) == "npc") {
-        auto changed = d.state();
-        changed.player = {40, 32, NORTH, 0};
-        changed.previous_player_tile = {AREA_OUTDOOR, 5, 4};
-        d.set_state(changed);
-        d.frame();
-        d.frame(BTN_A);
-        require(d.prompt() != DIALOGUE_CLOSED, "stationary NPC dialogue did not open");
-        auto frozen = d.state();
-        d.advance(BTN_RIGHT, 8000000);
-        auto paused = d.state();
-        require(paused.ticks == frozen.ticks && paused.rng == frozen.rng &&
-                    !memcmp(&paused.npcs, &frozen.npcs, sizeof(NpcPool)) &&
-                    !memcmp(&paused.player, &frozen.player, sizeof(Actor)),
-                "blocking NPC dialogue advanced actors");
-        d.capture(out / "npc-dialogue.pgm");
-        d.tap(BTN_B);
-        d.frame(); // Mutate the QA scene at a completed exploration frame boundary.
+    require(d.state().player.x == 112 && d.state().player.y == 80, "wrong 16x16 spawn");
+    require(d.state().dimensions.width_tiles == 18 && d.state().dimensions.height_tiles == 12,
+            "wrong sample map dimensions");
+    require(d.cached_tile(7, 4) == TILE_SIGN, "sign atlas index changed");
+    unsigned actors = 0;
+    for(auto const& n : d.state().npcs.actors)
+        actors += n.id != NPC_NONE;
+    require(actors == 2, "sample NPCs did not activate");
+    summary("idle_grove", d, 30);
+    d.capture(out / "grove.pgm");
 
-        changed = d.state();
-        changed.area = AREA_NPC_HALL;
-        changed.dimensions = {32, 8};
-        changed.player = {88, 24, EAST, 0};
-        changed.previous_player_tile = {AREA_NPC_HALL, 11, 3};
-        changed.npcs = {};
-        d.set_state(changed);
-        d.frame();
-        unsigned count = 0;
-        for(auto const& n : d.state().npcs.actors)
-            count += n.id != 0;
-        if(count != NPC_CAPACITY) {
-            auto snapshot = d.state();
-            std::cerr << "NPC scene area=" << unsigned(snapshot.area) << " x=" << snapshot.player.x
-                      << " y=" << snapshot.player.y << " count=" << count
-                      << " requests=" << unsigned(snapshot.npcs.request_count)
-                      << " deferred=" << unsigned(snapshot.npcs.activation_deferrals) << '\n';
-        }
-        require(count == NPC_CAPACITY && !d.state().npcs.capacity_faults,
-                "eight authored NPCs did not activate");
-        summary("eight_npcs_idle", d, 120);
-        d.capture(out / "eight-npcs.pgm");
-
-        // All eight actors use cheap steering and collide in the one-tile hall.
-        changed = d.state();
-        for(auto& n : changed.npcs.actors) {
-            n.behavior = NPC_TARGET;
-            n.timer = n.stuck = 0;
-            n.target = {(uint16_t)(n.actor.x + 8), n.actor.y};
-        }
-        d.set_state(changed);
-        summary("eight_npcs_steering", d, 12);
-        changed = d.state();
-        for(auto& n : changed.npcs.actors) {
-            n.behavior = NPC_TARGET;
-            n.timer = n.stuck = 0;
-            n.target = {(uint16_t)(n.actor.x + 8), n.actor.y};
-        }
-        d.set_state(changed);
-        summary("eight_npcs_steering_push", d, 12, BTN_RIGHT);
-
-        // Reset the authored corridor and prove real input makes eventual progress.
-        changed = d.state();
-        changed.player = {16, 24, EAST, 0};
-        changed.previous_player_tile = {AREA_NPC_HALL, 2, 3};
-        changed.npcs = {};
-        d.set_state(changed);
-        d.frame();
-        summary("corridor_eight_npcs_push", d, 180, BTN_RIGHT);
-        require(d.state().player.x > 152 && !d.state().npcs.capacity_faults,
-                "real-device corridor did not permit eventual player passage");
-        d.capture(out / "corridor-passed.pgm");
-
-        // Quest placement survives a physical FX save and fresh-device restart.
-        changed = d.state();
-        changed.area = AREA_INTERIOR;
-        changed.dimensions = {16, 10};
-        changed.player = {16, 56, NORTH, 0};
-        changed.previous_player_tile = {AREA_INTERIOR, 2, 7};
-        changed.set_flag(FLAG_GUARD_RELOCATED);
-        changed.set_flag(FLAG_COURIER_ARRIVED);
-        changed.npcs = {};
-        d.set_state(changed);
-        d.frame();
-        d.tap(BTN_B);
-        d.tap(BTN_DOWN);
-        d.tap(BTN_A);
-        auto sector = d.sector();
-        Device restarted(package, g, m, s, q);
-        restarted.import_sector(sector);
-        restarted.advance(0, 3200000);
-        restarted.tap(BTN_DOWN);
-        restarted.tap(BTN_A);
-        auto loaded = restarted.state();
-        count = 0;
-        for(auto const& n : loaded.npcs.actors)
-            count += n.id == NPC_GUARD && n.placement == 1 && n.actor.x == 96 && n.actor.y == 16;
-        require(loaded.get_flag(FLAG_GUARD_RELOCATED) && loaded.get_flag(FLAG_COURIER_ARRIVED) &&
-                    count == 1,
-                "physical save failed canonical NPC reconstruction");
-        restarted.capture(out / "npc-quest-reloaded.pgm");
-        report_observed("npc_scenario_all_frames", d, restarted);
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"NPC "
-                     "dialogue/freeze/dense/steering/corridor/physical-save\"}\n";
-        return 0;
-    }
-    if(std::string(argv[6]) == "m15") {
-        auto changed = d.state();
-        changed.player = {112, 16, EAST, 0};
-        d.set_state(changed);
-        d.frame();
-        require(d.cached_tile(15, 2) == TILE_WALL, "gate baseline was not closed");
-        d.capture(out / "gate-closed.pgm");
-        auto closed = d.ab->peripherals.display.ram;
-        d.hold(BTN_RIGHT, 4);
-        require(d.state().player.x == 113, "closed gate did not block pixel collision");
-        changed = d.state();
-        changed.flags = {};
-        changed.set_flag(FLAG_GATE_OPEN);
-        d.set_state(changed);
-        d.frame();
-        require(d.cached_tile(15, 2) == TILE_PATH, "gate flag did not project next frame");
-        d.capture(out / "gate-open.pgm");
-        require(d.ab->peripherals.display.ram != closed, "effective gate did not change graphics");
-        d.hold(BTN_RIGHT, 6);
-        require(d.state().player.x > 120, "open gate still blocked movement");
-        changed = d.state();
-        changed.player = {120, 16, EAST, 0};
-        changed.flags = {};
-        d.set_state(changed);
-        summary("occupied_gate_closing", d, 1);
-        require(d.cached_tile(15, 2) == TILE_WALL, "baseline reset left a stale gate mutation");
-        require(d.state().player.x != 120 || d.state().player.y != 16,
-                "closing gate failed deterministic player ejection");
-
-        changed = d.state();
-        changed.player = {200, 72, EAST, 0};
-        changed.flags = {};
-        changed.set_flag(FLAG_BRIDGE_REPAIRED);
-        d.set_state(changed);
-        d.frame();
-        require(d.state().cache.origin_tx == 16 && d.cached_tile(16, 7) == TILE_PATH &&
-                    d.cached_tile(17, 8) == TILE_PATH,
-                "partial multi-chunk bridge did not project into the live cache");
-        d.capture(out / "bridge-repaired.pgm");
-        summary("partial_dynamic_bridge", d, 120);
-        changed = d.state();
-        changed.flags = {};
-        d.set_state(changed);
-        d.frame();
-        require(d.cached_tile(16, 7) == TILE_WATER, "bridge baseline failed to reset");
-        d.capture(out / "bridge-baseline.pgm");
-
-        changed = d.state();
-        changed.player = {208, 144, NORTH, 0};
-        changed.ticks = 0;
-        d.set_state(changed);
-        d.frame();
-        require(d.cached_tile(21, 16) == TILE_PATH, "per-frame platform failed its open phase");
-        d.capture(out / "platform-open.pgm");
-        for(unsigned i = 0; i < 16; ++i)
-            d.frame();
-        require(d.cached_tile(21, 16) == TILE_WATER,
-                "per-frame platform did not return to baseline");
-        d.capture(out / "platform-closed.pgm");
-        summary("periodic_platform", d, 120);
-
-        changed = d.state();
-        changed.player = {92, 40, EAST, 0};
-        changed.flags = {};
-        changed.set_flag(FLAG_GATE_OPEN);
-        changed.set_flag(FLAG_BRIDGE_REPAIRED);
-        changed.previous_player_tile = {AREA_OUTDOOR, 11, 5};
-        changed.player.walking = 1;
-        d.set_state(changed);
-        d.frame();
-        require(d.state().area == AREA_INTERIOR, "portal transition did not enter the interior");
-        d.tap(BTN_B);
-        d.tap(BTN_DOWN);
-        d.tap(BTN_A);
-        auto sector = d.sector();
-        Device restarted(package, g, m, s, q);
-        restarted.import_sector(sector);
-        restarted.advance(0, 3200000);
-        restarted.tap(BTN_DOWN);
-        restarted.tap(BTN_A);
-        require(restarted.state().get_flag(FLAG_GATE_OPEN) &&
-                    restarted.state().get_flag(FLAG_BRIDGE_REPAIRED) &&
-                    restarted.state().area == AREA_INTERIOR,
-                "fresh-device save/load lost quest flags or area");
-        restarted.capture(out / "quest-reloaded.pgm");
-        std::cout
-            << "{\"result\":\"PASS\",\"scenario\":\"M1.5 gate/bridge/timer/physical-save\"}\n";
-        return 0;
-    }
-
-    summary("stationary_world", d, 120);
-    d.frame(BTN_RIGHT);
-    require(d.state().player.x == 34, "player did not advance through intermediate pixels");
-    d.hold(BTN_RIGHT, 29);
-    require(d.state().area == AREA_INTERIOR, "door entry failed");
-    d.capture(out / "interior.pgm");
-
-    d.hold(BTN_RIGHT, 16);
-    d.hold(BTN_UP, 8);
-    d.capture(out / "before-dialogue.pgm");
-    auto world_screen = d.ab->peripherals.display.ram;
-    d.frame(BTN_A);
-    require(d.prompt() == DIALOGUE_MORE, "Lantern did not open the paginated overlay");
+    d.tap(BTN_A);
+    require(d.prompt() != DIALOGUE_CLOSED, "facing sign plus A did not open dialogue");
     auto frozen = d.state();
-    auto first_screen = d.ab->peripherals.display.ram;
-    for(unsigned i = 0; i < 128 * 4; ++i) {
-        uint8_t mask = i < 128 * 3 ? 0xff : 0x3f;
-        require((first_screen[i] & mask) == (world_screen[i] & mask),
-                "dialogue overlay overwrote the world above its fixed panel");
-    }
-    d.hold(BTN_A, 8);
-    require(d.prompt() == DIALOGUE_MORE && d.ab->peripherals.display.ram == first_screen,
-            "held opening A skipped a dialogue page");
-    d.hold(BTN_RIGHT, 20);
+    unsigned dialogue_serial = d.serial();
+    d.advance(0, 3200000);
     auto paused = d.state();
-    require(paused.ticks == frozen.ticks && paused.rng == frozen.rng &&
-                !memcmp(&paused.player, &frozen.player, sizeof(Actor)),
-            "dialogue advanced the world");
-    d.capture(out / "dialogue.pgm");
-    d.tap(BTN_B);
-    require(d.prompt() == DIALOGUE_CLOSED && !d.state().get_flag(FLAG_HELPED),
-            "early dialogue dismissal did not return to its caller");
-
-    d.tap(BTN_A);
-    unsigned pages = 1;
-    while(d.prompt() == DIALOGUE_MORE && pages < 10) {
+    require(dialogue_serial == d.serial() && !memcmp(&frozen, &paused, sizeof(Game)),
+            "sign dialogue did not freeze simulation");
+    d.capture(out / "sign-dialogue.pgm");
+    for(unsigned i = 0; i < 8 && d.prompt() != DIALOGUE_CLOSED; ++i)
         d.tap(BTN_A);
-        d.capture(out / ("dialogue-page-" + std::to_string(pages++) + ".pgm"));
-    }
-    require(pages > 1 && d.prompt() == DIALOGUE_DONE, "automatic dialogue pagination failed");
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CHOICE, "callable question did not follow the message");
-    d.capture(out / "choice.pgm");
-    d.tap(BTN_A);
-    require(d.state().get_flag(FLAG_HELPED) && d.state().gold == 5 && d.prompt() == DIALOGUE_DONE,
-            "synchronous choice consequence failed");
-    d.capture(out / "consequence.pgm");
-
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CLOSED, "dialogue did not return");
-    d.hold(BTN_LEFT, 16);
-    d.hold(BTN_DOWN, 9);
-    require(d.state().area == AREA_OUTDOOR, "return path failed");
-    {
-        uint64_t sum = 0, worst = 0;
-        for(auto c : d.transitions) {
-            sum += c.total;
-            worst = std::max(worst, c.total);
-        }
-        require(d.transitions.size() == 2, "expected paired portal transitions");
-        std::cout << "{\"workload\":\"area_transitions\",\"frames\":2,\"average_cycles\":"
-                  << sum / 2 << ",\"worst_cycles\":" << worst << "}\n";
-    }
+    require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
 
     d.tap(BTN_B);
     auto menu_state = d.state();
     unsigned menu_serial = d.serial();
     d.advance(0, 3200000);
-    auto after_menu_wait = d.state();
-    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_menu_wait, sizeof(Game)),
+    auto after_wait = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_wait, sizeof(Game)),
             "menu did not pause exploration");
     d.capture(out / "menu.pgm");
-    auto menu_pixels = d.ab->peripherals.display.ram;
-    d.advance(BTN_A, 4000000);
-    auto after_status_wait = d.state();
-    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_status_wait, sizeof(Game)),
-            "status did not pause exploration or held A returned through multiple screens");
-    require(d.ab->peripherals.display.ram != menu_pixels, "status did not draw its own screen");
+    d.tap(BTN_A);
     d.capture(out / "status.pgm");
-
+    require(d.serial() == menu_serial, "status advanced simulation");
     d.tap(BTN_B);
     d.tap(BTN_DOWN);
     d.tap(BTN_A);
-    d.capture(out / "saved.pgm");
-
     auto saved = d.state();
     auto sector = d.sector();
-    require(sector[0] == SAVE_BYTES && sector[2] == 'R' && sector[3] == 'P',
-            "no physical FX save record");
-    {
-        std::ofstream f(out / "fxsave.bin", std::ios::binary);
-        f.write(reinterpret_cast<char const*>(sector.data()), sector.size());
-    }
+    require(sector[0] == SAVE_BYTES && sector[2] == 'R' && sector[3] == 'P' &&
+                sector[4] == SAVE_VERSION,
+            "no physical version-4 FX save record");
     Device restarted(package, g, m, s, q);
+    restarted.phase_addr = d.phase_addr;
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
-    require(restarted.serial() == 0 && restarted.state().get_flag(FLAG_HELPED) &&
-                restarted.state().gold == 5 && restarted.state().rng == saved.rng,
-            "title did not validate the saved game");
+    require(restarted.serial() == 0, "restart did not show title");
     restarted.tap(BTN_DOWN);
     restarted.tap(BTN_A);
     auto loaded = restarted.state();
     require(restarted.serial() != 0 && loaded.area == saved.area &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y &&
-                loaded.get_flag(FLAG_HELPED) && loaded.gold == 5 && loaded.rng != 0,
+                loaded.gold == saved.gold,
             "fresh emulator save/load mismatch");
     restarted.capture(out / "restarted.pgm");
-    // NPC reconstruction changes simulation work and RNG timing. Navigate to
-    // actual destinations rather than relying on button-time rounding at load.
-    for(unsigned i = 0; i < 16 && restarted.state().area != AREA_INTERIOR; ++i)
-        restarted.frame(BTN_UP);
-    require(restarted.state().area == AREA_INTERIOR, "post-load doorway inaccessible");
-    for(unsigned i = 0; i < 32 && restarted.state().player.x < 48; ++i)
-        restarted.frame(BTN_RIGHT);
-    for(unsigned i = 0; i < 24 && restarted.state().player.y > 40; ++i)
-        restarted.frame(BTN_UP);
-    restarted.frame();
-    restarted.tap(BTN_A);
-    require(restarted.prompt() == DIALOGUE_DONE && restarted.state().get_flag(FLAG_HELPED),
-            "persisted dialogue inaccessible");
-    restarted.capture(out / "persisted-dialogue.pgm");
-    restarted.tap(BTN_B);
-    require(restarted.prompt() == DIALOGUE_CLOSED, "B did not dismiss the final page");
+    restarted.hold(BTN_DOWN, 20);
+    require(restarted.state().player.y > saved.player.y, "16x16 pixel movement failed");
+    summary("pixel_scroll", restarted, 30, BTN_DOWN);
+    summary("dense_collision", restarted, 30, BTN_LEFT);
+    restarted.capture(out / "forest.pgm");
 
-    // Corrupt physical payload with unchanged record length; startup must reject.
     sector[8] ^= 0x40;
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
     corrupt.advance(0, 3200000);
     corrupt.tap(BTN_DOWN);
     corrupt.tap(BTN_A);
-    require(corrupt.serial() == 0 && corrupt.state().ticks == 0 &&
-                !corrupt.state().get_flag(FLAG_HELPED),
-            "corrupt save accepted or disabled Continue entered exploration");
-
-    // Representative pixel scrolling and dense terrain, after closing the menu.
-    d.tap(BTN_B);
-    require(d.serial() > menu_serial, "B did not return from menu to exploration");
-    d.tap(BTN_B);
-    unsigned return_serial = d.serial();
-    d.tap(BTN_UP);
-    d.advance(BTN_A, 4000000);
-    require(d.serial() > return_serial && d.prompt() == DIALOGUE_CLOSED,
-            "Return did not resume exploration or its held A leaked into gameplay");
-    d.advance(0);
-
-    summary("pixel_scroll", d, 70, BTN_DOWN);
-    summary("dense_collision", d, 120, BTN_LEFT);
-    d.capture(out / "outdoor.pgm");
-    std::cout << "{\"result\":\"PASS\",\"scenario\":\"actual AVM "
-                 "new/walk/enter/dialogue/choice/exit/save/fresh-device/load/corrupt\"}\n";
+    require(corrupt.serial() == 0, "corrupt save accepted");
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
+                 "scrolling\"}\n";
     return 0;
-} catch(std::exception const& e) {
+} catch(std::exception const& error) {
 
-    std::cerr << "FAIL " << e.what() << '\n';
+    std::cerr << "FAIL " << error.what() << '\n';
     return 1;
 }

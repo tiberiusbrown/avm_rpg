@@ -220,3 +220,20 @@ quest state after pool reconstruction, including saves with no live actor.
 No enemy, ambient spawning, general pathfinding or scripting systems are introduced.
 Current measurements and exact commands are in
 [m1_6_measurements.md](m1_6_measurements.md).
+
+## 16x16 content reset (2026-10-18)
+
+This decision supersedes the M1.5/M1.6 map/cache/art/content examples above.
+Adopt supplied tiles16.png and actors16.png at native resolution. Use 8x4 tile
+chunks, a 9x5 scrolling cache, 12x10 actor foot boxes and 16-pixel tile coordinates.
+Reserve atlas cell 255 for TILE_OUTSIDE; retain black cells and row-major IDs.
+Actor masks come from per-frame alpha, including opaque black silhouette pixels.
+Use character rows and the 1,2,1,3 directional gait for both player and NPCs.
+
+Replace all demonstration maps/quests with Nocturne Grove, its sign (0x41) and two
+simple villagers. Keep generic staged handlers, NPC movement/routes, flags and
+saves. SAVE_VERSION=4 deliberately rejects prior worlds instead of attempting to
+reinterpret their pixels/flags. No schema migration is promised for this content
+reset. The cache alone saves 108 RAM bytes; current link/emulator evidence is in
+tiles16_measurements.md. Performance comparisons also reflect the smaller content
+and different NPC workload, so they do not isolate the effect of tile size.

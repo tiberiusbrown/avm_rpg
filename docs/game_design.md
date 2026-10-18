@@ -1,6 +1,6 @@
 # AVM Open-World RPG — Game Design & Technical Specification
 
-**Version:** 0.1 (discussion draft)  
+**Version:** 0.1 (discussion draft; presentation updated October 18, 2026)
 **Date:** October 14, 2026  
 **Status:** Proposed; intentionally open to revision  
 **Target:** Arduboy Virtual Machine (AVM), running on Arduboy-class AVR hardware  
@@ -40,7 +40,7 @@ Development is **incremental, not one-shot**. The team first proves AVM integrat
 | Topic | Current design direction | Owner / status |
 |---|---|---|
 | Setting, lore, plot, geography, characters | AI invents and authors all | **Locked principle; content undecided** |
-| Camera/presentation | Top-down 8×8 tile world, smooth or tile-stepped scrolling depending on performance | Proposed |
+| Camera/presentation | Top-down 16×16 tile world with smooth pixel scrolling | Proposed |
 | Primary movement | Real-time tile-to-tile walking | Proposed |
 | Combat | Turn-based or low-frequency tactical combat; prefer turn-based first | Proposed |
 | Dialogue/quests | Native C/C++ handlers and read-only text; no runtime quest scripting VM | **Locked principle** |
@@ -96,7 +96,7 @@ Where ambiguous, display a small contextual prompt when near a person or interac
 
 ### 4.2 Screen layout
 
-- Native display is **128×64 monochrome**. Primary world view shows up to **16×8 tiles at 8×8 pixels**, subject to camera and optional overlays.
+- Native display is **128×64 monochrome**. Primary world view shows up to **8×4 tiles at 16×16 pixels**, subject to camera and optional overlays.
 - Avoid reserving a permanent large HUD that sacrifices map visibility. Show health and location briefly on transitions or in a small unobtrusive overlay; detailed stats live in the menu.
 - Dialogue may cover much of the display and pause the simulation; use a readable bitmap font, bounded lines, and page transitions.
 - Character names should be legible; avoid large portraits that reduce dialogue space unless testing demonstrates benefit.

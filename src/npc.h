@@ -17,9 +17,11 @@ struct NpcDefinition {
     NPC_BEHAVIOR behavior;
     DIRECTION facing;
     uint8_t period, pause, walk, leash_x, leash_y, priority, route;
+    uint8_t sprite_row = 0;
+    bool talkable = true;
 };
 
-static_assert(sizeof(NpcDefinition) == 9, "compact program-memory NPC definition");
+static_assert(sizeof(NpcDefinition) == 11, "compact program-memory NPC definition");
 
 struct RoutePoint {
     uint8_t x, y;
@@ -58,7 +60,7 @@ bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir);
 bool npc_move_to(NPC_ID id, uint16_t x, uint16_t y);
 
 template <TilePos POS> bool npc_move_to(NPC_ID id) {
-    return POS.area == game.area && npc_move_to(id, (uint16_t)POS.x * 8, (uint16_t)POS.y * 8);
+    return POS.area == game.area && npc_move_to(id, (uint16_t)POS.x * TILE, (uint16_t)POS.y * TILE);
 }
 
 bool npc_follow_route(NPC_ID id, uint8_t route);

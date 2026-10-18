@@ -1,0 +1,418 @@
+{
+  "verification_date": "2026-10-18",
+  "configuration": "RelWithDebInfo; existing MSVC/Ninja and AVM SDK",
+  "source_fingerprint_sha256": "b6f072a1a0ab525f81496005b28b3e786986365b4ed7e108f0e7c0b065a96304",
+  "source_manifest": {
+    ".clang-format": "ca4f166000c3889f7d8651bfb479009ce208a640d819bc9350ad517b248b9119",
+    "AGENTS.md": "15c2905a835f59d756a4f6ebb41c04057063c604d91fdba3d8916e8b76b64b76",
+    "assets/maps/outdoor.tmx": "f853206126a752064865cb4e5ceecb7491aa092827633f2ad6c4f3ac73ad01d4",
+    "assets/tilesets/world.tsx": "0b4563dd5f74549666c1d46583c5201f2c4d3682ecb121439ae574335b385ee2",
+    "assets_src/actors16.png": "2ff77250e87ff8226f80cfe2464996c3362c9c7c3408ad99462a89532c7d492c",
+    "assets_src/tiles16.png": "4a86b05bea91f5ffa07ba7d1d9ccc7a8d3a0579f048f3d45c9aaa3d37ed922fc",
+    "assets_src/tiles16.xcf": "deb810ecb5a0f7f1e2937fd52e6147feda519277f57318cf479a8d634724b1d5",
+    "CMakeLists.txt": "e14c3332e53c998f8839bc9074b99665047cd20bfd8068d3eed45d46ceecdd48",
+    "generated/area_ids.h": "088927a4a292be8420460a117da8856e13660671cf4fbdb157e5d02b12d54474",
+    "generated/chunk_dispatch.cpp": "46768e3681a6797e4fa0d47d11315d851e698afd9f3b8aba2b17a5b12d597fe4",
+    "generated/handler_defaults.h": "1696063885f1b33f22d186dfac84cf6588fdd2482d3055ef6ab5f6914cd999a0",
+    "generated/map_assets.cpp": "b5d7d30ad6f2dd5c52849e934a7f1009bf15486ac1ff0713a0463bbceec3c4de",
+    "generated/map_positions.h": "7a073ce19b6bc4ef6d3f30a11f649caea141db7ba27211e1df2a8773d387c441",
+    "generated/npc_routes.cpp": "fcdc99ad1dc39b59931ce977a2713ec29d7c6da4062a2a163b3105caf3914e99",
+    "generated/npc_routes.h": "15e3face6eccdf946c10c8cb60457f4952ed0a9318ac5baf9ecb868d87f5dca4",
+    "generated/sprites.cpp": "11c4922e88f063a6f201ae882f10f1451e03c2d85d7e9719fa934e67eda7f542",
+    "generated/tile_ids.h": "385cca4aa008598c2a7ca37adf71cc45eda08cb29b966bf58fc8654a938db140",
+    "generated/world_assets.h": "79999264168e5dc75c6db890b2a31982dd34112d0f75a62c1fbc362c3ec8d7aa",
+    "README.md": "bd221f43a579b282843f8abcc1f610f4e062649a2d45059ca4173595fc3f4009",
+    "src/chunk.h": "1157b29bc99c065befb343b16de1e050ece72b5d54ac5166f97584d5bca15bab",
+    "src/dialogue_overlay.cpp": "4487aa078ed060c4c1ff0c832a79038daf9506cc49cb447d1ba77e9665a066a3",
+    "src/flags.h": "1eeffadf3b54bd5066d2a9abe5ba25e91d8a0801579f433a5a0f0505d2d26465",
+    "src/game.cpp": "753584464ed2f31d2f2dad90212d84d3eb798af4450b2fade8c2983a82742d5f",
+    "src/input.cpp": "fabb5ccdff9fc9a0a7ce4b47f52b250b23a3c7bf4dc655c4b1c370449ad68b42",
+    "src/logic/handlers.h": "117b46023640850a96cd2fb217fac8e0f64222452a1d963e1c311e89763aa093",
+    "src/logic/npc_logic.cpp": "16e28780b942407b9cbe988ab9eaea1bce4690e655fdff50b1534fd17caf4eca",
+    "src/logic/npc_logic.h": "6da393d75186e4116404b50dc62190bb359157d505f86f1db6ca207e100628de",
+    "src/npc.cpp": "b46d5a902363d129bda1ace63fc87fedfd0fe7aa681d8b1d8f7a9d610dfffffc",
+    "src/npc.h": "156e693e1dacc40e2715b0feb48d6232faa04606d076c829e7610a7acab1297b",
+    "src/npc_types.h": "24ca32c9b83d10f3e9af2f3daeac8cac7b9ae7d27d76ab7a7680e04ea66f1d24",
+    "src/platform_avm.cpp": "fb42138529cd9ce296d8237976bdee444adc974fdbba998df469f2a98b1a78fc",
+    "src/proof.cpp": "9e096c18eea0b21979fd3cce526e24bb8ad710d255e9c5adeee40328baab8b52",
+    "src/render.cpp": "2d61e50e0ec171309650c622be711dbbceeab65f3172ba4ee52bdd12f476e17a",
+    "src/rpg.h": "7100c4bf2d1e115e1577dd17a48580cae6b025a4e48c0ec61af6d534a2457cc2",
+    "src/save.cpp": "db3396f7a8ffc885ab01177149d5a41e0049ca0a9b5b3a05247b2883c523070c",
+    "src/screens.cpp": "70fdd2d027c9adc7b5b767ae22541efd888cd149c151e8d9134c59d0528f2909",
+    "src/world.cpp": "afb9a9bd667d8f5eaaab93e028f33b3f57e320ff690d3897ae80476650add416",
+    "src/world_types.h": "00ee2f841e9821455123ffc62bfec75b0aa7b1372fdd5d062e02f5ef8869f277",
+    "tests/device_tests.cpp": "7f28aef3d407776646079fb3faebad270a11a88afbd209414e2082f3bba3945e",
+    "tests/guest_integration.py": "4bfe51bad72c15a5d42e48208f3e8ff581d4545a5afbd23c7f1e6693bc3c561b",
+    "tests/npc_probe.cpp": "5ab7f73a28c3e2bd7179997549defc5cad59498a7e8dcd42f253252eae6708b9",
+    "tests/npc_scenarios.h": "92fcc16e551876e001e81165d3f8b81a5e13f31714620c1d720aa51566631834",
+    "tests/replays/exploration.json": "947c1d3edb55d5e8c0635feaffd7269f1ce668d30947370fcdd7cfa4ba5ff1c7",
+    "tests/test_content.py": "27279f3c11d84f64a8d86dce16559150496757a9d7936ea1973ed761e832a697",
+    "tests/test_core.cpp": "97208b3a0f17a32f14e7d79b5d4665d758526fe7dbec6566fafcef290e9773d8",
+    "tests/test_flags.cpp": "4a009b352546517f36bc7929d06d30ab6964ce088a91b302f8b7d8286db4bda2",
+    "tests/test_npc.cpp": "1bec78d5744d53da478bda6c6ed028e62dba5f90ea8fb5eb1d4f75734a6348c1",
+    "tests/test_npc_hooks.cpp": "1208f5818d033d5f7016e304cabd340ce8662d4037c5990ee1e55f52442055e2",
+    "tests/test_pipeline.py": "b486171fced6aef9af296d41ba3dc27618cc9c54bcc8a25995e4bae7da880a90",
+    "tests/test_world.cpp": "f84f2008e26fed3206fa43535796aac79c6341397cbf0c393d48006d7f5fcd8e",
+    "tests/world_probe.cpp": "e906466676acc9a9b40692799fb76b453b6d4f10c4083997e9ed1a7ba945f917",
+    "tests/world_scenarios.h": "2126710dc1f896b9d0b4fd606ed281487282b57a3278cf74907a3be99f62d552",
+    "tools/build.ps1": "4d7f207a73983bb148a3d96283ea59c6c74ebe38fd36010deee0f5d03b5aece1",
+    "tools/check_lto.py": "30cde47a489307e03bac19055e2e83b543e80efc11b2cde7af7b36d34ef4ed5e",
+    "tools/collect_evidence.py": "d301ea02b0765438e0d6db42fc3f4eb580ef4b5fd7842e35021fbd7e40a70081",
+    "tools/elf.py": "0bfff66bd875c13bc14a168875f2b78140e0cfe85f82dd98f3dba6712e911c1d",
+    "tools/generate_assets.py": "d4749cec5a6071aab046704d880beb32927aa9752c19a89c3b7d531607f372c7",
+    "tools/link_guest.py": "a3fe059e88c9b50ef3b85de978c8ca2f6b88ed1990b2e0f1913a3551fa248508",
+    "tools/requirements.txt": "e18aed9a4307b1f51a0b0058d1e096ca99bc0685c99e4624c5d8f649a18140f3",
+    "tools/resources.py": "a03a3ab8f2e831c7bbce3f6e554b36c70fc13464f0a70630d72ee0bb6d48c210"
+  },
+  "artifacts": {
+    "m0_proof.elf": {
+      "sha256": "9f298943a5ee5ed0d6e739393473348d3e5fc07d95e4667be2656c8a54045905",
+      "bytes": 7548
+    },
+    "m0_proof.bin": {
+      "sha256": "e99c9ac748c03b6fde65ac5bf4304c1fd033fc1c03a9d290d397e2f596df4cae",
+      "bytes": 6144
+    },
+    "m0_proof.arduboy": {
+      "sha256": "485d7d352e94d859e7526f6552abe14732a8482a178860f7bb8ba5c9da47814e",
+      "bytes": 84175
+    },
+    "rpg.elf": {
+      "sha256": "b40c1e54d2c5cf911248e3ff25e74f64dcaf090e9012fc417390ef01df7c0cf5",
+      "bytes": 113756
+    },
+    "rpg.bin": {
+      "sha256": "f287302baa249bd99b0f9a48bbf7ce8fbfaad4660594face6fee138ea13e3fb9",
+      "bytes": 37632
+    },
+    "rpg.arduboy": {
+      "sha256": "3f20ce74a443cf3a074bf132487a1649353bbbb227a13a15b1b841ea6a166e1c",
+      "bytes": 119875
+    },
+    "m15_probe.elf": {
+      "sha256": "5858aa482d70c0245b78846767a3ca34c57bbecccc6fd18505cc97441771527a",
+      "bytes": 127888
+    },
+    "m15_probe.bin": {
+      "sha256": "cfb2a048935e03ffe2c90d70e78198336d846022755836e29f03516ca5c719f3",
+      "bytes": 72704
+    },
+    "m15_probe.arduboy": {
+      "sha256": "658ae4ad9e8e9b2841fa0fdaa85292ebbd1b970fd0c11471c4ed3228f408c4a6",
+      "bytes": 150736
+    },
+    "m16_probe.elf": {
+      "sha256": "7a51d0f40f38e407df7f4383a462ac90ac9949ef41129182d6426f717533d9dd",
+      "bytes": 104412
+    },
+    "m16_probe.bin": {
+      "sha256": "a38b78b1afc7e25f71699c853931b322228f98ed3b715bbfb99d9a78cb2523f0",
+      "bytes": 18944
+    },
+    "m16_probe.arduboy": {
+      "sha256": "a8d3cf9f93bdcc95a58a1040f8434df8af0e01587fd46c50fa6c1d570060f731",
+      "bytes": 96976
+    }
+  },
+  "resources": {
+    "m0_proof": {
+      "saved_bytes": 0,
+      "ordinary_data_bytes": 12,
+      "static_bytes": 12,
+      "text_bytes": 489,
+      "rodata_bytes": 1017,
+      "stack_bytes": 30,
+      "stack_bound_complete": true,
+      "sections": {
+        "": 0,
+        ".data": 12,
+        ".text": 489,
+        ".rodata": 1017,
+        ".init_array": 0,
+        ".comment": 134,
+        ".debug_loc": 199,
+        ".debug_abbrev": 492,
+        ".debug_info": 1297,
+        ".debug_ranges": 24,
+        ".debug_str": 1042,
+        ".debug_frame": 172,
+        ".debug_line": 938,
+        ".symtab": 480,
+        ".shstrtab": 155,
+        ".strtab": 399
+      }
+    },
+    "rpg": {
+      "saved_bytes": 24,
+      "ordinary_data_bytes": 242,
+      "static_bytes": 266,
+      "text_bytes": 10628,
+      "rodata_bytes": 22019,
+      "stack_bytes": 166,
+      "stack_bound_complete": true,
+      "sections": {
+        "": 0,
+        ".saved": 24,
+        ".data": 242,
+        ".text": 10628,
+        ".rodata": 22019,
+        ".init_array": 0,
+        ".comment": 134,
+        ".debug_loc": 12708,
+        ".debug_abbrev": 2020,
+        ".debug_info": 22547,
+        ".debug_ranges": 1770,
+        ".debug_str": 10692,
+        ".debug_frame": 2264,
+        ".debug_line": 25851,
+        ".symtab": 912,
+        ".shstrtab": 162,
+        ".strtab": 1050
+      }
+    },
+    "m15_probe": {
+      "saved_bytes": 0,
+      "ordinary_data_bytes": 263,
+      "static_bytes": 263,
+      "text_bytes": 7794,
+      "rodata_bytes": 59841,
+      "stack_bytes": 174,
+      "stack_bound_complete": true,
+      "sections": {
+        "": 0,
+        ".data": 263,
+        ".text": 7794,
+        ".rodata": 59841,
+        ".init_array": 0,
+        ".comment": 134,
+        ".debug_loc": 9863,
+        ".debug_abbrev": 1626,
+        ".debug_info": 14396,
+        ".debug_ranges": 1872,
+        ".debug_str": 8075,
+        ".debug_frame": 1568,
+        ".debug_line": 20319,
+        ".symtab": 576,
+        ".shstrtab": 155,
+        ".strtab": 713
+      }
+    },
+    "m16_probe": {
+      "saved_bytes": 0,
+      "ordinary_data_bytes": 238,
+      "static_bytes": 238,
+      "text_bytes": 13930,
+      "rodata_bytes": 321,
+      "stack_bytes": 168,
+      "stack_bound_complete": true,
+      "sections": {
+        "": 0,
+        ".data": 238,
+        ".text": 13930,
+        ".rodata": 321,
+        ".init_array": 0,
+        ".comment": 134,
+        ".debug_loc": 15365,
+        ".debug_abbrev": 1757,
+        ".debug_info": 21842,
+        ".debug_ranges": 4098,
+        ".debug_str": 8280,
+        ".debug_frame": 1564,
+        ".debug_line": 34892,
+        ".symtab": 512,
+        ".shstrtab": 155,
+        ".strtab": 627
+      }
+    }
+  },
+  "lto": {
+    "m0_proof": {
+      "game_reference_arguments_eliminated": true,
+      "unconditional_global_game": false,
+      "retained_game_rule_functions": [],
+      "map_tile_position_storage_eliminated": true,
+      "optimized_ir": "m0_proof.optimized.ll"
+    },
+    "rpg": {
+      "game_reference_arguments_eliminated": true,
+      "unconditional_global_game": true,
+      "retained_game_rule_functions": [],
+      "map_tile_position_storage_eliminated": true,
+      "optimized_ir": "rpg.optimized.ll"
+    },
+    "m15_probe": {
+      "game_reference_arguments_eliminated": true,
+      "unconditional_global_game": true,
+      "retained_game_rule_functions": [],
+      "map_tile_position_storage_eliminated": true,
+      "optimized_ir": "m15_probe.optimized.ll"
+    },
+    "m16_probe": {
+      "game_reference_arguments_eliminated": true,
+      "unconditional_global_game": true,
+      "retained_game_rule_functions": [],
+      "map_tile_position_storage_eliminated": true,
+      "optimized_ir": "m16_probe.optimized.ll"
+    }
+  },
+  "stack_reports": {
+    "m0_proof": "AVM maximum provable stack usage is 30 bytes; complete bound: yes\nmaximum stack path:\n  _start: frame 12\n    call: return address 3, outgoing arguments 0\n  loop: frame 12\n    call: return address 3, outgoing arguments 0\n  avm_next_frame: frame 0\n\nAVM stack analysis gaps: 0; paths shown: 0; omitted: 0\n",
+    "rpg": "AVM maximum provable stack usage is 166 bytes; complete bound: yes\nmaximum stack path:\n  _start: frame 12\n    call: return address 3, outgoing arguments 0\n  loop: frame 0\n    call: return address 3, outgoing arguments 0\n  title_screen(): frame 12\n    call: return address 3, outgoing arguments 0\n  game_load(): frame 13\n    call: return address 3, outgoing arguments 0\n  world_enter(unsigned char, unsigned int, unsigned int, DIRECTION): frame 8\n    call: return address 3, outgoing arguments 0\n  update_visible_world(unsigned char, bool): frame 40\n    call: return address 3, outgoing arguments 0\n  void run_chunk<(HandlerStage)2>(ChunkCoord): frame 18\n    call: return address 3, outgoing arguments 0\n  rpg_render_world(): frame 42\n\nAVM stack analysis gaps: 0; paths shown: 0; omitted: 0\n",
+    "m15_probe": "AVM maximum provable stack usage is 174 bytes; complete bound: yes\nmaximum stack path:\n  _start: frame 12\n    call: return address 3, outgoing arguments 0\n  setup: frame 22\n    call: return address 3, outgoing arguments 0\n  save_decode(unsigned char const*, unsigned int): frame 15\n    call: return address 3, outgoing arguments 0\n  world_enter(unsigned char, unsigned int, unsigned int, DIRECTION): frame 8\n    call: return address 3, outgoing arguments 0\n  update_visible_world(unsigned char, bool): frame 38\n    call: return address 3, outgoing arguments 0\n  repair_player_overlap(): frame 10\n    call: return address 3, outgoing arguments 0\n  refresh_tile_cache(): frame 8\n    call: return address 3, outgoing arguments 4\n  reload_tile_window(TileCache&, unsigned char const AS1*, MapDimensions, Camera): frame 36\n\nAVM stack analysis gaps: 0; paths shown: 0; omitted: 0\n",
+    "m16_probe": "AVM maximum provable stack usage is 168 bytes; complete bound: yes\nmaximum stack path:\n  _start: frame 12\n    call: return address 3, outgoing arguments 0\n  setup: frame 24\n    call: return address 3, outgoing arguments 0\n  npc_player_clear(unsigned int, unsigned int, DIRECTION): frame 78\n    call: return address 3, outgoing arguments 0\n  player_segment(int&, int&, DIRECTION, unsigned char): frame 22\n    call: return address 3, outgoing arguments 0\n  terrain_clear(unsigned int, unsigned int): frame 20\n\nAVM stack analysis gaps: 0; paths shown: 0; omitted: 0\n"
+  },
+  "native_tests": {
+    "rpg_tests": "PASS 16x16 core: 8274 checks",
+    "rpg_flag_tests": "PASS flag bitsets: exact storage, every bit, byte boundaries and invalid indices",
+    "rpg_world_tests": "PASS chunk/cache world: 65354 checks",
+    "rpg_npc_tests": "PASS essential NPCs: 5305 checks",
+    "rpg_npc_hook_tests": "PASS independent NPC lifecycle policy: 20 checks"
+  },
+  "integration": {
+    "result": "PASS",
+    "sdk_input": true,
+    "procedural_screen_calls": true,
+    "m0_execution_and_drawing": true,
+    "full_device": true,
+    "guest_checks": {
+      "m15_probe": 72,
+      "m16_probe": 5305
+    },
+    "measurements": [
+      {
+        "workload": "m0_proof",
+        "frames": 30,
+        "average_cycles": 33654,
+        "worst_cycles": 33673,
+        "average_render_display_cycles": 19095,
+        "observed_fps": 20.0001,
+        "average_reload_cycles": 0,
+        "worst_reload_cycles": 0,
+        "average_chunk_cycles": 0,
+        "worst_chunk_cycles": 0,
+        "average_collision_cycles": 0,
+        "worst_collision_cycles": 0,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "idle_grove",
+        "frames": 30,
+        "average_cycles": 230645,
+        "worst_cycles": 244384,
+        "average_render_display_cycles": 94347,
+        "observed_fps": 19.9999,
+        "average_reload_cycles": 32743,
+        "worst_reload_cycles": 32762,
+        "average_chunk_cycles": 31109,
+        "worst_chunk_cycles": 31167,
+        "average_collision_cycles": 59000,
+        "worst_collision_cycles": 72715,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "pixel_scroll",
+        "frames": 30,
+        "average_cycles": 208334,
+        "worst_cycles": 245280,
+        "average_render_display_cycles": 83724,
+        "observed_fps": 20,
+        "average_reload_cycles": 30389,
+        "worst_reload_cycles": 32762,
+        "average_chunk_cycles": 28274,
+        "worst_chunk_cycles": 41554,
+        "average_collision_cycles": 53108,
+        "worst_collision_cycles": 73026,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "dense_collision",
+        "frames": 30,
+        "average_cycles": 194494,
+        "worst_cycles": 195897,
+        "average_render_display_cycles": 79185,
+        "observed_fps": 20,
+        "average_reload_cycles": 27699,
+        "worst_reload_cycles": 27718,
+        "average_chunk_cycles": 16550,
+        "worst_chunk_cycles": 16551,
+        "average_collision_cycles": 58223,
+        "worst_collision_cycles": 59308,
+        "budget_cycles": 800000
+      },
+      {
+        "result": "PASS",
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling"
+      }
+    ],
+    "elf_sha256": {
+      "m0_proof": "9f298943a5ee5ed0d6e739393473348d3e5fc07d95e4667be2656c8a54045905",
+      "rpg": "b40c1e54d2c5cf911248e3ff25e74f64dcaf090e9012fc417390ef01df7c0cf5",
+      "m15_probe": "5858aa482d70c0245b78846767a3ca34c57bbecccc6fd18505cc97441771527a",
+      "m16_probe": "7a51d0f40f38e407df7f4383a462ac90ac9949ef41129182d6426f717533d9dd"
+    }
+  },
+  "profiles": {
+    "m0_proof": {
+      "window": {
+        "complete": true,
+        "completed_cycles": "128000000",
+        "discontinuities": "0",
+        "end_cycle": "152464454",
+        "end_pc": 663,
+        "native": true,
+        "native_active_cycles": "24486988",
+        "native_elapsed_cycles": "128000000",
+        "partial_cycles": "0",
+        "requested_end_cycle": "152464454",
+        "start_cycle": "24464454",
+        "start_pc": 663,
+        "stop_reason": "deadline"
+      },
+      "identity": {
+        "adc_nondeterminism": false,
+        "adc_seed": 3405691582,
+        "eeprom_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+        "elf_sha256": "9f298943a5ee5ed0d6e739393473348d3e5fc07d95e4667be2656c8a54045905",
+        "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "image_sha256": "e99c9ac748c03b6fde65ac5bf4304c1fd033fc1c03a9d290d397e2f596df4cae",
+        "interpreter_sha256": "3c3e32fe3cc61221abb2d42d5b0e9dce281ca2eca421429095333b93bb0470be",
+        "usb_bus_state": 1
+      }
+    },
+    "rpg": {
+      "window": {
+        "complete": true,
+        "completed_cycles": "128000000",
+        "discontinuities": "0",
+        "end_cycle": "152487307",
+        "end_pc": 904,
+        "native": true,
+        "native_active_cycles": "41056015",
+        "native_elapsed_cycles": "128000000",
+        "partial_cycles": "0",
+        "requested_end_cycle": "152487307",
+        "start_cycle": "24487307",
+        "start_pc": 904,
+        "stop_reason": "deadline"
+      },
+      "identity": {
+        "adc_nondeterminism": false,
+        "adc_seed": 3405691582,
+        "eeprom_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+        "elf_sha256": "b40c1e54d2c5cf911248e3ff25e74f64dcaf090e9012fc417390ef01df7c0cf5",
+        "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "image_sha256": "f287302baa249bd99b0f9a48bbf7ce8fbfaad4660594face6fee138ea13e3fb9",
+        "interpreter_sha256": "3c3e32fe3cc61221abb2d42d5b0e9dce281ca2eca421429095333b93bb0470be",
+        "usb_bus_state": 1
+      }
+    }
+  },
+  "game_bytes": 230,
+  "cache_entries": 45,
+  "cache_bytes": 47,
+  "cache_bytes_saved": 108,
+  "npc_capacity": 8,
+  "npc_bytes": 18,
+  "pool_bytes": 156,
+  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-xfw25883"
+}

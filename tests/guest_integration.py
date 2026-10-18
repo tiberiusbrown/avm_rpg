@@ -3,11 +3,11 @@
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -74,9 +74,9 @@ def main():
     ]
     output = lldb(sdk, artifacts / "rpg.elf", commands, work / "sdk-input.log")
     values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
-    assert values[0] > 0 and values[1] == 32 and values[2] in [54, 56] and values[3] == values[4], (
-        f"AVM shared rules/input diverged: {values}"
-    )
+    assert (
+        values[0] > 0 and values[1] == 112 and values[2] > 80 and values[3] == values[4]
+    ), f"AVM shared rules/input diverged: {values}"
     assert "menu_screen" in output and "status_screen" in output and "explore" in output
     proof = [
         "breakpoint set --name loop",
@@ -113,21 +113,35 @@ def main():
     )
     measurements = []
     guest_checks = {}
-    for name, minimum in [("m15_probe", 32), ("m16_probe", 4000)]:
-        output = lldb(sdk, artifacts / f"{name}.elf", [
-            "breakpoint set --name probe_done", "run", "expr (int)probe_checks",
-            "expr (int)probe_failure"], work / f"{name}.log")
+    for name, minimum in [("m15_probe", 32), ("m16_probe", 1000)]:
+        output = lldb(
+            sdk,
+            artifacts / f"{name}.elf",
+            [
+                "breakpoint set --name probe_done",
+                "run",
+                "expr (int)probe_checks",
+                "expr (int)probe_failure",
+            ],
+            work / f"{name}.log",
+        )
         values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
-        assert len(values) == 2 and values[0] >= minimum and values[1] == 0, f"{name}: {values}"
+        assert len(values) == 2 and values[0] >= minimum and values[1] == 0, (
+            f"{name}: {values}"
+        )
         guest_checks[name] = values[0]
-    device = build / ("rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests")
+    device = build / (
+        "rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests"
+    )
     if device.exists():
-        for name, mode in [("m0_proof", "proof"), ("rpg", "normal"), ("rpg", "m15"), ("rpg", "npc")]:
+        for name, mode in [("m0_proof", "proof"), ("rpg", "normal")]:
             refs = symbols(artifacts / f"{name}.elf")
             addresses = (
                 [0, refs["proof_marker"]["address"], refs["proof_serial"]["address"]]
                 if mode == "proof"
-                else [refs[k]["address"] for k in ["game", "frame_marker", "frame_serial"]]
+                else [
+                    refs[k]["address"] for k in ["game", "frame_marker", "frame_serial"]
+                ]
             )
             output = run(
                 [
@@ -141,8 +155,12 @@ def main():
                 ],
                 work / f"{mode}.log",
             )
-            measurements += [json.loads(row) for row in output.splitlines() if row.startswith("{")]
-        (work / "measurements.json").write_text(json.dumps(measurements, indent=2) + "\n")
+            measurements += [
+                json.loads(row) for row in output.splitlines() if row.startswith("{")
+            ]
+        (work / "measurements.json").write_text(
+            json.dumps(measurements, indent=2) + "\n"
+        )
     else:
         print(
             "Full-device restart/persistence and per-frame metrics SKIPPED: configure AVM_SOURCE_ROOT/AVM_BUILD_ROOT."

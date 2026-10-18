@@ -31,7 +31,8 @@ template <TilePos POS> bool player_is_walking_onto() {
 template <TilePos POS> bool player_just_interacted() {
     if(POS.area != game.area || !game.dimensions.pixel_bounds(game.player.x, game.player.y))
         return false;
-    int16_t x = (int16_t)((game.player.x + 4) >> 3), y = (int16_t)((game.player.y + 6) >> 3);
+    int16_t x = (int16_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
+            y = (int16_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT);
     switch(game.player.facing) {
         case NORTH:
             --y;
@@ -73,7 +74,7 @@ template <TilePos TARGET> bool teleport_player(DIRECTION facing = STILL) {
     game.area = TARGET.area;
     npc_reset();
     game.dimensions = dimensions;
-    game.player = {(uint16_t)((uint16_t)TARGET.x * 8), (uint16_t)((uint16_t)TARGET.y * 8),
+    game.player = {(uint16_t)((uint16_t)TARGET.x * TILE), (uint16_t)((uint16_t)TARGET.y * TILE),
                    facing == STILL ? game.player.facing : facing, 0};
     game.previous_player_tile.area = TARGET.area;
     game.previous_player_tile.x = TARGET.x;

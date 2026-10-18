@@ -26,8 +26,7 @@ extern volatile uint8_t world_phase;
 #endif
 
 enum {
-    TILE = 8,
-    SAVE_VERSION = 3,
+    SAVE_VERSION = 4,
     SAVE_HEADER_BYTES = 20,
     SAVE_BYTES = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + 2 > 24
                      ? SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + 2
@@ -58,6 +57,12 @@ struct Actor {
 };
 
 #include "npc_types.h"
+
+constexpr uint16_t actor_frame(Actor const& actor, uint8_t sprite_row, uint16_t ticks) {
+    uint8_t phase = (ticks >> 2) & 3;
+    uint8_t step = actor.walking && (phase & 1) ? (phase == 1 ? 1 : 2) : 0;
+    return (uint16_t)sprite_row * 12 + actor.facing * 3 + step;
+}
 
 struct Camera {
     uint16_t x, y;
@@ -95,7 +100,8 @@ struct Game {
 
     template <TilePos POS> bool player_is_on_tile() const {
         return POS.area == area && dimensions.pixel_bounds(player.x, player.y) &&
-               ((player.x + 4) >> 3) == POS.x && ((player.y + 6) >> 3) == POS.y;
+               ((player.x + FOOT_CENTER_X) >> TILE_SHIFT) == POS.x &&
+               ((player.y + FOOT_CENTER_Y) >> TILE_SHIFT) == POS.y;
     }
 
     bool player_is_in_region(TileRegion region) const;

@@ -1,9 +1,9 @@
 # M0/M1 performance evidence
 
-The measurements below are retained historical evidence. Current M1.6 resource,
-stage-cost and full-device results are in [m1_6_measurements.md](m1_6_measurements.md)
-and [m1_6_evidence.json](m1_6_evidence.json). Reproduce them with the commands in
-[tiled_pipeline.md](tiled_pipeline.md). Current measurements include eight essential actors, steering and corridor passage.
+The measurements below are retained historical evidence. Current 16x16 resource,
+stage-cost and full-device results are in [tiles16_measurements.md](tiles16_measurements.md)
+and [tiles16_evidence.json](tiles16_evidence.json). Reproduce them with the commands
+in [tiled_pipeline.md](tiled_pipeline.md). The current sample has two NPCs and a sign.
 
 Measured 2026-10-15 on Windows x64; MSVC 19.51.36260.0; Ninja; RelWithDebInfo. Exact input schedules,
 ELF/image/interpreter hashes, section sizes, source fingerprint and native test
