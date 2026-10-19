@@ -1,79 +1,178 @@
-title "Dewlight Skip"
-tempo 125
+title "The Legend of Zelda - Overworld"
+description "Transcribed from the supplied z1overw.mid; MIDI arrangement credited to Jeffrey M Colletti. All four parts, original pitches, triplets, articulation, and tempo retained."
+
+// Source: z1overw.mid, SMF format 1, 384 pulses per quarter note.
+// MIDI tempo is exactly 405405 microseconds/quarter (approximately 148 BPM).
+// 24 bars in 4/4, B-flat major; loop the complete supplied arrangement.
+// Duration multipliers such as 8*2/3 are triplet eighths.
+// Gate fractions preserve the MIDI note lengths, including its short gaps.
+// Five overlapping same-pitch harmony notes retrigger on the newer onset.
+// The final bass release is one 4ms tick early so it precedes the Loop event.
+// GM snare 38 maps to B6 noise (a drum ID is not a pitched D2).
+// Envelopes approximate NES timbres; the engine's channel encoding is unchanged.
+
+tempo 4000000/27027
 meter 4/4
 loop
+automation 8ms
 
-// Reusable stepped contours preserve the original note articulation.
-envelope lead_env { points 0ms:1/4, 8ms:1, 88ms:2/3, 156ms:1/6 curve step }
-instrument lead { wave sine volume 24 envelope lead_env gate 11/30 }
-envelope lead2_env { points 0ms:2/7, 8ms:1, 60ms:2/3, 100ms:4/21 curve step }
-instrument lead2 { wave sine volume 21 envelope lead2_env gate 1/2 }
-envelope lead3_env { points 0ms:3/13, 8ms:1, 88ms:17/26, 156ms:2/13 curve step }
-instrument lead3 { wave sine volume 26 envelope lead3_env gate 11/30 }
-envelope lead4_env { points 0ms:1/4, 8ms:1, 88ms:2/3, 156ms:1/6 curve step }
-instrument lead4 { wave sine volume 24 envelope lead4_env gate 11/15 }
-envelope lead5_env { points 0ms:3/13, 8ms:1, 88ms:17/26, 156ms:2/13 curve step }
-instrument lead5 { wave sine volume 26 envelope lead5_env gate 11/15 }
-envelope lead6_env { points 0ms:2/7, 8ms:1, 60ms:2/3, 100ms:4/21 curve step }
-instrument lead6 { wave sine volume 21 envelope lead6_env gate 1/4 }
+envelope pulse {
+    points 0ms:100%, 24ms:90%, 72ms:85%
+    sustain
+}
+envelope triangle {
+    points 0ms:100%, 32ms:90%
+    sustain
+}
+envelope snare {
+    points 0ms:100%, 8ms:75%, 36ms:30%, 76ms:0%
+}
+instrument lead { wave square volume 11 envelope pulse }
+instrument harmony { wave square volume 8 envelope pulse }
+instrument bass { wave triangle volume 10 envelope triangle }
+instrument drum { wave noise volume 2 envelope snare }
+// Source SHA-256: b5de859e03b715e86e63dcb0ccf71521c95c4928adc2839b4e8d24fa9f47da34
 
-envelope reply_env { points 0ms:1/3, 8ms:1, 128ms:2/3, 236ms:2/9 curve step }
-instrument reply { wave triangle volume 9 envelope reply_env gate 8/15 }
-envelope reply2_env { points 0ms:3/11, 8ms:1, 128ms:7/11, 236ms:2/11 curve step }
-instrument reply2 { wave triangle volume 11 envelope reply2_env gate 8/15 }
-envelope reply3_env { points 0ms:3/11, 8ms:1, 128ms:7/11, 236ms:2/11 curve step }
-instrument reply3 { wave triangle volume 11 envelope reply3_env gate 32/45 }
+phrase lead_bar_05 { gate 2/3 bb4 gate 143/144 f4. r16 gate 23/24 bb16 bb16 c'16 d'16 eb'16 }
+phrase lead_bar_06 { gate 191/192 f'2 r8 gate 2/3 f'8 gate 31/32 f'8*2/3 gb'8*2/3 ab'8*2/3 }
+phrase lead_bar_11 { gate 47/48 c'8 gate 23/24 c'16 d'16 gate 191/192 e'2 gate 95/96 g'4 }
+phrase lead_bar_12 { gate 2/3 f'8 f16 f16 f8 f16 f16 f8 f16 f16 f8 f8 }
 
-instrument tom { wave triangle volume 10 }
-envelope tom2_env { points 0ms:1, 12ms:2/5 curve step }
-instrument tom2 { wave triangle volume 5 envelope tom2_env gate 7/118 }
-instrument tom3 { wave triangle volume 14 }
-envelope tom4_env { points 0ms:1, 12ms:2/7 curve step }
-instrument tom4 { wave triangle volume 7 envelope tom4_env gate 7/118 }
-instrument tom5 { wave triangle volume 12 }
-envelope tom6_env { points 0ms:1, 12ms:1/3 curve step }
-instrument tom6 { wave triangle volume 6 envelope tom6_env gate 7/118 }
+phrase harmony_bar_05 { gate 2/3 d4 gate 31/32 d8*2/3 d8*2/3 c8*2/3 gate 47/72 d8. gate 23/24 d16 d16 eb16 f16 g16 }
+phrase harmony_bar_06 { gate 71/72 ab8. gate 23/24 bb16 bb16 c'16 d'16 eb'16 gate 47/48 f'8 f'8 gate 31/32 ab8*2/3 bb8*2/3 c'8*2/3 }
+phrase harmony_bar_11 { gate 95/96 e4 gate 71/72 e8. gate 23/24 f16 gate 1 g4*2/3 gate 15/16 g16*2/3 a16*2/3 gate 47/48 bb8 c'8 }
+phrase harmony_bar_12 { gate 2/3 a8 a,16 a,16 a,8 a,16 a,16 a,8 a,16 a,16 a,8 a,8 }
 
-channel 0 lead octave 6 {
-    c4@lead3 e4 d4 g,4 a,4@lead3 c4 e8@lead4 d8@lead2
-    c4 a,4@lead3 c4 d4 c8@lead4 a,8@lead2 b,4@lead3 d4
-    g,4 a,8@lead4 b,8@lead2 c8@lead5 e8@lead2 d4 c4 g,4
-    a,4@lead3 c4 a,8@lead4 g,8@lead2 f,4 a,4@lead3 d4 c8@lead4
-    a,8@lead2 f,4 g,4@lead3 b,8@lead4 d8@lead2 c4 b,4 e4@lead3
-    e8@lead4 d8@lead2 c4 a,4 b,4@lead3 d4 b,8@lead4 g,8@lead2
-    e,4 a,4@lead3 c4 e8@lead4 d8@lead2 c4 g,8@lead5 e,8@lead2
-    g,4 c4 e4 d4@lead3 c8@lead4 a,8@lead2 f,4 a,4
-    b,4@lead3 d4 e8@lead4 d8@lead2 b,4 c4@lead3 e8@lead4 d8@lead2
-    c4 g,4 a,8@lead5 g,4@lead6 b,8@lead2 d4 b,4
+phrase bass_bar_05 { gate 1 bb8*2/3 r4*2/3 gate 21/32 bb8*2/3 bb8*2/3 ab8*2/3 gate 1 bb8*2/3 r4*2/3 bb8*2/3 r4*2/3 }
+phrase bass_bar_06 { gate 1 ab8*2/3 r4*2/3 gate 21/32 ab8*2/3 ab8*2/3 gb8*2/3 gate 1 ab8*2/3 r4*2/3 ab8*2/3 r4*2/3 }
+phrase bass_bar_07 { gate 1 gb8*2/3 r4*2/3 gate 21/32 gb8*2/3 gb8*2/3 e8*2/3 gate 1 gb8*2/3 r4*2/3 gb8*2/3 r4*2/3 }
+phrase bass_bar_17 { gate 21/32 e8*2/3 bb8*2/3 db'8*2/3 e'8*2/3 bb'8*2/3 db''8*2/3 gate 1 e''8*2/3 r4*5/3 }
+phrase bass_bar_18 { gate 1 f''8*2/3 r4*2/3 gate 21/32 f8*2/3 f8*2/3 f8*2/3 gate 1 f8*2/3 r4*5/3 }
+
+phrase snare_bar_01 { gate 1 b4*2/3 r4*7/3 gate 21/32 b8*2/3 b8*2/3 b8*2/3 }
+phrase snare_bar_05 { gate 1 b8*2/3 r4*2/3 gate 21/32 b8*2/3 b8*2/3 b8*2/3 gate 1 b8*2/3 r4*2/3 b8*2/3 r4*2/3 }
+
+channel 0 lead octave 4 {
+    // Bars 1-4.
+    gate 1 bb2 r4*2/3 gate 21/32 bb8*2/3 bb8*2/3 bb8*2/3 bb8*2/3 | // 01
+    gate 31/32 bb8*2/3 r8*2/3 gate 21/32 ab8*2/3 gate 1 bb2*2/3 r8*2/3 gate 21/32 bb8*2/3 bb8*2/3 bb8*2/3 bb8*2/3 | // 02
+    gate 31/32 bb8*2/3 r8*2/3 gate 21/32 ab8*2/3 gate 143/144 bb4. r16*2/3 gate 21/32 bb8*2/3 bb8*2/3 bb8*2/3 bb8*2/3 | // 03
+    gate 2/3 bb8 f16 f16 f8 f16 f16 f8 f16 f16 f8 f8 | // 04
+    // Bars 5-12.
+    lead_bar_05 | // 05
+    lead_bar_06 | // 06
+    gate 223/224 bb'4*7/3 gate 31/32 bb'8*2/3 bb'8*2/3 bb'8*2/3 ab'8*2/3 gb'8*2/3 | // 07
+    gate 31/32 ab'8*2/3 r8*2/3 gb'8*2/3 gate 191/192 f'2 gate 95/96 f'4 | // 08
+    gate 47/48 eb'8 gate 23/24 eb'16 f'16 gate 191/192 gb'2 gate 47/48 f'8 eb'8 | // 09
+    gate 47/48 db'8 gate 23/24 db'16 eb'16 gate 191/192 f'2 gate 47/48 eb'8 db'8 | // 10
+    lead_bar_11 | // 11
+    lead_bar_12 | // 12
+    // Bars 13-16.
+    lead_bar_05 | // 13
+    lead_bar_06 | // 14
+    gate 287/288 bb'2. gate 95/96 db''4 | // 15
+    gate 1 c''8 r8 a'4*5/3 r8*2/3 gate 95/96 f'4 | // 16
+    // Bars 17-24.
+    gate 1 gb'4*13/6 r8*5/3 gate 95/96 bb'4 | // 17
+    gate 1 a'8 r8 f'4*5/3 r8*2/3 gate 95/96 f'4 | // 18
+    gate 191/288 gb'2. gate 95/96 bb'4 | // 19
+    gate 47/48 a'8 r8 gate 191/192 f'2 gate 95/96 d'4 | // 20
+    gate 191/288 eb'2. gate 95/96 gb'4 | // 21
+    gate 47/48 f'8 r8 gate 191/192 db'2 gate 95/96 bb4 | // 22
+    lead_bar_11 | // 23
+    lead_bar_12 | // 24
 }
 
-channel 1 reply octave 5 {
-    r16 g4 f4 e4 d4@reply2 e4 g4 a4
-    c'4@reply2 c'4 a4 g4 f4@reply2 d4 g4 f4
-    d4@reply2 e4 g4 a4 g4@reply2 c'4 a4 f4
-    g4@reply2 f4 g4 a4 c'4@reply2 d4 e4 f4
-    g4@reply2 c'4 b4 a4 g4@reply2 g4 f4 e4
-    g4@reply2 f4 g4 a4 c'4@reply2 e4 f4 g4
-    e4@reply2 a4 g4 f4 e4@reply2 d4 f4 a4
-    g4@reply2 e4 g4 c'4 b4@reply2 a4 g4 f4
-    d8.@reply3
+channel 1 harmony octave 4 {
+    // Bars 1-4.
+    gate 1 d2 r4*2/3 gate 21/32 d8*2/3 d8*2/3 d8*2/3 d8*2/3 | // 01
+    gate 31/32 c8*2/3 r8*2/3 gate 21/32 c8*2/3 gate 2/3 c2 gate 21/32 c8*2/3 c8*2/3 c8*2/3 | // 02
+    gate 31/32 db8*2/3 r8*2/3 gate 21/32 db8*2/3 gate 143/144 db4. r16*2/3 gate 21/32 db8*2/3 db8*2/3 db8*2/3 db8*2/3 | // 03
+    gate 47/48 db8 gate 2/3 a,16 a,16 a,8 a,16 a,16 a,8 a,16 a,16 a,8 a,8 | // 04
+    // Bars 5-12.
+    harmony_bar_05 | // 05
+    harmony_bar_06 | // 06
+    gate 71/72 db'8. gate 23/24 gb16 gb16 ab16 bb16 c'16 gate 47/48 db'8 db'8 gate 31/32 db'8*2/3 c'8*2/3 bb8*2/3 | // 07
+    gate 31/32 db'8*2/3 r8*2/3 ab8*2/3 ab8*2/3 ab8*2/3 gb8*2/3 ab8*2/3 r8*2/3 ab8*2/3 ab8*2/3 gb8*2/3 ab8*2/3 | // 08
+    gate 59/64 gb4*2/3 gate 15/16 gb16*2/3 f16*2/3 gate 1 gb4*2/3 gate 15/16 gb16*2/3 ab16*2/3 gate 95/96 bb4 gate 47/48 ab8 gb8 | // 09
+    gate 1 f4*2/3 gate 15/16 f16*2/3 eb16*2/3 gate 1 f4*2/3 gate 15/16 f16*2/3 gb16*2/3 gate 95/96 ab4 gate 47/48 gb8 f8 | // 10
+    harmony_bar_11 | // 11
+    harmony_bar_12 | // 12
+    // Bars 13-16.
+    harmony_bar_05 | // 13
+    harmony_bar_06 | // 14
+    gate 287/288 db'2. gate 95/96 e'4 | // 15
+    gate 1 eb'8 r8 c'4*5/3 r8*2/3 gate 95/96 a4 | // 16
+    // Bars 17-24.
+    gate 1 b4*13/6 r8*5/3 gate 95/96 db'4 | // 17
+    gate 47/48 c'8 r8 gate 1 a4*5/3 r8*2/3 gate 95/96 a4 | // 18
+    gate 191/288 b2. gate 95/96 db'4 | // 19
+    gate 47/48 c'8 r8 gate 191/192 a2 gate 95/96 a4 | // 20
+    gate 191/288 gb2. gate 95/96 b4 | // 21
+    gate 47/48 bb8 r8 gate 191/192 f2 gate 95/96 db4 | // 22
+    harmony_bar_11 | // 23
+    harmony_bar_12 | // 24
 }
 
-channel 2 tom octave 3 {
-    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
-    a:8ms@tom3 a,:472ms@tom4 a:8ms a,:472ms@tom2 a:8ms@tom5 a,:472ms@tom6 a:8ms a,:472ms@tom2
-    f':8ms@tom3 f:472ms@tom4 f':8ms f:472ms@tom2 f':8ms@tom5 f:472ms@tom6 f':8ms f:472ms@tom2
-    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
-    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
-    f':8ms@tom3 f:472ms@tom4 f':8ms f:472ms@tom2 f':8ms@tom5 f:472ms@tom6 f':8ms f:472ms@tom2
-    d':8ms@tom3 d:472ms@tom4 d':8ms d:472ms@tom2 d':8ms@tom5 d:472ms@tom6 d':8ms d:472ms@tom2
-    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
-    a:8ms@tom3 a,:472ms@tom4 a:8ms a,:472ms@tom2 a:8ms@tom5 a,:472ms@tom6 a:8ms a,:472ms@tom2
-    e':8ms@tom3 e:472ms@tom4 e':8ms e:472ms@tom2 e':8ms@tom5 e:472ms@tom6 e':8ms e:472ms@tom2
-    f':8ms@tom3 f:472ms@tom4 f':8ms f:472ms@tom2 f':8ms@tom5 f:472ms@tom6 f':8ms f:472ms@tom2
-    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
-    d':8ms@tom3 d:472ms@tom4 d':8ms d:472ms@tom2 d':8ms@tom5 d:472ms@tom6 d':8ms d:472ms@tom2
-    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
-    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
-    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
+channel 2 bass octave 2 {
+    // Bars 1-4.
+    gate 2/3 bb4 gate 21/32 bb8*2/3 bb8*2/3 bb8*2/3 gate 2/3 bb4 gate 21/32 bb8*2/3 bb8*2/3 bb8*2/3 | // 01
+    gate 2/3 ab4 gate 21/32 ab8*2/3 ab8*2/3 ab8*2/3 gate 2/3 ab4 gate 21/32 ab8*2/3 ab8*2/3 ab8*2/3 | // 02
+    gate 2/3 gb4 gate 21/32 gb8*2/3 gb8*2/3 gb8*2/3 gate 2/3 gb4 gate 21/32 gb8*2/3 gb8*2/3 gb8*2/3 | // 03
+    gate 47/48 gb8 r8 gate 1 f8*2/3 r4*2/3 f8*2/3 r4*2/3 gate 47/48 g8 a8 | // 04
+    // Bars 5-12.
+    bass_bar_05 | // 05
+    bass_bar_06 | // 06
+    bass_bar_07 | // 07
+    gate 47/48 db'8 r8 gate 31/32 db'8*2/3 db'8*2/3 b8*2/3 gate 47/48 db'8 r8 db'8 r8 | // 08
+    gate 47/48 b8 r8 gate 31/32 b8*2/3 b8*2/3 bb8*2/3 gate 47/48 b8 r8 gate 31/32 b8*2/3 b8*2/3 b8*2/3 | // 09
+    gate 47/48 bb8 r8 gate 31/32 bb8*2/3 bb8*2/3 ab8*2/3 gate 47/48 bb8 r8 gate 31/32 bb8*2/3 bb8*2/3 bb8*2/3 | // 10
+    gate 47/48 c'8 r8 gate 31/32 c'8*2/3 c'8*2/3 bb8*2/3 gate 47/48 c'8 r8 gate 31/32 c'8*2/3 c'8*2/3 c'8*2/3 | // 11
+    gate 1 f8*2/3 r4*2/3 f8*2/3 r4*2/3 f8*2/3 r4*2/3 gate 47/48 g8 a8 | // 12
+    // Bars 13-16.
+    bass_bar_05 | // 13
+    bass_bar_06 | // 14
+    bass_bar_07 | // 15
+    gate 1 f8*2/3 r4*2/3 gate 21/32 f8*2/3 f8*2/3 gate 31/32 eb8*2/3 gate 1 f8*2/3 r4*2/3 f8*2/3 r4*2/3 | // 16
+    // Bars 17-24.
+    bass_bar_17 | // 17
+    bass_bar_18 | // 18
+    bass_bar_17 | // 19
+    bass_bar_18 | // 20
+    gate 1 b8*2/3 r4*2/3 gate 21/32 b8*2/3 b8*2/3 bb8*2/3 gate 1 b8*2/3 r4*2/3 gate 21/32 b8*2/3 b8*2/3 b8*2/3 | // 21
+    gate 1 bb8*2/3 r4*2/3 gate 21/32 bb8*2/3 bb8*2/3 ab8*2/3 gate 1 bb8*2/3 r4*2/3 gate 21/32 bb8*2/3 bb8*2/3 bb8*2/3 | // 22
+    gate 1 c'8*2/3 r4*2/3 gate 21/32 c'8*2/3 c'8*2/3 c'8*2/3 gate 1 c'8*2/3 r4*2/3 gate 21/32 c'8*2/3 c'8*2/3 c'8*2/3 | // 23
+    gate 1 f8*2/3 r4*2/3 f8*2/3 r8. f8*2/3 r8*7/6 gate 47/48 g8 gate 23/24 a8 | // 24
 }
+
+channel 3 drum octave 6 {
+    // Bars 1-4.
+    snare_bar_01 | // 01
+    snare_bar_01 | // 02
+    snare_bar_01 | // 03
+    gate 1 b8*2/3 r4*2/3 b8*2/3 r4*2/3 b8*2/3 r4*2/3 gate 2/3 b8 b8 | // 04
+    // Bars 5-12.
+    snare_bar_05 | // 05
+    snare_bar_05 | // 06
+    snare_bar_05 | // 07
+    snare_bar_05 | // 08
+    snare_bar_05 | // 09
+    snare_bar_05 | // 10
+    snare_bar_05 | // 11
+    snare_bar_05 | // 12
+    // Bars 13-16.
+    snare_bar_05 | // 13
+    snare_bar_05 | // 14
+    snare_bar_05 | // 15
+    snare_bar_05 | // 16
+    // Bars 17-24.
+    snare_bar_05 | // 17
+    snare_bar_05 | // 18
+    snare_bar_05 | // 19
+    snare_bar_05 | // 20
+    snare_bar_05 | // 21
+    snare_bar_05 | // 22
+    snare_bar_05 | // 23
+    snare_bar_05 | // 24
+}
+

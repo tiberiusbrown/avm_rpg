@@ -170,8 +170,8 @@ struct Device {
         require(music_enabled(), "music sample timer is disabled");
         uint8_t low = 255, high = 0;
         buttons = 0;
-        // Cover a full 480 ms beat: the detached score has intentional rests.
-        uint64_t end = ab->core_state.cpu.cycle_count + 8000000;
+        // Cover more than a full beat, including gaps between percussion hits.
+        uint64_t end = ab->core_state.cpu.cycle_count + 10000000;
         while(ab->core_state.cpu.cycle_count < end) {
             step();
             auto sample = ab->core_state.cpu.data[absim::reg::addr::OCR4A];
