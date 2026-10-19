@@ -1,7 +1,7 @@
 {
   "verification_date": "2026-10-19",
   "configuration": "RelWithDebInfo; existing MSVC/Ninja and AVM SDK",
-  "source_fingerprint_sha256": "200a834669fc7085d5d2174a8f5188fe74d441453fb9ac8f37367d694a6c2e6e",
+  "source_fingerprint_sha256": "a7eb48c943b428657a4142b14a95659bea075b30810723775504785d299d1ee0",
   "source_manifest": {
     ".clang-format": "ca4f166000c3889f7d8651bfb479009ce208a640d819bc9350ad517b248b9119",
     "AGENTS.md": "15c2905a835f59d756a4f6ebb41c04057063c604d91fdba3d8916e8b76b64b76",
@@ -11,7 +11,7 @@
     "assets_src/actors16.png": "3bc208848a394677458739a2ce9d21674f680d0a4333e6cf797056e522f5349b",
     "assets_src/tiles16.png": "4a86b05bea91f5ffa07ba7d1d9ccc7a8d3a0579f048f3d45c9aaa3d37ed922fc",
     "assets_src/tiles16.xcf": "deb810ecb5a0f7f1e2937fd52e6147feda519277f57318cf479a8d634724b1d5",
-    "CMakeLists.txt": "d4d9855b435e749c4efa4ffb1f1c2f97e23520981c8c1a4f162ef6d9058de693",
+    "CMakeLists.txt": "3adf177f0ff866dc1f6c1ed114e480e40a4c4aead957917168a272d3f03eb92e",
     "generated/area_ids.h": "088927a4a292be8420460a117da8856e13660671cf4fbdb157e5d02b12d54474",
     "generated/chunk_dispatch.cpp": "46768e3681a6797e4fa0d47d11315d851e698afd9f3b8aba2b17a5b12d597fe4",
     "generated/handler_defaults.h": "1696063885f1b33f22d186dfac84cf6588fdd2482d3055ef6ab5f6914cd999a0",
@@ -44,7 +44,7 @@
     "src/screens.cpp": "70fdd2d027c9adc7b5b767ae22541efd888cd149c151e8d9134c59d0528f2909",
     "src/world.cpp": "afb9a9bd667d8f5eaaab93e028f33b3f57e320ff690d3897ae80476650add416",
     "src/world_types.h": "0d5965343d50f3b69a1794f148b4ebe203e662beb9fdfbd2b8181f668c832242",
-    "tests/device_tests.cpp": "92081d9df077dd4d266b0c6ca4be9069db6bea9aae02a263124b79a1c7813f8b",
+    "tests/device_tests.cpp": "4e3c07e68934b42f3b0d1b7eec3e291c5b8f083ce29cdd0edd576ec7f1aa60e8",
     "tests/guest_integration.py": "9a73441602b0a92782ba5b9286e773c13965a44c88a404237e66eda98528495b",
     "tests/npc_probe.cpp": "5ab7f73a28c3e2bd7179997549defc5cad59498a7e8dcd42f253252eae6708b9",
     "tests/npc_scenarios.h": "00a2dfa2bc92e44bbd498e0dcbc0dcfd38853620f982f465ae71f73d6b329576",
@@ -61,7 +61,7 @@
     "tests/world_scenarios.h": "2126710dc1f896b9d0b4fd606ed281487282b57a3278cf74907a3be99f62d552",
     "tools/build.ps1": "4d7f207a73983bb148a3d96283ea59c6c74ebe38fd36010deee0f5d03b5aece1",
     "tools/check_lto.py": "30cde47a489307e03bac19055e2e83b543e80efc11b2cde7af7b36d34ef4ed5e",
-    "tools/collect_evidence.py": "7c9274842bc715495461cccab1a8418b34b42ad3bfde329b54eb6381bb110f77",
+    "tools/collect_evidence.py": "63f69167742e3106e7317c7bffc7d5d6a4611d12159d673ce998fd2c0e18f3ec",
     "tools/elf.py": "0bfff66bd875c13bc14a168875f2b78140e0cfe85f82dd98f3dba6712e911c1d",
     "tools/generate_assets.py": "d4749cec5a6071aab046704d880beb32927aa9752c19a89c3b7d531607f372c7",
     "tools/generate_music.py": "bfcd4d2261105f00cef619540ddcf5d6fbe21743f65e2926e125164353cc7006",
@@ -79,8 +79,8 @@
       "bytes": 6144
     },
     "m0_proof.arduboy": {
-      "sha256": "485d7d352e94d859e7526f6552abe14732a8482a178860f7bb8ba5c9da47814e",
-      "bytes": 84175
+      "sha256": "0e16e8d9e9761b9f43b5be559a227fa307d7292dff636a85f88bbd9be2fbed16",
+      "bytes": 84265
     },
     "rpg.elf": {
       "sha256": "11ad34d93a12823be07bec9c0acbbc45afe5eb20754a40d9cfec710ea4ee095c",
@@ -91,8 +91,8 @@
       "bytes": 40192
     },
     "rpg.arduboy": {
-      "sha256": "2593a07b86b891d381da4eab160ea23a8d3addca29912cf0ab72b8911a120dea",
-      "bytes": 122435
+      "sha256": "74809913a5a08149c9d5b557fd26cbc2b18def770169ea5e8f0f9a6e2b971ecf",
+      "bytes": 122525
     },
     "m15_probe.elf": {
       "sha256": "26270adc8ffe9af613404e933254c6febe466dbe4a02b87467c4bb7e9cf49ead",
@@ -103,8 +103,8 @@
       "bytes": 72704
     },
     "m15_probe.arduboy": {
-      "sha256": "84b2f221be22781733acc12263e3215505cc2c96523cfdabb154e0170fd12ec7",
-      "bytes": 150736
+      "sha256": "2aa3634a9f9af4871f6880e01b60d74dd49cc54d4327e3a0c8f42dca92eb3413",
+      "bytes": 150826
     },
     "m16_probe.elf": {
       "sha256": "28b12e726904b78a0f7e0a1053334e6813f7c0d69f52cced07e8e657634cc9fc",
@@ -115,12 +115,12 @@
       "bytes": 28672
     },
     "m16_probe.arduboy": {
-      "sha256": "347dc451b68cc2a29537dde3a5de07bfef56136f01298a226be69d041d937254",
-      "bytes": 106704
+      "sha256": "fd22b90fd4f778280d5834f51fccce1f7387fb6ae3797feea26d017f44771fff",
+      "bytes": 106794
     },
     "rpg.fxc.arduboy": {
-      "sha256": "5e0df7d1badd5dd17a480b89c528d20b20b2d936e4dbe4494070cf264b94c755",
-      "bytes": 122435
+      "sha256": "7789d35867f690a125b28f1aff909507e082f5eccfef6c07bbe15291c930b47f",
+      "bytes": 122525
     }
   },
   "resources": {
@@ -292,9 +292,9 @@
       {
         "workload": "m0_proof",
         "frames": 30,
-        "average_cycles": 33654,
-        "worst_cycles": 33673,
-        "average_render_display_cycles": 19095,
+        "average_cycles": 33660,
+        "worst_cycles": 33679,
+        "average_render_display_cycles": 19098,
         "observed_fps": 20.0001,
         "average_reload_cycles": 0,
         "worst_reload_cycles": 0,
@@ -307,9 +307,9 @@
       {
         "workload": "idle_grove",
         "frames": 30,
-        "average_cycles": 262213,
-        "worst_cycles": 281869,
-        "average_render_display_cycles": 114806,
+        "average_cycles": 262271,
+        "worst_cycles": 281921,
+        "average_render_display_cycles": 114864,
         "observed_fps": 30.3047,
         "average_reload_cycles": 35865,
         "worst_reload_cycles": 36056,
@@ -322,9 +322,9 @@
       {
         "workload": "pixel_scroll",
         "frames": 30,
-        "average_cycles": 239296,
-        "worst_cycles": 293136,
-        "average_render_display_cycles": 100330,
+        "average_cycles": 239347,
+        "worst_cycles": 293187,
+        "average_render_display_cycles": 100380,
         "observed_fps": 30.3049,
         "average_reload_cycles": 33589,
         "worst_reload_cycles": 36081,
@@ -337,9 +337,9 @@
       {
         "workload": "dense_collision",
         "frames": 30,
-        "average_cycles": 220328,
-        "worst_cycles": 223397,
-        "average_render_display_cycles": 94020,
+        "average_cycles": 220368,
+        "worst_cycles": 223441,
+        "average_render_display_cycles": 94060,
         "observed_fps": 30.3013,
         "average_reload_cycles": 30410,
         "worst_reload_cycles": 30472,
@@ -356,9 +356,9 @@
       {
         "workload": "fxc_idle_grove",
         "frames": 30,
-        "average_cycles": 262213,
-        "worst_cycles": 281869,
-        "average_render_display_cycles": 114806,
+        "average_cycles": 262271,
+        "worst_cycles": 281921,
+        "average_render_display_cycles": 114864,
         "observed_fps": 30.3047,
         "average_reload_cycles": 35865,
         "worst_reload_cycles": 36056,
@@ -371,9 +371,9 @@
       {
         "workload": "fxc_pixel_scroll",
         "frames": 30,
-        "average_cycles": 239296,
-        "worst_cycles": 293136,
-        "average_render_display_cycles": 100330,
+        "average_cycles": 239347,
+        "worst_cycles": 293187,
+        "average_render_display_cycles": 100380,
         "observed_fps": 30.3049,
         "average_reload_cycles": 33589,
         "worst_reload_cycles": 36081,
@@ -386,9 +386,9 @@
       {
         "workload": "fxc_dense_collision",
         "frames": 30,
-        "average_cycles": 220328,
-        "worst_cycles": 223397,
-        "average_render_display_cycles": 94020,
+        "average_cycles": 220368,
+        "worst_cycles": 223441,
+        "average_render_display_cycles": 94060,
         "observed_fps": 30.3013,
         "average_reload_cycles": 30410,
         "worst_reload_cycles": 30472,
@@ -416,14 +416,14 @@
         "complete": true,
         "completed_cycles": "128000000",
         "discontinuities": "0",
-        "end_cycle": "152464454",
+        "end_cycle": "152469901",
         "end_pc": 663,
         "native": true,
-        "native_active_cycles": "24486988",
+        "native_active_cycles": "24488108",
         "native_elapsed_cycles": "128000000",
         "partial_cycles": "0",
-        "requested_end_cycle": "152464454",
-        "start_cycle": "24464454",
+        "requested_end_cycle": "152469901",
+        "start_cycle": "24469901",
         "start_pc": 663,
         "stop_reason": "deadline"
       },
@@ -434,23 +434,23 @@
         "elf_sha256": "ec54076b5c5a4c7bbdd61b7bb3c09d6808d4a25342808302cf76f0a7e503028f",
         "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "image_sha256": "e99c9ac748c03b6fde65ac5bf4304c1fd033fc1c03a9d290d397e2f596df4cae",
-        "interpreter_sha256": "3c3e32fe3cc61221abb2d42d5b0e9dce281ca2eca421429095333b93bb0470be",
+        "interpreter_sha256": "a6564eebc4fc6cf71195cd6a1f52b25a414fbef78b72ace522b5a8d5c63cdc06",
         "usb_bus_state": 1
       }
     },
     "rpg": {
       "window": {
         "complete": true,
-        "completed_cycles": "128000031",
+        "completed_cycles": "128000018",
         "discontinuities": "0",
-        "end_cycle": "152475323",
-        "end_pc": 9400,
+        "end_cycle": "152481824",
+        "end_pc": 9402,
         "native": true,
-        "native_active_cycles": "105635763",
-        "native_elapsed_cycles": "128000031",
+        "native_active_cycles": "105625509",
+        "native_elapsed_cycles": "128000018",
         "partial_cycles": "0",
-        "requested_end_cycle": "152475292",
-        "start_cycle": "24475292",
+        "requested_end_cycle": "152481806",
+        "start_cycle": "24481806",
         "start_pc": 10166,
         "stop_reason": "deadline"
       },
@@ -461,7 +461,7 @@
         "elf_sha256": "11ad34d93a12823be07bec9c0acbbc45afe5eb20754a40d9cfec710ea4ee095c",
         "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "image_sha256": "f066687f687e987d15ccb7ec8a018250a7dd107f1d63094f049fc17f797ab809",
-        "interpreter_sha256": "3c3e32fe3cc61221abb2d42d5b0e9dce281ca2eca421429095333b93bb0470be",
+        "interpreter_sha256": "a6564eebc4fc6cf71195cd6a1f52b25a414fbef78b72ace522b5a8d5c63cdc06",
         "usb_bus_state": 1
       }
     }
@@ -473,5 +473,5 @@
   "npc_capacity": 8,
   "npc_bytes": 18,
   "pool_bytes": 156,
-  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-3_oog24g"
+  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-7kun5bdo"
 }

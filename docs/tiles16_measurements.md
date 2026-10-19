@@ -1,10 +1,10 @@
 # 16x16 measured evidence
 
 Measured 2026-10-19 in RelWithDebInfo; existing MSVC/Ninja and AVM SDK.
-Source fingerprint `200a834669fc7085d5d2174a8f5188fe74d441453fb9ac8f37367d694a6c2e6e`. Changes remain uncommitted.
+Source fingerprint `a7eb48c943b428657a4142b14a95659bea075b30810723775504785d299d1ee0`. Changes remain uncommitted.
 Exact source/package hashes, complete link paths and LTO checks are in
 [tiles16_evidence.json](tiles16_evidence.json). Raw LLDB logs, PGM captures
-and complete source profiles remain in `build/verification-3_oog24g`.
+and complete source profiles remain in `build/verification-7kun5bdo`.
 
 | Guest | saved | ordinary RAM | total static / 1024 | code | PROGMEM | complete stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -26,13 +26,13 @@ is 800,000 cycles, checked on every observed exploration frame.
 
 | Workload | frames | average cycles | worst observed | render/display | FPS |
 |---|---:|---:|---:|---:|---:|
-| m0_proof | 30 | 33,654 | 33,673 | 19095 | 20.0001 |
-| idle_grove | 30 | 262,213 | 281,869 | 114806 | 30.3047 |
-| pixel_scroll | 30 | 239,296 | 293,136 | 100330 | 30.3049 |
-| dense_collision | 30 | 220,328 | 223,397 | 94020 | 30.3013 |
-| fxc_idle_grove | 30 | 262,213 | 281,869 | 114806 | 30.3047 |
-| fxc_pixel_scroll | 30 | 239,296 | 293,136 | 100330 | 30.3049 |
-| fxc_dense_collision | 30 | 220,328 | 223,397 | 94020 | 30.3013 |
+| m0_proof | 30 | 33,660 | 33,679 | 19098 | 20.0001 |
+| idle_grove | 30 | 262,271 | 281,921 | 114864 | 30.3047 |
+| pixel_scroll | 30 | 239,347 | 293,187 | 100380 | 30.3049 |
+| dense_collision | 30 | 220,368 | 223,441 | 94060 | 30.3013 |
+| fxc_idle_grove | 30 | 262,271 | 281,921 | 114864 | 30.3047 |
+| fxc_pixel_scroll | 30 | 239,347 | 293,187 | 100380 | 30.3049 |
+| fxc_dense_collision | 30 | 220,368 | 223,441 | 94060 | 30.3013 |
 
 Nine CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
 chunk_world, tiled_pipeline, generated_assets, content and peaceful_music. Pipeline tests check
@@ -51,6 +51,12 @@ AVM guest checks: {'m15_probe': 72, 'm16_probe': 5448}.
 Full-device PASS for FX and FX-C covers actual buttons, two sample NPCs, sign dialogue,
 paused simulation, menus/status, physical FX save/restart, corrupt-save
 rejection, terrain scrolling and actual masked actor overlap pixels.
+Startup and restart inherit enabled bootloader USB interrupts with a pending
+suspend event, checking that interpreter startup prevents the former default-ISR freeze.
+A read-only SPI observer rejects ignored writes and nonzero data at the cycle-17
+boundary. Intentional dummy writes at 17 preserve the hardware WCOL flag and advance
+the stream. Timing, status flags, transmitted bytes and received bytes use upstream
+Ardens behavior without an emulation workaround.
 Audio checks verify silent titles, audible unclipped PWM after New Game and
 Continue, and uninterrupted playback through dialogue and menus. Exploration
 measurements include music. The A2 score test decodes two full 48-second loops.
@@ -63,8 +69,9 @@ independent native hooks additionally cover route behavior.
 
 The earlier map had different handlers and NPCs. Timing comparisons cannot
 isolate tile size from the simultaneous content reset. Observed maxima are
-sample bounds, not a universal worst-case timing proof. Physical hardware
-remains unverified.
+sample bounds, not a universal worst-case timing proof. The user confirmed
+the rebuilt ordinary FX-C package shows its title and starts a game on
+physical hardware on 2026-10-18. Performance measurements remain emulator results.
 
 From the RPG root:
 

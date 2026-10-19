@@ -17,6 +17,7 @@ if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
     add_executable(rpg_device_tests tests/device_tests.cpp generated/sprites.cpp)
     target_compile_features(rpg_device_tests PRIVATE cxx_std_20)
     target_include_directories(rpg_device_tests PRIVATE src generated
+        "${AVM_SOURCE_ROOT}/tests/interp"
         "${AVM_SOURCE_ROOT}/deps/Ardens/src"
         "${AVM_SOURCE_ROOT}/deps/Ardens/deps"
         "${AVM_SOURCE_ROOT}/deps/Ardens/deps/bitsery/include")

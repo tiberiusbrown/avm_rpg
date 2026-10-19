@@ -1,6 +1,7 @@
 // Full-device integration, without changes to AVM or Ardens. Host allocations
 // below belong to the QA tool; the guest remains fixed-capacity C++20.
 #include "absim.hpp"
+#include "avm_spi_observer.hpp"
 
 #pragma pack(push, 1)
 #include "rpg.h"
@@ -57,6 +58,20 @@ struct Device {
 
         ab->core_state.cpu.no_merged = true;
         ab->core_state.cpu.autobreaks.reset();
+        avm_test::observe_spi_writes(ab->core_state.cpu);
+        bootloader_usb_handoff();
+    }
+
+    void bootloader_usb_handoff() {
+        // Cathy3K detaches USB before jumping to the sketch, but leaves its
+        // USB interrupt enables set. A pending suspend is valid at handoff.
+        auto& cpu = ab->core_state.cpu;
+        cpu.st(absim::reg::addr::USBCON,
+               absim::reg::bit::USBCON::USBE | absim::reg::bit::USBCON::OTGPADE);
+        cpu.st(absim::reg::addr::UDCON, absim::reg::bit::UDCON::DETACH);
+        cpu.st(absim::reg::addr::UDIEN,
+               absim::reg::bit::UDIEN::EORSTE | absim::reg::bit::UDIEN::SUSPE);
+        cpu.data[absim::reg::addr::UDINT] = absim::reg::bit::UDINT::SUSPI;
     }
 
     Game state() const {
@@ -215,7 +230,16 @@ struct Device {
             std::cerr << "display on=" << disp.display_on << " pump=" << disp.enable_charge_pump
                       << " filter=" << disp.enable_filter << " row=" << unsigned(disp.row)
                       << " clock=" << disp.ps_per_clk
-                      << " cycles=" << ab->core_state.cpu.cycle_count << " ram_nonzero="
+                      << " cycles=" << ab->core_state.cpu.cycle_count
+                      << " avr_pc=" << ab->core_state.cpu.pc * 2
+                      << " UDIEN=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::UDIEN])
+                      << " UDINT=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::UDINT])
+                      << " PORTB=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::PORTB])
+                      << " DDRB=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::DDRB])
+                      << " SPCR=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::SPCR])
+                      << " SPSR=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::SPSR])
+                      << " PLLCSR=" << unsigned(ab->core_state.cpu.data[absim::reg::addr::PLLCSR])
+                      << " ram_nonzero="
                       << std::count_if(disp.ram.begin(), disp.ram.end(),
                                        [](auto p) { return p != 0; })
                       << '\n';
@@ -245,6 +269,8 @@ struct Device {
         ab->reset();
         ab->core_state.cpu.no_merged = true;
         ab->core_state.cpu.autobreaks.reset();
+        avm_test::observe_spi_writes(ab->core_state.cpu);
+        bootloader_usb_handoff();
     }
 };
 
