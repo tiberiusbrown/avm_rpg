@@ -21,9 +21,77 @@ Startup clears the Timer0/Timer1 power gates and stops/masks Timer3, including
 clearing its speaker-pin ownership. Native tests seed inherited timer settings
 and check simultaneous pending Timer0/Timer1 arbitration.
 
-The current packages and [Timer1 data](audio_timing_data/timer1.json) match the
-final selected firmware, including the startup fixes. The original Timer1
-experiment and unified firmware/packages remain in their named `build` folders.
+The current packages match the [uncached handoff data](audio_timing_data/handoff.json).
+The [original cached Timer1 data](audio_timing_data/timer1.json), Timer3 baseline,
+and unified experiment remain as references for the comparisons below.
+
+## Uncached reader and ISR handoff (current)
+
+The 32-byte shared song cache and its three metadata bytes are removed.
+`audio_byte` returns one byte directly in a register using an independent,
+interruptible flash transaction: **124 cycles** without intervening interrupts.
+Foreground commit prepares a persistent 15-byte packet and publishes a ready
+bit plus four retrigger bits with one **two-cycle STS**. The synthesis ISR checks
+the descriptor after the fixed PWM write, copies all controls, resets phases
+exactly once, and acknowledges before oscillator advancement. A producer waits
+with interrupts enabled before reusing an occupied packet. Stopped output and
+IRQ-disabled callers apply directly; disable drains packets after stopping the
+reader. The formatter/text workspace cannot overwrite a pending packet.
+
+This removes the foreground `audio_commit` CLI span. The same calibrated 40-second
+normal / 8-second FX-C exercise gives:
+
+| Implementation | Hardware | PWM updates | p99 extra cycles | Maximum extra cycles | Updates delayed 10+ cycles |
+|---|---|---:|---:|---:|---:|
+| Cached Timer1, foreground copy | NORMAL | 860,938 | 4 | 123 | 149 |
+| Uncached Timer1, ISR handoff | NORMAL | 860,938 | 4 | **7** | **0** |
+| Cached Timer1, foreground copy | FXC | 125,000 | 4 | 112 | 21 |
+| Uncached Timer1, ISR handoff | FXC | 125,000 | 4 | **6** | **0** |
+
+Both PWM stores still complete **19 cycles after body entry / 26 cycles including
+entry and vector** for every observed interrupt. The normal maximum is now
+**437.5 ns** of extra delay rather than 7.69 us. Interval errors narrow from
+-121..+121 to **-7..+7 cycles** (FX-C: -6..+5). No compare was lost or coalesced.
+Remaining foreground masks in this exercise are at most six cycles. These
+results describe the recorded workload, not a universal interrupt latency bound.
+
+![Uncached handoff timing comparison](audio_timing_data/handoff-timing.png)
+
+The ordinary synthesis ISR adds a four-cycle check: **200..207 cycles** including
+entry/vector. A packet adds **81..93 cycles**; the largest observed synthesis ISR
+is **293**, and the instruction-count worst case is 300, below the 1024-cycle
+output period. Midpoint remains **41 cycles**. Measured audio ISR CPU increases
+from **11.5944% to 11.8067%**, a **0.2123 percentage-point** increase; the separate
+clock still costs approximately 0.238%. This excludes foreground sequencing.
+
+The full-device integration measures the combined cache-removal and handoff cost:
+
+| Workload (30 frames) | Cached Timer1 average cycles | Uncached handoff | Change |
+|---|---:|---:|---:|
+| m0_proof, audio disabled | 33,660 | 33,660 | 0.00% |
+| idle_grove | 280,529 | 281,329 | +0.285% |
+| pixel_scroll | 257,077 | 257,840 | +0.297% |
+| dense_collision | 227,842 | 228,515 | +0.295% |
+
+FX-C matches those three gameplay measurements. The largest observed frame is
+327,637 cycles (20.48 ms), below the 800,000-cycle diagnostic budget. Guest
+bytes, score, 33 ms pacing, and frame checks are unchanged; scheduling affects
+which updates and interrupts fall inside each measured frame.
+
+Persistent audio SRAM decreases **104 -> 85 bytes**, including the 16-byte
+handoff packet. Native stack allowance increases **59 -> 78 bytes**; ISR stack
+is 11 bytes normally and 13 while calling the copier. Libm/formatter stress
+still peaks at 41 bytes. Firmware is **29,148 bytes**, leaving 548 bytes below
+the bootloader ceiling. All **35 native audio cases, 471 guest tests, 10 RPG
+CTest checks, and complete normal/FX-C integration** pass, including save/restart,
+dialogue, menus, scrolling, and the full Zelda transcription.
+
+Retained results: [timing summary](audio_timing_data/handoff.json),
+[normal histogram](audio_timing_data/handoff-normal-histogram.csv),
+[FX-C histogram](audio_timing_data/handoff-fxc-histogram.csv), and
+[performance/integration results](audio_timing_data/handoff-performance.json).
+
+## Earlier timer selection experiments
 
 ![PWM timing comparison](audio_timing_data/timer-comparison.png)
 

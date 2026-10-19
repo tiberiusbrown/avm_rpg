@@ -1,0 +1,195 @@
+{
+  "result": "PASS",
+  "sdk_input": true,
+  "procedural_screen_calls": true,
+  "m0_execution_and_drawing": true,
+  "full_device": true,
+  "full_device_fxc": true,
+  "guest_checks": {
+    "m15_probe": 72,
+    "m16_probe": 5448
+  },
+  "measurements": [
+    {
+      "workload": "m0_proof",
+      "frames": 30,
+      "average_cycles": 33660,
+      "worst_cycles": 33679,
+      "average_render_display_cycles": 19098,
+      "observed_fps": 20.0001,
+      "average_reload_cycles": 0,
+      "worst_reload_cycles": 0,
+      "average_chunk_cycles": 0,
+      "worst_chunk_cycles": 0,
+      "average_collision_cycles": 0,
+      "worst_collision_cycles": 0,
+      "budget_cycles": 800000
+    },
+    {
+      "workload": "idle_grove",
+      "frames": 30,
+      "average_cycles": 281329,
+      "worst_cycles": 298117,
+      "average_render_display_cycles": 119147,
+      "observed_fps": 30.3041,
+      "average_reload_cycles": 37165,
+      "worst_reload_cycles": 38048,
+      "average_chunk_cycles": 35456,
+      "worst_chunk_cycles": 38799,
+      "average_collision_cycles": 74244,
+      "worst_collision_cycles": 90430,
+      "budget_cycles": 800000
+    },
+    {
+      "workload": "pixel_scroll",
+      "frames": 30,
+      "average_cycles": 257840,
+      "worst_cycles": 327637,
+      "average_render_display_cycles": 105536,
+      "observed_fps": 30.3025,
+      "average_reload_cycles": 34715,
+      "worst_reload_cycles": 38648,
+      "average_chunk_cycles": 31244,
+      "worst_chunk_cycles": 47142,
+      "average_collision_cycles": 71757,
+      "worst_collision_cycles": 122030,
+      "budget_cycles": 800000
+    },
+    {
+      "workload": "dense_collision",
+      "frames": 30,
+      "average_cycles": 228515,
+      "worst_cycles": 231638,
+      "average_render_display_cycles": 97553,
+      "observed_fps": 30.3029,
+      "average_reload_cycles": 31541,
+      "worst_reload_cycles": 33554,
+      "average_chunk_cycles": 18774,
+      "worst_chunk_cycles": 19803,
+      "average_collision_cycles": 66052,
+      "worst_collision_cycles": 68260,
+      "budget_cycles": 800000
+    },
+    {
+      "result": "PASS",
+      "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+    },
+    {
+      "workload": "fxc_idle_grove",
+      "frames": 30,
+      "average_cycles": 281329,
+      "worst_cycles": 298117,
+      "average_render_display_cycles": 119147,
+      "observed_fps": 30.3041,
+      "average_reload_cycles": 37165,
+      "worst_reload_cycles": 38048,
+      "average_chunk_cycles": 35456,
+      "worst_chunk_cycles": 38799,
+      "average_collision_cycles": 74244,
+      "worst_collision_cycles": 90430,
+      "budget_cycles": 800000
+    },
+    {
+      "workload": "fxc_pixel_scroll",
+      "frames": 30,
+      "average_cycles": 257840,
+      "worst_cycles": 327637,
+      "average_render_display_cycles": 105536,
+      "observed_fps": 30.3025,
+      "average_reload_cycles": 34715,
+      "worst_reload_cycles": 38648,
+      "average_chunk_cycles": 31244,
+      "worst_chunk_cycles": 47142,
+      "average_collision_cycles": 71757,
+      "worst_collision_cycles": 122030,
+      "budget_cycles": 800000
+    },
+    {
+      "workload": "fxc_dense_collision",
+      "frames": 30,
+      "average_cycles": 228515,
+      "worst_cycles": 231638,
+      "average_render_display_cycles": 97553,
+      "observed_fps": 30.3029,
+      "average_reload_cycles": 31541,
+      "worst_reload_cycles": 33554,
+      "average_chunk_cycles": 18774,
+      "worst_chunk_cycles": 19803,
+      "average_collision_cycles": 66052,
+      "worst_collision_cycles": 68260,
+      "budget_cycles": 800000
+    },
+    {
+      "result": "PASS",
+      "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+    }
+  ],
+  "elf_sha256": {
+    "m0_proof": "6c37cc8432c7e1df22eaae2a5eb8c61b70a2e5d3c42e3ca376a2e2a0fe12187d",
+    "rpg": "c963c344d328831fce393be761527bd892b6b0dc3f01799dca7f950f3bcce439",
+    "m15_probe": "e98355b88919b65755d300e420bc6d5bc047dd7f131935877ccf7c0dac7ba6e5",
+    "m16_probe": "9a9afa600539048906deedcad8a5684744969b9fcac4558b2292da005b5186c2"
+  },
+  "comparison_to_cached_timer1": [
+    {
+      "workload": "m0_proof",
+      "previous_average_cycles": 33660,
+      "average_cycles": 33660,
+      "change_percent": 0.0
+    },
+    {
+      "workload": "idle_grove",
+      "previous_average_cycles": 280529,
+      "average_cycles": 281329,
+      "change_percent": 0.28517550770152944
+    },
+    {
+      "workload": "pixel_scroll",
+      "previous_average_cycles": 257077,
+      "average_cycles": 257840,
+      "change_percent": 0.29679823554811247
+    },
+    {
+      "workload": "dense_collision",
+      "previous_average_cycles": 227842,
+      "average_cycles": 228515,
+      "change_percent": 0.2953801318457572
+    },
+    {
+      "workload": "fxc_idle_grove",
+      "previous_average_cycles": 280529,
+      "average_cycles": 281329,
+      "change_percent": 0.28517550770152944
+    },
+    {
+      "workload": "fxc_pixel_scroll",
+      "previous_average_cycles": 257077,
+      "average_cycles": 257840,
+      "change_percent": 0.29679823554811247
+    },
+    {
+      "workload": "fxc_dense_collision",
+      "previous_average_cycles": 227842,
+      "average_cycles": 228515,
+      "change_percent": 0.2953801318457572
+    }
+  ],
+  "audio_cpu_percent": {
+    "cached_timer1": {
+      "normal": 11.59438732267887,
+      "fxc": 11.5919734375
+    },
+    "uncached_handoff": {
+      "normal": 11.80672159137766,
+      "fxc": 11.8036078125
+    }
+  },
+  "native": {
+    "audio_byte_cycles": 124,
+    "persistent_audio_bytes": 85,
+    "native_stack_allowance_bytes": 78,
+    "firmware_bytes": 29148,
+    "native_audio_cases": 35,
+    "guest_cases": 471
+  }
+}
