@@ -110,41 +110,68 @@ if(RPG_BUILD_GUEST)
     set(AVM_CLANG "${AVM_SDK_ROOT}/bin/avm-clang${EXE}")
     set(AVM_IMAGE "${AVM_SDK_ROOT}/bin/avm-image${EXE}")
     set(AVM_LLDB "${AVM_SDK_ROOT}/bin/avm-lldb${EXE}")
-    foreach(required IN ITEMS "${AVM_CLANG}" "${AVM_IMAGE}" "${AVM_SDK_ROOT}/sysroot/include/avm.h" "${AVM_SDK_ROOT}/bin/avm/interp.hex")
+    set(AVM_FXC_INTERPRETER "${AVM_SDK_ROOT}/bin/avm/interp.fxc.hex")
+    foreach(required IN ITEMS "${AVM_CLANG}" "${AVM_IMAGE}" "${AVM_SDK_ROOT}/sysroot/include/avm.h" "${AVM_SDK_ROOT}/bin/avm/interp.hex" "${AVM_FXC_INTERPRETER}")
         if(NOT EXISTS "${required}")
             message(FATAL_ERROR "Missing SDK prerequisite: ${required}")
         endif()
     endforeach()
     file(GLOB_RECURSE SDK_DEPS CONFIGURE_DEPENDS "${AVM_SDK_ROOT}/sysroot/include/*" "${AVM_SDK_ROOT}/sysroot/lib/*")
+    set(RPG_MUSIC_COMPILER "${AVM_SDK_ROOT}/bin/avm_music.py")
+    if(NOT EXISTS "${RPG_MUSIC_COMPILER}")
+        set(RPG_MUSIC_COMPILER "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/avm_music.py")
+    endif()
+    set(MUSIC_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/generated/peaceful_music.h")
+    add_custom_command(OUTPUT "${MUSIC_OUTPUT}"
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_music.py"
+            --compiler "${RPG_MUSIC_COMPILER}"
+        DEPENDS tools/generate_music.py assets/music/peaceful.json "${RPG_MUSIC_COMPILER}"
+        VERBATIM)
+    add_custom_target(rpg_music DEPENDS "${MUSIC_OUTPUT}")
+    add_test(NAME peaceful_music COMMAND ${Python3_EXECUTABLE}
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_music.py" --compiler "${RPG_MUSIC_COMPILER}")
     function(guest name)
         set(objects)
         foreach(source IN LISTS ARGN)
             get_filename_component(stem "${source}" NAME_WE)
             set(object "${CMAKE_CURRENT_BINARY_DIR}/${name}/${stem}.o")
             set(defines -DRPG_AVM=1)
+            set(source_dependencies)
+            if(source STREQUAL "src/platform_avm.cpp")
+                list(APPEND source_dependencies "${MUSIC_OUTPUT}")
+            endif()
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h ${ASSET_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
         set(elf "${CMAKE_CURRENT_BINARY_DIR}/artifacts/${name}.elf")
         set(bin "${CMAKE_CURRENT_BINARY_DIR}/artifacts/${name}.bin")
         set(package "${CMAKE_CURRENT_BINARY_DIR}/artifacts/${name}.arduboy")
-        add_custom_command(OUTPUT "${elf}" "${bin}" "${package}" "${elf}.resources.json" "${elf}.lto.json"
+        set(fxc_options)
+        set(fxc_outputs)
+        set(fxc_dependencies)
+        if(name STREQUAL "rpg")
+            set(fxc_outputs "${CMAKE_CURRENT_BINARY_DIR}/artifacts/rpg.fxc.arduboy")
+            set(fxc_options --fxc-interpreter "${AVM_FXC_INTERPRETER}")
+            set(fxc_dependencies "${AVM_FXC_INTERPRETER}")
+        endif()
+        add_custom_command(OUTPUT "${elf}" "${bin}" "${package}" ${fxc_outputs} "${elf}.resources.json" "${elf}.lto.json"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/artifacts"
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/link_guest.py"
-                --compiler "${AVM_CLANG}" --image "${AVM_IMAGE}" --output "${elf}" ${objects}
-            DEPENDS ${objects} tools/link_guest.py tools/resources.py tools/check_lto.py "${AVM_IMAGE}" "${AVM_SDK_ROOT}/bin/avm/interp.hex"
+                --compiler "${AVM_CLANG}" --image "${AVM_IMAGE}" --output "${elf}" ${fxc_options} ${objects}
+            DEPENDS ${objects} tools/link_guest.py tools/resources.py tools/check_lto.py "${AVM_IMAGE}" "${AVM_SDK_ROOT}/bin/avm/interp.hex" ${fxc_dependencies}
             VERBATIM)
         if(name STREQUAL "rpg")
             # Copy rather than declare an output: CMake clean preserves the playable package.
             add_custom_target(${name} ALL
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${package}" "${CMAKE_CURRENT_SOURCE_DIR}/rpg.arduboy"
-                DEPENDS "${package}" "${elf}.resources.json" VERBATIM)
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${fxc_outputs}" "${CMAKE_CURRENT_SOURCE_DIR}/rpg.fxc.arduboy"
+                DEPENDS "${package}" ${fxc_outputs} "${elf}.resources.json" VERBATIM)
         else()
             add_custom_target(${name} ALL DEPENDS "${package}" "${elf}.resources.json")
         endif()
@@ -155,6 +182,7 @@ if(RPG_BUILD_GUEST)
     guest(m16_probe ${RULES} tests/npc_probe.cpp)
     set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
     guest(rpg ${RULES} ${PLATFORM})
+    add_dependencies(rpg rpg_music)
     if(EXISTS "${AVM_LLDB}")
         add_custom_target(rpg_integration
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"

@@ -1,16 +1,17 @@
 {
-  "verification_date": "2026-10-18",
+  "verification_date": "2026-10-19",
   "configuration": "RelWithDebInfo; existing MSVC/Ninja and AVM SDK",
-  "source_fingerprint_sha256": "1168820e2a02b95ab5b201c29afb5589136ae427fc980b9700ec30723d797b0e",
+  "source_fingerprint_sha256": "200a834669fc7085d5d2174a8f5188fe74d441453fb9ac8f37367d694a6c2e6e",
   "source_manifest": {
     ".clang-format": "ca4f166000c3889f7d8651bfb479009ce208a640d819bc9350ad517b248b9119",
     "AGENTS.md": "15c2905a835f59d756a4f6ebb41c04057063c604d91fdba3d8916e8b76b64b76",
     "assets/maps/outdoor.tmx": "f853206126a752064865cb4e5ceecb7491aa092827633f2ad6c4f3ac73ad01d4",
+    "assets/music/peaceful.json": "9ff8e2f4dc9ba20ab7dea4f3700103755da740a97d25b385e8b1029bd952aca2",
     "assets/tilesets/world.tsx": "0b4563dd5f74549666c1d46583c5201f2c4d3682ecb121439ae574335b385ee2",
-    "assets_src/actors16.png": "ab73b1742dc404d47fd1e47f76bde1ecd97bbc7331925ead7b66b306ea2b7e02",
+    "assets_src/actors16.png": "3bc208848a394677458739a2ce9d21674f680d0a4333e6cf797056e522f5349b",
     "assets_src/tiles16.png": "4a86b05bea91f5ffa07ba7d1d9ccc7a8d3a0579f048f3d45c9aaa3d37ed922fc",
     "assets_src/tiles16.xcf": "deb810ecb5a0f7f1e2937fd52e6147feda519277f57318cf479a8d634724b1d5",
-    "CMakeLists.txt": "ef7f0788517a53bce1c8f53558bb7e9704ca993e35a08b15d027660444868d4d",
+    "CMakeLists.txt": "d4d9855b435e749c4efa4ffb1f1c2f97e23520981c8c1a4f162ef6d9058de693",
     "generated/area_ids.h": "088927a4a292be8420460a117da8856e13660671cf4fbdb157e5d02b12d54474",
     "generated/chunk_dispatch.cpp": "46768e3681a6797e4fa0d47d11315d851e698afd9f3b8aba2b17a5b12d597fe4",
     "generated/handler_defaults.h": "1696063885f1b33f22d186dfac84cf6588fdd2482d3055ef6ab5f6914cd999a0",
@@ -18,10 +19,11 @@
     "generated/map_positions.h": "7a073ce19b6bc4ef6d3f30a11f649caea141db7ba27211e1df2a8773d387c441",
     "generated/npc_routes.cpp": "fcdc99ad1dc39b59931ce977a2713ec29d7c6da4062a2a163b3105caf3914e99",
     "generated/npc_routes.h": "15e3face6eccdf946c10c8cb60457f4952ed0a9318ac5baf9ecb868d87f5dca4",
-    "generated/sprites.cpp": "48089bb5a3df659bca7aaf4d677296929d7578b8cc1d40482615afa956fea8f2",
+    "generated/peaceful_music.h": "df9a1068a7ce04e205a3d480e0c2e16a2d4dece4ac5300887ad8048936caefcc",
+    "generated/sprites.cpp": "58b99e6cf1d2704e6348d05b2203f599633c024f5ff6f5cc6075a18b2fe20937",
     "generated/tile_ids.h": "385cca4aa008598c2a7ca37adf71cc45eda08cb29b966bf58fc8654a938db140",
     "generated/world_assets.h": "79999264168e5dc75c6db890b2a31982dd34112d0f75a62c1fbc362c3ec8d7aa",
-    "README.md": "bd221f43a579b282843f8abcc1f610f4e062649a2d45059ca4173595fc3f4009",
+    "README.md": "71b7c01673cdb872cf5c9f5d1440e3a6cbd2b7c5395b6225f91403b14e865128",
     "src/actor_draw_order.h": "ee4775577f0bc053081da047c08d93b62c04d217b3465f13132d10664c1248cc",
     "src/chunk.h": "1157b29bc99c065befb343b16de1e050ece72b5d54ac5166f97584d5bca15bab",
     "src/dialogue_overlay.cpp": "4487aa078ed060c4c1ff0c832a79038daf9506cc49cb447d1ba77e9665a066a3",
@@ -34,7 +36,7 @@
     "src/npc.cpp": "62039af2755baa8454c7bec9eee8981e8259c6f4e49cf14e54c74c03b882fa59",
     "src/npc.h": "156e693e1dacc40e2715b0feb48d6232faa04606d076c829e7610a7acab1297b",
     "src/npc_types.h": "24ca32c9b83d10f3e9af2f3daeac8cac7b9ae7d27d76ab7a7680e04ea66f1d24",
-    "src/platform_avm.cpp": "2b2a5c19adfb2db1b5e7de4234794f931d507c687460f4f28ca6df410a267763",
+    "src/platform_avm.cpp": "2c3ef537c4c1b5f6fb30859672775d9e5a86e21aaf8a95fbf6f66dfe82e1249f",
     "src/proof.cpp": "9e096c18eea0b21979fd3cce526e24bb8ad710d255e9c5adeee40328baab8b52",
     "src/render.cpp": "d1547425ec7cfd897f2c24ffe10e2e8730740e2e9538755717490b328c115b34",
     "src/rpg.h": "7100c4bf2d1e115e1577dd17a48580cae6b025a4e48c0ec61af6d534a2457cc2",
@@ -42,14 +44,15 @@
     "src/screens.cpp": "70fdd2d027c9adc7b5b767ae22541efd888cd149c151e8d9134c59d0528f2909",
     "src/world.cpp": "afb9a9bd667d8f5eaaab93e028f33b3f57e320ff690d3897ae80476650add416",
     "src/world_types.h": "0d5965343d50f3b69a1794f148b4ebe203e662beb9fdfbd2b8181f668c832242",
-    "tests/device_tests.cpp": "d65cffb7d61093e622c348189202a995f5e338d76280ba182d11ab29abae96be",
-    "tests/guest_integration.py": "4bfe51bad72c15a5d42e48208f3e8ff581d4545a5afbd23c7f1e6693bc3c561b",
+    "tests/device_tests.cpp": "92081d9df077dd4d266b0c6ca4be9069db6bea9aae02a263124b79a1c7813f8b",
+    "tests/guest_integration.py": "9a73441602b0a92782ba5b9286e773c13965a44c88a404237e66eda98528495b",
     "tests/npc_probe.cpp": "5ab7f73a28c3e2bd7179997549defc5cad59498a7e8dcd42f253252eae6708b9",
     "tests/npc_scenarios.h": "00a2dfa2bc92e44bbd498e0dcbc0dcfd38853620f982f465ae71f73d6b329576",
     "tests/replays/exploration.json": "947c1d3edb55d5e8c0635feaffd7269f1ce668d30947370fcdd7cfa4ba5ff1c7",
     "tests/test_content.py": "27279f3c11d84f64a8d86dce16559150496757a9d7936ea1973ed761e832a697",
     "tests/test_core.cpp": "cd33b3dc4250a76c1be927253def014c06b6a792228d94892eb3c4ed95055e65",
     "tests/test_flags.cpp": "4a009b352546517f36bc7929d06d30ab6964ce088a91b302f8b7d8286db4bda2",
+    "tests/test_music.py": "20417b600a0bf08e50ee659360affe180df04924498a8e1082b5eeee8fcaab1b",
     "tests/test_npc.cpp": "1bec78d5744d53da478bda6c6ed028e62dba5f90ea8fb5eb1d4f75734a6348c1",
     "tests/test_npc_hooks.cpp": "1208f5818d033d5f7016e304cabd340ce8662d4037c5990ee1e55f52442055e2",
     "tests/test_pipeline.py": "b486171fced6aef9af296d41ba3dc27618cc9c54bcc8a25995e4bae7da880a90",
@@ -58,17 +61,18 @@
     "tests/world_scenarios.h": "2126710dc1f896b9d0b4fd606ed281487282b57a3278cf74907a3be99f62d552",
     "tools/build.ps1": "4d7f207a73983bb148a3d96283ea59c6c74ebe38fd36010deee0f5d03b5aece1",
     "tools/check_lto.py": "30cde47a489307e03bac19055e2e83b543e80efc11b2cde7af7b36d34ef4ed5e",
-    "tools/collect_evidence.py": "8a15bb0ec2d8691228984ba938baed61e40c9585996d60b7c52377946488d7bd",
+    "tools/collect_evidence.py": "7c9274842bc715495461cccab1a8418b34b42ad3bfde329b54eb6381bb110f77",
     "tools/elf.py": "0bfff66bd875c13bc14a168875f2b78140e0cfe85f82dd98f3dba6712e911c1d",
     "tools/generate_assets.py": "d4749cec5a6071aab046704d880beb32927aa9752c19a89c3b7d531607f372c7",
-    "tools/link_guest.py": "a3fe059e88c9b50ef3b85de978c8ca2f6b88ed1990b2e0f1913a3551fa248508",
+    "tools/generate_music.py": "bfcd4d2261105f00cef619540ddcf5d6fbe21743f65e2926e125164353cc7006",
+    "tools/link_guest.py": "63f7dc1feb455da25abadbe4cd4a207120dc35300f462bbb64d1ae509b1907fa",
     "tools/requirements.txt": "e18aed9a4307b1f51a0b0058d1e096ca99bc0685c99e4624c5d8f649a18140f3",
     "tools/resources.py": "a03a3ab8f2e831c7bbce3f6e554b36c70fc13464f0a70630d72ee0bb6d48c210"
   },
   "artifacts": {
     "m0_proof.elf": {
-      "sha256": "9f298943a5ee5ed0d6e739393473348d3e5fc07d95e4667be2656c8a54045905",
-      "bytes": 7548
+      "sha256": "ec54076b5c5a4c7bbdd61b7bb3c09d6808d4a25342808302cf76f0a7e503028f",
+      "bytes": 7732
     },
     "m0_proof.bin": {
       "sha256": "e99c9ac748c03b6fde65ac5bf4304c1fd033fc1c03a9d290d397e2f596df4cae",
@@ -79,20 +83,20 @@
       "bytes": 84175
     },
     "rpg.elf": {
-      "sha256": "1d9e63b7fe7c3b3c6ac6bb5ed65fe20e0941a66a9e0836abca45efe0bcae272c",
-      "bytes": 114700
+      "sha256": "11ad34d93a12823be07bec9c0acbbc45afe5eb20754a40d9cfec710ea4ee095c",
+      "bytes": 118132
     },
     "rpg.bin": {
-      "sha256": "9d2d7563b350646f105f1c67f40baee31db2dd5b78cb168d246fa631452fc40a",
-      "bytes": 37632
+      "sha256": "f066687f687e987d15ccb7ec8a018250a7dd107f1d63094f049fc17f797ab809",
+      "bytes": 40192
     },
     "rpg.arduboy": {
-      "sha256": "f3c25a94bf59f10e982dad1fbe1abf217b15bfb551083c5486be2073cc87625c",
-      "bytes": 119875
+      "sha256": "2593a07b86b891d381da4eab160ea23a8d3addca29912cf0ab72b8911a120dea",
+      "bytes": 122435
     },
     "m15_probe.elf": {
-      "sha256": "83ac67a552ee301d255b9ad32213a0eacd2b5f837fad823b4a9c3bb0a8723011",
-      "bytes": 127888
+      "sha256": "26270adc8ffe9af613404e933254c6febe466dbe4a02b87467c4bb7e9cf49ead",
+      "bytes": 128076
     },
     "m15_probe.bin": {
       "sha256": "65d98f6786ecf321c1b49b447f507a6a78b49df0f5d633298ceb456f97bc93ee",
@@ -103,8 +107,8 @@
       "bytes": 150736
     },
     "m16_probe.elf": {
-      "sha256": "6f30939d0a0e2e7fce442b9ec6fa5db8feb1042aefffa3028089239ab1d4465d",
-      "bytes": 162080
+      "sha256": "28b12e726904b78a0f7e0a1053334e6813f7c0d69f52cced07e8e657634cc9fc",
+      "bytes": 162268
     },
     "m16_probe.bin": {
       "sha256": "7df4c31f95f4c8c4e46d1883845944172deb82e7bab2fa3950bc1d147a25182e",
@@ -113,6 +117,10 @@
     "m16_probe.arduboy": {
       "sha256": "347dc451b68cc2a29537dde3a5de07bfef56136f01298a226be69d041d937254",
       "bytes": 106704
+    },
+    "rpg.fxc.arduboy": {
+      "sha256": "5e0df7d1badd5dd17a480b89c528d20b20b2d936e4dbe4494070cf264b94c755",
+      "bytes": 122435
     }
   },
   "resources": {
@@ -130,12 +138,12 @@
         ".text": 489,
         ".rodata": 1017,
         ".init_array": 0,
-        ".comment": 134,
+        ".comment": 227,
         ".debug_loc": 199,
         ".debug_abbrev": 492,
         ".debug_info": 1297,
         ".debug_ranges": 24,
-        ".debug_str": 1042,
+        ".debug_str": 1135,
         ".debug_frame": 172,
         ".debug_line": 938,
         ".symtab": 480,
@@ -147,28 +155,28 @@
       "saved_bytes": 24,
       "ordinary_data_bytes": 242,
       "static_bytes": 266,
-      "text_bytes": 10701,
-      "rodata_bytes": 22019,
+      "text_bytes": 10782,
+      "rodata_bytes": 24334,
       "stack_bytes": 171,
       "stack_bound_complete": true,
       "sections": {
         "": 0,
         ".saved": 24,
         ".data": 242,
-        ".text": 10701,
-        ".rodata": 22019,
+        ".text": 10782,
+        ".rodata": 24334,
         ".init_array": 0,
-        ".comment": 134,
+        ".comment": 227,
         ".debug_loc": 12927,
-        ".debug_abbrev": 2034,
-        ".debug_info": 22832,
+        ".debug_abbrev": 2052,
+        ".debug_info": 22930,
         ".debug_ranges": 1806,
-        ".debug_str": 10814,
+        ".debug_str": 11000,
         ".debug_frame": 2264,
-        ".debug_line": 26044,
-        ".symtab": 912,
+        ".debug_line": 26214,
+        ".symtab": 1136,
         ".shstrtab": 162,
-        ".strtab": 1050
+        ".strtab": 1294
       }
     },
     "m15_probe": {
@@ -185,12 +193,12 @@
         ".text": 7794,
         ".rodata": 59841,
         ".init_array": 0,
-        ".comment": 134,
+        ".comment": 227,
         ".debug_loc": 9863,
         ".debug_abbrev": 1626,
         ".debug_info": 14396,
         ".debug_ranges": 1872,
-        ".debug_str": 8075,
+        ".debug_str": 8168,
         ".debug_frame": 1568,
         ".debug_line": 20319,
         ".symtab": 576,
@@ -212,12 +220,12 @@
         ".text": 23549,
         ".rodata": 321,
         ".init_array": 0,
-        ".comment": 134,
+        ".comment": 227,
         ".debug_loc": 24346,
         ".debug_abbrev": 1843,
         ".debug_info": 33858,
         ".debug_ranges": 6336,
-        ".debug_str": 8595,
+        ".debug_str": 8688,
         ".debug_frame": 1804,
         ".debug_line": 58977,
         ".symtab": 544,
@@ -275,6 +283,7 @@
     "procedural_screen_calls": true,
     "m0_execution_and_drawing": true,
     "full_device": true,
+    "full_device_fxc": true,
     "guest_checks": {
       "m15_probe": 72,
       "m16_probe": 5448
@@ -298,58 +307,107 @@
       {
         "workload": "idle_grove",
         "frames": 30,
-        "average_cycles": 239126,
-        "worst_cycles": 254673,
-        "average_render_display_cycles": 104610,
-        "observed_fps": 30.3028,
-        "average_reload_cycles": 32743,
-        "worst_reload_cycles": 32768,
-        "average_chunk_cycles": 31086,
-        "worst_chunk_cycles": 31167,
-        "average_collision_cycles": 57240,
-        "worst_collision_cycles": 72752,
+        "average_cycles": 262213,
+        "worst_cycles": 281869,
+        "average_render_display_cycles": 114806,
+        "observed_fps": 30.3047,
+        "average_reload_cycles": 35865,
+        "worst_reload_cycles": 36056,
+        "average_chunk_cycles": 34224,
+        "worst_chunk_cycles": 35170,
+        "average_collision_cycles": 62549,
+        "worst_collision_cycles": 82194,
         "budget_cycles": 800000
       },
       {
         "workload": "pixel_scroll",
         "frames": 30,
-        "average_cycles": 218019,
-        "worst_cycles": 267119,
-        "average_render_display_cycles": 91404,
-        "observed_fps": 30.3033,
-        "average_reload_cycles": 30560,
-        "worst_reload_cycles": 32762,
-        "average_chunk_cycles": 28574,
-        "worst_chunk_cycles": 41554,
-        "average_collision_cycles": 54642,
-        "worst_collision_cycles": 86012,
+        "average_cycles": 239296,
+        "worst_cycles": 293136,
+        "average_render_display_cycles": 100330,
+        "observed_fps": 30.3049,
+        "average_reload_cycles": 33589,
+        "worst_reload_cycles": 36081,
+        "average_chunk_cycles": 31327,
+        "worst_chunk_cycles": 45558,
+        "average_collision_cycles": 59952,
+        "worst_collision_cycles": 94147,
         "budget_cycles": 800000
       },
       {
         "workload": "dense_collision",
         "frames": 30,
-        "average_cycles": 200712,
-        "worst_cycles": 203023,
-        "average_render_display_cycles": 85654,
-        "observed_fps": 30.303,
-        "average_reload_cycles": 27698,
-        "worst_reload_cycles": 27718,
-        "average_chunk_cycles": 16570,
-        "worst_chunk_cycles": 16625,
-        "average_collision_cycles": 57953,
-        "worst_collision_cycles": 59956,
+        "average_cycles": 220328,
+        "worst_cycles": 223397,
+        "average_render_display_cycles": 94020,
+        "observed_fps": 30.3013,
+        "average_reload_cycles": 30410,
+        "worst_reload_cycles": 30472,
+        "average_chunk_cycles": 18095,
+        "worst_chunk_cycles": 18239,
+        "average_collision_cycles": 63696,
+        "worst_collision_cycles": 66672,
         "budget_cycles": 800000
       },
       {
         "result": "PASS",
-        "scenario": "16x16 world, sign, menus, save/restart and scrolling"
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+      },
+      {
+        "workload": "fxc_idle_grove",
+        "frames": 30,
+        "average_cycles": 262213,
+        "worst_cycles": 281869,
+        "average_render_display_cycles": 114806,
+        "observed_fps": 30.3047,
+        "average_reload_cycles": 35865,
+        "worst_reload_cycles": 36056,
+        "average_chunk_cycles": 34224,
+        "worst_chunk_cycles": 35170,
+        "average_collision_cycles": 62549,
+        "worst_collision_cycles": 82194,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "fxc_pixel_scroll",
+        "frames": 30,
+        "average_cycles": 239296,
+        "worst_cycles": 293136,
+        "average_render_display_cycles": 100330,
+        "observed_fps": 30.3049,
+        "average_reload_cycles": 33589,
+        "worst_reload_cycles": 36081,
+        "average_chunk_cycles": 31327,
+        "worst_chunk_cycles": 45558,
+        "average_collision_cycles": 59952,
+        "worst_collision_cycles": 94147,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "fxc_dense_collision",
+        "frames": 30,
+        "average_cycles": 220328,
+        "worst_cycles": 223397,
+        "average_render_display_cycles": 94020,
+        "observed_fps": 30.3013,
+        "average_reload_cycles": 30410,
+        "worst_reload_cycles": 30472,
+        "average_chunk_cycles": 18095,
+        "worst_chunk_cycles": 18239,
+        "average_collision_cycles": 63696,
+        "worst_collision_cycles": 66672,
+        "budget_cycles": 800000
+      },
+      {
+        "result": "PASS",
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
       }
     ],
     "elf_sha256": {
-      "m0_proof": "9f298943a5ee5ed0d6e739393473348d3e5fc07d95e4667be2656c8a54045905",
-      "rpg": "1d9e63b7fe7c3b3c6ac6bb5ed65fe20e0941a66a9e0836abca45efe0bcae272c",
-      "m15_probe": "83ac67a552ee301d255b9ad32213a0eacd2b5f837fad823b4a9c3bb0a8723011",
-      "m16_probe": "6f30939d0a0e2e7fce442b9ec6fa5db8feb1042aefffa3028089239ab1d4465d"
+      "m0_proof": "ec54076b5c5a4c7bbdd61b7bb3c09d6808d4a25342808302cf76f0a7e503028f",
+      "rpg": "11ad34d93a12823be07bec9c0acbbc45afe5eb20754a40d9cfec710ea4ee095c",
+      "m15_probe": "26270adc8ffe9af613404e933254c6febe466dbe4a02b87467c4bb7e9cf49ead",
+      "m16_probe": "28b12e726904b78a0f7e0a1053334e6813f7c0d69f52cced07e8e657634cc9fc"
     }
   },
   "profiles": {
@@ -373,7 +431,7 @@
         "adc_nondeterminism": false,
         "adc_seed": 3405691582,
         "eeprom_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
-        "elf_sha256": "9f298943a5ee5ed0d6e739393473348d3e5fc07d95e4667be2656c8a54045905",
+        "elf_sha256": "ec54076b5c5a4c7bbdd61b7bb3c09d6808d4a25342808302cf76f0a7e503028f",
         "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "image_sha256": "e99c9ac748c03b6fde65ac5bf4304c1fd033fc1c03a9d290d397e2f596df4cae",
         "interpreter_sha256": "3c3e32fe3cc61221abb2d42d5b0e9dce281ca2eca421429095333b93bb0470be",
@@ -383,26 +441,26 @@
     "rpg": {
       "window": {
         "complete": true,
-        "completed_cycles": "128000066",
+        "completed_cycles": "128000031",
         "discontinuities": "0",
-        "end_cycle": "152487373",
-        "end_pc": 869,
+        "end_cycle": "152475323",
+        "end_pc": 9400,
         "native": true,
-        "native_active_cycles": "56785644",
-        "native_elapsed_cycles": "128000066",
+        "native_active_cycles": "105635763",
+        "native_elapsed_cycles": "128000031",
         "partial_cycles": "0",
-        "requested_end_cycle": "152487307",
-        "start_cycle": "24487307",
-        "start_pc": 904,
+        "requested_end_cycle": "152475292",
+        "start_cycle": "24475292",
+        "start_pc": 10166,
         "stop_reason": "deadline"
       },
       "identity": {
         "adc_nondeterminism": false,
         "adc_seed": 3405691582,
         "eeprom_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
-        "elf_sha256": "1d9e63b7fe7c3b3c6ac6bb5ed65fe20e0941a66a9e0836abca45efe0bcae272c",
+        "elf_sha256": "11ad34d93a12823be07bec9c0acbbc45afe5eb20754a40d9cfec710ea4ee095c",
         "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "image_sha256": "9d2d7563b350646f105f1c67f40baee31db2dd5b78cb168d246fa631452fc40a",
+        "image_sha256": "f066687f687e987d15ccb7ec8a018250a7dd107f1d63094f049fc17f797ab809",
         "interpreter_sha256": "3c3e32fe3cc61221abb2d42d5b0e9dce281ca2eca421429095333b93bb0470be",
         "usb_bus_state": 1
       }
@@ -415,5 +473,5 @@
   "npc_capacity": 8,
   "npc_bytes": 18,
   "pool_bytes": 156,
-  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-98dkt50g"
+  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-3_oog24g"
 }

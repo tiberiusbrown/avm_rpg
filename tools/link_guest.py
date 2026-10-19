@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--compiler", required=True)
 parser.add_argument("--image", required=True)
 parser.add_argument("--output", required=True)
+parser.add_argument("--fxc-interpreter", type=Path)
 parser.add_argument("objects", nargs="+")
 args = parser.parse_args()
 elf = Path(args.output)
@@ -32,20 +33,27 @@ result = inspect(elf, run.stdout)
 inspect_lto(args.compiler, elf)
 Path(str(elf) + ".resources.json").write_text(json.dumps(result, indent=2) + "\n")
 print(json.dumps(result, indent=2))
-subprocess.run(
-    [
-        args.image,
-        str(elf),
-        "-o",
-        str(elf.with_suffix(".arduboy")),
-        "--title",
-        "AVM Wayfarer " + elf.stem,
-        "--author",
-        "AVM RPG",
-        "--description",
-        "Pixel exploration technical core",
-        "--game-version",
-        "0.1",
-    ],
-    check=True,
-)
+packages = [(elf.with_suffix(".arduboy"), [])]
+if args.fxc_interpreter:
+    packages.append(
+        (elf.with_suffix(".fxc.arduboy"), ["--interpreter", str(args.fxc_interpreter)])
+    )
+for package, interpreter_options in packages:
+    subprocess.run(
+        [
+            args.image,
+            str(elf),
+            "-o",
+            str(package),
+            *interpreter_options,
+            "--title",
+            "AVM Wayfarer " + elf.stem,
+            "--author",
+            "AVM RPG",
+            "--description",
+            "Pixel exploration technical core",
+            "--game-version",
+            "0.1",
+        ],
+        check=True,
+    )

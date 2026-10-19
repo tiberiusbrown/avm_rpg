@@ -26,7 +26,7 @@ def main():
     build = args.build.resolve()
     work = Path((build / "latest-verification.txt").read_text().strip())
     result = json.loads((work / "results.json").read_text())
-    assert result["result"] == "PASS" and result["full_device"]
+    assert result["result"] == "PASS" and result["full_device"] and result["full_device_fxc"]
     resources, artifacts, lto, stack_reports = {}, {}, {}, {}
     for name in GUESTS:
         elf = build / "artifacts" / f"{name}.elf"
@@ -40,6 +40,9 @@ def main():
             path = elf.with_suffix("." + extension)
             artifacts[path.name] = dict(sha256=digest(path), bytes=path.stat().st_size)
     assert digest(ROOT / "rpg.arduboy") == artifacts["rpg.arduboy"]["sha256"]
+    fxc = build / "artifacts" / "rpg.fxc.arduboy"
+    artifacts[fxc.name] = dict(sha256=digest(fxc), bytes=fxc.stat().st_size)
+    assert digest(ROOT / fxc.name) == artifacts[fxc.name]["sha256"]
     files = [
         ROOT / name
         for name in ("CMakeLists.txt", "AGENTS.md", "README.md", ".clang-format")
@@ -149,8 +152,8 @@ def main():
             )
     lines += [
         "",
-        "Eight CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,",
-        "chunk_world, tiled_pipeline, generated_assets and content. Pipeline tests check",
+        "Nine CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,",
+        "chunk_world, tiled_pipeline, generated_assets, content and peaceful_music. Pipeline tests check",
         "every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,",
         "padding, maximum map dimensions, chunk relocation and default handlers.\n",
         "```text",
@@ -158,9 +161,12 @@ def main():
         "```",
         "",
         f"AVM guest checks: {result['guest_checks']}.",
-        "Full-device PASS covers actual buttons, two sample NPCs, sign dialogue,",
+        "Full-device PASS for FX and FX-C covers actual buttons, two sample NPCs, sign dialogue,",
         "paused simulation, menus/status, physical FX save/restart, corrupt-save",
         "rejection, terrain scrolling and actual masked actor overlap pixels.",
+        "Audio checks verify silent titles, audible unclipped PWM after New Game and",
+        "Continue, and uninterrupted playback through dialogue and menus. Exploration",
+        "measurements include music. The A2 score test decodes two full 48-second loops.",
         "Both source profile windows are complete. The render sort needs at most nine",
         "byte indices and 36 comparisons/shifts, with no added persistent RAM.",
         "The 59,520-byte fixture reaches chunk 1859 and byte offset 59519. The NPC probe",
@@ -170,7 +176,7 @@ def main():
         "The earlier map had different handlers and NPCs. Timing comparisons cannot",
         "isolate tile size from the simultaneous content reset. Observed maxima are",
         "sample bounds, not a universal worst-case timing proof. Physical hardware",
-        "and audio-enabled workloads remain unverified.\n",
+        "remains unverified.\n",
         "From the RPG root:\n",
         "```powershell",
         "./tools/build.ps1 -SdkRoot ../../build/avm-sdk-install",

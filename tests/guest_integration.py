@@ -134,7 +134,11 @@ def main():
         "rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests"
     )
     if device.exists():
-        for name, mode in [("m0_proof", "proof"), ("rpg", "normal")]:
+        for name, mode, variant in [
+            ("m0_proof", "proof", ""),
+            ("rpg", "normal", ""),
+            ("rpg", "fxc", ".fxc"),
+        ]:
             refs = symbols(artifacts / f"{name}.elf")
             addresses = (
                 [0, refs["proof_marker"]["address"], refs["proof_serial"]["address"]]
@@ -146,7 +150,7 @@ def main():
             output = run(
                 [
                     device,
-                    artifacts / f"{name}.arduboy",
+                    artifacts / f"{name}{variant}.arduboy",
                     *addresses,
                     work / mode,
                     mode,
@@ -155,9 +159,14 @@ def main():
                 ],
                 work / f"{mode}.log",
             )
-            measurements += [
+            device_measurements = [
                 json.loads(row) for row in output.splitlines() if row.startswith("{")
             ]
+            if mode == "fxc":
+                for measurement in device_measurements:
+                    if "workload" in measurement:
+                        measurement["workload"] = "fxc_" + measurement["workload"]
+            measurements += device_measurements
         (work / "measurements.json").write_text(
             json.dumps(measurements, indent=2) + "\n"
         )
@@ -199,6 +208,7 @@ def main():
         "procedural_screen_calls": True,
         "m0_execution_and_drawing": True,
         "full_device": device.exists(),
+        "full_device_fxc": device.exists(),
         "guest_checks": guest_checks,
         "measurements": measurements,
         "elf_sha256": {

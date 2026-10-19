@@ -1,15 +1,15 @@
 # 16x16 measured evidence
 
-Measured 2026-10-18 in RelWithDebInfo; existing MSVC/Ninja and AVM SDK.
-Source fingerprint `1168820e2a02b95ab5b201c29afb5589136ae427fc980b9700ec30723d797b0e`. Changes remain uncommitted.
+Measured 2026-10-19 in RelWithDebInfo; existing MSVC/Ninja and AVM SDK.
+Source fingerprint `200a834669fc7085d5d2174a8f5188fe74d441453fb9ac8f37367d694a6c2e6e`. Changes remain uncommitted.
 Exact source/package hashes, complete link paths and LTO checks are in
 [tiles16_evidence.json](tiles16_evidence.json). Raw LLDB logs, PGM captures
-and complete source profiles remain in `build/verification-98dkt50g`.
+and complete source profiles remain in `build/verification-3_oog24g`.
 
 | Guest | saved | ordinary RAM | total static / 1024 | code | PROGMEM | complete stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
 | m0_proof | 0 | 12 | 12 | 489 | 1017 | 30 |
-| rpg | 24 | 242 | 266 | 10701 | 22019 | 171 |
+| rpg | 24 | 242 | 266 | 10782 | 24334 | 171 |
 | m15_probe | 0 | 263 | 263 | 7794 | 59841 | 174 |
 | m16_probe | 0 | 238 | 238 | 23549 | 321 | 219 |
 
@@ -27,12 +27,15 @@ is 800,000 cycles, checked on every observed exploration frame.
 | Workload | frames | average cycles | worst observed | render/display | FPS |
 |---|---:|---:|---:|---:|---:|
 | m0_proof | 30 | 33,654 | 33,673 | 19095 | 20.0001 |
-| idle_grove | 30 | 239,126 | 254,673 | 104610 | 30.3028 |
-| pixel_scroll | 30 | 218,019 | 267,119 | 91404 | 30.3033 |
-| dense_collision | 30 | 200,712 | 203,023 | 85654 | 30.303 |
+| idle_grove | 30 | 262,213 | 281,869 | 114806 | 30.3047 |
+| pixel_scroll | 30 | 239,296 | 293,136 | 100330 | 30.3049 |
+| dense_collision | 30 | 220,328 | 223,397 | 94020 | 30.3013 |
+| fxc_idle_grove | 30 | 262,213 | 281,869 | 114806 | 30.3047 |
+| fxc_pixel_scroll | 30 | 239,296 | 293,136 | 100330 | 30.3049 |
+| fxc_dense_collision | 30 | 220,328 | 223,397 | 94020 | 30.3013 |
 
-Eight CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
-chunk_world, tiled_pipeline, generated_assets and content. Pipeline tests check
+Nine CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
+chunk_world, tiled_pipeline, generated_assets, content and peaceful_music. Pipeline tests check
 every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,
 padding, maximum map dimensions, chunk relocation and default handlers.
 
@@ -45,9 +48,12 @@ PASS independent NPC lifecycle policy: 20 checks
 ```
 
 AVM guest checks: {'m15_probe': 72, 'm16_probe': 5448}.
-Full-device PASS covers actual buttons, two sample NPCs, sign dialogue,
+Full-device PASS for FX and FX-C covers actual buttons, two sample NPCs, sign dialogue,
 paused simulation, menus/status, physical FX save/restart, corrupt-save
 rejection, terrain scrolling and actual masked actor overlap pixels.
+Audio checks verify silent titles, audible unclipped PWM after New Game and
+Continue, and uninterrupted playback through dialogue and menus. Exploration
+measurements include music. The A2 score test decodes two full 48-second loops.
 Both source profile windows are complete. The render sort needs at most nine
 byte indices and 36 comparisons/shifts, with no added persistent RAM.
 The 59,520-byte fixture reaches chunk 1859 and byte offset 59519. The NPC probe
@@ -58,7 +64,7 @@ independent native hooks additionally cover route behavior.
 The earlier map had different handlers and NPCs. Timing comparisons cannot
 isolate tile size from the simultaneous content reset. Observed maxima are
 sample bounds, not a universal worst-case timing proof. Physical hardware
-and audio-enabled workloads remain unverified.
+remains unverified.
 
 From the RPG root:
 

@@ -45,6 +45,11 @@ struct Device {
 
     Device(fs::path const& package, unsigned g, unsigned m, unsigned s, unsigned q, bool p = false)
         : game_addr(g), marker_addr(m), serial_addr(s), dialogue_addr(q), proof(p) {
+        if(package.stem().extension() == ".fxc") {
+            ab->program_state.cfg.fxport_reg = absim::reg::addr::PORTE;
+            ab->program_state.cfg.fxport_mask = absim::reg::bit::PORTE::PORTE2;
+        }
+
         std::ifstream f(package, std::ios::binary);
         auto error = ab->load_file(package.string().c_str(), f);
         if(!error.empty())
@@ -140,6 +145,25 @@ struct Device {
         uint64_t end = ab->core_state.cpu.cycle_count + cycles;
         while(ab->core_state.cpu.cycle_count < end)
             step();
+    }
+
+    bool music_enabled() const {
+        return (ab->core_state.cpu.data[absim::reg::addr::TIMSK3] & 2) != 0;
+    }
+
+    void verify_music() {
+        require(music_enabled(), "music sample timer is disabled");
+        uint8_t low = 255, high = 0;
+        buttons = 0;
+        uint64_t end = ab->core_state.cpu.cycle_count + 1600000;
+        while(ab->core_state.cpu.cycle_count < end) {
+            step();
+            auto sample = ab->core_state.cpu.data[absim::reg::addr::OCR4A];
+            low = std::min(low, sample);
+            high = std::max(high, sample);
+        }
+        require(low < 128 && high > 128, "music produced no audible PWM waveform");
+        require(low != 0 && high != 255, "peaceful music clipped the PWM output");
     }
 
     void frame(uint8_t held = 0) {
@@ -329,7 +353,7 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
 
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
-                       "output_directory normal|proof dialogue_address phase_address");
+                       "output_directory normal|fxc|proof dialogue_address phase_address");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
@@ -345,9 +369,11 @@ int main(int argc, char** argv) try {
 
     d.advance(0, 3200000);
     require(d.serial() == 0, "title unexpectedly advanced exploration");
+    require(!d.music_enabled(), "music started before a game was selected");
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
+    d.verify_music();
     require(d.state().player.x == 112 && d.state().player.y == 80, "wrong 16x16 spawn");
     require(d.state().dimensions.width_tiles == 18 && d.state().dimensions.height_tiles == 12,
             "wrong sample map dimensions");
@@ -368,6 +394,7 @@ int main(int argc, char** argv) try {
     auto paused = d.state();
     require(dialogue_serial == d.serial() && !memcmp(&frozen, &paused, sizeof(Game)),
             "sign dialogue did not freeze simulation");
+    d.verify_music();
     d.capture(out / "sign-dialogue.pgm");
     for(unsigned i = 0; i < 8 && d.prompt() != DIALOGUE_CLOSED; ++i)
         d.tap(BTN_A);
@@ -380,6 +407,7 @@ int main(int argc, char** argv) try {
     auto after_wait = d.state();
     require(d.serial() == menu_serial && !memcmp(&menu_state, &after_wait, sizeof(Game)),
             "menu did not pause exploration");
+    d.verify_music();
     d.capture(out / "menu.pgm");
     d.tap(BTN_A);
     d.capture(out / "status.pgm");
@@ -397,6 +425,7 @@ int main(int argc, char** argv) try {
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
     require(restarted.serial() == 0, "restart did not show title");
+    require(!restarted.music_enabled(), "music started on the continue title");
     restarted.tap(BTN_DOWN);
     restarted.tap(BTN_A);
     auto loaded = restarted.state();
@@ -404,6 +433,7 @@ int main(int argc, char** argv) try {
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y &&
                 loaded.gold == saved.gold,
             "fresh emulator save/load mismatch");
+    restarted.verify_music();
     restarted.capture(out / "restarted.pgm");
     restarted.hold(BTN_DOWN, 20);
     require(restarted.state().player.y > saved.player.y, "16x16 pixel movement failed");
@@ -418,8 +448,9 @@ int main(int argc, char** argv) try {
     corrupt.tap(BTN_DOWN);
     corrupt.tap(BTN_A);
     require(corrupt.serial() == 0, "corrupt save accepted");
+    require(!corrupt.music_enabled(), "failed continue started music");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
-                 "scrolling\"}\n";
+                 "scrolling with peaceful music\"}\n";
     return 0;
 } catch(std::exception const& error) {
 

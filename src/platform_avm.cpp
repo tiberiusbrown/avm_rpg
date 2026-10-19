@@ -1,6 +1,9 @@
 #include "rpg.h"
 
 #include <avm.h>
+#include "peaceful_music.h"
+
+constexpr uint8_t MUSIC_MASTER_VOLUME = 64;
 
 uint8_t saved_record[SAVE_BYTES] __attribute__((section(".saved"))) = {0};
 
@@ -49,5 +52,7 @@ extern "C" void setup() {
 
 extern "C" void loop() {
     title_screen();
+    avm_audio_music_volume(MUSIC_MASTER_VOLUME);
+    avm_audio_play(PEACEFUL_MUSIC, sizeof(PEACEFUL_MUSIC));
     explore();
 }
