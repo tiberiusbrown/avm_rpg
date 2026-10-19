@@ -5,13 +5,14 @@ alpha-masked characters. D-pad moves, A reads the sign immediately north of the
 starting position, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
-Starting New Game or Continue plays **Dewlight Waltz**, an original 48-second
-loop in C major, in 3/4 at 60 BPM. Its soft sine melody and bass sit over quiet
-triangle arpeggios, with gentle attacks and releases. Music continues through
+Starting New Game or Continue plays **Dewlight Skip**, an original 30.72-second
+loop in C major, in 4/4 at 125 BPM. A high, detached sine melody overlaps an
+independent triangle countermelody. Tiny descending triangle notes mark each beat;
+there are no block chords or sustained bass notes. Music continues through
 dialogue and menus; the title screen stays silent.
-The melody peaks at the maximum encoded channel level (31), with proportionally
-quieter accompaniment. `MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` controls
-overall music gain and defaults to 32 (100%).
+The melody peaks at channel level 26, the counterline at 11 and beat accents at 14.
+`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` controls overall music gain
+and is currently 64 (200%); short overlaps preserve digital mixer headroom.
 
 The old outdoor/interior/hall maps and their quests have been replaced by one
 18x12-tile forest clearing. **This development build rejects saves from versions

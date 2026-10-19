@@ -59,7 +59,9 @@ the stream. Timing, status flags, transmitted bytes and received bytes use upstr
 Ardens behavior without an emulation workaround.
 Audio checks verify silent titles, audible unclipped PWM after New Game and
 Continue, and uninterrupted playback through dialogue and menus. Exploration
-measurements include music. The A2 score test decodes two full 48-second loops.
+measurements include music. The A2 score test decodes two full 30.72-second
+loops of Dewlight Skip and checks the high register, short gates, steady beat
+and independent melodic lines without a sustained chord bed.
 Both source profile windows are complete. The render sort needs at most nine
 byte indices and 36 comparisons/shifts, with no added persistent RAM.
 The 59,520-byte fixture reaches chunk 1859 and byte offset 59519. The NPC probe

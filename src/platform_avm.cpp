@@ -3,7 +3,7 @@
 #include <avm.h>
 #include "peaceful_music.h"
 
-constexpr uint8_t MUSIC_MASTER_VOLUME = 64;
+constexpr uint8_t MUSIC_MASTER_VOLUME = 128;
 
 uint8_t saved_record[SAVE_BYTES] __attribute__((section(".saved"))) = {0};
 
