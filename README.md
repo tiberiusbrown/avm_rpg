@@ -5,25 +5,43 @@ alpha-masked characters. D-pad moves, A reads the sign immediately north of the
 starting position, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
-Starting New Game or Continue plays **The Legend of Zelda — Overworld**,
-transcribed from the supplied `assets/music/z1overw.mid` (MIDI arrangement credited
-to Jeffrey M Colletti). The complete 24-bar arrangement loops in 38.92 seconds,
-in B-flat major and 4/4 at approximately 148 BPM. Two pulse voices carry melody
-and harmony, with triangle bass and noise snare. All 455 pitched notes retain
-their original pitches and onsets, including triplets and the bass's high
-arpeggios; all 137 snare hits preserve the MIDI rhythm.
-Gate fractions preserve MIDI articulation at the engine's 4 ms resolution;
-five same-pitch harmony overlaps retrigger, and the final bass release is one
-tick early to finish before Loop. Automatic envelopes approximate NES timbres.
-MIDI drum ID 38 selects the snare; it maps to a high noise rate rather than D2.
+The soundtrack contains six original, peaceful looping songs. The town MIDI
+informed their unhurried pacing and sustained, singing phrases; its melody
+was not transcribed. Each new tune has a two-bar refrain that returns at bars
+5 and 13, a contrasting middle section, and a final tonic cadence. Lead notes
+are held across beats, with quiet plucks, answering phrases, and a gentle bass
+pulse. The upper-register melodies sit above their accompaniment.
+The previous songs and all project MIDI files have been removed.
+
+| Song | Character | Key / meter | BPM | Loop |
+|---|---|---|---:|---:|
+| Dewlight Grove | Falling woodland refrain with a gentle rocking bass; the default | A-flat major, 4/4 | 104 | 36.924 s |
+| Lantern Square | Tender dotted call, offbeat plucks, and faint brushed taps | C major, 4/4 | 108 | 35.556 s |
+| Sunward Road | Soft rising call over a light walking pulse | G major, 4/4 | 112 | 34.284 s |
+| Clockwork Hollow | Wistful minor melody, short answers, and a quiet clock tick | A minor, 4/4 | 100 | 38.400 s |
+| Moonlit Quay | Spacious night song with late-bar answering notes | D minor, 4/4 | 90 | 42.668 s |
+| Homeward Stars | Consoling upward fourth, gentle counterline, and a descent home | E-flat major, 4/4 | 100 | 38.400 s |
+
+Press **B**, choose **Switch music** (or press Up from Status), and press **A**
+to advance through this order. The selected title appears in the menu footer;
+after Homeward Stars, selection wraps to Dewlight Grove. New Game and Continue
+start with Dewlight Grove; the selection lasts for the current session.
 Music continues through dialogue and menus; the title screen stays silent.
-Channel levels peak at 11 for melody, 8 for harmony, 10 for bass, and 2 for snare.
-`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` controls overall music gain
-and is currently 128 (400%); the four-voice mix stays within digital headroom.
-The score is `assets/music/peaceful.avms`; repeated bars use named phrases,
-and `8*2/3` denotes a triplet eighth. The MIDI is retained as a transcription
-reference, and the score test compares every encoded pitch, onset, and release
-against it over two loops.
+
+Five songs use a sustained triangle lead; Moonlit Quay uses a sine lead.
+Sunward Road has a softer attack, a lower held-note level, and harmony that
+supports its sustained melody notes. Sine plucks and short counterlines stay
+below the lead in register and volume. Bass notes pulse or alternate with fifths;
+Moonlit Quay retains more sustained bass for its quieter character. Lantern
+Square, Sunward Road, and Clockwork Hollow add very brief noise taps at volume 1.
+The other songs silence the noise voice.
+
+Authored attack/release envelopes soften note transitions. Every song restores
+all four channels on entry and finishes its release tails before Loop.
+`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` remains 128 (400%); peak mixer
+amplitudes range from 100 to 108 out of 127. The score test checks two complete
+loops of every song, all note attacks, musical duration, state resets, and
+mixer headroom.
 
 The old outdoor/interior/hall maps and their quests have been replaced by one
 18x12-tile forest clearing. **This development build rejects saves from versions
@@ -34,8 +52,9 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 - `assets_src/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
 - `assets_src/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
-- `assets/music/peaceful.avms`: editable note score with reusable instrument envelopes; the SDK's `avm_music.py` encoder
-  rebuilds `generated/peaceful_music.h` during guest builds.
+- `assets/music/*.avms`: six editable original scores with named phrases and
+  reusable instrument envelopes. `tools/generate_music.py` uses the SDK's
+  `avm_music.py` encoder to rebuild `generated/music.h` and `music_catalog.h`.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
 - `rpg.fxc.arduboy`: Arduboy FX-C package, built from the same game with FX-C

@@ -1,9 +1,16 @@
 #include "rpg.h"
 
 #include <avm.h>
-#include "peaceful_music.h"
+#include "music.h"
 
 constexpr uint8_t MUSIC_MASTER_VOLUME = 128;
+static uint8_t music_selection;
+
+char const PROGMEM* music_next() {
+    music_selection = (uint8_t)((music_selection + 1) % MUSIC_COUNT);
+    avm_audio_play(MUSIC_TRACKS[music_selection].data);
+    return MUSIC_TRACKS[music_selection].title;
+}
 
 uint8_t saved_record[SAVE_BYTES] __attribute__((section(".saved"))) = {0};
 
@@ -53,6 +60,7 @@ extern "C" void setup() {
 extern "C" void loop() {
     title_screen();
     avm_audio_music_volume(MUSIC_MASTER_VOLUME);
-    avm_audio_play(PEACEFUL_MUSIC);
+    music_selection = MUSIC_DEWLIGHT_GROVE;
+    avm_audio_play(MUSIC_TRACKS[music_selection].data);
     explore();
 }

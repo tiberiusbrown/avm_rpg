@@ -4,6 +4,10 @@ Measured 2026-10-19 using Ardens, unmerged AVR instructions, a 16 MHz CPU,
 and RelWithDebInfo builds. These are calibrated emulator measurements; they
 exclude physical PLL/carrier jitter, pin transitions and analog speaker behavior.
 
+The detailed comparisons below are archived experiments made with the former
+soundtrack. The game now uses six original compositions; current package hashes,
+resource counts, and playback checks are in [the current evidence](tiles16_measurements.md).
+
 ## Selected implementation
 
 Audio uses **Timer1 COMPA** with prescaler 8 and `OCR1A=127`: **15,625 Hz output**,
@@ -21,7 +25,7 @@ Startup clears the Timer0/Timer1 power gates and stops/masks Timer3, including
 clearing its speaker-pin ownership. Native tests seed inherited timer settings
 and check simultaneous pending Timer0/Timer1 arbitration.
 
-The current packages match the [event-buffer data](audio_timing_data/event-buffer.json).
+The selected firmware is documented by the [event-buffer data](audio_timing_data/event-buffer.json).
 The [original cached Timer1 data](audio_timing_data/timer1.json), Timer3 baseline,
 and unified experiment remain as references for the comparisons below.
 

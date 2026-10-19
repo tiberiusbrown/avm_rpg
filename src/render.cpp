@@ -58,10 +58,11 @@ void render_menu(uint8_t selection, char const PROGMEM* feedback) {
     panel();
     avm_draw_text(6, 11, F("TRAVEL MENU"));
 
-    avm_draw_text(22, 25, F("Status"));
-    avm_draw_text(22, 35, F("Save game"));
-    avm_draw_text(22, 45, F("Return"));
-    avm_draw_text(8, (int16_t)(25 + selection * 10), F(">"));
+    avm_draw_text(22, 22, F("Status"));
+    avm_draw_text(22, 31, F("Save game"));
+    avm_draw_text(22, 40, F("Return"));
+    avm_draw_text(22, 49, F("Switch music"));
+    avm_draw_text(8, (int16_t)(22 + selection * 9), F(">"));
 
     avm_draw_text(6, 58, feedback ? feedback : F("A select / B back"));
 }

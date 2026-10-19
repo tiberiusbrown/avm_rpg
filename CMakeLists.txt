@@ -126,14 +126,21 @@ if(RPG_BUILD_GUEST)
     if(NOT EXISTS "${RPG_MUSIC_COMPILER}")
         set(RPG_MUSIC_COMPILER "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/avm_music.py")
     endif()
-    set(MUSIC_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/generated/peaceful_music.h")
-    add_custom_command(OUTPUT "${MUSIC_OUTPUT}"
+    set(MUSIC_OUTPUTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/generated/music.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/generated/music_catalog.h")
+    file(GLOB MUSIC_SCORES CONFIGURE_DEPENDS assets/music/*.avms)
+    add_custom_command(OUTPUT ${MUSIC_OUTPUTS}
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_music.py"
             --compiler "${RPG_MUSIC_COMPILER}"
-        DEPENDS tools/generate_music.py assets/music/peaceful.avms "${RPG_MUSIC_COMPILER}"
+        DEPENDS tools/generate_music.py ${MUSIC_SCORES} "${RPG_MUSIC_COMPILER}"
         VERBATIM)
-    add_custom_target(rpg_music DEPENDS "${MUSIC_OUTPUT}")
-    add_test(NAME peaceful_music COMMAND ${Python3_EXECUTABLE}
+    add_custom_target(rpg_music DEPENDS ${MUSIC_OUTPUTS})
+    if(TARGET rpg_device_tests)
+        add_dependencies(rpg_device_tests rpg_music)
+        add_dependencies(rpg_audio_timing_tests rpg_music)
+    endif()
+    add_test(NAME original_music COMMAND ${Python3_EXECUTABLE}
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_music.py" --compiler "${RPG_MUSIC_COMPILER}")
     function(guest name)
         set(objects)
@@ -143,7 +150,7 @@ if(RPG_BUILD_GUEST)
             set(defines -DRPG_AVM=1)
             set(source_dependencies)
             if(source STREQUAL "src/platform_avm.cpp")
-                list(APPEND source_dependencies "${MUSIC_OUTPUT}")
+                list(APPEND source_dependencies ${MUSIC_OUTPUTS})
             endif()
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"

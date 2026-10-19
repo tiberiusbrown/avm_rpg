@@ -1,15 +1,15 @@
 # 16x16 measured evidence
 
 Measured 2026-10-19 in RelWithDebInfo; existing MSVC/Ninja and AVM SDK.
-Source fingerprint `e5188bf14afbf0c07a36b49a4791a2a38e2e5afb7b566b9b08da2a664830e291`.
+Source fingerprint `e6f520aba316d56d0c4b5b8e59a219da8c20345c508cb54bcef82209677bde9b`.
 Exact source/package hashes, complete link paths and LTO checks are in
 [tiles16_evidence.json](tiles16_evidence.json). Raw LLDB logs, PGM captures
-and complete source profiles remain in `build/verification-8awecy2f`.
+and complete source profiles remain in `build/verification-48u7f5h2`.
 
 | Guest | saved | ordinary RAM | total static / 1024 | code | PROGMEM | complete stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
 | m0_proof | 0 | 12 | 12 | 489 | 1017 | 30 |
-| rpg | 24 | 242 | 266 | 10779 | 27571 | 171 |
+| rpg | 24 | 243 | 267 | 11051 | 39700 | 171 |
 | m15_probe | 0 | 263 | 263 | 7794 | 59841 | 174 |
 | m16_probe | 0 | 238 | 238 | 23549 | 321 | 219 |
 
@@ -28,15 +28,15 @@ the proof targets 20 FPS. All measured RPG frames also meet the 33 ms interval.
 | Workload | frames | average cycles | worst observed | render/display | FPS |
 |---|---:|---:|---:|---:|---:|
 | m0_proof | 30 | 33,660 | 33,679 | 19098 | 20.0001 |
-| idle_grove | 30 | 280,529 | 296,296 | 118828 | 30.3033 |
-| pixel_scroll | 30 | 257,077 | 326,809 | 105209 | 30.3019 |
-| dense_collision | 30 | 227,842 | 230,239 | 97287 | 30.3023 |
-| fxc_idle_grove | 30 | 280,529 | 296,296 | 118828 | 30.3033 |
-| fxc_pixel_scroll | 30 | 257,077 | 326,809 | 105209 | 30.3019 |
-| fxc_dense_collision | 30 | 227,842 | 230,239 | 97287 | 30.3023 |
+| idle_grove | 30 | 280,844 | 294,885 | 118907 | 30.3034 |
+| pixel_scroll | 30 | 257,021 | 325,554 | 105360 | 30.3049 |
+| dense_collision | 30 | 227,970 | 230,569 | 97316 | 30.3044 |
+| fxc_idle_grove | 30 | 280,844 | 294,885 | 118907 | 30.3034 |
+| fxc_pixel_scroll | 30 | 257,021 | 325,554 | 105360 | 30.3049 |
+| fxc_dense_collision | 30 | 227,970 | 230,569 | 97316 | 30.3044 |
 
 Ten CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
-chunk_world, tiled_pipeline, generated_assets, content, peaceful_music and audio_timing. Pipeline tests check
+chunk_world, tiled_pipeline, generated_assets, content, original_music and audio_timing. Pipeline tests check
 every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,
 padding, maximum map dimensions, chunk relocation and default handlers.
 
@@ -60,11 +60,10 @@ the stream. Timing, status flags, transmitted bytes and received bytes use upstr
 Ardens behavior without an emulation workaround.
 Audio checks verify silent titles, audible unclipped PWM after New Game and
 Continue, and uninterrupted playback through dialogue and menus. Exploration
-measurements include music. The A2 score test decodes two full 38.92-second
-loops of the Zelda Overworld transcription and compares all 455 pitched notes
-and 137 drum hits against the supplied MIDI, including onsets and releases.
-It allows same-pitch retriggers and one early final release, and also checks
-repeatability and mixer headroom.
+measurements include music. The A2 score test decodes two complete loops of
+each of the six original songs, checking every note attack, exact musical
+duration, clean release tails, full channel resets, repeatability and mixer
+headroom. Full-device QA cycles through all six songs and back to the default.
 Both source profile windows are complete. The render sort needs at most nine
 byte indices and 36 comparisons/shifts, with no added persistent RAM.
 The 59,520-byte fixture reaches chunk 1859 and byte offset 59519. The NPC probe

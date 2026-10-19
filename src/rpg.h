@@ -164,6 +164,7 @@ void menu_screen();
 void status_screen();
 bool game_save();
 bool game_load();
+char const PROGMEM* music_next();
 
 extern uint8_t const PROGMEM TILE_SPRITES[];
 extern uint8_t const PROGMEM ACTOR_SPRITES[];

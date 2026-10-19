@@ -14,6 +14,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from elf import symbols
+from generate_music import SONGS
 
 
 def rows(path):
@@ -67,7 +68,9 @@ def main():
         identity[variant] = dict(package_sha256=hashlib.sha256(package.read_bytes()).hexdigest(),
                                  firmware_sha256=hashlib.sha256(actual).hexdigest(),
                                  guest_image_sha256=guest_hash,
-                                 score_sha256=hashlib.sha256((ROOT / "assets/music/peaceful.avms").read_bytes()).hexdigest())
+                                 score_sha256={song: hashlib.sha256(
+                                     (ROOT / f"assets/music/{song}.avms").read_bytes()).hexdigest()
+                                     for song in SONGS})
 
     if args.analyze_only:
         assert json.loads((out / "summary.json").read_text())["identity"] == identity, "stale timing artifacts"
@@ -190,7 +193,7 @@ def plot(distributions, out):
             axes[row, column].set_ylabel("Interrupts (%) — logarithmic scale")
             axes[row, column].grid(alpha=.2)
             axes[row, column].legend(fontsize=8)
-    fig.suptitle("AVM RPG / Zelda playback — emulated Timer1 timing at 16 MHz\n"
+    fig.suptitle("AVM RPG / original soundtrack — emulated Timer1 timing at 16 MHz\n"
                  "1 cycle = 62.5 ns; output 15,625 Hz; synthesis 7,812.5 Hz", fontsize=13)
     fig.savefig(out / "audio-timing.png", dpi=160)
     fig.savefig(out / "audio-timing.svg")

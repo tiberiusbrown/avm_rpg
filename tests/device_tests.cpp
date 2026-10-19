@@ -7,6 +7,7 @@
 #include "rpg.h"
 #include "tile_ids.h"
 #pragma pack(pop)
+#include "music_catalog.h"
 
 #include <filesystem>
 #include <array>
@@ -185,7 +186,7 @@ struct Device {
             high = std::max(high, sample);
         }
         require(low < 128 && high > 128, "music produced no audible PWM waveform");
-        require(low != 0 && high != 255, "peaceful music clipped the PWM output");
+        require(low != 0 && high != 255, "music clipped the PWM output");
     }
 
     void frame(uint8_t held = 0) {
@@ -443,6 +444,20 @@ int main(int argc, char** argv) try {
             "menu did not pause exploration");
     d.verify_music();
     d.capture(out / "menu.pgm");
+    // Up wraps from Status to Switch music. Check every song and wrap back
+    // to the default while the world remains paused.
+    d.tap(BTN_UP);
+    for(unsigned song = 0; song < MUSIC_COUNT; ++song) {
+        d.tap(BTN_A);
+        d.verify_music();
+        d.capture(out / ("music-" + std::to_string((song + 1) % MUSIC_COUNT) + ".pgm"));
+    }
+    require(d.serial() == menu_serial, "switching music advanced simulation");
+    d.tap(BTN_B);
+    d.frame();
+    d.verify_music();
+    d.tap(BTN_B);
+    menu_serial = d.serial();
     d.tap(BTN_A);
     d.capture(out / "status.pgm");
     require(d.serial() == menu_serial, "status advanced simulation");
@@ -484,7 +499,7 @@ int main(int argc, char** argv) try {
     require(corrupt.serial() == 0, "corrupt save accepted");
     require(!corrupt.music_enabled(), "failed continue started music");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
-                 "scrolling with peaceful music\"}\n";
+                 "scrolling with all six original songs\"}\n";
     return 0;
 } catch(std::exception const& error) {
 

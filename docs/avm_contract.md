@@ -200,10 +200,11 @@ A fresh-device restart with the actual exported sector was exercised; see QA log
 `projects/audio_demo/main.c` expose autonomous three-tonal-plus-noise audio.
 `avm_audio_play` / `avm_audio_sfx` accept program pointers to terminating or looping songs;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
-and Timer1/Timer4 audio operation require no game update call. RPG starts its
-four-voice Zelda MIDI transcription after New Game or a successful Continue. The title
-leaves audio disabled; dialogue and menus let playback continue. Full-device
-integration checks PWM output and profiles exploration with music enabled.
+and Timer1/Timer4 audio operation require no game update call. RPG starts the
+original Dewlight Grove loop after New Game or a successful Continue. The travel
+menu cycles through six original songs. The title leaves audio disabled;
+dialogue and menus let playback continue. Full-device integration checks all
+six selections, PWM output, and exploration with music enabled.
 Listening on physical speakers remains **Unverified**.
 
 ## Compilation, resource reporting, debug and replay

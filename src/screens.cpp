@@ -48,16 +48,18 @@ __attribute__((noinline)) void menu_screen() {
         if(pressed & BTN_B)
             return;
         if(pressed & (BTN_DOWN | BTN_RIGHT))
-            selection = (uint8_t)((selection + 1) % 3);
+            selection = (uint8_t)((selection + 1) % 4);
         else if(pressed & (BTN_UP | BTN_LEFT))
-            selection = (uint8_t)((selection + 2) % 3);
+            selection = (uint8_t)((selection + 3) % 4);
         else if(pressed & BTN_A) {
             if(selection == 0)
                 status_screen();
             else if(selection == 1)
                 feedback = game_save() ? F("Saved and checked") : F("Save failed");
-            else
+            else if(selection == 2)
                 return;
+            else
+                feedback = music_next();
         }
     }
 }
