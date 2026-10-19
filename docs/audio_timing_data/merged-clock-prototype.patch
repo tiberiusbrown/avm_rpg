@@ -1,0 +1,137 @@
+--- a/interp/interp.asm
++++ b/interp/interp.asm
+@@ -16695,7 +16695,9 @@
+ .Laudio_resume:
+     lds  r24, data_audio_music+AUDIO_STATUS
+     cpi  r24, 2
+-    brne .Laudio_command_done
++    breq 1f
++    rjmp .Laudio_command_done
++1:
+     ldi  r24, 1
+ .Laudio_set_status:
+     sts  data_audio_music+AUDIO_STATUS, r24
+@@ -16728,6 +16730,8 @@
+     sts  TCCR4B, ZERO
+     cbi  PORTC, 6
+     cbi  PORTC, 7
++    ldi r24, _BV(OCIE0A)
++    sts TIMSK0, r24
+     out  SREG, r25
+     ; Consume any pending packet and publish silence with the reader stopped.
+     rcall audio_commit
+@@ -16759,6 +16763,7 @@
+     brne 1f
+     in   r25, SREG
+     cli
++    sts TIMSK0, ZERO
+     sts  TC4H, ZERO
+     ldi  r24, 128
+     sts  OCR4A, r24
+@@ -16832,52 +16837,41 @@
+ 
+ ; Timer0 compare-A fires once per millisecond. Preserve the interrupted native
+ ; state; the VM register file may be live in any AVR register when this runs.
++.macro merged_clock_body
++    lds r0, data_millis
++    inc r0
++    sts data_millis, r0
++    brne .Lmerged_divider\@
++    .irp n,1,2,3
++        lds r0, data_millis+\n
++        inc r0
++        sts data_millis+\n, r0
++        brne .Lmerged_divider\@
++    .endr
++.Lmerged_divider\@:
++    lds r0, data_audio_divider
++    inc r0
++    sts data_audio_divider, r0
++    sbrs r0, 2
++    rjmp .Lmerged_done\@
++    clr r0
++    sts data_audio_divider, r0
++    lds r0, data_audio_ticks_pending
++    inc r0
++    breq .Lmerged_done\@
++    sts data_audio_ticks_pending, r0
++.Lmerged_done\@:
++.endm
++
+ timer0_compa_isr:
+     push r0
+-    in   r0, SREG
++    in r0, SREG
+     push r0
+-
+-    lds  r0, data_millis+0
+-    inc  r0
+-    sts  data_millis+0, r0
+-    brne timer0_compa_isr_done
+-
+-    lds  r0, data_millis+1
+-    inc  r0
+-    sts  data_millis+1, r0
+-    brne timer0_compa_isr_done
+-
+-    lds  r0, data_millis+2
+-    inc  r0
+-    sts  data_millis+2, r0
+-    brne timer0_compa_isr_done
+-
+-    lds  r0, data_millis+3
+-    inc  r0
+-    sts  data_millis+3, r0
+-
+-timer0_compa_isr_done:
+-    ; Divide milliseconds by four without using another native register.
+-    ; INC/DEC implements saturation without needing an upper register.
+-    lds  r0, data_audio_divider
+-    inc  r0
+-    sts  data_audio_divider, r0
+-    sbrc r0, 2
+-    rjmp timer0_audio_tick
+-timer0_audio_done:
+-    pop  r0
+-    out  SREG, r0
+-    pop  r0
++    merged_clock_body
++    pop r0
++    out SREG, r0
++    pop r0
+     reti
+-
+-timer0_audio_tick:
+-    clr  r0 ; r2 can hold a temporary inside native libm
+-    sts  data_audio_divider, r0
+-    lds  r0, data_audio_ticks_pending
+-    inc  r0
+-    breq timer0_audio_done
+-    sts  data_audio_ticks_pending, r0
+-    rjmp timer0_audio_done
+ 
+ ; Timer1 COMPA (vector 17) arbitrates ahead of Timer0 COMPA (vector 21).
+ ; Output runs at 15625 Hz; alternate interrupts synthesize at 7812.5 Hz.
+@@ -16940,6 +16934,9 @@
+     push r27
+     push r30
+     push r31
++    sbic TIFR0, OCF0A
++    rjmp timer1_merged_clock
++timer1_merged_clock_done:
+     ; The PWM endpoint is already written. Fixed addressing keeps the normal
+     ; synthesis path unchanged apart from this four-cycle idle packet check.
+     lds  r20, data_audio_update
+@@ -17004,6 +17001,12 @@
+     pop  r0
+     reti
+ 
++timer1_merged_clock:
++    ldi r20, _BV(OCF0A)
++    out TIFR0, r20
++    merged_clock_body
++    rjmp timer1_merged_clock_done
++
+ audio_notes:
+     ; round(440 * 2^((MIDI-69)/12) * 65536 / 7812.5), MIDI 24..95.
+     .word 274,291,308,326,346,366,388,411,435,461,489,518

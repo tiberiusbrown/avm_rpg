@@ -1,0 +1,2203 @@
+{
+  "audio_timer": 1,
+  "clock_hz": 16000000,
+  "output_period_cycles": 1024,
+  "synthesis_period_cycles": 2048,
+  "entry_baseline_cycles": 7,
+  "pwm_baseline_cycles": 26,
+  "definition": "Entry lateness = first ISR body instruction - Timer1 compare deadline - 7; PWM lateness subtracts 26; interval error subtracts 1024 (2048 for synthesis).",
+  "identity": {
+    "normal": {
+      "package_sha256": "68b5f42db345f3e606034190abb338dd4a6be7105ad6de2dd620e8ed8ad0341a",
+      "firmware_sha256": "e5add9a4b9619ef13f2e92f46a63095381e6da6ddb07d14b47177f10b5eb1029",
+      "guest_image_sha256": "0ba91592e1051c7630531e871ae0c9b2135baccea6cb1c7e81bac95bbcce5867",
+      "score_sha256": "096c7a3cd30788b1652b9a5fbc1761a18ed86561a8676dff7097a3e909683392"
+    },
+    "fxc": {
+      "package_sha256": "737dd3291e63bf74a4abd7811c93965311f5491756e3504f70d14df5c333d801",
+      "firmware_sha256": "6ed7547791d27de4d2dc909424c8ca2ebccff7044fab57d131e47da6a2acb072",
+      "guest_image_sha256": "0ba91592e1051c7630531e871ae0c9b2135baccea6cb1c7e81bac95bbcce5867",
+      "score_sha256": "096c7a3cd30788b1652b9a5fbc1761a18ed86561a8676dff7097a3e909683392"
+    }
+  },
+  "distributions": {
+    "normal/midpoint/entry_lateness": {
+      "count": 180469,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.4467193811679566,
+      "p50": 3,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 48440,
+        "1": 17060,
+        "2": 3886,
+        "3": 28376,
+        "4": 81941,
+        "5": 764,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "normal/midpoint/isr_body_cycles": {
+      "count": 180469,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 180469,
+      "histogram": {
+        "34": 180469
+      }
+    },
+    "normal/midpoint/pwm_interval_error": {
+      "count": 180468,
+      "minimum": -5,
+      "maximum": 7,
+      "mean": 0.057616862823326016,
+      "p50": 0,
+      "p95": 2,
+      "p99": 3,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 490,
+        "-4": 5093,
+        "-3": 3151,
+        "-2": 3565,
+        "-1": 37192,
+        "0": 84970,
+        "1": 11017,
+        "2": 30892,
+        "3": 2724,
+        "4": 851,
+        "5": 521,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "normal/midpoint/pwm_lateness": {
+      "count": 180469,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.4467193811679566,
+      "p50": 3,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 48440,
+        "1": 17060,
+        "2": 3886,
+        "3": 28376,
+        "4": 81941,
+        "5": 764,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "normal/synthesis/entry_lateness": {
+      "count": 180468,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 2.3891160759802292,
+      "p50": 2,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 44566,
+        "1": 16297,
+        "2": 31183,
+        "3": 1863,
+        "4": 85888,
+        "5": 671
+      }
+    },
+    "normal/synthesis/isr_body_cycles": {
+      "count": 180468,
+      "minimum": 195,
+      "maximum": 302,
+      "mean": 198.63893321807745,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 180468,
+      "histogram": {
+        "195": 140996,
+        "199": 7784,
+        "200": 7787,
+        "215": 15605,
+        "219": 842,
+        "220": 876,
+        "223": 5164,
+        "227": 252,
+        "228": 269,
+        "229": 88,
+        "233": 1,
+        "234": 1,
+        "276": 339,
+        "279": 141,
+        "280": 33,
+        "281": 46,
+        "282": 139,
+        "283": 1,
+        "284": 2,
+        "285": 34,
+        "286": 1,
+        "287": 1,
+        "288": 64,
+        "300": 1,
+        "302": 1
+      }
+    },
+    "normal/synthesis/pwm_interval_error": {
+      "count": 180468,
+      "minimum": -7,
+      "maximum": 5,
+      "mean": -0.057616862823326016,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-7": 1,
+        "-6": 1,
+        "-5": 514,
+        "-4": 919,
+        "-3": 2462,
+        "-2": 31064,
+        "-1": 11321,
+        "0": 84302,
+        "1": 37621,
+        "2": 3584,
+        "3": 3203,
+        "4": 5082,
+        "5": 394
+      }
+    },
+    "normal/synthesis/pwm_lateness": {
+      "count": 180468,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 2.3891160759802292,
+      "p50": 2,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 44566,
+        "1": 16297,
+        "2": 31183,
+        "3": 1863,
+        "4": 85888,
+        "5": 671
+      }
+    },
+    "normal/synthesis/synthesis_interval_error": {
+      "count": 180467,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 5.541179273773045e-06,
+      "p50": 0,
+      "p95": 1,
+      "p99": 3,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 449,
+        "-4": 953,
+        "-3": 1644,
+        "-2": 2053,
+        "-1": 12262,
+        "0": 145948,
+        "1": 11909,
+        "2": 2212,
+        "3": 1575,
+        "4": 1010,
+        "5": 452
+      }
+    },
+    "fxc/midpoint/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.707328,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 6361,
+        "1": 2186,
+        "2": 440,
+        "3": 3044,
+        "4": 3491,
+        "5": 103
+      }
+    },
+    "fxc/midpoint/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 15625,
+      "histogram": {
+        "34": 15625
+      }
+    },
+    "fxc/midpoint/pwm_interval_error": {
+      "count": 15624,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.10887096774193548,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 58,
+        "-4": 540,
+        "-3": 364,
+        "-2": 394,
+        "-1": 4267,
+        "0": 4471,
+        "1": 1509,
+        "2": 3509,
+        "3": 342,
+        "4": 105,
+        "5": 65
+      }
+    },
+    "fxc/midpoint/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.707328,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 6361,
+        "1": 2186,
+        "2": 440,
+        "3": 3044,
+        "4": 3491,
+        "5": 103
+      }
+    },
+    "fxc/synthesis/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.598592,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 5945,
+        "1": 2158,
+        "2": 3546,
+        "3": 260,
+        "4": 3632,
+        "5": 84
+      }
+    },
+    "fxc/synthesis/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 195,
+      "maximum": 302,
+      "mean": 198.47552,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 281,
+      "at_least_10": 15625,
+      "histogram": {
+        "195": 12416,
+        "199": 585,
+        "200": 574,
+        "215": 1380,
+        "219": 56,
+        "220": 63,
+        "223": 450,
+        "227": 20,
+        "228": 22,
+        "229": 8,
+        "276": 25,
+        "279": 7,
+        "280": 1,
+        "281": 3,
+        "282": 3,
+        "285": 3,
+        "288": 8,
+        "302": 1
+      }
+    },
+    "fxc/synthesis/pwm_interval_error": {
+      "count": 15625,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.108736,
+      "p50": 0,
+      "p95": 3,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 74,
+        "-4": 89,
+        "-3": 335,
+        "-2": 3537,
+        "-1": 1497,
+        "0": 4445,
+        "1": 4267,
+        "2": 437,
+        "3": 357,
+        "4": 544,
+        "5": 43
+      }
+    },
+    "fxc/synthesis/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.598592,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 5945,
+        "1": 2158,
+        "2": 3546,
+        "3": 260,
+        "4": 3632,
+        "5": 84
+      }
+    },
+    "fxc/synthesis/synthesis_interval_error": {
+      "count": 15624,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.00012800819252432156,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 59,
+        "-4": 104,
+        "-3": 245,
+        "-2": 257,
+        "-1": 1680,
+        "0": 10994,
+        "1": 1581,
+        "2": 302,
+        "3": 211,
+        "4": 131,
+        "5": 60
+      }
+    }
+  },
+  "scenarios": {
+    "normal/collision/midpoint/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 2.09856,
+      "p50": 3,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 4857,
+        "1": 1808,
+        "2": 446,
+        "3": 4039,
+        "4": 4402,
+        "5": 73
+      }
+    },
+    "normal/collision/midpoint/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 15625,
+      "histogram": {
+        "34": 15625
+      }
+    },
+    "normal/collision/midpoint/pwm_interval_error": {
+      "count": 15625,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.096128,
+      "p50": 0,
+      "p95": 2,
+      "p99": 3,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 47,
+        "-4": 697,
+        "-3": 385,
+        "-2": 392,
+        "-1": 4862,
+        "0": 3344,
+        "1": 1099,
+        "2": 4356,
+        "3": 311,
+        "4": 78,
+        "5": 54
+      }
+    },
+    "normal/collision/midpoint/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 2.09856,
+      "p50": 3,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 4857,
+        "1": 1808,
+        "2": 446,
+        "3": 4039,
+        "4": 4402,
+        "5": 73
+      }
+    },
+    "normal/collision/synthesis/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 2.002432,
+      "p50": 2,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 4364,
+        "1": 1639,
+        "2": 4356,
+        "3": 189,
+        "4": 5015,
+        "5": 62
+      }
+    },
+    "normal/collision/synthesis/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 195,
+      "maximum": 288,
+      "mean": 198.593536,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 15625,
+      "histogram": {
+        "195": 12260,
+        "199": 644,
+        "200": 657,
+        "215": 1356,
+        "219": 81,
+        "220": 63,
+        "223": 449,
+        "227": 21,
+        "228": 22,
+        "229": 8,
+        "276": 23,
+        "279": 12,
+        "280": 2,
+        "281": 7,
+        "282": 15,
+        "285": 2,
+        "288": 3
+      }
+    },
+    "normal/collision/synthesis/pwm_interval_error": {
+      "count": 15625,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.096384,
+      "p50": 0,
+      "p95": 3,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 46,
+        "-4": 99,
+        "-3": 268,
+        "-2": 4373,
+        "-1": 1179,
+        "0": 3228,
+        "1": 4925,
+        "2": 379,
+        "3": 386,
+        "4": 702,
+        "5": 40
+      }
+    },
+    "normal/collision/synthesis/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 2.002432,
+      "p50": 2,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 4364,
+        "1": 1639,
+        "2": 4356,
+        "3": 189,
+        "4": 5015,
+        "5": 62
+      }
+    },
+    "normal/collision/synthesis/synthesis_interval_error": {
+      "count": 15625,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 1,
+      "p99": 3,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 38,
+        "-4": 101,
+        "-3": 177,
+        "-2": 189,
+        "-1": 1210,
+        "0": 12210,
+        "1": 1192,
+        "2": 194,
+        "3": 163,
+        "4": 111,
+        "5": 40
+      }
+    },
+    "normal/dialogue/midpoint/entry_lateness": {
+      "count": 18750,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.714026666666667,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 954,
+        "1": 378,
+        "2": 97,
+        "3": 233,
+        "4": 17073,
+        "5": 15
+      }
+    },
+    "normal/dialogue/midpoint/isr_body_cycles": {
+      "count": 18750,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 18750,
+      "histogram": {
+        "34": 18750
+      }
+    },
+    "normal/dialogue/midpoint/pwm_interval_error": {
+      "count": 18750,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.006826666666666667,
+      "p50": 0,
+      "p95": 0,
+      "p99": 2,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 13,
+        "-4": 87,
+        "-3": 109,
+        "-2": 94,
+        "-1": 391,
+        "0": 17282,
+        "1": 218,
+        "2": 473,
+        "3": 57,
+        "4": 18,
+        "5": 8
+      }
+    },
+    "normal/dialogue/midpoint/pwm_lateness": {
+      "count": 18750,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.714026666666667,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 954,
+        "1": 378,
+        "2": 97,
+        "3": 233,
+        "4": 17073,
+        "5": 15
+      }
+    },
+    "normal/dialogue/synthesis/entry_lateness": {
+      "count": 18750,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.706986666666667,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 888,
+        "1": 323,
+        "2": 471,
+        "3": 48,
+        "4": 17003,
+        "5": 17
+      }
+    },
+    "normal/dialogue/synthesis/isr_body_cycles": {
+      "count": 18750,
+      "minimum": 195,
+      "maximum": 288,
+      "mean": 198.72650666666667,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 18750,
+      "histogram": {
+        "195": 14471,
+        "199": 897,
+        "200": 890,
+        "215": 1594,
+        "219": 101,
+        "220": 105,
+        "223": 526,
+        "227": 28,
+        "228": 36,
+        "229": 10,
+        "276": 32,
+        "279": 22,
+        "280": 7,
+        "281": 6,
+        "282": 19,
+        "285": 3,
+        "288": 3
+      }
+    },
+    "normal/dialogue/synthesis/pwm_interval_error": {
+      "count": 18750,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.00704,
+      "p50": 0,
+      "p95": 0,
+      "p99": 3,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 13,
+        "-4": 21,
+        "-3": 54,
+        "-2": 468,
+        "-1": 224,
+        "0": 17252,
+        "1": 422,
+        "2": 90,
+        "3": 100,
+        "4": 93,
+        "5": 13
+      }
+    },
+    "normal/dialogue/synthesis/pwm_lateness": {
+      "count": 18750,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.706986666666667,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 888,
+        "1": 323,
+        "2": 471,
+        "3": 48,
+        "4": 17003,
+        "5": 17
+      }
+    },
+    "normal/dialogue/synthesis/synthesis_interval_error": {
+      "count": 18750,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.00021333333333333333,
+      "p50": 0,
+      "p95": 0,
+      "p99": 1,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 8,
+        "-4": 18,
+        "-3": 46,
+        "-2": 47,
+        "-1": 236,
+        "0": 18041,
+        "1": 244,
+        "2": 40,
+        "3": 38,
+        "4": 22,
+        "5": 10
+      }
+    },
+    "normal/idle_song/midpoint/entry_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.687664,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 25458,
+        "1": 8625,
+        "2": 1847,
+        "3": 13517,
+        "4": 12656,
+        "5": 397
+      }
+    },
+    "normal/idle_song/midpoint/isr_body_cycles": {
+      "count": 62500,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 62500,
+      "histogram": {
+        "34": 62500
+      }
+    },
+    "normal/idle_song/midpoint/pwm_interval_error": {
+      "count": 62499,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.026528424454791276,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 266,
+        "-4": 2367,
+        "-3": 1460,
+        "-2": 1679,
+        "-1": 18257,
+        "0": 17837,
+        "1": 5839,
+        "2": 12767,
+        "3": 1307,
+        "4": 443,
+        "5": 277
+      }
+    },
+    "normal/idle_song/midpoint/pwm_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.687664,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 25458,
+        "1": 8625,
+        "2": 1847,
+        "3": 13517,
+        "4": 12656,
+        "5": 397
+      }
+    },
+    "normal/idle_song/synthesis/entry_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.6612,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 23612,
+        "1": 8412,
+        "2": 12919,
+        "3": 1006,
+        "4": 16198,
+        "5": 353
+      }
+    },
+    "normal/idle_song/synthesis/isr_body_cycles": {
+      "count": 62500,
+      "minimum": 195,
+      "maximum": 302,
+      "mean": 198.556928,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 62500,
+      "histogram": {
+        "195": 49367,
+        "199": 2454,
+        "200": 2433,
+        "215": 5470,
+        "219": 245,
+        "220": 283,
+        "223": 1805,
+        "227": 79,
+        "228": 85,
+        "229": 29,
+        "233": 1,
+        "234": 1,
+        "276": 118,
+        "279": 24,
+        "280": 10,
+        "281": 11,
+        "282": 39,
+        "285": 10,
+        "287": 1,
+        "288": 33,
+        "300": 1,
+        "302": 1
+      }
+    },
+    "normal/idle_song/synthesis/pwm_interval_error": {
+      "count": 62500,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.026464,
+      "p50": 0,
+      "p95": 3,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 265,
+        "-4": 456,
+        "-3": 1215,
+        "-2": 12857,
+        "-1": 5926,
+        "0": 17584,
+        "1": 18400,
+        "2": 1769,
+        "3": 1473,
+        "4": 2352,
+        "5": 203
+      }
+    },
+    "normal/idle_song/synthesis/pwm_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.6612,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 23612,
+        "1": 8412,
+        "2": 12919,
+        "3": 1006,
+        "4": 16198,
+        "5": 353
+      }
+    },
+    "normal/idle_song/synthesis/synthesis_interval_error": {
+      "count": 62499,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 6.400102401638426e-05,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 244,
+        "-4": 445,
+        "-3": 893,
+        "-2": 1093,
+        "-1": 6337,
+        "0": 44616,
+        "1": 6105,
+        "2": 1177,
+        "3": 842,
+        "4": 514,
+        "5": 233
+      }
+    },
+    "normal/menu_status/midpoint/entry_lateness": {
+      "count": 29688,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.916397197520884,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 448,
+        "1": 177,
+        "2": 45,
+        "3": 73,
+        "4": 28941,
+        "5": 4
+      }
+    },
+    "normal/menu_status/midpoint/isr_body_cycles": {
+      "count": 29688,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 29688,
+      "histogram": {
+        "34": 29688
+      }
+    },
+    "normal/menu_status/midpoint/pwm_interval_error": {
+      "count": 29688,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.013540824575586096,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0,
+      "p999": 2,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 2,
+        "-4": 86,
+        "-3": 69,
+        "-2": 41,
+        "-1": 168,
+        "0": 29093,
+        "1": 79,
+        "2": 130,
+        "3": 11,
+        "4": 8,
+        "5": 1
+      }
+    },
+    "normal/menu_status/midpoint/pwm_lateness": {
+      "count": 29688,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.916397197520884,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 448,
+        "1": 177,
+        "2": 45,
+        "3": 73,
+        "4": 28941,
+        "5": 4
+      }
+    },
+    "normal/menu_status/synthesis/entry_lateness": {
+      "count": 29687,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.9300704011857044,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 347,
+        "1": 140,
+        "2": 131,
+        "3": 8,
+        "4": 29059,
+        "5": 2
+      }
+    },
+    "normal/menu_status/synthesis/isr_body_cycles": {
+      "count": 29687,
+      "minimum": 195,
+      "maximum": 288,
+      "mean": 198.69919493380942,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 29687,
+      "histogram": {
+        "195": 22973,
+        "199": 1381,
+        "200": 1392,
+        "215": 2546,
+        "219": 151,
+        "220": 153,
+        "223": 845,
+        "227": 47,
+        "228": 44,
+        "229": 14,
+        "276": 58,
+        "279": 35,
+        "280": 4,
+        "281": 8,
+        "282": 19,
+        "284": 1,
+        "285": 7,
+        "286": 1,
+        "288": 8
+      }
+    },
+    "normal/menu_status/synthesis/pwm_interval_error": {
+      "count": 29687,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.013676019806649375,
+      "p50": 0,
+      "p95": 0,
+      "p99": 1,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 4,
+        "-4": 4,
+        "-3": 9,
+        "-2": 131,
+        "-1": 86,
+        "0": 29083,
+        "1": 171,
+        "2": 41,
+        "3": 69,
+        "4": 88,
+        "5": 1
+      }
+    },
+    "normal/menu_status/synthesis/pwm_lateness": {
+      "count": 29687,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.9300704011857044,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 347,
+        "1": 140,
+        "2": 131,
+        "3": 8,
+        "4": 29059,
+        "5": 2
+      }
+    },
+    "normal/menu_status/synthesis/synthesis_interval_error": {
+      "count": 29687,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.00013473911139556035,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0,
+      "p999": 1,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 2,
+        "-4": 5,
+        "-3": 9,
+        "-2": 12,
+        "-1": 104,
+        "0": 29421,
+        "1": 107,
+        "2": 10,
+        "3": 7,
+        "4": 9,
+        "5": 1
+      }
+    },
+    "normal/save/midpoint/entry_lateness": {
+      "count": 7031,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.476176930735315,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 624,
+        "1": 249,
+        "2": 62,
+        "3": 321,
+        "4": 5770,
+        "5": 5
+      }
+    },
+    "normal/save/midpoint/isr_body_cycles": {
+      "count": 7031,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 7031,
+      "histogram": {
+        "34": 7031
+      }
+    },
+    "normal/save/midpoint/pwm_interval_error": {
+      "count": 7031,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.09059877684539895,
+      "p50": 0,
+      "p95": 0,
+      "p99": 2,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 5,
+        "-4": 78,
+        "-3": 60,
+        "-2": 69,
+        "-1": 454,
+        "0": 6090,
+        "1": 142,
+        "2": 89,
+        "3": 28,
+        "4": 12,
+        "5": 4
+      }
+    },
+    "normal/save/midpoint/pwm_lateness": {
+      "count": 7031,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.476176930735315,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 624,
+        "1": 249,
+        "2": 62,
+        "3": 321,
+        "4": 5770,
+        "5": 5
+      }
+    },
+    "normal/save/synthesis/entry_lateness": {
+      "count": 7031,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.566775707580714,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 544,
+        "1": 215,
+        "2": 100,
+        "3": 31,
+        "4": 6135,
+        "5": 6
+      }
+    },
+    "normal/save/synthesis/isr_body_cycles": {
+      "count": 7031,
+      "minimum": 195,
+      "maximum": 288,
+      "mean": 198.67117053050774,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 7031,
+      "histogram": {
+        "195": 5566,
+        "199": 259,
+        "200": 267,
+        "215": 616,
+        "219": 28,
+        "220": 31,
+        "223": 203,
+        "227": 11,
+        "228": 7,
+        "229": 4,
+        "276": 16,
+        "279": 12,
+        "280": 2,
+        "281": 1,
+        "282": 5,
+        "285": 1,
+        "288": 2
+      }
+    },
+    "normal/save/synthesis/pwm_interval_error": {
+      "count": 7031,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.09059877684539895,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 5,
+        "-4": 15,
+        "-3": 21,
+        "-2": 88,
+        "-1": 138,
+        "0": 6102,
+        "1": 451,
+        "2": 66,
+        "3": 70,
+        "4": 69,
+        "5": 6
+      }
+    },
+    "normal/save/synthesis/pwm_lateness": {
+      "count": 7031,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.566775707580714,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 544,
+        "1": 215,
+        "2": 100,
+        "3": 31,
+        "4": 6135,
+        "5": 6
+      }
+    },
+    "normal/save/synthesis/synthesis_interval_error": {
+      "count": 7031,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.0002844545583842981,
+      "p50": 0,
+      "p95": 0,
+      "p99": 2,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 3,
+        "-4": 16,
+        "-3": 33,
+        "-2": 29,
+        "-1": 145,
+        "0": 6579,
+        "1": 144,
+        "2": 36,
+        "3": 24,
+        "4": 19,
+        "5": 3
+      }
+    },
+    "normal/walking/midpoint/entry_lateness": {
+      "count": 46875,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 1.9826986666666666,
+      "p50": 3,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 16099,
+        "1": 5823,
+        "2": 1389,
+        "3": 10193,
+        "4": 13099,
+        "5": 270,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "normal/walking/midpoint/isr_body_cycles": {
+      "count": 46875,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 46875,
+      "histogram": {
+        "34": 46875
+      }
+    },
+    "normal/walking/midpoint/pwm_interval_error": {
+      "count": 46875,
+      "minimum": -5,
+      "maximum": 7,
+      "mean": 0.17384533333333332,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 157,
+        "-4": 1778,
+        "-3": 1068,
+        "-2": 1290,
+        "-1": 13060,
+        "0": 11324,
+        "1": 3640,
+        "2": 13077,
+        "3": 1010,
+        "4": 292,
+        "5": 177,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "normal/walking/midpoint/pwm_lateness": {
+      "count": 46875,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 1.9826986666666666,
+      "p50": 3,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 16099,
+        "1": 5823,
+        "2": 1389,
+        "3": 10193,
+        "4": 13099,
+        "5": 270,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "normal/walking/synthesis/entry_lateness": {
+      "count": 46875,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.8088533333333334,
+      "p50": 2,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 14811,
+        "1": 5568,
+        "2": 13206,
+        "3": 581,
+        "4": 12478,
+        "5": 231
+      }
+    },
+    "normal/walking/synthesis/isr_body_cycles": {
+      "count": 46875,
+      "minimum": 195,
+      "maximum": 288,
+      "mean": 198.685376,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 282,
+      "at_least_10": 46875,
+      "histogram": {
+        "195": 36359,
+        "199": 2149,
+        "200": 2148,
+        "215": 4023,
+        "219": 236,
+        "220": 241,
+        "223": 1336,
+        "227": 66,
+        "228": 75,
+        "229": 23,
+        "276": 92,
+        "279": 36,
+        "280": 8,
+        "281": 13,
+        "282": 42,
+        "283": 1,
+        "284": 1,
+        "285": 11,
+        "288": 15
+      }
+    },
+    "normal/walking/synthesis/pwm_interval_error": {
+      "count": 46875,
+      "minimum": -7,
+      "maximum": 5,
+      "mean": -0.17384533333333332,
+      "p50": 0,
+      "p95": 3,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-7": 1,
+        "-6": 1,
+        "-5": 181,
+        "-4": 324,
+        "-3": 895,
+        "-2": 13147,
+        "-1": 3768,
+        "0": 11053,
+        "1": 13252,
+        "2": 1239,
+        "3": 1105,
+        "4": 1778,
+        "5": 131
+      }
+    },
+    "normal/walking/synthesis/pwm_lateness": {
+      "count": 46875,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.8088533333333334,
+      "p50": 2,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 14811,
+        "1": 5568,
+        "2": 13206,
+        "3": 581,
+        "4": 12478,
+        "5": 231
+      }
+    },
+    "normal/walking/synthesis/synthesis_interval_error": {
+      "count": 46875,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -2.1333333333333335e-05,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 154,
+        "-4": 368,
+        "-3": 486,
+        "-2": 683,
+        "-1": 4230,
+        "0": 35081,
+        "1": 4117,
+        "2": 755,
+        "3": 501,
+        "4": 335,
+        "5": 165
+      }
+    },
+    "fxc/idle_song/midpoint/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.707328,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 6361,
+        "1": 2186,
+        "2": 440,
+        "3": 3044,
+        "4": 3491,
+        "5": 103
+      }
+    },
+    "fxc/idle_song/midpoint/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 34,
+      "maximum": 34,
+      "mean": 34.0,
+      "p50": 34,
+      "p95": 34,
+      "p99": 34,
+      "p999": 34,
+      "at_least_10": 15625,
+      "histogram": {
+        "34": 15625
+      }
+    },
+    "fxc/idle_song/midpoint/pwm_interval_error": {
+      "count": 15624,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.10887096774193548,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 58,
+        "-4": 540,
+        "-3": 364,
+        "-2": 394,
+        "-1": 4267,
+        "0": 4471,
+        "1": 1509,
+        "2": 3509,
+        "3": 342,
+        "4": 105,
+        "5": 65
+      }
+    },
+    "fxc/idle_song/midpoint/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.707328,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 6361,
+        "1": 2186,
+        "2": 440,
+        "3": 3044,
+        "4": 3491,
+        "5": 103
+      }
+    },
+    "fxc/idle_song/synthesis/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.598592,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 5945,
+        "1": 2158,
+        "2": 3546,
+        "3": 260,
+        "4": 3632,
+        "5": 84
+      }
+    },
+    "fxc/idle_song/synthesis/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 195,
+      "maximum": 302,
+      "mean": 198.47552,
+      "p50": 195,
+      "p95": 215,
+      "p99": 223,
+      "p999": 281,
+      "at_least_10": 15625,
+      "histogram": {
+        "195": 12416,
+        "199": 585,
+        "200": 574,
+        "215": 1380,
+        "219": 56,
+        "220": 63,
+        "223": 450,
+        "227": 20,
+        "228": 22,
+        "229": 8,
+        "276": 25,
+        "279": 7,
+        "280": 1,
+        "281": 3,
+        "282": 3,
+        "285": 3,
+        "288": 8,
+        "302": 1
+      }
+    },
+    "fxc/idle_song/synthesis/pwm_interval_error": {
+      "count": 15625,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.108736,
+      "p50": 0,
+      "p95": 3,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 74,
+        "-4": 89,
+        "-3": 335,
+        "-2": 3537,
+        "-1": 1497,
+        "0": 4445,
+        "1": 4267,
+        "2": 437,
+        "3": 357,
+        "4": 544,
+        "5": 43
+      }
+    },
+    "fxc/idle_song/synthesis/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 1.598592,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 5945,
+        "1": 2158,
+        "2": 3546,
+        "3": 260,
+        "4": 3632,
+        "5": 84
+      }
+    },
+    "fxc/idle_song/synthesis/synthesis_interval_error": {
+      "count": 15624,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.00012800819252432156,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 59,
+        "-4": 104,
+        "-3": 245,
+        "-2": 257,
+        "-1": 1680,
+        "0": 10994,
+        "1": 1581,
+        "2": 302,
+        "3": 211,
+        "4": 131,
+        "5": 60
+      }
+    }
+  },
+  "outlier_causes": {},
+  "blackouts": {
+    "normal": [
+      {
+        "pc_bytes": 2594,
+        "symbol": "primary_table_end+0x22",
+        "count": 53643,
+        "total_cycles": 214572,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3224,
+        "symbol": "f9_bitop_entry+0xa",
+        "count": 124545,
+        "total_cycles": 498180,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3294,
+        "symbol": "fa_shift_decode_start+0x4",
+        "count": 47489,
+        "total_cycles": 189956,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3334,
+        "symbol": "fa_shift_decode_end+0x4",
+        "count": 244441,
+        "total_cycles": 977764,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3402,
+        "symbol": "f8_cset_decode+0x4",
+        "count": 2854,
+        "total_cycles": 11416,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3532,
+        "symbol": "cluster_tail_17+0x6",
+        "count": 1540544,
+        "total_cycles": 6162176,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3632,
+        "symbol": "fetch_imm16_then_ijmp+0x12",
+        "count": 103720,
+        "total_cycles": 414880,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3756,
+        "symbol": "breq8_rel8_decode_func+0x2",
+        "count": 244774,
+        "total_cycles": 979096,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3772,
+        "symbol": "brne8_rel8_decode_func+0x2",
+        "count": 84128,
+        "total_cycles": 336512,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3788,
+        "symbol": "brult8_rel8_decode_func+0x2",
+        "count": 15657,
+        "total_cycles": 62628,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3804,
+        "symbol": "brslt8_rel8_decode_func+0x2",
+        "count": 752,
+        "total_cycles": 3008,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3820,
+        "symbol": "bruge8_rel8_decode_func+0x2",
+        "count": 168397,
+        "total_cycles": 673588,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3836,
+        "symbol": "brsge8_rel8_decode_func+0x2",
+        "count": 315,
+        "total_cycles": 1260,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3882,
+        "symbol": "branch_rel16_decode_func+0x4",
+        "count": 33096,
+        "total_cycles": 132384,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3910,
+        "symbol": "branch_rel16_not_taken_func+0x6",
+        "count": 22630,
+        "total_cycles": 90520,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3986,
+        "symbol": "adjsp_simm8_func+0x2",
+        "count": 10854,
+        "total_cycles": 43416,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4012,
+        "symbol": "jmp_call_rel16_func+0x4",
+        "count": 81458,
+        "total_cycles": 325832,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4124,
+        "symbol": "sys_decode_func+0x4",
+        "count": 369526,
+        "total_cycles": 1478104,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4374,
+        "symbol": "sys_millis_func+0x0",
+        "count": 69241,
+        "total_cycles": 415446,
+        "max_cycles": 6
+      },
+      {
+        "pc_bytes": 4550,
+        "symbol": "seek_and_dispatch_no_audio+0x24",
+        "count": 507887,
+        "total_cycles": 2031548,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4608,
+        "symbol": "cluster_a_tail_17+0x6",
+        "count": 331350,
+        "total_cycles": 1325400,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5316,
+        "symbol": ".Lfx_read_program_loop+0x2",
+        "count": 25223,
+        "total_cycles": 100892,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5870,
+        "symbol": "f0_cold32+0x2",
+        "count": 4189,
+        "total_cycles": 16756,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 8304,
+        "symbol": "cluster_b_tail_17+0x6",
+        "count": 93061,
+        "total_cycles": 372244,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19746,
+        "symbol": ".Lsprite_top_plus_full_loop+0x0",
+        "count": 256,
+        "total_cycles": 1024,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19760,
+        "symbol": ".Lsprite_top_plus_full_loop+0xe",
+        "count": 256,
+        "total_cycles": 1024,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19788,
+        "symbol": ".Lsprite_bottom_plus_full+0x0",
+        "count": 1744,
+        "total_cycles": 6976,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19802,
+        "symbol": ".Lsprite_bottom_plus_full+0xe",
+        "count": 1744,
+        "total_cycles": 6976,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19830,
+        "symbol": ".Lsprite_middle_plus_full_loop+0x0",
+        "count": 32304,
+        "total_cycles": 129216,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 23952,
+        "symbol": "text_finish+0x4c",
+        "count": 353,
+        "total_cycles": 1412,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 27246,
+        "symbol": "audio_service_func+0x2",
+        "count": 5775,
+        "total_cycles": 34650,
+        "max_cycles": 6
+      }
+    ],
+    "fxc": [
+      {
+        "pc_bytes": 2594,
+        "symbol": "primary_table_end+0x22",
+        "count": 7451,
+        "total_cycles": 29804,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3224,
+        "symbol": "f9_bitop_entry+0xa",
+        "count": 10667,
+        "total_cycles": 42668,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3294,
+        "symbol": "fa_shift_decode_start+0x4",
+        "count": 6469,
+        "total_cycles": 25876,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3334,
+        "symbol": "fa_shift_decode_end+0x4",
+        "count": 29905,
+        "total_cycles": 119620,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3402,
+        "symbol": "f8_cset_decode+0x4",
+        "count": 340,
+        "total_cycles": 1360,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3532,
+        "symbol": "cluster_tail_17+0x6",
+        "count": 142164,
+        "total_cycles": 568656,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3632,
+        "symbol": "fetch_imm16_then_ijmp+0x12",
+        "count": 7239,
+        "total_cycles": 28956,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3756,
+        "symbol": "breq8_rel8_decode_func+0x2",
+        "count": 16822,
+        "total_cycles": 67288,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3772,
+        "symbol": "brne8_rel8_decode_func+0x2",
+        "count": 9798,
+        "total_cycles": 39192,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3788,
+        "symbol": "brult8_rel8_decode_func+0x2",
+        "count": 2528,
+        "total_cycles": 10112,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3804,
+        "symbol": "brslt8_rel8_decode_func+0x2",
+        "count": 172,
+        "total_cycles": 688,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3820,
+        "symbol": "bruge8_rel8_decode_func+0x2",
+        "count": 20042,
+        "total_cycles": 80168,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3836,
+        "symbol": "brsge8_rel8_decode_func+0x2",
+        "count": 61,
+        "total_cycles": 244,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3882,
+        "symbol": "branch_rel16_decode_func+0x4",
+        "count": 4233,
+        "total_cycles": 16932,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3910,
+        "symbol": "branch_rel16_not_taken_func+0x6",
+        "count": 2841,
+        "total_cycles": 11364,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3986,
+        "symbol": "adjsp_simm8_func+0x2",
+        "count": 1549,
+        "total_cycles": 6196,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4012,
+        "symbol": "jmp_call_rel16_func+0x4",
+        "count": 9340,
+        "total_cycles": 37360,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4124,
+        "symbol": "sys_decode_func+0x4",
+        "count": 18594,
+        "total_cycles": 74376,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4374,
+        "symbol": "sys_millis_func+0x0",
+        "count": 7551,
+        "total_cycles": 45306,
+        "max_cycles": 6
+      },
+      {
+        "pc_bytes": 4550,
+        "symbol": "seek_and_dispatch_no_audio+0x24",
+        "count": 46731,
+        "total_cycles": 186924,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4608,
+        "symbol": "cluster_a_tail_17+0x6",
+        "count": 42189,
+        "total_cycles": 168756,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5316,
+        "symbol": ".Lfx_read_program_loop+0x2",
+        "count": 2801,
+        "total_cycles": 11204,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5870,
+        "symbol": "f0_cold32+0x2",
+        "count": 604,
+        "total_cycles": 2416,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 8304,
+        "symbol": "cluster_b_tail_17+0x6",
+        "count": 10958,
+        "total_cycles": 43832,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19830,
+        "symbol": ".Lsprite_middle_plus_full_loop+0x0",
+        "count": 5856,
+        "total_cycles": 23424,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 23952,
+        "symbol": "text_finish+0x4c",
+        "count": 61,
+        "total_cycles": 244,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 27246,
+        "symbol": "audio_service_func+0x2",
+        "count": 500,
+        "total_cycles": 3000,
+        "max_cycles": 6
+      }
+    ]
+  }
+}

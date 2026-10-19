@@ -19,10 +19,12 @@ automation 8ms
 envelope pulse {
     points 0ms:100%, 24ms:90%, 72ms:85%
     sustain
+    release 40ms:0%
 }
 envelope triangle {
     points 0ms:100%, 32ms:90%
     sustain
+    release 40ms:0%
 }
 envelope snare {
     points 0ms:100%, 8ms:75%, 36ms:30%, 76ms:0%

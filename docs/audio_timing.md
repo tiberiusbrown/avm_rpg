@@ -21,11 +21,76 @@ Startup clears the Timer0/Timer1 power gates and stops/masks Timer3, including
 clearing its speaker-pin ownership. Native tests seed inherited timer settings
 and check simultaneous pending Timer0/Timer1 arbitration.
 
-The current packages match the [uncached handoff data](audio_timing_data/handoff.json).
+The current packages match the [event-buffer data](audio_timing_data/event-buffer.json).
 The [original cached Timer1 data](audio_timing_data/timer1.json), Timer3 baseline,
 and unified experiment remain as references for the comparisons below.
 
-## Uncached reader and ISR handoff (current)
+## Temporary event buffer and startup phase alignment (current)
+
+Each due event reads ten bytes through the existing FX burst subroutine into
+temporary formatter/service scratch. The parser uses `LD r24, X+` for masks,
+notes, controls and timing, then advances the 24-bit cursor once by the actual
+consumed length. Continue uses its buffered next delta; End ignores trailing
+read-ahead; Loop rewinds and fetches again. Startup uses the same buffer for the
+header and initial delta. No buffer state survives service, and persistent SRAM
+remains **85 bytes** with **78 bytes** of stack allowance.
+
+The raw transfer costs **255 cycles** and complete `audio_read_event` **277**.
+Stopped-timer four-channel note/control service drops **1939 -> 986 cycles**
+(-49.1%); one-channel service **1027 -> 824** (-19.8%), four-channel control-only
+**1330 -> 877** (-34.1%). Sparse countdown remains 98. The parser saves eight
+firmware bytes before the separate startup fix.
+
+Faster header processing initially shifted the audio/clock phase and exposed
+Timer0 already running at audio deadlines: **6887 normal / 1000 FX-C outliers**
+with maximum extra delay **36 cycles**, repeating at 125 Hz. This demonstrates
+that vector priority alone did not make the previous Timer1 result independent
+of startup timing. Retained [unaligned experiment](audio_timing_data/event-buffer-unaligned.json).
+
+`audio_enable` now derives Timer1's initial counter from Timer0's current count.
+Both timers share a prescaler; a fixed read/write sequence places audio
+deadlines **64..120 cycles after clock deadlines modulo 128**, clearing the
+ordinary Timer0 ISR window without resetting its counter or the prescaler.
+All **16000** Timer0-count/sub-tick combinations pass. A further **8000 real
+outputs** across full 8 ms relative-phase patterns have at most one extra cycle
+under a NOP workload. The output/sample frequencies, note table, millis API and
+4 ms sequencer clock remain unchanged.
+
+The full 40-second normal / 8-second FX-C workload records:
+
+| Hardware | PWM updates | p99 extra cycles | Maximum extra cycles | Updates delayed 10+ cycles |
+|---|---:|---:|---:|---:|
+| NORMAL | 860,937 | 4 | **7** | **0** |
+| FXC | 125,000 | 4 | **7** | **0** |
+
+Both PWM writes retain their **26-cycle** entry/vector offset. Results remain
+workload measurements, not a universal bound against arbitrary foreground masks.
+All **36 native audio cases, 471 guest cases, 10 RPG CTest checks and complete
+normal/FX-C integration** pass. Firmware is **29156 bytes**, leaving 540 bytes
+below the bootloader ceiling. The phase fix adds 16 bytes after layout, for a
+net eight-byte increase over individual byte reads.
+
+Compared with the previous byte-reader handoff, measured gameplay frame work
+decreases **0.06..0.08%**: idle 281329 -> 281147 cycles, scrolling 257840 -> 257688,
+collision 228515 -> 228321. FX-C matches, and disabled-audio proof remains 33660.
+The largest observed frame is 327641 cycles (20.48 ms), below the 800000 budget.
+ISR work is unchanged apart from shifting its initial phase; the savings are
+foreground event processing. Guest image and Zelda score bytes are identical.
+
+![Event buffering and startup phase](audio_timing_data/event-buffer-timing.png)
+
+Retained [timing summary](audio_timing_data/event-buffer.json),
+[normal histogram](audio_timing_data/event-buffer-normal-histogram.csv),
+[FX-C histogram](audio_timing_data/event-buffer-fxc-histogram.csv), and
+[integration/performance](audio_timing_data/event-buffer-performance.json).
+See [merged-ISR options](../../../docs/audio-unified-options.md) for alternatives
+that remove cross-ISR blocking and share entry/save/restore overhead. An isolated
+hardware-flag-polling prototype measures approximately **12.043% total timer CPU**
+versus **12.045%** with separate ISRs in matched shorter runs, with no 10+ cycle
+outliers. The main implementation retains the fully regression-tested separate
+ISRs and startup phase fix.
+
+## Individual byte reader and ISR handoff (previous)
 
 The 32-byte shared song cache and its three metadata bytes are removed.
 `audio_byte` returns one byte directly in a register using an independent,
