@@ -1,7 +1,7 @@
 {
   "verification_date": "2026-10-19",
   "configuration": "RelWithDebInfo; existing MSVC/Ninja and AVM SDK",
-  "source_fingerprint_sha256": "c35adf292c6fc1e922be3a15d7d7510fea42c9ed271c2b7801268098082ab7e9",
+  "source_fingerprint_sha256": "e5188bf14afbf0c07a36b49a4791a2a38e2e5afb7b566b9b08da2a664830e291",
   "source_manifest": {
     ".clang-format": "ca4f166000c3889f7d8651bfb479009ce208a640d819bc9350ad517b248b9119",
     "AGENTS.md": "15c2905a835f59d756a4f6ebb41c04057063c604d91fdba3d8916e8b76b64b76",
@@ -12,7 +12,7 @@
     "assets_src/actors16.png": "3bc208848a394677458739a2ce9d21674f680d0a4333e6cf797056e522f5349b",
     "assets_src/tiles16.png": "4a86b05bea91f5ffa07ba7d1d9ccc7a8d3a0579f048f3d45c9aaa3d37ed922fc",
     "assets_src/tiles16.xcf": "deb810ecb5a0f7f1e2937fd52e6147feda519277f57318cf479a8d634724b1d5",
-    "CMakeLists.txt": "1212352be01c1a99403082c907a994546d66ed5696ebde6bc8a1ca4e8fdc6e32",
+    "CMakeLists.txt": "64ec8aff0fb457be7f74b8233d5d3152919f7b5fb454437902806b79668f5a40",
     "generated/area_ids.h": "088927a4a292be8420460a117da8856e13660671cf4fbdb157e5d02b12d54474",
     "generated/chunk_dispatch.cpp": "46768e3681a6797e4fa0d47d11315d851e698afd9f3b8aba2b17a5b12d597fe4",
     "generated/handler_defaults.h": "1696063885f1b33f22d186dfac84cf6588fdd2482d3055ef6ab5f6914cd999a0",
@@ -24,7 +24,7 @@
     "generated/sprites.cpp": "58b99e6cf1d2704e6348d05b2203f599633c024f5ff6f5cc6075a18b2fe20937",
     "generated/tile_ids.h": "385cca4aa008598c2a7ca37adf71cc45eda08cb29b966bf58fc8654a938db140",
     "generated/world_assets.h": "79999264168e5dc75c6db890b2a31982dd34112d0f75a62c1fbc362c3ec8d7aa",
-    "README.md": "a528811ac8b88f74fc4e5046c57b22f0c3336ba63be74c4ada3b96f3df72e241",
+    "README.md": "6823c23ffca824a747f45e9eff547209ac4d6fa86533ca7b87f38fab3d9adfc2",
     "src/actor_draw_order.h": "ee4775577f0bc053081da047c08d93b62c04d217b3465f13132d10664c1248cc",
     "src/chunk.h": "1157b29bc99c065befb343b16de1e050ece72b5d54ac5166f97584d5bca15bab",
     "src/dialogue_overlay.cpp": "4487aa078ed060c4c1ff0c832a79038daf9506cc49cb447d1ba77e9665a066a3",
@@ -45,12 +45,14 @@
     "src/screens.cpp": "70fdd2d027c9adc7b5b767ae22541efd888cd149c151e8d9134c59d0528f2909",
     "src/world.cpp": "afb9a9bd667d8f5eaaab93e028f33b3f57e320ff690d3897ae80476650add416",
     "src/world_types.h": "0d5965343d50f3b69a1794f148b4ebe203e662beb9fdfbd2b8181f668c832242",
-    "tests/device_tests.cpp": "7689d9673d7d3f1af037a42d15df17088ce2635f694d307baa5be0eb93047208",
+    "tests/audio_timing.cpp": "06cd71105a941141089b83ac88b7021d9e2894e1e74e4e67c14341470d9f34da",
+    "tests/device_tests.cpp": "118fcfb8d9aed3d29e71c6bae10a6167334a5111e21087e54b86fd629b007d74",
     "tests/guest_integration.py": "9a73441602b0a92782ba5b9286e773c13965a44c88a404237e66eda98528495b",
     "tests/midi_reference.py": "87fabb7eb3e206e9f3f774240e463fef1d4ab0ffaf954c3d6c5064bb61eb4116",
     "tests/npc_probe.cpp": "5ab7f73a28c3e2bd7179997549defc5cad59498a7e8dcd42f253252eae6708b9",
     "tests/npc_scenarios.h": "00a2dfa2bc92e44bbd498e0dcbc0dcfd38853620f982f465ae71f73d6b329576",
     "tests/replays/exploration.json": "947c1d3edb55d5e8c0635feaffd7269f1ce668d30947370fcdd7cfa4ba5ff1c7",
+    "tests/test_audio_timing.py": "5efe9ca32e9980973dde0e63f2bea481453ee279ac522a819196e20724d81d38",
     "tests/test_content.py": "27279f3c11d84f64a8d86dce16559150496757a9d7936ea1973ed761e832a697",
     "tests/test_core.cpp": "cd33b3dc4250a76c1be927253def014c06b6a792228d94892eb3c4ed95055e65",
     "tests/test_flags.cpp": "4a009b352546517f36bc7929d06d30ab6964ce088a91b302f8b7d8286db4bda2",
@@ -63,7 +65,7 @@
     "tests/world_scenarios.h": "2126710dc1f896b9d0b4fd606ed281487282b57a3278cf74907a3be99f62d552",
     "tools/build.ps1": "4d7f207a73983bb148a3d96283ea59c6c74ebe38fd36010deee0f5d03b5aece1",
     "tools/check_lto.py": "30cde47a489307e03bac19055e2e83b543e80efc11b2cde7af7b36d34ef4ed5e",
-    "tools/collect_evidence.py": "4c46d1cb16380ce422200974e3270baca0887c84974420b2d8544fefe11dce6e",
+    "tools/collect_evidence.py": "4416343e3f4dbf48de2f42297c82846cb41a3bfc3013d6e39176340e5d9927ac",
     "tools/elf.py": "0bfff66bd875c13bc14a168875f2b78140e0cfe85f82dd98f3dba6712e911c1d",
     "tools/generate_assets.py": "d4749cec5a6071aab046704d880beb32927aa9752c19a89c3b7d531607f372c7",
     "tools/generate_music.py": "0b341571218fd83ffe17b6784d03f8bc0feb1e17b518458571a500016c32bdad",
@@ -81,8 +83,8 @@
       "bytes": 6144
     },
     "m0_proof.arduboy": {
-      "sha256": "16b6448ae51e7a1be36a6ad44ee3486018016f7a42d258ff29acbb803dedd8d9",
-      "bytes": 84257
+      "sha256": "df6727f43da61776c796567d8068ed446877b25abe2d3734c1a5184ead4d7ca6",
+      "bytes": 84302
     },
     "rpg.elf": {
       "sha256": "c963c344d328831fce393be761527bd892b6b0dc3f01799dca7f950f3bcce439",
@@ -93,8 +95,8 @@
       "bytes": 43264
     },
     "rpg.arduboy": {
-      "sha256": "2240af720a049730b9b4444adc2d33a74e76543defa98b6f21d07135730ac504",
-      "bytes": 125589
+      "sha256": "1d307ee139b7e59aec172f6050b0392491188670cdc64ddda4d0b30ab00c88f8",
+      "bytes": 125634
     },
     "m15_probe.elf": {
       "sha256": "e98355b88919b65755d300e420bc6d5bc047dd7f131935877ccf7c0dac7ba6e5",
@@ -105,8 +107,8 @@
       "bytes": 72704
     },
     "m15_probe.arduboy": {
-      "sha256": "24d487b9fd7284f164564e8a8ea7b9d5fd1d2abc7ab8cfcd33d11ad9b443cf12",
-      "bytes": 150818
+      "sha256": "0f2b0759c6b76b5813418f2f0e77363bfae48645e0a42369940534e927c4840c",
+      "bytes": 150863
     },
     "m16_probe.elf": {
       "sha256": "9a9afa600539048906deedcad8a5684744969b9fcac4558b2292da005b5186c2",
@@ -117,12 +119,12 @@
       "bytes": 28672
     },
     "m16_probe.arduboy": {
-      "sha256": "b1c3844644144083b3749f346fe79230e77bace2ef8a373858b629938cb5e553",
-      "bytes": 106786
+      "sha256": "9937e930f0bbca1232436d8a8e03ba51058d72364455cd39c1b720e1e381c01b",
+      "bytes": 106831
     },
     "rpg.fxc.arduboy": {
-      "sha256": "b4169a46fc1adec4e0945ead75bb7a9a3727d68c0cb183b694887fab1315dec5",
-      "bytes": 125589
+      "sha256": "1f1ea77fb916523dc8873f802a8a159e4ad6b82c881778721afc08a8c42f5cd1",
+      "bytes": 125634
     }
   },
   "resources": {
@@ -418,15 +420,15 @@
         "complete": true,
         "completed_cycles": "128000000",
         "discontinuities": "0",
-        "end_cycle": "152469876",
-        "end_pc": 663,
+        "end_cycle": "152469953",
+        "end_pc": 667,
         "native": true,
         "native_active_cycles": "24488108",
         "native_elapsed_cycles": "128000000",
         "partial_cycles": "0",
-        "requested_end_cycle": "152469876",
-        "start_cycle": "24469876",
-        "start_pc": 663,
+        "requested_end_cycle": "152469953",
+        "start_cycle": "24469953",
+        "start_pc": 667,
         "stop_reason": "deadline"
       },
       "identity": {
@@ -436,7 +438,7 @@
         "elf_sha256": "6c37cc8432c7e1df22eaae2a5eb8c61b70a2e5d3c42e3ca376a2e2a0fe12187d",
         "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "image_sha256": "e99c9ac748c03b6fde65ac5bf4304c1fd033fc1c03a9d290d397e2f596df4cae",
-        "interpreter_sha256": "cc7738b1ed135dd4cc2e73aeca01cb19820a5ebeddd9d75b677b793d186aea7c",
+        "interpreter_sha256": "1b797037dec6883b2968e901ca0891605386c8edcf0960e3dec91234a14dea1f",
         "usb_bus_state": 1
       }
     },
@@ -445,14 +447,14 @@
         "complete": true,
         "completed_cycles": "128000122",
         "discontinuities": "0",
-        "end_cycle": "152490865",
+        "end_cycle": "152490870",
         "end_pc": 865,
         "native": true,
         "native_active_cycles": "108682918",
         "native_elapsed_cycles": "128000122",
         "partial_cycles": "0",
-        "requested_end_cycle": "152490743",
-        "start_cycle": "24490743",
+        "requested_end_cycle": "152490748",
+        "start_cycle": "24490748",
         "start_pc": 10166,
         "stop_reason": "deadline"
       },
@@ -463,7 +465,7 @@
         "elf_sha256": "c963c344d328831fce393be761527bd892b6b0dc3f01799dca7f950f3bcce439",
         "fxsave_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "image_sha256": "773809c01923aedda1c6999a70fbe9a5aabcce5c7d1343fa61299537979dd28d",
-        "interpreter_sha256": "cc7738b1ed135dd4cc2e73aeca01cb19820a5ebeddd9d75b677b793d186aea7c",
+        "interpreter_sha256": "1b797037dec6883b2968e901ca0891605386c8edcf0960e3dec91234a14dea1f",
         "usb_bus_state": 1
       }
     }
@@ -475,5 +477,5 @@
   "npc_capacity": 8,
   "npc_bytes": 18,
   "pool_bytes": 156,
-  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-0pvf4rp8"
+  "raw_evidence_directory": "C:\\Users\\Brown\\Documents\\GitHub\\avm\\projects\\avm_rpg\\build\\verification-8awecy2f"
 }

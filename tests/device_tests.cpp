@@ -43,6 +43,8 @@ struct Device {
     Cost last;
     std::vector<Cost> frames;
     std::vector<Cost> transitions;
+    void (*cycle_observer)(void*, bool) = nullptr;
+    void* observer_context = nullptr;
 
     Device(fs::path const& package, unsigned g, unsigned m, unsigned s, unsigned q, bool p = false)
         : game_addr(g), marker_addr(m), serial_addr(s), dialogue_addr(q), proof(p) {
@@ -105,9 +107,13 @@ struct Device {
     }
 
     void step() {
+        if(cycle_observer)
+            cycle_observer(observer_context, false);
         pins();
         ab->cycle();
         ab->core_state.cpu.update_all();
+        if(cycle_observer)
+            cycle_observer(observer_context, true);
 
         auto const& cpu = ab->core_state.cpu;
         require(!cpu.should_autobreak(), "native interpreter fault");
@@ -163,7 +169,7 @@ struct Device {
     }
 
     bool music_enabled() const {
-        return (ab->core_state.cpu.data[absim::reg::addr::TIMSK3] & 2) != 0;
+        return ab->core_state.cpu.data[absim::reg::addr::TCCR4B] != 0;
     }
 
     void verify_music() {
@@ -378,6 +384,7 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
               << ",\"budget_cycles\":800000}\n";
 }
 
+#ifndef RPG_DEVICE_TEST_LIBRARY
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
                        "output_directory normal|fxc|proof dialogue_address phase_address");
@@ -484,3 +491,4 @@ int main(int argc, char** argv) try {
     std::cerr << "FAIL " << error.what() << '\n';
     return 1;
 }
+#endif

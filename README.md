@@ -55,8 +55,20 @@ From this repository root:
 ```powershell
 ./tools/build.ps1 -SdkRoot ../../build/avm-sdk-install
 cmake --build build --config RelWithDebInfo --target rpg_integration
+cmake --build build --config RelWithDebInfo --target rpg_audio_timing
 python tools/collect_evidence.py --build build --write-docs
 ```
+
+Audio uses Timer1 for 15,625 Hz output and 7,812.5 Hz synthesis, with the
+separate 1 kHz Timer0 clock. The optional full-device build also provides
+`rpg_audio_timing`. It measures
+Timer1 entry lateness, PWM write intervals, synthesis cadence, ISR execution
+time, and foreground interrupt-disabled spans in the packaged game. The full
+run covers a complete song plus dialogue, menus, saving, walking, and collision;
+it also checks FXC and calibrates against known NOP/CLI workloads. CSV and JSON
+distributions are written to `build/audio-timing`; matplotlib adds PNG/SVG plots.
+CTest's `audio_timing` runs shorter two-second gameplay windows. See
+[the timing investigation](docs/audio_timing.md) for measured results and definitions.
 
 See [Tiled/asset pipeline](docs/tiled_pipeline.md), [world architecture](docs/chunk_world.md),
 [NPC mechanics](docs/essential_npcs.md) and [current measurements](docs/tiles16_measurements.md).

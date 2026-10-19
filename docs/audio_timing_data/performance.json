@@ -1,0 +1,268 @@
+{
+  "timer1": {
+    "result": "PASS",
+    "sdk_input": true,
+    "procedural_screen_calls": true,
+    "m0_execution_and_drawing": true,
+    "full_device": true,
+    "full_device_fxc": true,
+    "guest_checks": {
+      "m15_probe": 72,
+      "m16_probe": 5448
+    },
+    "measurements": [
+      {
+        "workload": "m0_proof",
+        "frames": 30,
+        "average_cycles": 33660,
+        "worst_cycles": 33679,
+        "average_render_display_cycles": 19098,
+        "observed_fps": 20.0001,
+        "average_reload_cycles": 0,
+        "worst_reload_cycles": 0,
+        "average_chunk_cycles": 0,
+        "worst_chunk_cycles": 0,
+        "average_collision_cycles": 0,
+        "worst_collision_cycles": 0,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "idle_grove",
+        "frames": 30,
+        "average_cycles": 280529,
+        "worst_cycles": 296296,
+        "average_render_display_cycles": 118828,
+        "observed_fps": 30.3033,
+        "average_reload_cycles": 37107,
+        "worst_reload_cycles": 37746,
+        "average_chunk_cycles": 35351,
+        "worst_chunk_cycles": 37238,
+        "average_collision_cycles": 74003,
+        "worst_collision_cycles": 89244,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "pixel_scroll",
+        "frames": 30,
+        "average_cycles": 257077,
+        "worst_cycles": 326809,
+        "average_render_display_cycles": 105209,
+        "observed_fps": 30.3019,
+        "average_reload_cycles": 34659,
+        "worst_reload_cycles": 38056,
+        "average_chunk_cycles": 31123,
+        "worst_chunk_cycles": 46895,
+        "average_collision_cycles": 71512,
+        "worst_collision_cycles": 121635,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "dense_collision",
+        "frames": 30,
+        "average_cycles": 227842,
+        "worst_cycles": 230239,
+        "average_render_display_cycles": 97287,
+        "observed_fps": 30.3023,
+        "average_reload_cycles": 31409,
+        "worst_reload_cycles": 32638,
+        "average_chunk_cycles": 18733,
+        "worst_chunk_cycles": 19537,
+        "average_collision_cycles": 65858,
+        "worst_collision_cycles": 68113,
+        "budget_cycles": 800000
+      },
+      {
+        "result": "PASS",
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+      },
+      {
+        "workload": "fxc_idle_grove",
+        "frames": 30,
+        "average_cycles": 280529,
+        "worst_cycles": 296296,
+        "average_render_display_cycles": 118828,
+        "observed_fps": 30.3033,
+        "average_reload_cycles": 37107,
+        "worst_reload_cycles": 37746,
+        "average_chunk_cycles": 35351,
+        "worst_chunk_cycles": 37238,
+        "average_collision_cycles": 74003,
+        "worst_collision_cycles": 89244,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "fxc_pixel_scroll",
+        "frames": 30,
+        "average_cycles": 257077,
+        "worst_cycles": 326809,
+        "average_render_display_cycles": 105209,
+        "observed_fps": 30.3019,
+        "average_reload_cycles": 34659,
+        "worst_reload_cycles": 38056,
+        "average_chunk_cycles": 31123,
+        "worst_chunk_cycles": 46895,
+        "average_collision_cycles": 71512,
+        "worst_collision_cycles": 121635,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "fxc_dense_collision",
+        "frames": 30,
+        "average_cycles": 227842,
+        "worst_cycles": 230239,
+        "average_render_display_cycles": 97287,
+        "observed_fps": 30.3023,
+        "average_reload_cycles": 31409,
+        "worst_reload_cycles": 32638,
+        "average_chunk_cycles": 18733,
+        "worst_chunk_cycles": 19537,
+        "average_collision_cycles": 65858,
+        "worst_collision_cycles": 68113,
+        "budget_cycles": 800000
+      },
+      {
+        "result": "PASS",
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+      }
+    ],
+    "elf_sha256": {
+      "m0_proof": "6c37cc8432c7e1df22eaae2a5eb8c61b70a2e5d3c42e3ca376a2e2a0fe12187d",
+      "rpg": "c963c344d328831fce393be761527bd892b6b0dc3f01799dca7f950f3bcce439",
+      "m15_probe": "e98355b88919b65755d300e420bc6d5bc047dd7f131935877ccf7c0dac7ba6e5",
+      "m16_probe": "9a9afa600539048906deedcad8a5684744969b9fcac4558b2292da005b5186c2"
+    }
+  },
+  "unified": {
+    "result": "PASS",
+    "sdk_input": true,
+    "procedural_screen_calls": true,
+    "m0_execution_and_drawing": true,
+    "full_device": true,
+    "full_device_fxc": true,
+    "guest_checks": {
+      "m15_probe": 72,
+      "m16_probe": 5448
+    },
+    "measurements": [
+      {
+        "workload": "m0_proof",
+        "frames": 30,
+        "average_cycles": 35585,
+        "worst_cycles": 35606,
+        "average_render_display_cycles": 20188,
+        "observed_fps": 20,
+        "average_reload_cycles": 0,
+        "worst_reload_cycles": 0,
+        "average_chunk_cycles": 0,
+        "worst_chunk_cycles": 0,
+        "average_collision_cycles": 0,
+        "worst_collision_cycles": 0,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "idle_grove",
+        "frames": 30,
+        "average_cycles": 285564,
+        "worst_cycles": 301287,
+        "average_render_display_cycles": 120815,
+        "observed_fps": 30.0009,
+        "average_reload_cycles": 37860,
+        "worst_reload_cycles": 39449,
+        "average_chunk_cycles": 36010,
+        "worst_chunk_cycles": 37742,
+        "average_collision_cycles": 75274,
+        "worst_collision_cycles": 90455,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "pixel_scroll",
+        "frames": 30,
+        "average_cycles": 258217,
+        "worst_cycles": 313667,
+        "average_render_display_cycles": 106284,
+        "observed_fps": 30.0025,
+        "average_reload_cycles": 35117,
+        "worst_reload_cycles": 38757,
+        "average_chunk_cycles": 31374,
+        "worst_chunk_cycles": 47746,
+        "average_collision_cycles": 70649,
+        "worst_collision_cycles": 104841,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "dense_collision",
+        "frames": 30,
+        "average_cycles": 231863,
+        "worst_cycles": 236068,
+        "average_render_display_cycles": 98898,
+        "observed_fps": 30.0025,
+        "average_reload_cycles": 31953,
+        "worst_reload_cycles": 33233,
+        "average_chunk_cycles": 19124,
+        "worst_chunk_cycles": 20420,
+        "average_collision_cycles": 67058,
+        "worst_collision_cycles": 70446,
+        "budget_cycles": 800000
+      },
+      {
+        "result": "PASS",
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+      },
+      {
+        "workload": "fxc_idle_grove",
+        "frames": 30,
+        "average_cycles": 285555,
+        "worst_cycles": 301282,
+        "average_render_display_cycles": 120803,
+        "observed_fps": 30.0009,
+        "average_reload_cycles": 37822,
+        "worst_reload_cycles": 39449,
+        "average_chunk_cycles": 36030,
+        "worst_chunk_cycles": 38231,
+        "average_collision_cycles": 75275,
+        "worst_collision_cycles": 90236,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "fxc_pixel_scroll",
+        "frames": 30,
+        "average_cycles": 258183,
+        "worst_cycles": 313667,
+        "average_render_display_cycles": 106227,
+        "observed_fps": 30.0009,
+        "average_reload_cycles": 35129,
+        "worst_reload_cycles": 38661,
+        "average_chunk_cycles": 31361,
+        "worst_chunk_cycles": 47750,
+        "average_collision_cycles": 70619,
+        "worst_collision_cycles": 104840,
+        "budget_cycles": 800000
+      },
+      {
+        "workload": "fxc_dense_collision",
+        "frames": 30,
+        "average_cycles": 231867,
+        "worst_cycles": 235901,
+        "average_render_display_cycles": 98879,
+        "observed_fps": 30.0009,
+        "average_reload_cycles": 32081,
+        "worst_reload_cycles": 33230,
+        "average_chunk_cycles": 19072,
+        "worst_chunk_cycles": 20457,
+        "average_collision_cycles": 66955,
+        "worst_collision_cycles": 70598,
+        "budget_cycles": 800000
+      },
+      {
+        "result": "PASS",
+        "scenario": "16x16 world, sign, menus, save/restart and scrolling with peaceful music"
+      }
+    ],
+    "elf_sha256": {
+      "m0_proof": "0ea0dc6c6bda00d894691477040f62db333e6fd3d52f52dce4759a17e721079c",
+      "rpg": "7fbdbdca30f5b7f77c15aa107553a44187783a2fbed4ec75c0401e51d888ef90",
+      "m15_probe": "16618fd97901969d3d5c3c821382513d5a0ad9cc7f7535f7d3cdaa3eb4737339",
+      "m16_probe": "065649612a3230c772f1020d82b0bfdba5b74a4691de371acff8e7b4115c9769"
+    }
+  }
+}

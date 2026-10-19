@@ -105,7 +105,7 @@ def main():
     lines = [
         "# 16x16 measured evidence\n",
         f"Measured {evidence['verification_date']} in {evidence['configuration']}.",
-        f"Source fingerprint `{fingerprint}`. Changes remain uncommitted.",
+        f"Source fingerprint `{fingerprint}`.",
         "Exact source/package hashes, complete link paths and LTO checks are in",
         "[tiles16_evidence.json](tiles16_evidence.json). Raw LLDB logs, PGM captures",
         f"and complete source profiles remain in `build/{work.name}`.\n",
@@ -139,8 +139,9 @@ def main():
         "one Game, no Game-reference helper parameters and no stored TilePos constants.",
         "The separate framebuffer and native AVR hardware stack are excluded.\n",
         "Full-device emulated AVR cycles at 16 MHz include simulation, rendering,",
-        "display transfer and interrupts; pacing waits are excluded. The 20 FPS budget",
-        "is 800,000 cycles, checked on every observed exploration frame.\n",
+        "display transfer and interrupts; pacing waits are excluded. Exploration checks retain",
+        "an 800,000-cycle diagnostic ceiling. The RPG requests 30 FPS (33 ms periods);",
+        "the proof targets 20 FPS. All measured RPG frames also meet the 33 ms interval.\n",
         "| Workload | frames | average cycles | worst observed | render/display | FPS |",
         "|---|---:|---:|---:|---:|---:|",
     ]
@@ -152,8 +153,8 @@ def main():
             )
     lines += [
         "",
-        "Nine CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,",
-        "chunk_world, tiled_pipeline, generated_assets, content and peaceful_music. Pipeline tests check",
+        "Ten CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,",
+        "chunk_world, tiled_pipeline, generated_assets, content, peaceful_music and audio_timing. Pipeline tests check",
         "every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,",
         "padding, maximum map dimensions, chunk relocation and default handlers.\n",
         "```text",

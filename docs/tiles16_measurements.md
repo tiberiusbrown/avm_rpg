@@ -1,10 +1,10 @@
 # 16x16 measured evidence
 
 Measured 2026-10-19 in RelWithDebInfo; existing MSVC/Ninja and AVM SDK.
-Source fingerprint `c35adf292c6fc1e922be3a15d7d7510fea42c9ed271c2b7801268098082ab7e9`. Changes remain uncommitted.
+Source fingerprint `e5188bf14afbf0c07a36b49a4791a2a38e2e5afb7b566b9b08da2a664830e291`.
 Exact source/package hashes, complete link paths and LTO checks are in
 [tiles16_evidence.json](tiles16_evidence.json). Raw LLDB logs, PGM captures
-and complete source profiles remain in `build/verification-0pvf4rp8`.
+and complete source profiles remain in `build/verification-8awecy2f`.
 
 | Guest | saved | ordinary RAM | total static / 1024 | code | PROGMEM | complete stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -21,8 +21,9 @@ one Game, no Game-reference helper parameters and no stored TilePos constants.
 The separate framebuffer and native AVR hardware stack are excluded.
 
 Full-device emulated AVR cycles at 16 MHz include simulation, rendering,
-display transfer and interrupts; pacing waits are excluded. The 20 FPS budget
-is 800,000 cycles, checked on every observed exploration frame.
+display transfer and interrupts; pacing waits are excluded. Exploration checks retain
+an 800,000-cycle diagnostic ceiling. The RPG requests 30 FPS (33 ms periods);
+the proof targets 20 FPS. All measured RPG frames also meet the 33 ms interval.
 
 | Workload | frames | average cycles | worst observed | render/display | FPS |
 |---|---:|---:|---:|---:|---:|
@@ -34,8 +35,8 @@ is 800,000 cycles, checked on every observed exploration frame.
 | fxc_pixel_scroll | 30 | 257,077 | 326,809 | 105209 | 30.3019 |
 | fxc_dense_collision | 30 | 227,842 | 230,239 | 97287 | 30.3023 |
 
-Nine CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
-chunk_world, tiled_pipeline, generated_assets, content and peaceful_music. Pipeline tests check
+Ten CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
+chunk_world, tiled_pipeline, generated_assets, content, peaceful_music and audio_timing. Pipeline tests check
 every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,
 padding, maximum map dimensions, chunk relocation and default handlers.
 

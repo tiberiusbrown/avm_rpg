@@ -15,24 +15,27 @@ set(AVM_SOURCE_ROOT "" CACHE PATH "Optional AVM source checkout for full-device 
 set(AVM_BUILD_ROOT "" CACHE PATH "Matching RelWithDebInfo AVM build")
 if(AVM_SOURCE_ROOT AND AVM_BUILD_ROOT)
     add_executable(rpg_device_tests tests/device_tests.cpp generated/sprites.cpp)
-    target_compile_features(rpg_device_tests PRIVATE cxx_std_20)
-    target_include_directories(rpg_device_tests PRIVATE src generated
-        "${AVM_SOURCE_ROOT}/tests/interp"
-        "${AVM_SOURCE_ROOT}/deps/Ardens/src"
-        "${AVM_SOURCE_ROOT}/deps/Ardens/deps"
-        "${AVM_SOURCE_ROOT}/deps/Ardens/deps/bitsery/include")
-    if(MSVC)
-        target_compile_options(rpg_device_tests PRIVATE /Zc:__cplusplus)
-        target_link_libraries(rpg_device_tests PRIVATE
-            "${AVM_BUILD_ROOT}/ardens-build/ardensdebuggerlib.lib"
-            "${AVM_BUILD_ROOT}/ardens-build/deps/fmt/fmt.lib"
-            "${AVM_BUILD_ROOT}/ardens-build/deps/miniz/miniz.lib")
-    else()
-        target_link_libraries(rpg_device_tests PRIVATE
-            "${AVM_BUILD_ROOT}/ardens-build/libardensdebuggerlib.a"
-            "${AVM_BUILD_ROOT}/ardens-build/deps/fmt/libfmt.a"
-            "${AVM_BUILD_ROOT}/ardens-build/deps/miniz/libminiz.a")
-    endif()
+    add_executable(rpg_audio_timing_tests tests/audio_timing.cpp generated/sprites.cpp)
+    foreach(qa_target IN ITEMS rpg_device_tests rpg_audio_timing_tests)
+        target_compile_features(${qa_target} PRIVATE cxx_std_20)
+        target_include_directories(${qa_target} PRIVATE src generated
+            "${AVM_SOURCE_ROOT}/tests/interp"
+            "${AVM_SOURCE_ROOT}/deps/Ardens/src"
+            "${AVM_SOURCE_ROOT}/deps/Ardens/deps"
+            "${AVM_SOURCE_ROOT}/deps/Ardens/deps/bitsery/include")
+        if(MSVC)
+            target_compile_options(${qa_target} PRIVATE /Zc:__cplusplus)
+            target_link_libraries(${qa_target} PRIVATE
+                "${AVM_BUILD_ROOT}/ardens-build/ardensdebuggerlib.lib"
+                "${AVM_BUILD_ROOT}/ardens-build/deps/fmt/fmt.lib"
+                "${AVM_BUILD_ROOT}/ardens-build/deps/miniz/miniz.lib")
+        else()
+            target_link_libraries(${qa_target} PRIVATE
+                "${AVM_BUILD_ROOT}/ardens-build/libardensdebuggerlib.a"
+                "${AVM_BUILD_ROOT}/ardens-build/deps/fmt/libfmt.a"
+                "${AVM_BUILD_ROOT}/ardens-build/deps/miniz/libminiz.a")
+        endif()
+    endforeach()
 endif()
 set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
@@ -98,6 +101,7 @@ add_dependencies(rpg_world_tests rpg_handler_fixture)
 
 if(TARGET rpg_device_tests)
     add_dependencies(rpg_device_tests rpg_assets)
+    add_dependencies(rpg_audio_timing_tests rpg_assets)
 endif()
 
 if(RPG_BUILD_GUEST)
@@ -184,6 +188,25 @@ if(RPG_BUILD_GUEST)
     set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
     guest(rpg ${RULES} ${PLATFORM})
     add_dependencies(rpg rpg_music)
+    if(TARGET rpg_audio_timing_tests)
+        add_custom_target(rpg_audio_timing
+            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audio_timing.py"
+                --device "$<TARGET_FILE:rpg_audio_timing_tests>"
+                --build "${CMAKE_CURRENT_BINARY_DIR}"
+                --interpreter-build "${AVM_SOURCE_ROOT}/interp/build"
+                --fxc-interpreter-build "${AVM_BUILD_ROOT}/interp/fxc"
+                --seconds 40 --fxc-seconds 8
+            DEPENDS rpg rpg_audio_timing_tests VERBATIM)
+        add_test(NAME audio_timing COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audio_timing.py"
+            --device "$<TARGET_FILE:rpg_audio_timing_tests>"
+            --build "${CMAKE_CURRENT_BINARY_DIR}"
+            --interpreter-build "${AVM_SOURCE_ROOT}/interp/build"
+            --fxc-interpreter-build "${AVM_BUILD_ROOT}/interp/fxc"
+            --seconds 2 --fxc-seconds 2 --no-plot
+            --output "${CMAKE_CURRENT_BINARY_DIR}/audio-timing-smoke")
+        set_tests_properties(audio_timing PROPERTIES TIMEOUT 180)
+    endif()
     if(EXISTS "${AVM_LLDB}")
         add_custom_target(rpg_integration
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"
