@@ -198,7 +198,9 @@ A fresh-device restart with the actual exported sector was exercised; see QA log
 
 **Verified:** `runtime/include/avm/audio.h`, `docs/audio.md`, and
 `projects/audio_demo/main.c` expose autonomous three-tonal-plus-noise audio.
-`avm_audio_play` / `avm_audio_sfx` accept program pointers to terminating or looping songs;
+`avm_audio_play` accepts A3 terminating/looping music; `avm_audio_sfx` accepts
+compact one-shot tonal/noise effects on voices 2/3. Assets store raw uint16 phase
+increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
 and Timer1/Timer4 audio operation require no game update call. RPG starts the
 original Dewlight Grove loop after New Game or a successful Continue. The travel

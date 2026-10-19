@@ -26,7 +26,7 @@ master = int(re.search(r"MUSIC_MASTER_VOLUME\s*=\s*(\d+)", platform)[1])
 
 # Start with dirty state to exercise the full first-event reset used during
 # song changes. Then carry the ending state through two loops of each song.
-notes, controls = [60, 64, 67, 95], [31] * 4
+notes, controls = [2195, 2765, 3288, 16572], [31] * 4
 themes = set()
 for song in SONGS:
     source = ROOT / f"assets/music/{song}.avms"
@@ -48,7 +48,7 @@ for song in SONGS:
     words = re.search(rf"{song.upper()}_MUSIC\[\] = \{{(.*?)\}};", header, re.DOTALL)[1]
     data = b"".join(int(value, 16).to_bytes(8, "little")
                     for value in re.findall(r"0x([0-9a-f]{16})ULL", words))
-    assert data[:2] == bytes([0xA2, 15]), "every song must own and reset all four voices"
+    assert data[:2] == bytes([0xA3, 15]), "every song must own and reset all four voices"
     previous = None
     peak_mix = 0
     for iteration in range(2):
@@ -74,10 +74,10 @@ for song in SONGS:
                 first = False
             for channel in range(4):
                 if mask & (1 << channel):
-                    notes[channel] = data[offset]
-                    offset += 1
-                    assert notes[channel] == 0x80 or 24 <= notes[channel] <= 95
-                    if notes[channel] != 0x80:
+                    notes[channel] = int.from_bytes(data[offset:offset + 2], "little")
+                    offset += 2
+                    assert notes[channel] == 0 or 274 <= notes[channel] <= 16572
+                    if notes[channel] != 0:
                         attacks[channel].append(notes[channel])
             for channel in range(4):
                 if mask & (16 << channel):
@@ -85,14 +85,14 @@ for song in SONGS:
                     offset += 1
                     assert controls[channel] < 128
             active = [channel for channel in range(4)
-                      if notes[channel] != 0x80 and controls[channel] & 31]
+                      if notes[channel] != 0 and controls[channel] & 31]
             polyphony = max(polyphony, len([channel for channel in active if channel < 3]))
             peak_mix = max(peak_mix, sum((controls[channel] & 31) * master // 32 for channel in active))
             events.append((ticks, tuple(notes), tuple(controls)))
         assert ticks == int(duration / 4 + Fraction(1, 2)), "exact written loop length"
-        assert attacks == [[note["pitch"] for note in parts[channel]] for channel in range(4)]
+        assert attacks == [[encoder["note_increment"](note["pitch"]) for note in parts[channel]] for channel in range(4)]
         assert polyphony == 3, "exercise melody, counterline, and bass together"
-        assert notes == [0x80] * 4 and all(control & 31 == 0 for control in controls), (
+        assert notes == [0] * 4 and all(control & 31 == 0 for control in controls), (
             "all release tails must finish before the loop boundary"
         )
         assert len(data) - offset < 8 and not any(data[offset:]), "only word padding after Loop"
