@@ -53,16 +53,18 @@ void render_title(bool can_continue, uint8_t selection) {
     avm_draw_text(14, 60, F("D-pad choose / A"));
 }
 
-void render_menu(uint8_t selection, char const PROGMEM* feedback) {
+void render_menu(uint8_t selection, char const PROGMEM* feedback, uint8_t audio_rate) {
     rpg_render_world();
     panel();
-    avm_draw_text(6, 11, F("TRAVEL MENU"));
+    avm_draw_text(6, 10, F("TRAVEL MENU"));
 
-    avm_draw_text(22, 22, F("Status"));
-    avm_draw_text(22, 31, F("Save game"));
-    avm_draw_text(22, 40, F("Return"));
-    avm_draw_text(22, 49, F("Switch music"));
-    avm_draw_text(8, (int16_t)(22 + selection * 9), F(">"));
+    avm_draw_text(22, 18, F("Status"));
+    avm_draw_text(22, 26, F("Save game"));
+    avm_draw_text(22, 34, F("Return"));
+    avm_draw_text(22, 42, F("Switch music"));
+    avm_draw_text(22, 50,
+                  audio_rate == AVM_AUDIO_RATE_16KHZ ? F("Audio: 16 kHz") : F("Audio: 8 kHz"));
+    avm_draw_text(8, (int16_t)(18 + selection * 8), F(">"));
 
     avm_draw_text(6, 58, feedback ? feedback : F("A select / B back"));
 }

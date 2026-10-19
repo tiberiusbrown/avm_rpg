@@ -176,6 +176,7 @@ struct Device {
     void verify_music() {
         require(music_enabled(), "music sample timer is disabled");
         uint8_t low = 255, high = 0;
+        unsigned peak_amplitude = 0;
         buttons = 0;
         // Cover more than a full beat, including gaps between percussion hits.
         uint64_t end = ab->core_state.cpu.cycle_count + 10000000;
@@ -184,9 +185,18 @@ struct Device {
             auto sample = ab->core_state.cpu.data[absim::reg::addr::OCR4A];
             low = std::min(low, sample);
             high = std::max(high, sample);
+            // Prepared amplitudes include the selected master gain. A boosted
+            // soundtrack may intentionally saturate; reject clipping when the
+            // live inputs cannot reach either PWM limit.
+            auto const& data = ab->core_state.cpu.data;
+            unsigned amplitude = 0;
+            for(unsigned channel = 0; channel < 4; ++channel)
+                amplitude += data[0xa18 + 3 * channel + 2];
+            peak_amplitude = std::max(peak_amplitude, amplitude);
         }
         require(low < 128 && high > 128, "music produced no audible PWM waveform");
-        require(low != 0 && high != 255, "music clipped the PWM output");
+        require(peak_amplitude >= 127 || (low != 0 && high != 255),
+                "music clipped below the available amplitude headroom");
     }
 
     void frame(uint8_t held = 0) {
@@ -408,6 +418,7 @@ int main(int argc, char** argv) try {
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
+    require(d.ab->core_state.cpu.timer1.ocrNa == 255, "new game did not default to 8 kHz audio");
     d.verify_music();
     require(d.state().player.x == 112 && d.state().player.y == 80, "wrong 16x16 spawn");
     require(d.state().dimensions.width_tiles == 18 && d.state().dimensions.height_tiles == 12,
@@ -444,7 +455,28 @@ int main(int argc, char** argv) try {
             "menu did not pause exploration");
     d.verify_music();
     d.capture(out / "menu.pgm");
-    // Up wraps from Status to Switch music. Check every song and wrap back
+    // Up wraps from Status to Audio. Toggle while music plays, leave/reopen
+    // the menu to check persistence, then restore the default rate.
+    d.tap(BTN_UP);
+    d.tap(BTN_A);
+    require(d.ab->core_state.cpu.timer1.ocrNa == 127, "audio menu did not select 16 kHz");
+    d.verify_music();
+    auto after_rate = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_rate, sizeof(Game)),
+            "changing audio rate advanced simulation");
+    d.capture(out / "audio-16khz.pgm");
+    d.tap(BTN_B);
+    d.frame();
+    require(d.ab->core_state.cpu.timer1.ocrNa == 127, "leaving the menu lost the audio rate");
+    d.tap(BTN_B);
+    menu_serial = d.serial();
+    d.tap(BTN_UP);
+    d.tap(BTN_A);
+    require(d.ab->core_state.cpu.timer1.ocrNa == 255, "audio menu did not return to 8 kHz");
+    d.verify_music();
+    d.capture(out / "audio-8khz.pgm");
+
+    // Up from Audio selects Switch music. Check every song and wrap back
     // to the default while the world remains paused.
     d.tap(BTN_UP);
     for(unsigned song = 0; song < MUSIC_COUNT; ++song) {

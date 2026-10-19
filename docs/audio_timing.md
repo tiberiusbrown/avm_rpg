@@ -8,7 +8,30 @@ The detailed comparisons below are archived experiments made with the former
 soundtrack. The game now uses six original compositions; current package hashes,
 resource counts, and playback checks are in [the current evidence](tiles16_measurements.md).
 
-## Selected implementation
+## Unsmoothed 8/16 kHz experiment (current)
+
+The current firmware defaults to **7812.5 Hz output and synthesis**, with no
+midpoint smoothing. `avm_audio_rate` can select **15625 Hz** synthesis at runtime.
+Both modes retain the early PWM store and Timer0 phase alignment. A4/C1..C3
+assets store increments at the 15625 Hz basis; foreground commit doubles them
+for 8 kHz. All six songs were regenerated, with the game's gain of 180 retained.
+At that boost the mix can clip; playback tests allow saturation when the live
+amplitudes can reach the PWM limit. Score tests retain their headroom check at
+the reference master of 64.
+
+The [current measurement](audio_timing_data/unsmoothed.json) records 430469
+normal and 62500 FX-C output interrupts, with extra delay **0..7 cycles** and
+**zero delays of 10 or more cycles**. PWM interval error is -6..+7 cycles.
+The PWM store completes at compare + 21 cycles plus interrupt acceptance delay.
+The normal run includes 40 seconds of music, dialogue, menus, saving, walking,
+and collision work; FX-C includes eight seconds. NOP and CLI calibration pass.
+Native tests cover startup and live rate changes at all 32000 combinations of
+rate, Timer0 count and sub-tick phase. See the [implementation and resource
+measurements](../../../docs/audio-benchmarks.md) for details.
+
+The comparisons below describe the preceding smoothed implementations.
+
+## Preceding smoothed Timer1 implementation
 
 Audio uses **Timer1 COMPA** with prescaler 8 and `OCR1A=127`: **15,625 Hz output**,
 with synthesis on alternate interrupts at **7,812.5 Hz**. Timer4 retains its
@@ -29,7 +52,7 @@ The selected firmware is documented by the [event-buffer data](audio_timing_data
 The [original cached Timer1 data](audio_timing_data/timer1.json), Timer3 baseline,
 and unified experiment remain as references for the comparisons below.
 
-## Temporary event buffer and startup phase alignment (current)
+## Temporary event buffer and startup phase alignment (preceding implementation)
 
 Each due event reads ten bytes through the existing FX burst subroutine into
 temporary formatter/service scratch. The parser uses `LD r24, X+` for masks,

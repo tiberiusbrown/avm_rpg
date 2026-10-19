@@ -148,7 +148,7 @@ bool save_decode(uint8_t const* in, uint16_t length = SAVE_BYTES);
 uint16_t save_checksum(uint8_t const* in, uint16_t length = SAVE_CRC_OFFSET);
 void rpg_render_world();
 void render_title(bool can_continue, uint8_t selection);
-void render_menu(uint8_t selection, char const PROGMEM* feedback);
+void render_menu(uint8_t selection, char const PROGMEM* feedback, uint8_t audio_rate);
 void render_status();
 
 void input_sync();

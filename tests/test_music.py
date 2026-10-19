@@ -48,9 +48,10 @@ for song in SONGS:
     words = re.search(rf"{song.upper()}_MUSIC\[\] = \{{(.*?)\}};", header, re.DOTALL)[1]
     data = b"".join(int(value, 16).to_bytes(8, "little")
                     for value in re.findall(r"0x([0-9a-f]{16})ULL", words))
-    assert data[:2] == bytes([0xA3, 15]), "every song must own and reset all four voices"
+    assert data[:2] == bytes([0xA4, 15]), "every song must own and reset all four voices"
     previous = None
     peak_mix = 0
+    reference_peak_mix = 0
     for iteration in range(2):
         offset, ticks = 2, 0
         attacks = [[] for _ in range(4)]
@@ -76,7 +77,7 @@ for song in SONGS:
                 if mask & (1 << channel):
                     notes[channel] = int.from_bytes(data[offset:offset + 2], "little")
                     offset += 2
-                    assert notes[channel] == 0 or 274 <= notes[channel] <= 16572
+                    assert notes[channel] == 0 or 137 <= notes[channel] <= 8286
                     if notes[channel] != 0:
                         attacks[channel].append(notes[channel])
             for channel in range(4):
@@ -88,6 +89,10 @@ for song in SONGS:
                       if notes[channel] != 0 and controls[channel] & 31]
             polyphony = max(polyphony, len([channel for channel in active if channel < 3]))
             peak_mix = max(peak_mix, sum((controls[channel] & 31) * master // 32 for channel in active))
+            # Preserve the authored headroom at 200% gain, independently of
+            # the game's chosen (potentially clipping) playback boost.
+            reference_peak_mix = max(reference_peak_mix,
+                                     sum((controls[channel] & 31) * 2 for channel in active))
             events.append((ticks, tuple(notes), tuple(controls)))
         assert ticks == int(duration / 4 + Fraction(1, 2)), "exact written loop length"
         assert attacks == [[encoder["note_increment"](note["pitch"]) for note in parts[channel]] for channel in range(4)]
@@ -96,7 +101,7 @@ for song in SONGS:
             "all release tails must finish before the loop boundary"
         )
         assert len(data) - offset < 8 and not any(data[offset:]), "only word padding after Loop"
-        assert 0 < peak_mix <= 127, f"preserve mixer headroom at master {master}"
+        assert 0 < reference_peak_mix <= 127, "preserve authored headroom at master 64"
         if previous is not None:
             assert events == previous, "loop playback must not inherit stale channel state"
         previous = events

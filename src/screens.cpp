@@ -37,20 +37,21 @@ __attribute__((noinline)) void status_screen() {
 }
 
 __attribute__((noinline)) void menu_screen() {
+    static uint8_t audio_rate = AVM_AUDIO_RATE_8KHZ;
     uint8_t selection = 0;
     char const PROGMEM* feedback = nullptr;
 
     for(;;) {
-        render_menu(selection, feedback);
+        render_menu(selection, feedback, audio_rate);
         avm_display(true);
         uint8_t pressed = input_wait_press();
 
         if(pressed & BTN_B)
             return;
         if(pressed & (BTN_DOWN | BTN_RIGHT))
-            selection = (uint8_t)((selection + 1) % 4);
+            selection = (uint8_t)((selection + 1) % 5);
         else if(pressed & (BTN_UP | BTN_LEFT))
-            selection = (uint8_t)((selection + 3) % 4);
+            selection = (uint8_t)((selection + 4) % 5);
         else if(pressed & BTN_A) {
             if(selection == 0)
                 status_screen();
@@ -58,8 +59,12 @@ __attribute__((noinline)) void menu_screen() {
                 feedback = game_save() ? F("Saved and checked") : F("Save failed");
             else if(selection == 2)
                 return;
-            else
+            else if(selection == 3)
                 feedback = music_next();
+            else {
+                audio_rate ^= 1;
+                avm_audio_rate(audio_rate);
+            }
         }
     }
 }

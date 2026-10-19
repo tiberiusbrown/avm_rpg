@@ -24,14 +24,14 @@ struct TimingObserver {
     TimingSample pending;
     uint64_t next_due = 0, before_cycle = 0, last_write = 0, last_synthesis = 0;
     uint64_t mask_begin = 0, samples = 0, due_count = 0;
-    unsigned before_pc = 0, mask_pc = 0, phase_addr = 0;
-    unsigned entry_pc = 0, endpoint_pc = 0, midpoint_pc = 0;
+    unsigned before_pc = 0, mask_pc = 0;
+    unsigned entry_pc = 0, endpoint_pc = 0;
     int interrupt_vector = -1;
     bool before_active = false, before_i = false, masked = false;
     int64_t minimum = 100000, maximum = 0;
-    static constexpr uint64_t PERIOD = 1024;
+    static constexpr uint64_t PERIOD = 2048;
     static constexpr uint64_t ENTRY_CYCLES = 7; // AVR response 4 + vector JMP 3.
-    static constexpr uint64_t WRITE_CYCLES = 19; // Body entry to completed OCR4A STS.
+    static constexpr uint64_t WRITE_CYCLES = 14; // Body entry to completed OCR4A STS.
 
     absim::atmega32u4_t& cpu() { return device.ab->core_state.cpu; }
 
@@ -52,17 +52,10 @@ struct TimingObserver {
         }
         entry_pc = symbols.at("timer1_compa_isr");
         endpoint_pc = symbols.at("timer1_endpoint_write");
-        midpoint_pc = symbols.at("timer1_midpoint_write");
-        auto entry = entry_pc * 2;
-        // Derive the private phase address from the actual firmware LDS operand.
-        require((word(entry + 8) & 0xfe0f) == 0x9000, "unexpected ISR phase load");
-        phase_addr = word(entry + 10);
-        for(auto name : {"timer1_endpoint_write", "timer1_midpoint_write"}) {
-            auto address = symbols.at(name) * 2;
-            require((word(address) & 0xfe0f) == 0x9200 &&
-                        word(address + 2) == absim::reg::addr::OCR4A,
-                    "listing does not match the package PWM store");
-        }
+        auto address = endpoint_pc * 2;
+        require((word(address) & 0xfe0f) == 0x9200 &&
+                    word(address + 2) == absim::reg::addr::OCR4A,
+                "listing does not match the package PWM store");
         outliers.open(prefix.string() + "-outliers.csv");
         require(bool(outliers), "cannot create timing outlier CSV");
         outliers << "scenario,path,due_cycle,entry_cycle,write_cycle,lateness_cycles,"
@@ -81,7 +74,7 @@ struct TimingObserver {
         require(pending.entry && pending.write, "incomplete Timer1 observation");
         require(pending.entry >= pending.due + ENTRY_CYCLES, "negative ISR entry delay");
         require(pending.write - pending.entry == WRITE_CYCLES,
-                "PWM write latency varies between ISR paths");
+                "PWM write latency changed in the synthesis ISR");
         int64_t delay = int64_t(pending.entry - pending.due - ENTRY_CYCLES);
         require(delay < int64_t(PERIOD), "Timer1 missed an output deadline");
         auto path = pending.synthesis ? "synthesis" : "midpoint";
@@ -91,7 +84,7 @@ struct TimingObserver {
         if(last_write)
             bin(path, "pwm_interval_error", int64_t(pending.write - last_write) - int64_t(PERIOD));
         if(pending.synthesis && last_synthesis)
-            bin(path, "synthesis_interval_error", int64_t(pending.entry - last_synthesis) - int64_t(2 * PERIOD));
+            bin(path, "synthesis_interval_error", int64_t(pending.entry - last_synthesis) - int64_t(PERIOD));
         last_write = pending.write;
         if(pending.synthesis)
             last_synthesis = pending.entry;
@@ -115,8 +108,8 @@ struct TimingObserver {
             before_active = c.active;
             before_i = (c.data[absim::reg::addr::SREG] & 128) != 0;
             if(!next_due && device.music_enabled()) {
-                require(c.timer1.divider == 8 && c.timer1.top == 127,
-                        "expected 15625 Hz Timer1 CTC output");
+                require(c.timer1.divider == 8 && c.timer1.top == 255,
+                        "expected 7812.5 Hz Timer1 CTC output");
                 require(!(c.data[absim::reg::addr::TIFR1] & 2), "observer attached with IRQ pending");
                 uint64_t ticks = c.timer1.ocrNa > c.timer1.tcnt ?
                     c.timer1.ocrNa - c.timer1.tcnt :
@@ -166,9 +159,9 @@ struct TimingObserver {
         if(c.active && c.pc == entry_pc) {
             require(pending.due && !pending.entry, "unpaired Timer1 entry");
             pending.entry = c.cycle_count;
-            pending.synthesis = c.data[phase_addr] == 0;
+            pending.synthesis = true;
         }
-        if(before_active && (before_pc == endpoint_pc || before_pc == midpoint_pc))
+        if(before_active && before_pc == endpoint_pc)
             pending.write = c.cycle_count;
         if(before_active && word(before_pc * 2) == 0x9518) { // RETI
             if(interrupt_vector == 0x22)

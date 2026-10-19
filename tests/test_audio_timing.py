@@ -99,10 +99,10 @@ def main():
             delta, count = int(row["delta_cycles"]), int(row["count"])
             aggregate[key][delta] += count
             per_scenario[(variant, row["scenario"], row["path"], row["metric"])][delta] += count
-    summary = dict(audio_timer=1, clock_hz=16000000, output_period_cycles=1024, synthesis_period_cycles=2048,
-                   entry_baseline_cycles=7, pwm_baseline_cycles=26,
+    summary = dict(audio_timer=1, clock_hz=16000000, output_period_cycles=2048, synthesis_period_cycles=2048,
+                   entry_baseline_cycles=7, pwm_baseline_cycles=21,
                    definition="Entry lateness = first ISR body instruction - Timer1 compare deadline - 7; "
-                              "PWM lateness subtracts 26; interval error subtracts 1024 (2048 for synthesis).",
+                              "PWM lateness subtracts 21; output and synthesis interval errors subtract 2048.",
                    identity=identity,
                    distributions={"/".join(key): summarize(hist) for key, hist in aggregate.items()},
                    scenarios={"/".join(key): summarize(hist) for key, hist in per_scenario.items()})
@@ -175,6 +175,8 @@ def plot(distributions, out):
     fig, axes = plt.subplots(2, 2, figsize=(14, 8), layout="constrained")
     for column, variant in enumerate(("normal", "fxc")):
         for path, color in (("synthesis", "#167caa"), ("midpoint", "#db7825")):
+            if (variant, path, "entry_lateness") not in distributions:
+                continue
             hist = distributions[variant, path, "entry_lateness"]
             total = sum(hist.values())
             axes[0, column].plot(sorted(hist), [100 * hist[v] / total for v in sorted(hist)],
@@ -187,14 +189,14 @@ def plot(distributions, out):
         axes[0, column].set_title(f"{variant.upper()}: ISR entry lateness")
         axes[0, column].set_xlabel("Cycles beyond compare + 7 (zero is ideal)")
         axes[1, column].set_title(f"{variant.upper()}: PWM interval error")
-        axes[1, column].set_xlabel("Actual interval minus 1024 cycles (zero is ideal)")
+        axes[1, column].set_xlabel("Actual interval minus 2048 cycles (zero is ideal)")
         for row in range(2):
             axes[row, column].set_yscale("log")
             axes[row, column].set_ylabel("Interrupts (%) — logarithmic scale")
             axes[row, column].grid(alpha=.2)
             axes[row, column].legend(fontsize=8)
     fig.suptitle("AVM RPG / original soundtrack — emulated Timer1 timing at 16 MHz\n"
-                 "1 cycle = 62.5 ns; output 15,625 Hz; synthesis 7,812.5 Hz", fontsize=13)
+                 "1 cycle = 62.5 ns; output and synthesis 7,812.5 Hz (unsmoothed)", fontsize=13)
     fig.savefig(out / "audio-timing.png", dpi=160)
     fig.savefig(out / "audio-timing.svg")
     plt.close(fig)
@@ -215,7 +217,9 @@ def plot_comparison(current, references, out):
             for data, name, color, marker in configurations:
                 hist = Counter()
                 for path in ("synthesis", "midpoint"):
-                    stats = data["distributions"][f"{variant}/{path}/{metric}"]
+                    stats = data["distributions"].get(f"{variant}/{path}/{metric}")
+                    if stats is None:
+                        continue
                     hist.update({int(v): n for v, n in stats["histogram"].items()})
                 count = sum(hist.values())
                 tail = sum(n for v, n in hist.items() if v >= 10)
@@ -225,13 +229,13 @@ def plot_comparison(current, references, out):
             if row == 0:
                 ax.axvline(10, color="#777", linestyle="--", linewidth=1)
             ax.set(title=f"{variant.upper()}: " + ("PWM write lateness" if row == 0 else "PWM interval error"),
-                   xlabel="Extra cycles beyond compare + 26 (zero is ideal)" if row == 0 else
+                   xlabel="Extra cycles beyond each firmware's fixed latency (zero is ideal)" if row == 0 else
                           "Actual interval minus nominal period (cycles)",
                    ylabel="PWM writes (%) - logarithmic scale", yscale="log")
             ax.grid(alpha=.2)
             ax.legend(fontsize=8)
     fig.suptitle("AVM RPG: Timer3 / Timer1 / unified Timer0 (emulated AVR, 16 MHz)\n"
-                 "Both output paths; 1 cycle = 62.5 ns; Timer3/1 output 15,625 Hz, unified output 16,000 Hz")
+                 "1 cycle = 62.5 ns; output rate and fixed latency are recorded per firmware")
     fig.savefig(out / "timer-comparison.png", dpi=160)
     fig.savefig(out / "timer-comparison.svg")
     plt.close(fig)

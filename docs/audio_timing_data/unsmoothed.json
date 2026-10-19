@@ -1,0 +1,1443 @@
+{
+  "audio_timer": 1,
+  "clock_hz": 16000000,
+  "output_period_cycles": 2048,
+  "synthesis_period_cycles": 2048,
+  "entry_baseline_cycles": 7,
+  "pwm_baseline_cycles": 21,
+  "definition": "Entry lateness = first ISR body instruction - Timer1 compare deadline - 7; PWM lateness subtracts 21; output and synthesis interval errors subtract 2048.",
+  "identity": {
+    "normal": {
+      "package_sha256": "c442f2c27ba3b9f72cae763a6273147b94a80dce6c0f629b32cf89289e219a86",
+      "firmware_sha256": "8f94cebf2e399d2dfec49c6ff3dac5926202818540937282b5e341dc996e955f",
+      "guest_image_sha256": "956804b1df1256b8dc4539e750ed2f14bc36f360cc032b8fb295fe4d97658227",
+      "score_sha256": {
+        "dewlight_grove": "d59a6a0ca8a51e1d1ff869769ddfc49e40b1baec9ec7f3d7c21b56e23bd29deb",
+        "lantern_square": "eb4609810142669a0d534480b13e030e6a6a71e8908974dab05f6bc360a68488",
+        "sunward_road": "aaebe15b225ef9dfe1f337391981dcb6c8fb86e9983e67b8cbb0550630e2a463",
+        "clockwork_hollow": "d880e4ef70c56e3af5d515246dad432510646cc1156073646c09a2b208919e57",
+        "moonlit_quay": "0fc57b1c43b49a71c4b7448773adb56c282e52b3249d3943a7e491ccc3927c2d",
+        "homeward_stars": "fd8d8d97fde2ec3120b9aabb9614c1649481b443e79107b20ddbaf1939c97b4b"
+      }
+    },
+    "fxc": {
+      "package_sha256": "b68f46ca61d399794381dec48212c6ebe184536fead81d2f2620c4aa4c83abb1",
+      "firmware_sha256": "0b91c2d4512336db4a6b2502b6ad72c32df5d1479ff094efa8b5d8cb90f226b0",
+      "guest_image_sha256": "956804b1df1256b8dc4539e750ed2f14bc36f360cc032b8fb295fe4d97658227",
+      "score_sha256": {
+        "dewlight_grove": "d59a6a0ca8a51e1d1ff869769ddfc49e40b1baec9ec7f3d7c21b56e23bd29deb",
+        "lantern_square": "eb4609810142669a0d534480b13e030e6a6a71e8908974dab05f6bc360a68488",
+        "sunward_road": "aaebe15b225ef9dfe1f337391981dcb6c8fb86e9983e67b8cbb0550630e2a463",
+        "clockwork_hollow": "d880e4ef70c56e3af5d515246dad432510646cc1156073646c09a2b208919e57",
+        "moonlit_quay": "0fc57b1c43b49a71c4b7448773adb56c282e52b3249d3943a7e491ccc3927c2d",
+        "homeward_stars": "fd8d8d97fde2ec3120b9aabb9614c1649481b443e79107b20ddbaf1939c97b4b"
+      }
+    }
+  },
+  "distributions": {
+    "normal/synthesis/entry_lateness": {
+      "count": 430469,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.301882365512964,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 141367,
+        "1": 47882,
+        "2": 8232,
+        "3": 7140,
+        "4": 224303,
+        "5": 1451,
+        "6": 2,
+        "7": 92
+      }
+    },
+    "normal/synthesis/isr_body_cycles": {
+      "count": 430469,
+      "minimum": 179,
+      "maximum": 250,
+      "mean": 179.19313585879587,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 430469,
+      "histogram": {
+        "179": 429201,
+        "181": 65,
+        "248": 1202,
+        "250": 1
+      }
+    },
+    "normal/synthesis/pwm_interval_error": {
+      "count": 430468,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 9.29221219695773e-06,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 92,
+        "-5": 1000,
+        "-4": 8993,
+        "-3": 6176,
+        "-2": 6960,
+        "-1": 34715,
+        "0": 314795,
+        "1": 34236,
+        "2": 7051,
+        "3": 6697,
+        "4": 8689,
+        "5": 970,
+        "6": 2,
+        "7": 92
+      }
+    },
+    "normal/synthesis/pwm_lateness": {
+      "count": 430469,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.301882365512964,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 141367,
+        "1": 47882,
+        "2": 8232,
+        "3": 7140,
+        "4": 224303,
+        "5": 1451,
+        "6": 2,
+        "7": 92
+      }
+    },
+    "normal/synthesis/synthesis_interval_error": {
+      "count": 430468,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 9.29221219695773e-06,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 92,
+        "-5": 1000,
+        "-4": 8993,
+        "-3": 6176,
+        "-2": 6960,
+        "-1": 34715,
+        "0": 314795,
+        "1": 34236,
+        "2": 7051,
+        "3": 6697,
+        "4": 8689,
+        "5": 970,
+        "6": 2,
+        "7": 92
+      }
+    },
+    "fxc/synthesis/entry_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.040672,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 23737,
+        "1": 7981,
+        "2": 1358,
+        "3": 1132,
+        "4": 28041,
+        "5": 236,
+        "7": 15
+      }
+    },
+    "fxc/synthesis/isr_body_cycles": {
+      "count": 62500,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.197904,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 62500,
+      "histogram": {
+        "179": 62312,
+        "181": 9,
+        "248": 179
+      }
+    },
+    "fxc/synthesis/pwm_interval_error": {
+      "count": 62499,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 6.400102401638426e-05,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 15,
+        "-5": 169,
+        "-4": 1282,
+        "-3": 968,
+        "-2": 1130,
+        "-1": 5754,
+        "0": 43886,
+        "1": 5674,
+        "2": 1157,
+        "3": 1061,
+        "4": 1231,
+        "5": 157,
+        "7": 15
+      }
+    },
+    "fxc/synthesis/pwm_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.040672,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 23737,
+        "1": 7981,
+        "2": 1358,
+        "3": 1132,
+        "4": 28041,
+        "5": 236,
+        "7": 15
+      }
+    },
+    "fxc/synthesis/synthesis_interval_error": {
+      "count": 62499,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 6.400102401638426e-05,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 15,
+        "-5": 169,
+        "-4": 1282,
+        "-3": 968,
+        "-2": 1130,
+        "-1": 5754,
+        "0": 43886,
+        "1": 5674,
+        "2": 1157,
+        "3": 1061,
+        "4": 1231,
+        "5": 157,
+        "7": 15
+      }
+    }
+  },
+  "scenarios": {
+    "normal/collision/synthesis/entry_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.547968,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 4293,
+        "1": 1582,
+        "2": 293,
+        "3": 276,
+        "4": 9097,
+        "5": 80,
+        "7": 4
+      }
+    },
+    "normal/collision/synthesis/isr_body_cycles": {
+      "count": 15625,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.158976,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 15625,
+      "histogram": {
+        "179": 15589,
+        "248": 36
+      }
+    },
+    "normal/collision/synthesis/pwm_interval_error": {
+      "count": 15625,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 0.000192,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 4,
+        "-5": 62,
+        "-4": 345,
+        "-3": 226,
+        "-2": 261,
+        "-1": 1143,
+        "0": 11540,
+        "1": 1155,
+        "2": 246,
+        "3": 226,
+        "4": 358,
+        "5": 55,
+        "7": 4
+      }
+    },
+    "normal/collision/synthesis/pwm_lateness": {
+      "count": 15625,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.547968,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 4293,
+        "1": 1582,
+        "2": 293,
+        "3": 276,
+        "4": 9097,
+        "5": 80,
+        "7": 4
+      }
+    },
+    "normal/collision/synthesis/synthesis_interval_error": {
+      "count": 15625,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 0.000192,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 4,
+        "-5": 62,
+        "-4": 345,
+        "-3": 226,
+        "-2": 261,
+        "-1": 1143,
+        "0": 11540,
+        "1": 1155,
+        "2": 246,
+        "3": 226,
+        "4": 358,
+        "5": 55,
+        "7": 4
+      }
+    },
+    "normal/dialogue/synthesis/entry_lateness": {
+      "count": 18750,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 3.67728,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 1095,
+        "1": 397,
+        "2": 162,
+        "3": 167,
+        "4": 16920,
+        "5": 8,
+        "7": 1
+      }
+    },
+    "normal/dialogue/synthesis/isr_body_cycles": {
+      "count": 18750,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.20986666666667,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 18750,
+      "histogram": {
+        "179": 18692,
+        "181": 1,
+        "248": 57
+      }
+    },
+    "normal/dialogue/synthesis/pwm_interval_error": {
+      "count": 18750,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 5.333333333333333e-05,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 1,
+        "-5": 4,
+        "-4": 327,
+        "-3": 171,
+        "-2": 158,
+        "-1": 325,
+        "0": 16788,
+        "1": 313,
+        "2": 157,
+        "3": 171,
+        "4": 328,
+        "5": 6,
+        "7": 1
+      }
+    },
+    "normal/dialogue/synthesis/pwm_lateness": {
+      "count": 18750,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 3.67728,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 1095,
+        "1": 397,
+        "2": 162,
+        "3": 167,
+        "4": 16920,
+        "5": 8,
+        "7": 1
+      }
+    },
+    "normal/dialogue/synthesis/synthesis_interval_error": {
+      "count": 18750,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 5.333333333333333e-05,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 1,
+        "-5": 4,
+        "-4": 327,
+        "-3": 171,
+        "-2": 158,
+        "-1": 325,
+        "0": 16788,
+        "1": 313,
+        "2": 157,
+        "3": 171,
+        "4": 328,
+        "5": 6,
+        "7": 1
+      }
+    },
+    "normal/idle_song/synthesis/entry_lateness": {
+      "count": 312500,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.033136,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 119196,
+        "1": 40018,
+        "2": 6777,
+        "3": 5621,
+        "4": 139672,
+        "5": 1140,
+        "7": 76
+      }
+    },
+    "normal/idle_song/synthesis/isr_body_cycles": {
+      "count": 312500,
+      "minimum": 179,
+      "maximum": 250,
+      "mean": 179.1906112,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 312500,
+      "histogram": {
+        "179": 311595,
+        "181": 43,
+        "248": 861,
+        "250": 1
+      }
+    },
+    "normal/idle_song/synthesis/pwm_interval_error": {
+      "count": 312499,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 76,
+        "-5": 790,
+        "-4": 6489,
+        "-3": 4729,
+        "-2": 5669,
+        "-1": 29005,
+        "0": 219154,
+        "1": 28510,
+        "2": 5842,
+        "3": 5218,
+        "4": 6193,
+        "5": 748,
+        "7": 76
+      }
+    },
+    "normal/idle_song/synthesis/pwm_lateness": {
+      "count": 312500,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.033136,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 119196,
+        "1": 40018,
+        "2": 6777,
+        "3": 5621,
+        "4": 139672,
+        "5": 1140,
+        "7": 76
+      }
+    },
+    "normal/idle_song/synthesis/synthesis_interval_error": {
+      "count": 312499,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 76,
+        "-5": 790,
+        "-4": 6489,
+        "-3": 4729,
+        "-2": 5669,
+        "-1": 29005,
+        "0": 219154,
+        "1": 28510,
+        "2": 5842,
+        "3": 5218,
+        "4": 6193,
+        "5": 748,
+        "7": 76
+      }
+    },
+    "normal/menu_status/synthesis/entry_lateness": {
+      "count": 29687,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.8167548085020377,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 962,
+        "1": 429,
+        "2": 29,
+        "3": 249,
+        "4": 28016,
+        "5": 2
+      }
+    },
+    "normal/menu_status/synthesis/isr_body_cycles": {
+      "count": 29687,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.21915316468488,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 29687,
+      "histogram": {
+        "179": 29583,
+        "181": 10,
+        "248": 94
+      }
+    },
+    "normal/menu_status/synthesis/pwm_interval_error": {
+      "count": 29687,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.00010105433354667026,
+      "p50": 0,
+      "p95": 0,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 1,
+        "-4": 635,
+        "-3": 312,
+        "-2": 22,
+        "-1": 323,
+        "0": 27100,
+        "1": 320,
+        "2": 29,
+        "3": 309,
+        "4": 634,
+        "5": 2
+      }
+    },
+    "normal/menu_status/synthesis/pwm_lateness": {
+      "count": 29687,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.8167548085020377,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 962,
+        "1": 429,
+        "2": 29,
+        "3": 249,
+        "4": 28016,
+        "5": 2
+      }
+    },
+    "normal/menu_status/synthesis/synthesis_interval_error": {
+      "count": 29687,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": 0.00010105433354667026,
+      "p50": 0,
+      "p95": 0,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 1,
+        "-4": 635,
+        "-3": 312,
+        "-2": 22,
+        "-1": 323,
+        "0": 27100,
+        "1": 320,
+        "2": 29,
+        "3": 309,
+        "4": 634,
+        "5": 2
+      }
+    },
+    "normal/save/synthesis/entry_lateness": {
+      "count": 7032,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.460608646188851,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 697,
+        "1": 291,
+        "2": 34,
+        "3": 72,
+        "4": 5930,
+        "5": 8
+      }
+    },
+    "normal/save/synthesis/isr_body_cycles": {
+      "count": 7032,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.23549488054607,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 7032,
+      "histogram": {
+        "179": 7008,
+        "248": 24
+      }
+    },
+    "normal/save/synthesis/pwm_interval_error": {
+      "count": 7032,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.0005688282138794084,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 5,
+        "-4": 129,
+        "-3": 104,
+        "-2": 27,
+        "-1": 207,
+        "0": 6091,
+        "1": 204,
+        "2": 26,
+        "3": 107,
+        "4": 127,
+        "5": 5
+      }
+    },
+    "normal/save/synthesis/pwm_lateness": {
+      "count": 7032,
+      "minimum": 0,
+      "maximum": 5,
+      "mean": 3.460608646188851,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 697,
+        "1": 291,
+        "2": 34,
+        "3": 72,
+        "4": 5930,
+        "5": 8
+      }
+    },
+    "normal/save/synthesis/synthesis_interval_error": {
+      "count": 7032,
+      "minimum": -5,
+      "maximum": 5,
+      "mean": -0.0005688282138794084,
+      "p50": 0,
+      "p95": 1,
+      "p99": 4,
+      "p999": 4,
+      "at_least_10": 0,
+      "histogram": {
+        "-5": 5,
+        "-4": 129,
+        "-3": 104,
+        "-2": 27,
+        "-1": 207,
+        "0": 6091,
+        "1": 204,
+        "2": 26,
+        "3": 107,
+        "4": 127,
+        "5": 5
+      }
+    },
+    "normal/walking/synthesis/entry_lateness": {
+      "count": 46875,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.3281066666666668,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 15124,
+        "1": 5165,
+        "2": 937,
+        "3": 755,
+        "4": 24668,
+        "5": 213,
+        "6": 2,
+        "7": 11
+      }
+    },
+    "normal/walking/synthesis/isr_body_cycles": {
+      "count": 46875,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.19182933333335,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 46875,
+      "histogram": {
+        "179": 46734,
+        "181": 11,
+        "248": 130
+      }
+    },
+    "normal/walking/synthesis/pwm_interval_error": {
+      "count": 46875,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 2.1333333333333335e-05,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 11,
+        "-5": 138,
+        "-4": 1068,
+        "-3": 634,
+        "-2": 823,
+        "-1": 3712,
+        "0": 34122,
+        "1": 3734,
+        "2": 751,
+        "3": 666,
+        "4": 1049,
+        "5": 154,
+        "6": 2,
+        "7": 11
+      }
+    },
+    "normal/walking/synthesis/pwm_lateness": {
+      "count": 46875,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.3281066666666668,
+      "p50": 4,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 15124,
+        "1": 5165,
+        "2": 937,
+        "3": 755,
+        "4": 24668,
+        "5": 213,
+        "6": 2,
+        "7": 11
+      }
+    },
+    "normal/walking/synthesis/synthesis_interval_error": {
+      "count": 46875,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 2.1333333333333335e-05,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 11,
+        "-5": 138,
+        "-4": 1068,
+        "-3": 634,
+        "-2": 823,
+        "-1": 3712,
+        "0": 34122,
+        "1": 3734,
+        "2": 751,
+        "3": 666,
+        "4": 1049,
+        "5": 154,
+        "6": 2,
+        "7": 11
+      }
+    },
+    "fxc/idle_song/synthesis/entry_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.040672,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 23737,
+        "1": 7981,
+        "2": 1358,
+        "3": 1132,
+        "4": 28041,
+        "5": 236,
+        "7": 15
+      }
+    },
+    "fxc/idle_song/synthesis/isr_body_cycles": {
+      "count": 62500,
+      "minimum": 179,
+      "maximum": 248,
+      "mean": 179.197904,
+      "p50": 179,
+      "p95": 179,
+      "p99": 179,
+      "p999": 248,
+      "at_least_10": 62500,
+      "histogram": {
+        "179": 62312,
+        "181": 9,
+        "248": 179
+      }
+    },
+    "fxc/idle_song/synthesis/pwm_interval_error": {
+      "count": 62499,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 6.400102401638426e-05,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 15,
+        "-5": 169,
+        "-4": 1282,
+        "-3": 968,
+        "-2": 1130,
+        "-1": 5754,
+        "0": 43886,
+        "1": 5674,
+        "2": 1157,
+        "3": 1061,
+        "4": 1231,
+        "5": 157,
+        "7": 15
+      }
+    },
+    "fxc/idle_song/synthesis/pwm_lateness": {
+      "count": 62500,
+      "minimum": 0,
+      "maximum": 7,
+      "mean": 2.040672,
+      "p50": 1,
+      "p95": 4,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "0": 23737,
+        "1": 7981,
+        "2": 1358,
+        "3": 1132,
+        "4": 28041,
+        "5": 236,
+        "7": 15
+      }
+    },
+    "fxc/idle_song/synthesis/synthesis_interval_error": {
+      "count": 62499,
+      "minimum": -6,
+      "maximum": 7,
+      "mean": 6.400102401638426e-05,
+      "p50": 0,
+      "p95": 2,
+      "p99": 4,
+      "p999": 5,
+      "at_least_10": 0,
+      "histogram": {
+        "-6": 15,
+        "-5": 169,
+        "-4": 1282,
+        "-3": 968,
+        "-2": 1130,
+        "-1": 5754,
+        "0": 43886,
+        "1": 5674,
+        "2": 1157,
+        "3": 1061,
+        "4": 1231,
+        "5": 157,
+        "7": 15
+      }
+    }
+  },
+  "outlier_causes": {},
+  "blackouts": {
+    "normal": [
+      {
+        "pc_bytes": 2594,
+        "symbol": "primary_table_end+0x22",
+        "count": 171247,
+        "total_cycles": 684988,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3224,
+        "symbol": "f9_bitop_entry+0xa",
+        "count": 286587,
+        "total_cycles": 1146348,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3294,
+        "symbol": "fa_shift_decode_start+0x4",
+        "count": 151406,
+        "total_cycles": 605624,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3334,
+        "symbol": "fa_shift_decode_end+0x4",
+        "count": 730907,
+        "total_cycles": 2923628,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3402,
+        "symbol": "f8_cset_decode+0x4",
+        "count": 8186,
+        "total_cycles": 32744,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3532,
+        "symbol": "cluster_tail_17+0x6",
+        "count": 3656577,
+        "total_cycles": 14626308,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3632,
+        "symbol": "fetch_imm16_then_ijmp+0x12",
+        "count": 196203,
+        "total_cycles": 784812,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3756,
+        "symbol": "breq8_rel8_decode_func+0x2",
+        "count": 470839,
+        "total_cycles": 1883356,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3772,
+        "symbol": "brne8_rel8_decode_func+0x2",
+        "count": 247903,
+        "total_cycles": 991612,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3788,
+        "symbol": "brult8_rel8_decode_func+0x2",
+        "count": 54878,
+        "total_cycles": 219512,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3804,
+        "symbol": "brslt8_rel8_decode_func+0x2",
+        "count": 3418,
+        "total_cycles": 13672,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3820,
+        "symbol": "bruge8_rel8_decode_func+0x2",
+        "count": 500198,
+        "total_cycles": 2000792,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3836,
+        "symbol": "brsge8_rel8_decode_func+0x2",
+        "count": 1284,
+        "total_cycles": 5136,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3882,
+        "symbol": "branch_rel16_decode_func+0x4",
+        "count": 100682,
+        "total_cycles": 402728,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3910,
+        "symbol": "branch_rel16_not_taken_func+0x6",
+        "count": 67879,
+        "total_cycles": 271516,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3986,
+        "symbol": "adjsp_simm8_func+0x2",
+        "count": 35530,
+        "total_cycles": 142120,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4012,
+        "symbol": "jmp_call_rel16_func+0x4",
+        "count": 237841,
+        "total_cycles": 951364,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4124,
+        "symbol": "sys_decode_func+0x4",
+        "count": 582443,
+        "total_cycles": 2329772,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4374,
+        "symbol": "sys_millis_func+0x0",
+        "count": 197097,
+        "total_cycles": 1182582,
+        "max_cycles": 6
+      },
+      {
+        "pc_bytes": 4550,
+        "symbol": "seek_and_dispatch_no_audio+0x24",
+        "count": 1231582,
+        "total_cycles": 4926328,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4608,
+        "symbol": "cluster_a_tail_17+0x6",
+        "count": 1012902,
+        "total_cycles": 4051608,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5316,
+        "symbol": ".Lfx_read_program_loop+0x2",
+        "count": 71452,
+        "total_cycles": 285808,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5870,
+        "symbol": "f0_cold32+0x2",
+        "count": 13879,
+        "total_cycles": 55516,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5996,
+        "symbol": "f0_coldmem+0x2",
+        "count": 22,
+        "total_cycles": 88,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 8304,
+        "symbol": "cluster_b_tail_17+0x6",
+        "count": 273480,
+        "total_cycles": 1093920,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19746,
+        "symbol": ".Lsprite_top_plus_full_loop+0x0",
+        "count": 208,
+        "total_cycles": 832,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19760,
+        "symbol": ".Lsprite_top_plus_full_loop+0xe",
+        "count": 208,
+        "total_cycles": 832,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19788,
+        "symbol": ".Lsprite_bottom_plus_full+0x0",
+        "count": 6038,
+        "total_cycles": 24152,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19802,
+        "symbol": ".Lsprite_bottom_plus_full+0xe",
+        "count": 6038,
+        "total_cycles": 24152,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19830,
+        "symbol": ".Lsprite_middle_plus_full_loop+0x0",
+        "count": 114128,
+        "total_cycles": 456512,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 23952,
+        "symbol": "text_finish+0x4c",
+        "count": 1326,
+        "total_cycles": 5304,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 27246,
+        "symbol": "audio_service_func+0x2",
+        "count": 13775,
+        "total_cycles": 82650,
+        "max_cycles": 6
+      }
+    ],
+    "fxc": [
+      {
+        "pc_bytes": 2594,
+        "symbol": "primary_table_end+0x22",
+        "count": 29014,
+        "total_cycles": 116056,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3224,
+        "symbol": "f9_bitop_entry+0xa",
+        "count": 44134,
+        "total_cycles": 176536,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3294,
+        "symbol": "fa_shift_decode_start+0x4",
+        "count": 25861,
+        "total_cycles": 103444,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3334,
+        "symbol": "fa_shift_decode_end+0x4",
+        "count": 120008,
+        "total_cycles": 480032,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3402,
+        "symbol": "f8_cset_decode+0x4",
+        "count": 1264,
+        "total_cycles": 5056,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3532,
+        "symbol": "cluster_tail_17+0x6",
+        "count": 574422,
+        "total_cycles": 2297688,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3632,
+        "symbol": "fetch_imm16_then_ijmp+0x12",
+        "count": 28911,
+        "total_cycles": 115644,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3756,
+        "symbol": "breq8_rel8_decode_func+0x2",
+        "count": 68008,
+        "total_cycles": 272032,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3772,
+        "symbol": "brne8_rel8_decode_func+0x2",
+        "count": 40615,
+        "total_cycles": 162460,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3788,
+        "symbol": "brult8_rel8_decode_func+0x2",
+        "count": 9582,
+        "total_cycles": 38328,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3804,
+        "symbol": "brslt8_rel8_decode_func+0x2",
+        "count": 634,
+        "total_cycles": 2536,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3820,
+        "symbol": "bruge8_rel8_decode_func+0x2",
+        "count": 81896,
+        "total_cycles": 327584,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3836,
+        "symbol": "brsge8_rel8_decode_func+0x2",
+        "count": 243,
+        "total_cycles": 972,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3882,
+        "symbol": "branch_rel16_decode_func+0x4",
+        "count": 16717,
+        "total_cycles": 66868,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3910,
+        "symbol": "branch_rel16_not_taken_func+0x6",
+        "count": 11128,
+        "total_cycles": 44512,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 3986,
+        "symbol": "adjsp_simm8_func+0x2",
+        "count": 6102,
+        "total_cycles": 24408,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4012,
+        "symbol": "jmp_call_rel16_func+0x4",
+        "count": 38750,
+        "total_cycles": 155000,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4124,
+        "symbol": "sys_decode_func+0x4",
+        "count": 77178,
+        "total_cycles": 308712,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4374,
+        "symbol": "sys_millis_func+0x0",
+        "count": 31686,
+        "total_cycles": 190116,
+        "max_cycles": 6
+      },
+      {
+        "pc_bytes": 4550,
+        "symbol": "seek_and_dispatch_no_audio+0x24",
+        "count": 191625,
+        "total_cycles": 766500,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 4608,
+        "symbol": "cluster_a_tail_17+0x6",
+        "count": 168361,
+        "total_cycles": 673444,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5316,
+        "symbol": ".Lfx_read_program_loop+0x2",
+        "count": 11767,
+        "total_cycles": 47068,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 5870,
+        "symbol": "f0_cold32+0x2",
+        "count": 2424,
+        "total_cycles": 9696,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 8304,
+        "symbol": "cluster_b_tail_17+0x6",
+        "count": 44584,
+        "total_cycles": 178336,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19788,
+        "symbol": ".Lsprite_bottom_plus_full+0x0",
+        "count": 1744,
+        "total_cycles": 6976,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19802,
+        "symbol": ".Lsprite_bottom_plus_full+0xe",
+        "count": 1744,
+        "total_cycles": 6976,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 19830,
+        "symbol": ".Lsprite_middle_plus_full_loop+0x0",
+        "count": 21584,
+        "total_cycles": 86336,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 23952,
+        "symbol": "text_finish+0x4c",
+        "count": 243,
+        "total_cycles": 972,
+        "max_cycles": 4
+      },
+      {
+        "pc_bytes": 27246,
+        "symbol": "audio_service_func+0x2",
+        "count": 2000,
+        "total_cycles": 12000,
+        "max_cycles": 6
+      }
+    ]
+  }
+}

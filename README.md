@@ -22,11 +22,17 @@ The previous songs and all project MIDI files have been removed.
 | Moonlit Quay | Spacious night song with late-bar answering notes | D minor, 4/4 | 90 | 42.668 s |
 | Homeward Stars | Consoling upward fourth, gentle counterline, and a descent home | E-flat major, 4/4 | 100 | 38.400 s |
 
-Press **B**, choose **Switch music** (or press Up from Status), and press **A**
+Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through this order. The selected title appears in the menu footer;
 after Homeward Stars, selection wraps to Dewlight Grove. New Game and Continue
 start with Dewlight Grove; the selection lasts for the current session.
 Music continues through dialogue and menus; the title screen stays silent.
+
+For the synthesis-rate experiment, press **B**, **Up**, **A** to toggle between
+**Audio: 8 kHz** and **Audio: 16 kHz** while the song keeps playing. Repeated
+presses of A compare the two rates; B returns to exploration. The selection
+persists when the menu closes and resets to 8 kHz on restart. It is not saved.
+The exact rates are 7812.5 and 15625 Hz, both without smoothing.
 
 Five songs use a sustained triangle lead; Moonlit Quay uses a sine lead.
 Sunward Road has a softer attack, a lower held-note level, and harmony that
@@ -38,10 +44,10 @@ The other songs silence the noise voice.
 
 Authored attack/release envelopes soften note transitions. Every song restores
 all four channels on entry and finishes its release tails before Loop.
-`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` remains 128 (400%); peak mixer
-amplitudes range from 100 to 108 out of 127. The score test checks two complete
-loops of every song, all note attacks, musical duration, state resets, and
-mixer headroom.
+`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is 180 (562.5%), which can clip
+the mix. The score test checks two complete loops of every song, all note
+attacks, musical duration, state resets, and authored mixer headroom at the
+reference master of 64.
 
 The old outdoor/interior/hall maps and their quests have been replaced by one
 18x12-tile forest clearing. **This development build rejects saves from versions
@@ -78,8 +84,8 @@ cmake --build build --config RelWithDebInfo --target rpg_audio_timing
 python tools/collect_evidence.py --build build --write-docs
 ```
 
-Audio uses Timer1 for 15,625 Hz output and 7,812.5 Hz synthesis, with the
-separate 1 kHz Timer0 clock. The optional full-device build also provides
+Audio uses Timer1 for output and synthesis at the selected 7,812.5 or 15,625 Hz,
+with the separate 1 kHz Timer0 clock. The optional full-device build also provides
 `rpg_audio_timing`. It measures
 Timer1 entry lateness, PWM write intervals, synthesis cadence, ISR execution
 time, and foreground interrupt-disabled spans in the packaged game. The full
