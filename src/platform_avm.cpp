@@ -53,6 +53,6 @@ extern "C" void setup() {
 extern "C" void loop() {
     title_screen();
     avm_audio_music_volume(MUSIC_MASTER_VOLUME);
-    avm_audio_play(PEACEFUL_MUSIC, sizeof(PEACEFUL_MUSIC));
+    avm_audio_play(PEACEFUL_MUSIC);
     explore();
 }

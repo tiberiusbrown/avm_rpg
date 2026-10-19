@@ -126,7 +126,7 @@ if(RPG_BUILD_GUEST)
     add_custom_command(OUTPUT "${MUSIC_OUTPUT}"
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_music.py"
             --compiler "${RPG_MUSIC_COMPILER}"
-        DEPENDS tools/generate_music.py assets/music/peaceful.json "${RPG_MUSIC_COMPILER}"
+        DEPENDS tools/generate_music.py assets/music/peaceful.avms "${RPG_MUSIC_COMPILER}"
         VERBATIM)
     add_custom_target(rpg_music DEPENDS "${MUSIC_OUTPUT}")
     add_test(NAME peaceful_music COMMAND ${Python3_EXECUTABLE}

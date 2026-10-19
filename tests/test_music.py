@@ -14,7 +14,8 @@ parser.add_argument("--compiler", type=Path, required=True)
 args = parser.parse_args()
 header = (ROOT / "generated/peaceful_music.h").read_text(encoding="utf-8")
 assert header == generate(args.compiler), "regenerate peaceful_music.h"
-data = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-f]{2})", header))
+data = b"".join(int(value, 16).to_bytes(8, "little")
+                for value in re.findall(r"0x([0-9a-f]{16})ULL", header))
 assert data[:2] == bytes([0xA2, 7]), "three tonal voices, including pitched percussion"
 assert len(data) < 65536
 
@@ -81,7 +82,7 @@ for iteration in range(2):
             assert notes == [84, 0x80, 60], "opening C6 and short C4-to-C3 beat"
             assert controls == [102, 32, 46]
             first = False
-    assert offset == len(data), "loop command must terminate the bounded asset"
+    assert len(data) - offset < 8 and not any(data[offset:]), "only word padding may follow Loop"
     assert ticks == 7680, "16 bars of 4/4 at 125 BPM must loop every 30.72 seconds"
     assert attacks[0] >= 72 and attacks[1] == 64, "active melody with an independent counterline"
     assert min(pitches[0]) >= 76 and max(pitches[0]) == 88, "lead stays in the high E5..E6 register"

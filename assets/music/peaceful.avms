@@ -1,0 +1,79 @@
+title "Dewlight Skip"
+tempo 125
+meter 4/4
+loop
+
+// Reusable stepped contours preserve the original note articulation.
+envelope lead_env { points 0ms:1/4, 8ms:1, 88ms:2/3, 156ms:1/6 curve step }
+instrument lead { wave sine volume 24 envelope lead_env gate 11/30 }
+envelope lead2_env { points 0ms:2/7, 8ms:1, 60ms:2/3, 100ms:4/21 curve step }
+instrument lead2 { wave sine volume 21 envelope lead2_env gate 1/2 }
+envelope lead3_env { points 0ms:3/13, 8ms:1, 88ms:17/26, 156ms:2/13 curve step }
+instrument lead3 { wave sine volume 26 envelope lead3_env gate 11/30 }
+envelope lead4_env { points 0ms:1/4, 8ms:1, 88ms:2/3, 156ms:1/6 curve step }
+instrument lead4 { wave sine volume 24 envelope lead4_env gate 11/15 }
+envelope lead5_env { points 0ms:3/13, 8ms:1, 88ms:17/26, 156ms:2/13 curve step }
+instrument lead5 { wave sine volume 26 envelope lead5_env gate 11/15 }
+envelope lead6_env { points 0ms:2/7, 8ms:1, 60ms:2/3, 100ms:4/21 curve step }
+instrument lead6 { wave sine volume 21 envelope lead6_env gate 1/4 }
+
+envelope reply_env { points 0ms:1/3, 8ms:1, 128ms:2/3, 236ms:2/9 curve step }
+instrument reply { wave triangle volume 9 envelope reply_env gate 8/15 }
+envelope reply2_env { points 0ms:3/11, 8ms:1, 128ms:7/11, 236ms:2/11 curve step }
+instrument reply2 { wave triangle volume 11 envelope reply2_env gate 8/15 }
+envelope reply3_env { points 0ms:3/11, 8ms:1, 128ms:7/11, 236ms:2/11 curve step }
+instrument reply3 { wave triangle volume 11 envelope reply3_env gate 32/45 }
+
+instrument tom { wave triangle volume 10 }
+envelope tom2_env { points 0ms:1, 12ms:2/5 curve step }
+instrument tom2 { wave triangle volume 5 envelope tom2_env gate 7/118 }
+instrument tom3 { wave triangle volume 14 }
+envelope tom4_env { points 0ms:1, 12ms:2/7 curve step }
+instrument tom4 { wave triangle volume 7 envelope tom4_env gate 7/118 }
+instrument tom5 { wave triangle volume 12 }
+envelope tom6_env { points 0ms:1, 12ms:1/3 curve step }
+instrument tom6 { wave triangle volume 6 envelope tom6_env gate 7/118 }
+
+channel 0 lead octave 6 {
+    c4@lead3 e4 d4 g,4 a,4@lead3 c4 e8@lead4 d8@lead2
+    c4 a,4@lead3 c4 d4 c8@lead4 a,8@lead2 b,4@lead3 d4
+    g,4 a,8@lead4 b,8@lead2 c8@lead5 e8@lead2 d4 c4 g,4
+    a,4@lead3 c4 a,8@lead4 g,8@lead2 f,4 a,4@lead3 d4 c8@lead4
+    a,8@lead2 f,4 g,4@lead3 b,8@lead4 d8@lead2 c4 b,4 e4@lead3
+    e8@lead4 d8@lead2 c4 a,4 b,4@lead3 d4 b,8@lead4 g,8@lead2
+    e,4 a,4@lead3 c4 e8@lead4 d8@lead2 c4 g,8@lead5 e,8@lead2
+    g,4 c4 e4 d4@lead3 c8@lead4 a,8@lead2 f,4 a,4
+    b,4@lead3 d4 e8@lead4 d8@lead2 b,4 c4@lead3 e8@lead4 d8@lead2
+    c4 g,4 a,8@lead5 g,4@lead6 b,8@lead2 d4 b,4
+}
+
+channel 1 reply octave 5 {
+    r16 g4 f4 e4 d4@reply2 e4 g4 a4
+    c'4@reply2 c'4 a4 g4 f4@reply2 d4 g4 f4
+    d4@reply2 e4 g4 a4 g4@reply2 c'4 a4 f4
+    g4@reply2 f4 g4 a4 c'4@reply2 d4 e4 f4
+    g4@reply2 c'4 b4 a4 g4@reply2 g4 f4 e4
+    g4@reply2 f4 g4 a4 c'4@reply2 e4 f4 g4
+    e4@reply2 a4 g4 f4 e4@reply2 d4 f4 a4
+    g4@reply2 e4 g4 c'4 b4@reply2 a4 g4 f4
+    d8.@reply3
+}
+
+channel 2 tom octave 3 {
+    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
+    a:8ms@tom3 a,:472ms@tom4 a:8ms a,:472ms@tom2 a:8ms@tom5 a,:472ms@tom6 a:8ms a,:472ms@tom2
+    f':8ms@tom3 f:472ms@tom4 f':8ms f:472ms@tom2 f':8ms@tom5 f:472ms@tom6 f':8ms f:472ms@tom2
+    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
+    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
+    f':8ms@tom3 f:472ms@tom4 f':8ms f:472ms@tom2 f':8ms@tom5 f:472ms@tom6 f':8ms f:472ms@tom2
+    d':8ms@tom3 d:472ms@tom4 d':8ms d:472ms@tom2 d':8ms@tom5 d:472ms@tom6 d':8ms d:472ms@tom2
+    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
+    a:8ms@tom3 a,:472ms@tom4 a:8ms a,:472ms@tom2 a:8ms@tom5 a,:472ms@tom6 a:8ms a,:472ms@tom2
+    e':8ms@tom3 e:472ms@tom4 e':8ms e:472ms@tom2 e':8ms@tom5 e:472ms@tom6 e':8ms e:472ms@tom2
+    f':8ms@tom3 f:472ms@tom4 f':8ms f:472ms@tom2 f':8ms@tom5 f:472ms@tom6 f':8ms f:472ms@tom2
+    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
+    d':8ms@tom3 d:472ms@tom4 d':8ms d:472ms@tom2 d':8ms@tom5 d:472ms@tom6 d':8ms d:472ms@tom2
+    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
+    c':8ms@tom3 c:472ms@tom4 c':8ms c:472ms@tom2 c':8ms@tom5 c:472ms@tom6 c':8ms c:472ms@tom2
+    g':8ms@tom3 g:472ms@tom4 g':8ms g:472ms@tom2 g':8ms@tom5 g:472ms@tom6 g':8ms g:472ms@tom2
+}

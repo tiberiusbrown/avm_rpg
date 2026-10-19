@@ -23,7 +23,7 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 - `assets_src/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
 - `assets_src/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
-- `assets/music/peaceful.json`: editable A2 score; the SDK's `avm_music.py` encoder
+- `assets/music/peaceful.avms`: editable note score with reusable instrument envelopes; the SDK's `avm_music.py` encoder
   rebuilds `generated/peaceful_music.h` during guest builds.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
