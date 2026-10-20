@@ -60,7 +60,7 @@ extern "C" void setup() {
 extern "C" void loop() {
     title_screen();
     avm_audio_music_volume(MUSIC_MASTER_VOLUME);
-    music_selection = MUSIC_DEWLIGHT_GROVE;
+    music_selection = MUSIC_BOSS;
     avm_audio_play(MUSIC_TRACKS[music_selection].data);
     explore();
 }

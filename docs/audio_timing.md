@@ -5,8 +5,9 @@ and RelWithDebInfo builds. These are calibrated emulator measurements; they
 exclude physical PLL/carrier jitter, pin transitions and analog speaker behavior.
 
 The detailed comparisons below are archived experiments made with the former
-soundtrack. The game now uses six original compositions; current package hashes,
-resource counts, and playback checks are in [the current evidence](tiles16_measurements.md).
+soundtrack. The game now uses the Boss and Venus AVMS conversions. Rebuild and
+rerun the timing checks for measurements of the current packages; the recorded
+comparisons below retain the identities of their original inputs.
 
 ## Unsmoothed 8/16 kHz experiment (current)
 

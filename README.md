@@ -5,32 +5,20 @@ alpha-masked characters. D-pad moves, A reads the sign immediately north of the
 starting position, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
-The soundtrack contains six original, peaceful looping songs followed by
-three imported four-voice arrangements: **Leap**, **Boss**, and **Venus**.
-The town MIDI
-informed their unhurried pacing and sustained, singing phrases; its melody
-was not transcribed. Each new tune has a two-bar refrain that returns at bars
-5 and 13, a contrasting middle section, and a final tonic cadence. Lead notes
-are held across beats, with quiet plucks, answering phrases, and a gentle bass
-pulse. The upper-register melodies sit above their accompaniment.
-The imported originals are retained in `assets/music/imported/`.
+The soundtrack contains two looping four-voice arrangements: **Boss** and
+**Venus**. Their editable scores are `assets/music/boss.avms` and
+`assets/music/venus.avms`; the build compiles these directly with `avm_music.py`.
+The FamiTracker reference files remain in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
-| Dewlight Grove | Falling woodland refrain with a gentle rocking bass; the default | A-flat major, 4/4 | 104 | 36.924 s |
-| Lantern Square | Tender dotted call, offbeat plucks, and faint brushed taps | C major, 4/4 | 108 | 35.556 s |
-| Sunward Road | Soft rising call over a light walking pulse | G major, 4/4 | 112 | 34.284 s |
-| Clockwork Hollow | Wistful minor melody, short answers, and a quiet clock tick | A minor, 4/4 | 100 | 38.400 s |
-| Moonlit Quay | Spacious night song with late-bar answering notes | D minor, 4/4 | 90 | 42.668 s |
-| Homeward Stars | Consoling upward fourth, gentle counterline, and a descent home | E-flat major, 4/4 | 100 | 38.400 s |
-| Leap | MIDI lead guitar, keys/strings, bass, and noise percussion | 4/4 | 155 | 161.032 s |
-| Boss | FamiTracker APU/VRC6 melody, pulse guitar, saw bass, and percussion | Tracker speed 5 | 200 | 34.000 s |
+| Boss | FamiTracker APU/VRC6 melody, pulse guitar, saw bass, and percussion; the default | Tracker speed 5 | 200 | 34.000 s |
 | Venus | FamiTracker VRC6 melody, APU harmony, saw bass, and percussion | Tracker speed 8 | 200 | 25.600 s |
 
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through this order. The selected title appears in the menu footer;
-after Venus, selection wraps to Dewlight Grove. New Game and Continue
-start with Dewlight Grove; the selection lasts for the current session.
+after Venus, selection wraps to Boss. New Game and Continue
+start with Boss; the selection lasts for the current session.
 Music continues through dialogue and menus; the title screen stays silent.
 
 For the synthesis-rate experiment, press **B**, **Up**, **A** to toggle between
@@ -39,23 +27,19 @@ presses of A compare the two rates; B returns to exploration. The selection
 persists when the menu closes and resets to 8 kHz on restart. It is not saved.
 The exact rates are 7812.5 and 15625 Hz, both without smoothing.
 
-Five original songs use a sustained 50% pulse lead; Moonlit Quay uses a 25% pulse lead.
-Sunward Road has a softer attack, a lower held-note level, and harmony that
-supports its sustained melody notes. Narrow pulse plucks and short counterlines stay
-below the lead in register and volume. Bass notes pulse or alternate with fifths;
-Moonlit Quay retains more sustained bass for its quieter character. Lantern
-Square, Sunward Road, and Clockwork Hollow add very brief noise taps at volume 1.
-The other songs silence the noise voice.
-
-Authored attack/release envelopes soften note transitions. Every song restores
-all four channels on entry and finishes its release tails before Loop.
-The imports preserve complete song traversals with melody/backing/bass reduction
-and synthesized percussion. See [conversion details](assets/music/imported/README.md)
-for voice selection and the NES/DPCM adaptations.
-`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is 180 (562.5%), which can clip
-the mix. The score test checks two complete loops of every song, all note
-attacks, musical duration, state resets, and authored mixer headroom at the
-reference master of 64.
+The AVMS conversions preserve complete song traversals, all four arranged
+voices, and the tracker's quantized pitch, volume, and pulse-duty changes.
+Millisecond durations retain the 4 ms event timing; constant frequency slides
+preserve fractional pitches used by bends and vibrato. Every song resets all
+four channels on entry and silences them before looping.
+See [conversion details](assets/music/imported/README.md) for voice selection,
+the NES/DPCM adaptations, and build commands. CMake invokes the SDK's
+`avm_music.py` compiler directly for each editable AVMS file, without rewriting
+the scores. `src/music.h` and `src/music_catalog.h` define the two-track registry.
+`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is 96 (300%). Tests compare the
+AVMS playback against recorded tracker fingerprints and check complete duration,
+two repeatable loops, channel resets, and headroom at reference master 64.
+Physical Arduboy piezo listening and balance checks remain necessary.
 
 The old outdoor/interior/hall maps and their quests have been replaced by one
 18x12-tile forest clearing. **This development build rejects saves from versions
@@ -66,11 +50,9 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 - `assets_src/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
 - `assets_src/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
-- `assets/music/*.avms`: six editable original scores with named phrases and
-  reusable instrument envelopes. `tools/generate_music.py` uses the SDK's
-  `avm_music.py` encoder to rebuild `generated/music.h` and `music_catalog.h`.
-- `assets/music/imported/`: supplied MIDI/FamiTracker originals, arranged by
-  `tools/import_music.py` during the same deterministic music build.
+- `assets/music/*.avms`: the editable Boss and Venus scores.
+  CMake calls `avm_music.py` to rebuild `generated/boss_music.h` and `venus_music.h`.
+- `assets/music/imported/`: FamiTracker reference files, retained for provenance.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
 - `rpg.fxc.arduboy`: Arduboy FX-C package, built from the same game with FX-C

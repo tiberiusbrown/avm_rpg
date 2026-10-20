@@ -203,10 +203,10 @@ compact one-shot tonal/noise effects on voices 2/3. Assets store raw uint16 phas
 increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
 and Timer1/Timer4 audio operation require no game update call. RPG starts the
-original Dewlight Grove loop after New Game or a successful Continue. The travel
-menu cycles through six original songs. The title leaves audio disabled;
-dialogue and menus let playback continue. Full-device integration checks all
-six selections, PWM output, and exploration with music enabled.
+Boss loop after New Game or a successful Continue. The travel menu alternates
+between Boss and Venus, compiled from their editable AVMS scores. The title
+leaves audio disabled; dialogue and menus let playback continue. Full-device
+integration checks both selections, PWM output, and exploration with music enabled.
 Listening on physical speakers remains **Unverified**.
 
 ## Compilation, resource reporting, debug and replay

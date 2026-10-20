@@ -126,23 +126,23 @@ if(RPG_BUILD_GUEST)
     if(NOT EXISTS "${RPG_MUSIC_COMPILER}")
         set(RPG_MUSIC_COMPILER "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/avm_music.py")
     endif()
-    set(MUSIC_OUTPUTS
-        "${CMAKE_CURRENT_SOURCE_DIR}/generated/music.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/generated/music_catalog.h")
-    file(GLOB MUSIC_SCORES CONFIGURE_DEPENDS assets/music/*.avms
-        assets/music/imported/*.mid assets/music/imported/*.ftm)
-    add_custom_command(OUTPUT ${MUSIC_OUTPUTS}
-        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_music.py"
-            --compiler "${RPG_MUSIC_COMPILER}"
-        DEPENDS tools/generate_music.py tools/import_music.py ${MUSIC_SCORES} "${RPG_MUSIC_COMPILER}"
-        VERBATIM)
+    set(MUSIC_OUTPUTS)
+    foreach(song IN ITEMS boss venus)
+        string(TOUPPER "${song}" symbol)
+        set(score "${CMAKE_CURRENT_SOURCE_DIR}/assets/music/${song}.avms")
+        set(output "${CMAKE_CURRENT_SOURCE_DIR}/generated/${song}_music.h")
+        add_custom_command(OUTPUT "${output}"
+            COMMAND ${Python3_EXECUTABLE} "${RPG_MUSIC_COMPILER}"
+                "${score}" "${output}" --name "${symbol}_MUSIC"
+            DEPENDS "${score}" "${RPG_MUSIC_COMPILER}"
+            VERBATIM)
+        list(APPEND MUSIC_OUTPUTS "${output}")
+    endforeach()
     add_custom_target(rpg_music DEPENDS ${MUSIC_OUTPUTS})
     if(TARGET rpg_device_tests)
         add_dependencies(rpg_device_tests rpg_music)
         add_dependencies(rpg_audio_timing_tests rpg_music)
     endif()
-    add_test(NAME original_music COMMAND ${Python3_EXECUTABLE}
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_music.py" --compiler "${RPG_MUSIC_COMPILER}")
     add_test(NAME imported_music COMMAND ${Python3_EXECUTABLE}
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_imported_music.py" --compiler "${RPG_MUSIC_COMPILER}")
     function(guest name)
@@ -153,7 +153,7 @@ if(RPG_BUILD_GUEST)
             set(defines -DRPG_AVM=1)
             set(source_dependencies)
             if(source STREQUAL "src/platform_avm.cpp")
-                list(APPEND source_dependencies ${MUSIC_OUTPUTS})
+                list(APPEND source_dependencies src/music.h src/music_catalog.h ${MUSIC_OUTPUTS})
             endif()
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"

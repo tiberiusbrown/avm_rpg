@@ -14,7 +14,6 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from elf import symbols
-from generate_music import SONGS, song_source
 
 
 def rows(path):
@@ -68,9 +67,8 @@ def main():
         identity[variant] = dict(package_sha256=hashlib.sha256(package.read_bytes()).hexdigest(),
                                  firmware_sha256=hashlib.sha256(actual).hexdigest(),
                                  guest_image_sha256=guest_hash,
-                                 score_sha256={song: hashlib.sha256(
-                                     song_source(song).read_bytes()).hexdigest()
-                                     for song in SONGS})
+                                 score_sha256={score.stem: hashlib.sha256(score.read_bytes()).hexdigest()
+                                               for score in sorted((ROOT / "assets/music").glob("*.avms"))})
 
     if args.analyze_only:
         assert json.loads((out / "summary.json").read_text())["identity"] == identity, "stale timing artifacts"

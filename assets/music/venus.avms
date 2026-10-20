@@ -1,0 +1,6490 @@
+title "Venus"
+description "Four-voice AVMS conversion of Venus.ftm, preserving tracker pitch, volume, duty, and timing."
+
+// Converted from FamiTracker; this score is the game's editable source.
+// Durations are milliseconds on AVM's 4 ms grid, retaining the original
+// 60 Hz tracker timing after quantization. Constant frequency slides
+// preserve pitch bends and vibrato between named semitones.
+tempo 200
+meter 4/4
+loop
+automation 8ms
+
+instrument pulse { wave pulse duty 50% volume 0 gate 100% }
+instrument percussion { wave noise volume 0 gate 100% }
+
+channel 0 pulse octave 4 {
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':16ms
+    volume 14
+    c':36ms
+    volume 13
+    c':16ms
+    volume 12
+    c':16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:16ms
+    volume 14
+    g:36ms
+    volume 13
+    g:16ms
+    volume 12
+    g:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:16ms
+    volume 14
+    d:36ms
+    volume 13
+    d:16ms
+    volume 12
+    d:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g,:16ms
+    volume 15
+    g,:16ms
+    volume 14
+    g,:36ms
+    volume 13
+    g,:16ms
+    volume 12
+    g,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:16ms
+    volume 14
+    g#:36ms
+    volume 13
+    g#:16ms
+    volume 12
+    g#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:16ms
+    volume 14
+    d#:36ms
+    volume 13
+    d#:16ms
+    volume 12
+    d#:16ms
+    volume 16
+    a#,:16ms
+    volume 15
+    a#,:16ms
+    volume 14
+    a#,:36ms
+    volume 13
+    a#,:16ms
+    volume 12
+    a#,:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:16ms
+    volume 14
+    f:36ms
+    volume 13
+    f:16ms
+    volume 12
+    f:16ms
+    volume 16
+    c:16ms
+    volume 15
+    c:16ms
+    volume 14
+    c:36ms
+    volume 13
+    c:16ms
+    volume 12
+    c:16ms
+    volume 16
+    g#,:16ms
+    volume 15
+    g#,:16ms
+    volume 14
+    g#,:36ms
+    volume 13
+    g#,:16ms
+    volume 12
+    g#,:16ms
+    volume 16
+    f,:16ms
+    volume 15
+    f,:16ms
+    volume 14
+    f,:36ms
+    volume 13
+    f,:16ms
+    volume 12
+    f,:16ms
+    volume 20
+    c':16ms
+    volume 17
+    c':16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':36ms
+    volume 13
+    c':32ms
+    volume 12
+    c':284ms
+    volume 20
+    d':16ms
+    volume 17
+    d':16ms
+    volume 16
+    d':16ms
+    volume 15
+    d':36ms
+    volume 13
+    d':32ms
+    volume 12
+    d':84ms
+    volume 20
+    d#':16ms
+    volume 17
+    d#':16ms
+    volume 16
+    d#':16ms
+    volume 15
+    d#':36ms
+    volume 13
+    d#':32ms
+    volume 12
+    d#':284ms
+    volume 20
+    d':16ms
+    volume 17
+    d':16ms
+    volume 16
+    d':16ms
+    volume 15
+    d':36ms
+    volume 13
+    d':32ms
+    volume 12
+    d':84ms
+    volume 20
+    c':16ms
+    volume 17
+    c':16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':36ms
+    volume 13
+    c':32ms
+    volume 12
+    c':84ms
+    volume 20
+    a#:16ms
+    volume 17
+    a#:16ms
+    volume 16
+    a#:16ms
+    volume 15
+    a#:36ms
+    volume 13
+    a#:32ms
+    volume 12
+    a#:84ms
+    volume 20
+    g:16ms
+    volume 17
+    g:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:36ms
+    volume 13
+    g:32ms
+    volume 12
+    g:284ms
+    volume 20
+    a#:16ms
+    volume 17
+    a#:16ms
+    volume 16
+    a#:16ms
+    volume 15
+    a#:36ms
+    volume 13
+    a#:32ms
+    volume 12
+    a#:84ms
+    volume 20
+    d:16ms
+    volume 17
+    d:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:36ms
+    volume 13
+    d:32ms
+    volume 12
+    d:284ms
+    volume 16
+    a#:16ms
+    volume 14
+    a#:16ms
+    volume 13
+    a#:16ms
+    volume 12
+    a#:36ms
+    volume 11
+    a#:32ms
+    volume 10
+    a#:84ms
+    volume 16
+    d:16ms
+    volume 14
+    d:16ms
+    volume 13
+    d:16ms
+    volume 12
+    d:36ms
+    volume 11
+    d:32ms
+    volume 10
+    d:284ms
+    volume 20
+    d#:16ms
+    volume 17
+    d#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:36ms
+    volume 13
+    d#:32ms
+    volume 12
+    d#:84ms
+    volume 20
+    f:16ms
+    volume 17
+    f:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:36ms
+    volume 13
+    f:32ms
+    volume 12
+    f:84ms
+    volume 20
+    g#:16ms
+    volume 17
+    g#:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:36ms
+    volume 13
+    g#:32ms
+    volume 12
+    g#:84ms
+    volume 20
+    g#:16ms
+    volume 17
+    g#:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:36ms
+    volume 13
+    g#:32ms
+    volume 12
+    g#:284ms
+    volume 20
+    g:16ms
+    volume 17
+    g:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:36ms
+    volume 13
+    g:32ms
+    volume 12
+    g:84ms
+    volume 20
+    g#:16ms
+    volume 17
+    g#:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:36ms
+    volume 13
+    g#:32ms
+    volume 12
+    g#:84ms
+    volume 20
+    a#:16ms
+    volume 17
+    a#:16ms
+    volume 16
+    a#:16ms
+    volume 15
+    a#:36ms
+    volume 13
+    a#:32ms
+    volume 12
+    a#:84ms
+    volume 20
+    c':16ms
+    volume 17
+    c':16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':36ms
+    volume 13
+    c':32ms
+    volume 12
+    c':684ms
+    volume 20
+    b:16ms
+    volume 17
+    b:16ms
+    volume 16
+    b:16ms
+    volume 15
+    b:36ms
+    volume 13
+    b:32ms
+    volume 12
+    b:684ms
+    volume 20
+    c':16ms
+    volume 17
+    c':16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':36ms
+    volume 13
+    c':32ms
+    volume 12
+    c':284ms
+    volume 20
+    d':16ms
+    volume 17
+    d':16ms
+    volume 16
+    d':16ms
+    volume 15
+    d':36ms
+    volume 13
+    d':32ms
+    volume 12
+    d':84ms
+    volume 20
+    d#':16ms
+    volume 17
+    d#':16ms
+    volume 16
+    d#':16ms
+    volume 15
+    d#':36ms
+    volume 13
+    d#':32ms
+    volume 12
+    d#':284ms
+    volume 20
+    d':16ms
+    volume 17
+    d':16ms
+    volume 16
+    d':16ms
+    volume 15
+    d':36ms
+    volume 13
+    d':32ms
+    volume 12
+    d':84ms
+    volume 20
+    c':16ms
+    volume 17
+    c':16ms
+    volume 16
+    c':16ms
+    volume 15
+    c':36ms
+    volume 13
+    c':32ms
+    volume 12
+    c':84ms
+    volume 20
+    a#:16ms
+    volume 17
+    a#:16ms
+    volume 16
+    a#:16ms
+    volume 15
+    a#:36ms
+    volume 13
+    a#:32ms
+    volume 12
+    a#:84ms
+    volume 20
+    g:16ms
+    volume 17
+    g:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:36ms
+    volume 13
+    g:32ms
+    volume 12
+    g:284ms
+    volume 20
+    a#:16ms
+    volume 17
+    a#:16ms
+    volume 16
+    a#:16ms
+    volume 15
+    a#:36ms
+    volume 13
+    a#:32ms
+    volume 12
+    a#:84ms
+    volume 20
+    d:16ms
+    volume 17
+    d:16ms
+    volume 16
+    d:16ms
+    volume 15
+    d:36ms
+    volume 13
+    d:32ms
+    volume 12
+    d:284ms
+    volume 16
+    a#:16ms
+    volume 14
+    a#:16ms
+    volume 13
+    a#:16ms
+    volume 12
+    a#:36ms
+    volume 11
+    a#:32ms
+    volume 10
+    a#:84ms
+    volume 16
+    d:16ms
+    volume 14
+    d:16ms
+    volume 13
+    d:16ms
+    volume 12
+    d:36ms
+    volume 11
+    d:32ms
+    volume 10
+    d:284ms
+    volume 20
+    d#:16ms
+    volume 17
+    d#:16ms
+    volume 16
+    d#:16ms
+    volume 15
+    d#:36ms
+    volume 13
+    d#:32ms
+    volume 12
+    d#:84ms
+    volume 20
+    f:16ms
+    volume 17
+    f:16ms
+    volume 16
+    f:16ms
+    volume 15
+    f:36ms
+    volume 13
+    f:32ms
+    volume 12
+    f:84ms
+    volume 20
+    g#:16ms
+    volume 17
+    g#:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:36ms
+    volume 13
+    g#:32ms
+    volume 12
+    g#:84ms
+    volume 20
+    g#:16ms
+    volume 17
+    g#:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:36ms
+    volume 13
+    g#:32ms
+    volume 12
+    g#:284ms
+    volume 20
+    g:16ms
+    volume 17
+    g:16ms
+    volume 16
+    g:16ms
+    volume 15
+    g:36ms
+    volume 13
+    g:32ms
+    volume 12
+    g:84ms
+    volume 20
+    g#:16ms
+    volume 17
+    g#:16ms
+    volume 16
+    g#:16ms
+    volume 15
+    g#:36ms
+    volume 13
+    g#:32ms
+    volume 12
+    g#:84ms
+    volume 20
+    a#:16ms
+    volume 17
+    a#:16ms
+    volume 16
+    a#:16ms
+    volume 15
+    a#:36ms
+    volume 13
+    a#:32ms
+    volume 12
+    a#:84ms
+    volume 20
+    d#':16ms
+    volume 17
+    d#':16ms
+    volume 16
+    d#':16ms
+    volume 15
+    d#':36ms
+    volume 13
+    d#':32ms
+    volume 12
+    d#':684ms
+    volume 20
+    f':16ms
+    volume 17
+    f':16ms
+    volume 16
+    f':16ms
+    volume 15
+    f':36ms
+    volume 13
+    f':32ms
+    volume 12
+    f':676ms
+    r:8ms
+}
+
+channel 1 pulse octave 4 {
+    r:100ms
+    volume 1
+    c':100ms
+    volume 2
+    c':100ms
+    volume 3
+    c':100ms
+    volume 4
+    c':100ms
+    volume 5
+    c':100ms
+    volume 6
+    c':100ms
+    volume 7
+    c':100ms
+    volume 8
+    c':100ms
+    volume 9
+    c':100ms
+    volume 10
+    c':100ms
+    volume 9
+    c':100ms
+    volume 8
+    c':100ms
+    volume 7
+    c':100ms
+    volume 6
+    c':100ms
+    volume 5
+    c':100ms
+    volume 3
+    g:400ms
+    volume 4
+    g:100ms
+    volume 5
+    g:100ms
+    volume 6
+    g:100ms
+    volume 7
+    g:100ms
+    volume 8
+    g:100ms
+    volume 9
+    g:100ms
+    volume 10
+    g:100ms
+    volume 9
+    g:100ms
+    volume 8
+    g:100ms
+    volume 7
+    g:100ms
+    volume 6
+    g:100ms
+    volume 5
+    g:100ms
+    volume 4
+    g#:100ms
+    volume 3
+    g#:300ms
+    volume 4
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 10
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 4
+    f:100ms
+    volume 3
+    f:300ms
+    volume 4
+    f:100ms
+    volume 5
+    f:100ms
+    volume 6
+    f:100ms
+    volume 7
+    f:100ms
+    volume 8
+    f:100ms
+    volume 9
+    f:100ms
+    volume 10
+    f:100ms
+    volume 9
+    f:100ms
+    volume 8
+    f:100ms
+    volume 7
+    f:100ms
+    volume 6
+    f:100ms
+    volume 5
+    f:100ms
+    r:100ms
+    volume 1
+    c':100ms
+    volume 2
+    c':100ms
+    volume 3
+    c':100ms
+    volume 4
+    c':100ms
+    volume 5
+    c':100ms
+    volume 6
+    c':100ms
+    volume 7
+    c':100ms
+    volume 8
+    c':100ms
+    volume 9
+    c':100ms
+    volume 10
+    c':100ms
+    volume 9
+    c':100ms
+    volume 8
+    c':100ms
+    volume 7
+    c':100ms
+    volume 6
+    c':100ms
+    volume 5
+    c':100ms
+    volume 3
+    g:400ms
+    volume 4
+    g:100ms
+    volume 5
+    g:100ms
+    volume 6
+    g:100ms
+    volume 7
+    g:100ms
+    volume 8
+    g:100ms
+    volume 9
+    g:100ms
+    volume 10
+    g:100ms
+    volume 9
+    g:100ms
+    volume 8
+    g:100ms
+    volume 7
+    g:100ms
+    volume 6
+    g:100ms
+    volume 5
+    g:100ms
+    volume 4
+    g#:100ms
+    volume 3
+    g#:300ms
+    volume 4
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 10
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 4
+    f:100ms
+    volume 3
+    f:300ms
+    volume 4
+    f:100ms
+    volume 5
+    f:100ms
+    volume 6
+    f:100ms
+    volume 7
+    f:100ms
+    volume 8
+    f:100ms
+    volume 9
+    f:100ms
+    volume 10
+    f:100ms
+    volume 9
+    f:100ms
+    volume 8
+    f:100ms
+    volume 7
+    f:100ms
+    volume 6
+    f:100ms
+    volume 5
+    f:100ms
+    r:100ms
+    volume 1
+    c':100ms
+    volume 2
+    c':100ms
+    volume 3
+    c':100ms
+    volume 4
+    c':100ms
+    volume 5
+    c':100ms
+    volume 6
+    c':100ms
+    volume 7
+    c':100ms
+    volume 8
+    c':100ms
+    volume 9
+    c':100ms
+    volume 10
+    c':100ms
+    volume 9
+    c':100ms
+    volume 8
+    c':100ms
+    volume 7
+    c':100ms
+    volume 6
+    c':100ms
+    volume 5
+    c':100ms
+    volume 3
+    g:400ms
+    volume 4
+    g:100ms
+    volume 5
+    g:100ms
+    volume 6
+    g:100ms
+    volume 7
+    g:100ms
+    volume 8
+    g:100ms
+    volume 9
+    g:100ms
+    volume 10
+    g:100ms
+    volume 9
+    g:100ms
+    volume 8
+    g:100ms
+    volume 7
+    g:100ms
+    volume 6
+    g:100ms
+    volume 5
+    g:100ms
+    volume 4
+    g#:100ms
+    volume 3
+    g#:300ms
+    volume 4
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 10
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 4
+    f:100ms
+    volume 3
+    f:300ms
+    volume 4
+    f:100ms
+    volume 5
+    f:100ms
+    volume 6
+    f:100ms
+    volume 7
+    f:100ms
+    volume 8
+    f:100ms
+    volume 9
+    f:100ms
+    volume 10
+    f:100ms
+    volume 9
+    f:100ms
+    volume 8
+    f:100ms
+    volume 7
+    f:100ms
+    volume 6
+    f:100ms
+    volume 5
+    f:100ms
+    r:100ms
+    volume 1
+    c':100ms
+    volume 2
+    c':100ms
+    volume 3
+    c':100ms
+    volume 4
+    c':100ms
+    volume 5
+    c':100ms
+    volume 6
+    c':100ms
+    volume 7
+    c':100ms
+    volume 8
+    c':100ms
+    volume 9
+    c':100ms
+    volume 10
+    c':100ms
+    volume 9
+    c':100ms
+    volume 8
+    c':100ms
+    volume 7
+    c':100ms
+    volume 6
+    c':100ms
+    volume 5
+    c':100ms
+    volume 3
+    g:400ms
+    volume 4
+    g:100ms
+    volume 5
+    g:100ms
+    volume 6
+    g:100ms
+    volume 7
+    g:100ms
+    volume 8
+    g:100ms
+    volume 9
+    g:100ms
+    volume 10
+    g:100ms
+    volume 9
+    g:100ms
+    volume 8
+    g:100ms
+    volume 7
+    g:100ms
+    volume 6
+    g:100ms
+    volume 5
+    g:100ms
+    volume 4
+    g#:100ms
+    volume 3
+    g#:300ms
+    volume 4
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 10
+    g#:100ms
+    volume 9
+    g#:100ms
+    volume 8
+    g#:100ms
+    volume 7
+    g#:100ms
+    volume 6
+    g#:100ms
+    volume 5
+    g#:100ms
+    volume 4
+    f:100ms
+    volume 3
+    f:300ms
+    volume 4
+    f:100ms
+    volume 5
+    f:100ms
+    volume 6
+    f:100ms
+    volume 7
+    f:100ms
+    volume 8
+    f:100ms
+    volume 9
+    f:100ms
+    volume 10
+    f:100ms
+    volume 9
+    f:100ms
+    volume 8
+    f:100ms
+    volume 7
+    f:100ms
+    volume 6
+    f:100ms
+    volume 5
+    f:92ms
+    r:8ms
+}
+
+channel 2 pulse octave 4 {
+    volume 17
+    duty 64
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    c,:16ms
+    volume 16
+    c,:16ms
+    volume 15
+    c,:16ms
+    volume 14
+    c,:20ms
+    volume 12
+    c,:16ms
+    volume 11
+    c,:16ms
+    volume 10
+    c,:16ms
+    volume 8
+    c,:16ms
+    volume 6
+    c,:20ms
+    volume 3
+    c,:16ms
+    volume 2
+    c,:16ms
+    r:16ms
+    volume 17
+    c,,:16ms
+    volume 16
+    c,,:16ms
+    volume 15
+    c,,:16ms
+    volume 14
+    c,,:20ms
+    volume 12
+    c,,:16ms
+    volume 11
+    c,,:16ms
+    volume 10
+    c,,:16ms
+    volume 8
+    c,,:16ms
+    volume 6
+    c,,:20ms
+    volume 3
+    c,,:16ms
+    volume 2
+    c,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g,,:16ms
+    volume 16
+    g,,:16ms
+    volume 15
+    g,,:16ms
+    volume 14
+    g,,:20ms
+    volume 12
+    g,,:16ms
+    volume 11
+    g,,:16ms
+    volume 10
+    g,,:16ms
+    volume 8
+    g,,:16ms
+    volume 6
+    g,,:20ms
+    volume 3
+    g,,:16ms
+    volume 2
+    g,,:16ms
+    r:16ms
+    volume 17
+    g,,,:16ms
+    volume 16
+    g,,,:16ms
+    volume 15
+    g,,,:16ms
+    volume 14
+    g,,,:20ms
+    volume 12
+    g,,,:16ms
+    volume 11
+    g,,,:16ms
+    volume 10
+    g,,,:16ms
+    volume 8
+    g,,,:16ms
+    volume 6
+    g,,,:20ms
+    volume 3
+    g,,,:16ms
+    volume 2
+    g,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    g#,,:16ms
+    volume 16
+    g#,,:16ms
+    volume 15
+    g#,,:16ms
+    volume 14
+    g#,,:20ms
+    volume 12
+    g#,,:16ms
+    volume 11
+    g#,,:16ms
+    volume 10
+    g#,,:16ms
+    volume 8
+    g#,,:16ms
+    volume 6
+    g#,,:20ms
+    volume 3
+    g#,,:16ms
+    volume 2
+    g#,,:16ms
+    r:16ms
+    volume 17
+    g#,,,:16ms
+    volume 16
+    g#,,,:16ms
+    volume 15
+    g#,,,:16ms
+    volume 14
+    g#,,,:20ms
+    volume 12
+    g#,,,:16ms
+    volume 11
+    g#,,,:16ms
+    volume 10
+    g#,,,:16ms
+    volume 8
+    g#,,,:16ms
+    volume 6
+    g#,,,:20ms
+    volume 3
+    g#,,,:16ms
+    volume 2
+    g#,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+    volume 17
+    f,,:16ms
+    volume 16
+    f,,:16ms
+    volume 15
+    f,,:16ms
+    volume 14
+    f,,:20ms
+    volume 12
+    f,,:16ms
+    volume 11
+    f,,:16ms
+    volume 10
+    f,,:16ms
+    volume 8
+    f,,:16ms
+    volume 6
+    f,,:20ms
+    volume 3
+    f,,:16ms
+    volume 2
+    f,,:16ms
+    r:16ms
+    volume 17
+    f,,,:16ms
+    volume 16
+    f,,,:16ms
+    volume 15
+    f,,,:16ms
+    volume 14
+    f,,,:20ms
+    volume 12
+    f,,,:16ms
+    volume 11
+    f,,,:16ms
+    volume 10
+    f,,,:16ms
+    volume 8
+    f,,,:16ms
+    volume 6
+    f,,,:20ms
+    volume 3
+    f,,,:16ms
+    volume 2
+    f,,,:16ms
+    r:16ms
+}
+
+channel 3 percussion octave 4 {
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 7
+    c,:32ms
+    e,:84ms
+    volume 6
+    e,:36ms
+    volume 5
+    e,:16ms
+    volume 4
+    e,:32ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    g,:16ms
+    volume 2
+    g,:52ms
+    volume 1
+    g,:52ms
+    r:48ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 6
+    a,,:16ms
+    volume 3
+    a,,:16ms
+    volume 1
+    f,:16ms
+    r:152ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 4
+    f,:16ms
+    volume 3
+    f,:36ms
+    volume 2
+    f,:48ms
+    volume 7
+    g#,,:16ms
+    volume 5
+    g#,,:16ms
+    volume 4
+    g#,,:16ms
+    volume 2
+    g#,,:20ms
+    volume 1
+    g#,,:16ms
+    r:116ms
+    volume 7
+    d#,:16ms
+    volume 5
+    d#,:32ms
+    e,:52ms
+    volume 7
+    f,:16ms
+    volume 5
+    f,:36ms
+    f#,:40ms
+    r:8ms
+}
