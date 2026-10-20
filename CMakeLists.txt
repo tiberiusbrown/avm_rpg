@@ -129,11 +129,12 @@ if(RPG_BUILD_GUEST)
     set(MUSIC_OUTPUTS
         "${CMAKE_CURRENT_SOURCE_DIR}/generated/music.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/generated/music_catalog.h")
-    file(GLOB MUSIC_SCORES CONFIGURE_DEPENDS assets/music/*.avms)
+    file(GLOB MUSIC_SCORES CONFIGURE_DEPENDS assets/music/*.avms
+        assets/music/imported/*.mid assets/music/imported/*.ftm)
     add_custom_command(OUTPUT ${MUSIC_OUTPUTS}
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_music.py"
             --compiler "${RPG_MUSIC_COMPILER}"
-        DEPENDS tools/generate_music.py ${MUSIC_SCORES} "${RPG_MUSIC_COMPILER}"
+        DEPENDS tools/generate_music.py tools/import_music.py ${MUSIC_SCORES} "${RPG_MUSIC_COMPILER}"
         VERBATIM)
     add_custom_target(rpg_music DEPENDS ${MUSIC_OUTPUTS})
     if(TARGET rpg_device_tests)
@@ -142,6 +143,8 @@ if(RPG_BUILD_GUEST)
     endif()
     add_test(NAME original_music COMMAND ${Python3_EXECUTABLE}
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_music.py" --compiler "${RPG_MUSIC_COMPILER}")
+    add_test(NAME imported_music COMMAND ${Python3_EXECUTABLE}
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_imported_music.py" --compiler "${RPG_MUSIC_COMPILER}")
     function(guest name)
         set(objects)
         foreach(source IN LISTS ARGN)

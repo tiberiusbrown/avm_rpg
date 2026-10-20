@@ -9,7 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from generate_music import SONGS, generate, generate_catalog
+from generate_music import ORIGINAL_SONGS, SONGS, generate, generate_catalog
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--compiler", type=Path, required=True)
@@ -18,9 +18,8 @@ encoder = runpy.run_path(str(args.compiler))
 header = (ROOT / "generated/music.h").read_text(encoding="utf-8")
 assert header == generate(args.compiler), "regenerate music.h"
 assert (ROOT / "generated/music_catalog.h").read_text(encoding="utf-8") == generate_catalog()
-assert len(SONGS) == 6 and len(set(SONGS)) == 6
-assert {path.stem for path in (ROOT / "assets/music").glob("*.avms")} == set(SONGS)
-assert not any(path.suffix.lower() in (".mid", ".midi") for path in ROOT.rglob("*"))
+assert len(SONGS) == 9 and len(set(SONGS)) == 9
+assert {path.stem for path in (ROOT / "assets/music").glob("*.avms")} == set(ORIGINAL_SONGS)
 platform = (ROOT / "src/platform_avm.cpp").read_text(encoding="utf-8")
 master = int(re.search(r"MUSIC_MASTER_VOLUME\s*=\s*(\d+)", platform)[1])
 
@@ -28,7 +27,7 @@ master = int(re.search(r"MUSIC_MASTER_VOLUME\s*=\s*(\d+)", platform)[1])
 # song changes. Then carry the ending state through two loops of each song.
 notes, controls = [2195, 2765, 3288, 16572], [31] * 4
 themes = set()
-for song in SONGS:
+for song in ORIGINAL_SONGS:
     source = ROOT / f"assets/music/{song}.avms"
     score = encoder["ScoreParser"](source.read_text(encoding="utf-8"), source).parse()
     parts, duration = encoder["score_events"](score)

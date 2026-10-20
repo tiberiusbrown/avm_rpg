@@ -5,13 +5,15 @@ alpha-masked characters. D-pad moves, A reads the sign immediately north of the
 starting position, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
-The soundtrack contains six original, peaceful looping songs. The town MIDI
+The soundtrack contains six original, peaceful looping songs followed by
+three imported four-voice arrangements: **Leap**, **Boss**, and **Venus**.
+The town MIDI
 informed their unhurried pacing and sustained, singing phrases; its melody
 was not transcribed. Each new tune has a two-bar refrain that returns at bars
 5 and 13, a contrasting middle section, and a final tonic cadence. Lead notes
 are held across beats, with quiet plucks, answering phrases, and a gentle bass
 pulse. The upper-register melodies sit above their accompaniment.
-The previous songs and all project MIDI files have been removed.
+The imported originals are retained in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
@@ -21,10 +23,13 @@ The previous songs and all project MIDI files have been removed.
 | Clockwork Hollow | Wistful minor melody, short answers, and a quiet clock tick | A minor, 4/4 | 100 | 38.400 s |
 | Moonlit Quay | Spacious night song with late-bar answering notes | D minor, 4/4 | 90 | 42.668 s |
 | Homeward Stars | Consoling upward fourth, gentle counterline, and a descent home | E-flat major, 4/4 | 100 | 38.400 s |
+| Leap | MIDI lead guitar, keys/strings, bass, and noise percussion | 4/4 | 155 | 161.032 s |
+| Boss | FamiTracker APU/VRC6 melody, pulse guitar, saw bass, and percussion | Tracker speed 5 | 200 | 34.000 s |
+| Venus | FamiTracker VRC6 melody, APU harmony, saw bass, and percussion | Tracker speed 8 | 200 | 25.600 s |
 
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through this order. The selected title appears in the menu footer;
-after Homeward Stars, selection wraps to Dewlight Grove. New Game and Continue
+after Venus, selection wraps to Dewlight Grove. New Game and Continue
 start with Dewlight Grove; the selection lasts for the current session.
 Music continues through dialogue and menus; the title screen stays silent.
 
@@ -34,7 +39,7 @@ presses of A compare the two rates; B returns to exploration. The selection
 persists when the menu closes and resets to 8 kHz on restart. It is not saved.
 The exact rates are 7812.5 and 15625 Hz, both without smoothing.
 
-Five songs use a sustained triangle lead; Moonlit Quay uses a sine lead.
+Five original songs use a sustained triangle lead; Moonlit Quay uses a sine lead.
 Sunward Road has a softer attack, a lower held-note level, and harmony that
 supports its sustained melody notes. Sine plucks and short counterlines stay
 below the lead in register and volume. Bass notes pulse or alternate with fifths;
@@ -44,6 +49,9 @@ The other songs silence the noise voice.
 
 Authored attack/release envelopes soften note transitions. Every song restores
 all four channels on entry and finishes its release tails before Loop.
+The imports preserve complete song traversals with melody/backing/bass reduction
+and synthesized percussion. See [conversion details](assets/music/imported/README.md)
+for voice selection and the NES/DPCM adaptations.
 `MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is 180 (562.5%), which can clip
 the mix. The score test checks two complete loops of every song, all note
 attacks, musical duration, state resets, and authored mixer headroom at the
@@ -61,6 +69,8 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 - `assets/music/*.avms`: six editable original scores with named phrases and
   reusable instrument envelopes. `tools/generate_music.py` uses the SDK's
   `avm_music.py` encoder to rebuild `generated/music.h` and `music_catalog.h`.
+- `assets/music/imported/`: supplied MIDI/FamiTracker originals, arranged by
+  `tools/import_music.py` during the same deterministic music build.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
 - `rpg.fxc.arduboy`: Arduboy FX-C package, built from the same game with FX-C

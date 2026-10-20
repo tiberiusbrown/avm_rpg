@@ -531,7 +531,7 @@ int main(int argc, char** argv) try {
     require(corrupt.serial() == 0, "corrupt save accepted");
     require(!corrupt.music_enabled(), "failed continue started music");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
-                 "scrolling with all six original songs\"}\n";
+                   "scrolling with the complete music rotation\"}\n";
     return 0;
 } catch(std::exception const& error) {
 
