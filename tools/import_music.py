@@ -94,7 +94,7 @@ def midi_events(data):
 
 
 def increment(pitch):
-    # AVM A4 stores uint16 phase increments, including fractional-semitone bends.
+    # AVM A5 stores uint16 phase increments, including fractional-semitone bends.
     return max(1, min(65535, round(440 * 2 ** ((pitch - 69) / 12) * 65536 / 15625)))
 
 
@@ -325,7 +325,7 @@ class FtmVoice:
         frequency = 1789773 / (divisor * max(8, period + 1))
         amplitude = self.volume * max(0, self.values[0]) / 225
         amplitude *= 1 - (self.tremolo & 15) / 30 * (1 + math.sin(self.tphase * math.tau / 64)) / 2
-        # AVM has fixed-duty square waves, plus triangle/saw/sine.
+        # Map source timbres onto programmable pulse duty thresholds.
         wave = "sawtooth" if self.channel == 7 else "triangle" if self.channel == 2 else "square"
         result = (max(1, min(65535, round(frequency * 65536 / 15625))), amplitude, wave)
         self.age += 1
@@ -410,14 +410,16 @@ def compile_import(source, encoder):
     for tick, snapshot in sorted(timeline.items()):
         updates = {}
         for channel, (pitch, volume, wave) in enumerate(snapshot):
-            current = (pitch if volume else 0, volume, wave)
+            current = (pitch if volume else 0, volume, dict(square=128, triangle=128, sawtooth=64, sine=64)[wave])
             update = {field: value for index, (field, value) in enumerate(zip(
-                ("increment", "volume", "waveform"), current))
+                ("increment", "volume", "duty"), current))
                 if previous_state is None or value != previous_state[channel][index]}
+            if channel == 3:
+                update.pop("duty", None)
             if update:
                 updates[channel] = update
         if previous_state is None or updates:
             events.append((tick - previous_tick, updates))
             previous_tick = tick
-        previous_state = [(pitch if volume else 0, volume, wave) for pitch, volume, wave in snapshot]
+        previous_state = [(pitch if volume else 0, volume, dict(square=128, triangle=128, sawtooth=64, sine=64)[wave]) for pitch, volume, wave in snapshot]
     return encoder["_encode_events"](15, events, terminal - previous_tick, True)

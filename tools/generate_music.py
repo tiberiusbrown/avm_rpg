@@ -1,4 +1,4 @@
-"""Compile the RPG scores with the SDK's A4 encoder into C++20 assets."""
+"""Compile the RPG scores with the SDK's A5 encoder into C++20 assets."""
 
 import argparse
 import ast

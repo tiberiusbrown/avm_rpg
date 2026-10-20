@@ -28,9 +28,9 @@ envelope foundation {
 envelope brushed {
     points 0ms:0%, 4ms:100%, 12ms:30%, 24ms:0%
 }
-instrument lead { wave sine volume 21 envelope singing gate 93% }
-instrument accompaniment { wave sine volume 2 envelope plucked gate 82% }
-instrument bass { wave triangle volume 4 envelope foundation gate 85% }
+instrument lead { wave pulse duty 25% volume 21 envelope singing gate 93% }
+instrument accompaniment { wave pulse duty 25% volume 2 envelope plucked gate 82% }
+instrument bass { wave pulse duty 50% volume 4 envelope foundation gate 85% }
 instrument quiet { wave noise volume 0 }
 
 phrase quay_refrain { a2 d'2 | c'2. a4 | }

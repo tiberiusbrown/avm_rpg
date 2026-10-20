@@ -28,9 +28,9 @@ envelope foundation {
 envelope brushed {
     points 0ms:0%, 4ms:100%, 12ms:30%, 24ms:0%
 }
-instrument lead { wave triangle volume 16 envelope singing gate 93% }
-instrument accompaniment { wave sine volume 4 envelope plucked gate 82% }
-instrument bass { wave triangle volume 5 envelope foundation gate 85% }
+instrument lead { wave pulse duty 50% volume 16 envelope singing gate 93% }
+instrument accompaniment { wave pulse duty 25% volume 4 envelope plucked gate 82% }
+instrument bass { wave pulse duty 50% volume 5 envelope foundation gate 85% }
 instrument brush { wave noise volume 1 envelope brushed gate 50% }
 
 phrase road_refrain { b4 d'4 e'2 | d'2. b8 a8 | }

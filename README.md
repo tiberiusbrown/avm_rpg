@@ -39,9 +39,9 @@ presses of A compare the two rates; B returns to exploration. The selection
 persists when the menu closes and resets to 8 kHz on restart. It is not saved.
 The exact rates are 7812.5 and 15625 Hz, both without smoothing.
 
-Five original songs use a sustained triangle lead; Moonlit Quay uses a sine lead.
+Five original songs use a sustained 50% pulse lead; Moonlit Quay uses a 25% pulse lead.
 Sunward Road has a softer attack, a lower held-note level, and harmony that
-supports its sustained melody notes. Sine plucks and short counterlines stay
+supports its sustained melody notes. Narrow pulse plucks and short counterlines stay
 below the lead in register and volume. Bass notes pulse or alternate with fifths;
 Moonlit Quay retains more sustained bass for its quieter character. Lantern
 Square, Sunward Road, and Clockwork Hollow add very brief noise taps at volume 1.

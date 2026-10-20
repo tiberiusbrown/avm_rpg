@@ -12,7 +12,7 @@ resource counts, and playback checks are in [the current evidence](tiles16_measu
 
 The current firmware defaults to **7812.5 Hz output and synthesis**, with no
 midpoint smoothing. `avm_audio_rate` can select **15625 Hz** synthesis at runtime.
-Both modes retain the early PWM store and Timer0 phase alignment. A4/C1..C3
+Both modes retain the early PWM store and Timer0 phase alignment. A5/D1..D3
 assets store increments at the 15625 Hz basis; foreground commit doubles them
 for 8 kHz. All six songs were regenerated, with the game's gain of 180 retained.
 At that boost the mix can clip; playback tests allow saturation when the live
@@ -27,7 +27,11 @@ The normal run includes 40 seconds of music, dialogue, menus, saving, walking,
 and collision work; FX-C includes eight seconds. NOP and CLI calibration pass.
 Native tests cover startup and live rate changes at all 32000 combinations of
 rate, Timer0 count and sub-tick phase. See the [implementation and resource
-measurements](../../../docs/audio-benchmarks.md) for details.
+measurements](../../../docs/audio-benchmarks.md) for details. The programmable-duty
+pulse update was checked again on 2026-10-20: all 11 CTests, guest/device
+integration, and the normal/FX-C timing workload pass with the regenerated A5
+soundtrack. Its normal synthesis ISR is 171..178 cycles; the distributions
+quoted above retain the same 0..7-cycle lateness bounds.
 
 The comparisons below describe the preceding smoothed implementations.
 

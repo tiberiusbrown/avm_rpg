@@ -47,7 +47,7 @@ for song in ORIGINAL_SONGS:
     words = re.search(rf"{song.upper()}_MUSIC\[\] = \{{(.*?)\}};", header, re.DOTALL)[1]
     data = b"".join(int(value, 16).to_bytes(8, "little")
                     for value in re.findall(r"0x([0-9a-f]{16})ULL", words))
-    assert data[:2] == bytes([0xA4, 15]), "every song must own and reset all four voices"
+    assert data[:2] == bytes([0xA5, 15]), "every song must own and reset all four voices"
     previous = None
     peak_mix = 0
     reference_peak_mix = 0
@@ -81,9 +81,14 @@ for song in ORIGINAL_SONGS:
                         attacks[channel].append(notes[channel])
             for channel in range(4):
                 if mask & (16 << channel):
-                    controls[channel] = data[offset]
+                    encoded_control = data[offset]
+                    controls[channel] = encoded_control & 31
                     offset += 1
-                    assert controls[channel] < 128
+                    assert encoded_control & 0x60 == 0
+                    if encoded_control & 128:
+                        extension = data[offset]
+                        offset += 1
+                        assert channel < 3 or 1 <= extension <= 63
             active = [channel for channel in range(4)
                       if notes[channel] != 0 and controls[channel] & 31]
             polyphony = max(polyphony, len([channel for channel in active if channel < 3]))

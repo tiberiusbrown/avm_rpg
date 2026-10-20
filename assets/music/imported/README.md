@@ -2,8 +2,10 @@
 
 These are the unmodified files supplied from Downloads. `tools/import_music.py`
 arranges them for AVM's three pitched voices and one noise voice, and
-`tools/generate_music.py` embeds their A4 streams after the six original songs.
+`tools/generate_music.py` embeds their A5 streams after the six original songs.
 Rebuilding needs only Python's standard library and the SDK's `avm_music.py`.
+Source timbre hints map to pulse duty: 50% for square/triangle arrangements,
+25% for sine/saw arrangements. The noise voice receives volume and pitch only.
 
 | Source | Menu title | Complete loop |
 |---|---|---:|

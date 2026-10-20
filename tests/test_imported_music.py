@@ -39,7 +39,7 @@ for song in IMPORTED_SONGS:
     stored = b"".join(int(word, 16).to_bytes(8, "little")
                       for word in re.findall(r"0x([0-9a-f]{16})ULL", words))
     assert stored[:len(data)] == data and not any(stored[len(data):])
-    assert data[:2] == bytes([0xA4, 15])
+    assert data[:2] == bytes([0xA5, 15])
     notes, controls = [65535] * 4, [127] * 4
     previous = None
     for iteration in range(2):
@@ -64,9 +64,14 @@ for song in IMPORTED_SONGS:
                     offset += 2
             for channel in range(4):
                 if mask & (16 << channel):
-                    controls[channel] = data[offset]
+                    encoded_control = data[offset]
+                    controls[channel] = encoded_control & 31
                     offset += 1
-                    assert controls[channel] < 128
+                    assert encoded_control & 0x60 == 0
+                    if encoded_control & 128:
+                        extension = data[offset]
+                        offset += 1
+                        assert channel < 3 or 1 <= extension <= 63
                     assert controls[channel] & 31 <= GAINS[channel]
             peak = max(peak, sum((control & 31) * 2 for note, control in zip(notes, controls) if note))
             frames.append((ticks, tuple(notes), tuple(controls)))

@@ -28,9 +28,9 @@ envelope foundation {
 envelope brushed {
     points 0ms:0%, 4ms:100%, 12ms:30%, 24ms:0%
 }
-instrument lead { wave triangle volume 18 envelope singing gate 93% }
-instrument accompaniment { wave sine volume 13 envelope plucked gate 82% }
-instrument bass { wave triangle volume 14 envelope foundation gate 85% }
+instrument lead { wave pulse duty 50% volume 18 envelope singing gate 93% }
+instrument accompaniment { wave pulse duty 25% volume 13 envelope plucked gate 82% }
+instrument bass { wave pulse duty 50% volume 14 envelope foundation gate 85% }
 instrument quiet { wave noise volume 0 }
 
 phrase grove_refrain { c'4 bb8 ab8 eb'2 | db'2. c'8 bb8 | }
