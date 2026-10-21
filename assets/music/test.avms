@@ -1,0 +1,91 @@
+tempo 120
+meter 4/4
+automation 8ms
+
+envelope breath {
+    points 0ms:0%, 16ms:100%, 120ms:85%
+    release 24ms:0%
+}
+envelope pluck {
+    points 0ms:100%, 80ms:65%
+    release 24ms:0%
+}
+envelope hat_env { points 0ms:100%, 24ms:0% }
+envelope snare_env { points 0ms:100%, 16ms:70%, 80ms:0% }
+
+instrument flute {
+    duty 50% volume 10 envelope breath gate 85%
+    lfo { target pitch depth 8cents period 200ms }
+}
+instrument harmony {
+    duty 25%
+    volume 5
+    gate 85%
+}
+instrument bass {
+    duty 50%
+    volume 6
+    gate 90%
+}
+instrument hat {
+    wave noise volume 20 envelope hat_env
+    note_cut { after 24ms }
+}
+instrument snare {
+    wave noise volume 20 envelope snare_env
+    noise_retrigger { every 16ms seed 11 }
+    note_cut { after 80ms }
+}
+
+phrase entry {
+        c8 d8 e4. g8 |
+    e1 | 
+    r4 c8 d8 e4. g16 a16 |
+    g2 e4. f8 |
+    g4 f e f |
+    d2.~d8 e16 d16 |
+    c2.
+}
+phrase entry_harmony {
+    e8 g8 c'8 g8 e8 g8 c'8 g8 |
+    e8 a8 c'8 a8 e8 a8 c'8 a8 |
+    e8 g8 c'8 g8 f8 a8 c'8 a8 |
+    f8 a8 c'8 a8 e8 a8 c'8 a8 |
+    f8 a8 c'8 a8 d'8 a8 f8 a8 |
+    g8 b8 d'8 b8 g4 b4 |
+    e8 g8 c'2 r4 |
+}
+phrase entry_bass {
+    c2 g4 c'4 |
+    a2 e4 a4 |
+    c2 f2 |
+    f2 c4 f4 |
+    c4 f2 c4 |
+    g2 d4 g4 |
+    c1 |
+}
+phrase entry_wait { repeat 7 { r1 } }
+
+phrase climax {
+         a8 b8 |
+    c'2. b4 |
+    g2. g4 |
+    g f e f |
+    d1 |
+}
+
+channel 0 flute octave 5 {
+    r4 entry r4 |
+    r4 entry
+    climax
+}
+
+channel 1 harmony octave 3 {
+    entry_wait
+    entry_harmony
+}
+
+channel 2 bass octave 2 {
+    entry_wait
+    entry_bass
+}

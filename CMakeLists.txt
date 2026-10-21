@@ -127,14 +127,14 @@ if(RPG_BUILD_GUEST)
         set(RPG_MUSIC_COMPILER "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/avm_music.py")
     endif()
     set(MUSIC_OUTPUTS)
-    foreach(song IN ITEMS boss venus)
+    foreach(song IN ITEMS test)
         string(TOUPPER "${song}" symbol)
         set(score "${CMAKE_CURRENT_SOURCE_DIR}/assets/music/${song}.avms")
         set(output "${CMAKE_CURRENT_SOURCE_DIR}/generated/${song}_music.h")
         add_custom_command(OUTPUT "${output}"
-            COMMAND ${Python3_EXECUTABLE} "${RPG_MUSIC_COMPILER}"
-                "${score}" "${output}" --name "${symbol}_MUSIC"
-            DEPENDS "${score}" "${RPG_MUSIC_COMPILER}"
+            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_music.py"
+                --compiler "${RPG_MUSIC_COMPILER}" "${score}" "${output}" --name "${symbol}_MUSIC"
+            DEPENDS "${score}" "${RPG_MUSIC_COMPILER}" tools/compile_music.py
             VERBATIM)
         list(APPEND MUSIC_OUTPUTS "${output}")
     endforeach()

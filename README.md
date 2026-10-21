@@ -5,19 +5,20 @@ alpha-masked characters. D-pad moves, A reads the sign immediately north of the
 starting position, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
-The soundtrack contains two looping four-voice arrangements: **Boss** and
-**Venus**. Their editable scores are `assets/music/boss.avms` and
-`assets/music/venus.avms`; the build compiles these directly with `avm_music.py`.
+The soundtrack contains three looping arrangements: **Boss**, **Venus**, and
+**Good Endings**. Their editable scores are in `assets/music/`; the build uses
+`avm_music.py` through `tools/compile_music.py` to emit C++ constexpr assets.
 The FamiTracker reference files remain in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
 | Boss | FamiTracker APU/VRC6 melody, pulse guitar, saw bass, and percussion; the default | Tracker speed 5 | 200 | 34.000 s |
 | Venus | FamiTracker VRC6 melody, APU harmony, saw bass, and percussion | Tracker speed 8 | 200 | 25.600 s |
+| Good Endings | Cleaned MIDI glockenspiel, lute/horn/viola accompaniment, and electric bass | 4/4 | 120 | 172.000 s |
 
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through this order. The selected title appears in the menu footer;
-after Venus, selection wraps to Boss. New Game and Continue
+after Good Endings, selection wraps to Boss. New Game and Continue
 start with Boss; the selection lasts for the current session.
 Music continues through dialogue and menus; the title screen stays silent.
 
@@ -27,17 +28,21 @@ presses of A compare the two rates; B returns to exploration. The selection
 persists when the menu closes and resets to 8 kHz on restart. It is not saved.
 The exact rates are 7812.5 and 15625 Hz, both without smoothing.
 
-The AVMS conversions preserve complete song traversals, all four arranged
+The FamiTracker conversions preserve complete song traversals, all four arranged
 voices, and the tracker's quantized pitch, volume, and pulse-duty changes.
 Millisecond durations retain the 4 ms event timing; constant frequency slides
 preserve fractional pitches used by bends and vibrato. Every song resets all
-four channels on entry and silences them before looping.
+four channels on entry and silences them before looping. Good Endings uses
+the cleaned `arduboy_grayscale_rpg/assets/song_peaceful.mid`, which already
+omits the synth pad. It reduces the parts to three pulse voices and keeps noise
+silent. The loop ends at 172 seconds, trimming the MIDI's empty 12.1-second
+tail; the final 8 ms allow the last notes to release before looping.
 See [conversion details](assets/music/imported/README.md) for voice selection,
 the NES/DPCM adaptations, and build commands. CMake invokes the SDK's
-`avm_music.py` compiler directly for each editable AVMS file, without rewriting
-the scores. `src/music.h` and `src/music_catalog.h` define the two-track registry.
+`avm_music.py` compiler for each editable AVMS file, without rewriting
+the scores. `src/music.h` and `src/music_catalog.h` define the three-track registry.
 `MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is 96 (300%). Tests compare the
-AVMS playback against recorded tracker fingerprints and check complete duration,
+AVMS playback against recorded tracker and MIDI-arrangement fingerprints and check complete duration,
 two repeatable loops, channel resets, and headroom at reference master 64.
 Physical Arduboy piezo listening and balance checks remain necessary.
 
@@ -50,8 +55,9 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 - `assets_src/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
 - `assets_src/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
-- `assets/music/*.avms`: the editable Boss and Venus scores.
-  CMake calls `avm_music.py` to rebuild `generated/boss_music.h` and `venus_music.h`.
+- `assets/music/*.avms`: the editable Boss, Venus, and Good Endings scores.
+  CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
+  the three `generated/*_music.h` constexpr headers.
 - `assets/music/imported/`: FamiTracker reference files, retained for provenance.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
