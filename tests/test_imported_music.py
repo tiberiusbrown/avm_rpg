@@ -24,7 +24,6 @@ PLAYBACK_SHA256 = {
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--compiler", type=Path, required=True)
 encoder = runpy.run_path(str(parser.parse_args().compiler))
-assert {path.stem for path in (ROOT / "assets/music").glob("*.avms")} == set(SONGS)
 assert not list((ROOT / "assets/music/imported").glob("*.mid"))
 assert all(sum(gains) * 2 <= 127 for gains in GAINS.values())
 
@@ -34,7 +33,7 @@ expected_ticks = {"boss": 8500, "venus": 6400, "good_endings": 43000}
 def audible_events(data):
     """Compare playback, ignoring redundant phase-preserving pitch writes."""
     notes, volumes, duties = [0] * 4, [0] * 4, [128] * 4
-    offset, ticks, events = 2, 0, []
+    offset, ticks, events = 1, 0, []
     while True:
         delta, mask = data[offset:offset + 2]
         offset += 2
@@ -74,15 +73,15 @@ for song in SONGS:
         f"{song}: AVMS must preserve every audible arranged pitch, volume, duty, and event tick"
     )
     header = (ROOT / f"generated/{song}_music.h").read_text(encoding="utf-8")
-    words = re.search(rf"{song.upper()}_MUSIC\[\] = \{{(.*?)\}};", header, re.DOTALL)[1]
+    words = re.search(rf"MUSIC_{song.upper()}_DATA\[\] = \{{(.*?)\}};", header, re.DOTALL)[1]
     stored = b"".join(int(word, 16).to_bytes(8, "little")
                       for word in re.findall(r"0x([0-9a-f]{16})ULL", words))
     assert stored[:len(data)] == data and not any(stored[len(data):])
-    assert data[:2] == bytes([0xA5, 15])
+    assert data[0] == 15
     notes, controls = [65535] * 4, [127] * 4
     previous = None
     for iteration in range(2):
-        offset, ticks, attacks, frames, peak = 2, 0, [0] * 4, [], 0
+        offset, ticks, attacks, frames, peak = 1, 0, [0] * 4, [], 0
         while True:
             delta, mask = data[offset:offset + 2]
             offset += 2

@@ -1,91 +1,431 @@
-tempo 120
+// Transcription / structural adaptation of Team A.R.G. ATMlib Orbital Rush.
+// Original: https://github.com/T-arg/ATMlib/tree/master/examples/songs/orbitalRush
+// The original plays an 8-bar intro ONCE then loops its 96-bar body.
+title "Orbital Rush (ATMlib transcription)"
+description "D minor demoscene: leads, square arps, saw bass, noise drums"
+tempo 555/4  // 37 ATM ticks/s, 16 ticks/quarter -> 138.75 BPM
 meter 4/4
 automation 8ms
 
-envelope breath {
-    points 0ms:0%, 16ms:100%, 120ms:85%
-    release 24ms:0%
-}
-envelope pluck {
-    points 0ms:100%, 80ms:65%
-    release 24ms:0%
-}
-envelope hat_env { points 0ms:100%, 24ms:0% }
-envelope snare_env { points 0ms:100%, 16ms:70%, 80ms:0% }
+envelope lead_env { points 0ms:100%, 120ms:91%, 350ms:75% }
+envelope pluck { points 0ms:100%, 90ms:70%, 210ms:0% }
+envelope kick_env { points 0ms:100%, 55ms:40%, 110ms:0% }
+envelope hat_env { points 0ms:100%, 35ms:25%, 75ms:0% }
+instrument lead { wave pulse duty 25% volume 17 envelope lead_env }
+instrument riser { wave pulse duty 12.5% volume 12 glissando { direction up every 28ms } volume_slide { from 4 to 14 over 1600ms } }
+instrument stabs_major { wave pulse duty 50% volume 12 envelope pluck arpeggio { offsets 0,4,7 step 28ms } }
+instrument stabs_minor { wave pulse duty 50% volume 12 envelope pluck arpeggio { offsets 0,3,7 step 28ms } }
+instrument pad_major { wave pulse duty 50% volume 9 arpeggio { offsets 0,4,7 step 82ms } }
+instrument pad_minor { wave pulse duty 50% volume 9 arpeggio { offsets 0,3,7 step 82ms } }
+instrument bass { wave saw volume 19 envelope pluck }
 
-instrument flute {
-    duty 50% volume 10 envelope breath gate 85%
-    lfo { target pitch depth 8cents period 200ms }
-}
-instrument harmony {
-    duty 25%
-    volume 5
-    gate 85%
-}
-instrument bass {
-    duty 50%
-    volume 6
-    gate 90%
-}
-instrument hat {
-    wave noise volume 20 envelope hat_env
-    note_cut { after 24ms }
-}
-instrument snare {
-    wave noise volume 20 envelope snare_env
-    noise_retrigger { every 16ms seed 11 }
-    note_cut { after 80ms }
+instrument kick { wave noise volume 14 envelope kick_env }
+instrument snare { wave noise volume 12 envelope kick_env }
+instrument hat { wave noise volume 5 envelope hat_env }
+instrument roll { wave noise volume 8 envelope hat_env noise_retrigger { every 16ms seed 29 } }
+
+phrase melA1 {
+    a4 f8 a8 d'4. c'8 |
+    a#4 a8 g8 f4 g8 a8 |
+    a8 c'8 f'4. e'8 c'8 a8 |
+    g8 e8 g8 c'4 a8 g4 |
 }
 
-phrase entry {
-        c8 d8 e4. g8 |
-    e1 | 
-    r4 c8 d8 e4. g16 a16 |
-    g2 e4. f8 |
-    g4 f e f |
-    d2.~d8 e16 d16 |
-    c2.
-}
-phrase entry_harmony {
-    e8 g8 c'8 g8 e8 g8 c'8 g8 |
-    e8 a8 c'8 a8 e8 a8 c'8 a8 |
-    e8 g8 c'8 g8 f8 a8 c'8 a8 |
-    f8 a8 c'8 a8 e8 a8 c'8 a8 |
-    f8 a8 c'8 a8 d'8 a8 f8 a8 |
-    g8 b8 d'8 b8 g4 b4 |
-    e8 g8 c'2 r4 |
-}
-phrase entry_bass {
-    c2 g4 c'4 |
-    a2 e4 a4 |
-    c2 f2 |
-    f2 c4 f4 |
-    c4 f2 c4 |
-    g2 d4 g4 |
-    c1 |
-}
-phrase entry_wait { repeat 7 { r1 } }
-
-phrase climax {
-         a8 b8 |
-    c'2. b4 |
-    g2. g4 |
-    g f e f |
-    d1 |
+phrase melA2 {
+    d'4 c'8 a8 c'4 d'8 e'8 |
+    d'4 c'8 a#8 a4 a#8 c'8 |
+    a8 a8 c'8 f'4 e'8 d'8 c'8 |
+    e'4 d'8 c'8 g4 a4 |
 }
 
-channel 0 flute octave 5 {
-    r4 entry r4 |
-    r4 entry
-    climax
+phrase melB1 {
+    g4 a#4 d'4 a#4 |
+    a4 d'4 f'4 d'4 |
+    d'8 d'8 c'8 a#8 a4 a#4 |
+    c'4 e'4 g'4 e'8 c'8 |
 }
 
-channel 1 harmony octave 3 {
-    entry_wait
-    entry_harmony
+phrase melB2 {
+    d'8 c'8 a#8 g8 a#4 d'4 |
+    f'8 e'8 d'8 a8 d'4 f'4 |
+    d'4 c'8 a#8 f'4 d'4 |
+    e'8 g'8 e'8 c'8 g4 c'4 |
+}
+
+phrase melBreak1 {
+    d'2. c'4 |
+    e'2. g'4 |
+    f'2 e'4 d'4 |
+    e'1 |
+}
+
+phrase melBreak2 {
+    d'2 f'2 |
+    e'2 g'2 |
+    a'2 f'2 |
+    c,1@riser |
+}
+
+phrase melChorus1 {
+    d'4. c'8 a8 d'8 f'4 |
+    d'4. c'8 a#8 c'8 d'4 |
+    a#4 d'4 g'4 f'8 d'8 |
+    e'8 c#'8 a8 c#'8 e'4 a4 |
+}
+
+phrase melChorus2 {
+    f'4. e'8 d'8 a8 d'4 |
+    f'4. d'8 a#8 d'8 f'4 |
+    g'4 f'4 d'4 a#4 |
+    e'4 c#'4 a4 a8 c#'8 |
+}
+
+phrase melTag1 {
+    d'4 c'4 a#2 |
+    d'4 a#4 g2 |
+    e'4 c'4 g2 |
+    e'4 c#'4 a2 |
+}
+
+phrase melTag2 {
+    d'8 d'8 c'8 a#8 g2 |
+    d'8 d'8 a#8 g8 d2 |
+    e'8 e'8 d'8 c'8 g2 |
+    e'8 c#'8 a8 e8 a2 |
+}
+
+phrase melDanceD {
+    d'16 d'16 a16 d'16 d'16 d'16 a16 d'16 d'16 d'16 a16 d'16 d'16 a16
+    d'16 e'16 |
+}
+
+phrase melDanceD2 {
+    d16 a16 d'16 a16 d'16 e'16 d'16 a16 d16 a16 d'16 a16 d'16 e'16
+    d'16 a16 |
+}
+
+phrase melLift1 {
+    e'4. d'8 b8 e'8 g'4 |
+    e'4. d'8 c'8 d'8 e'4 |
+    c'4 e'4 a'4 g'8 e'8 |
+    f#'8 d#'8 b8 d#'8 f#'4 b4 |
+}
+
+phrase melLift2 {
+    g'4. f#'8 e'8 b8 e'4 |
+    g'4. e'8 c'8 e'8 g'4 |
+    a'4 g'4 e'4 c'4 |
+    f#'4 d#'4 b4 b8 d#'8 |
+}
+
+// Original 4-bar melody modules. All major sections reuse these phrases.
+phrase melA8 { melA1 melA2 }
+phrase melB8 { melB1 melB2 }
+phrase melChorus8 { melChorus1 melChorus2 }
+phrase melLift8 { melLift1 melLift2 }
+phrase melDance8 { repeat 4 { melDanceD } repeat 4 { melDanceD2 } }
+phrase melTag8 { melTag1 melTag2 }
+
+// Square-wave chord rhythm: 3+3+2 eighth-note stabs per bar.
+phrase stabMajC { c8.@stabs_major c8.@stabs_major c8@stabs_major c8.@stabs_major c8.@stabs_major c8@stabs_major | }
+
+phrase stabMajA { a8.@stabs_major a8.@stabs_major a8@stabs_major a8.@stabs_major a8.@stabs_major a8@stabs_major | }
+phrase stabMinD { d8.@stabs_minor d8.@stabs_minor d8@stabs_minor d8.@stabs_minor d8.@stabs_minor d8@stabs_minor | }
+phrase stabMinG { g8.@stabs_minor g8.@stabs_minor g8@stabs_minor g8.@stabs_minor g8.@stabs_minor g8@stabs_minor | }
+phrase stabMinE { e8.@stabs_minor e8.@stabs_minor e8@stabs_minor e8.@stabs_minor e8.@stabs_minor e8@stabs_minor | }
+phrase stabMinA { a8.@stabs_minor a8.@stabs_minor a8@stabs_minor a8.@stabs_minor a8.@stabs_minor a8@stabs_minor | }
+phrase stabMajBb { a#8.@stabs_major a#8.@stabs_major a#8@stabs_major a#8.@stabs_major a#8.@stabs_major a#8@stabs_major | }
+phrase stabMajB { b8.@stabs_major b8.@stabs_major b8@stabs_major b8.@stabs_major b8.@stabs_major b8@stabs_major | }
+phrase padDm { d1@pad_minor | }
+phrase padBb { a#1@pad_major | }
+phrase padF { f1@pad_major | }
+phrase padC { c1@pad_major | }
+phrase padA { a1@pad_major | }
+phrase chordA4 { padDm padBb padF padC }
+phrase chordB4 { stabMinG stabMinD stabMajBb stabMajC }
+phrase chordBreak4 { padBb padC padDm padA }
+phrase chordChorus4 { stabMinD stabMajBb stabMinG stabMajA }
+phrase chordDance4 { stabMinD stabMajC stabMajBb stabMajA }
+phrase chordLift4 { stabMinE stabMajC stabMinA stabMajB }
+phrase chordTag4 { stabMajBb stabMinG stabMajC stabMajA }
+
+// The underlying ATMlib bass is built from 1-bar cells and transposition.
+// Here reusable rhythms stay musical notation, while the roots are explicit.
+
+phrase bassDriveD3 {
+    d'16 d'16 d''16 d'16 d'16 d'16 d''16 a'16 d'16 d'16 d''16 d'16 d'16 d''16
+    d'16 a'16 |
+}
+
+phrase bassSparseD3 {
+    d'8. d'16 a'8 d'8 d'8. d'16 d''8 a'8 |
+}
+
+phrase bassSustainD3 {
+    d'2 a'4 d'4 |
+}
+
+phrase bassDriveAS2 {
+    a#16 a#16 a#'16 a#16 a#16 a#16 a#'16 f'16 a#16 a#16 a#'16 a#16 a#16 a#'16
+    a#16 f'16 |
+}
+
+phrase bassSparseAS2 {
+    a#8. a#16 f'8 a#8 a#8. a#16 a#'8 f'8 |
+}
+
+phrase bassSustainAS2 {
+    a#2 f'4 a#4 |
+}
+
+phrase bassDriveF2 {
+    f16 f16 f'16 f16 f16 f16 f'16 c'16 f16 f16 f'16 f16 f16 f'16
+    f16 c'16 |
+}
+
+phrase bassSparseF2 {
+    f8. f16 c'8 f8 f8. f16 f'8 c'8 |
+}
+
+phrase bassDriveC3 {
+    c'16 c'16 c''16 c'16 c'16 c'16 c''16 g'16 c'16 c'16 c''16 c'16 c'16 c''16
+    c'16 g'16 |
+}
+
+phrase bassSparseC3 {
+    c'8. c'16 g'8 c'8 c'8. c'16 c''8 g'8 |
+}
+
+phrase bassSustainC3 {
+    c'2 g'4 c'4 |
+}
+
+phrase bassDriveG2 {
+    g16 g16 g'16 g16 g16 g16 g'16 d'16 g16 g16 g'16 g16 g16 g'16
+    g16 d'16 |
+}
+
+phrase bassDriveA2 {
+    a16 a16 a'16 a16 a16 a16 a'16 e'16 a16 a16 a'16 a16 a16 a'16
+    a16 e'16 |
+}
+
+phrase bassSustainA2 {
+    a2 e'4 a4 |
+}
+
+phrase bassDriveE3 {
+    e'16 e'16 e''16 e'16 e'16 e'16 e''16 b'16 e'16 e'16 e''16 e'16 e'16 e''16
+    e'16 b'16 |
+}
+
+phrase bassDriveB2 {
+    b16 b16 b'16 b16 b16 b16 b'16 f#'16 b16 b16 b'16 b16 b16 b'16
+    b16 f#'16 |
+}
+
+phrase bassA4s { bassSparseD3 bassSparseAS2 bassSparseF2 bassSparseC3 }
+phrase bassA4d { bassDriveD3 bassDriveAS2 bassDriveF2 bassDriveC3 }
+phrase bassB4 { bassDriveG2 bassDriveD3 bassDriveAS2 bassDriveC3 }
+phrase bassBreak4 { bassSustainAS2 bassSustainC3 bassSustainD3 bassSustainA2 }
+phrase bassChorus4 { bassDriveD3 bassDriveAS2 bassDriveG2 bassDriveA2 }
+phrase bassDance4 { bassDriveD3 bassDriveC3 bassDriveAS2 bassDriveA2 }
+phrase bassLift4 { bassDriveE3 bassDriveC3 bassDriveA2 bassDriveB2 }
+phrase bassTag4 { bassDriveAS2 bassDriveG2 bassDriveC3 bassDriveA2 }
+
+// Drum cells: hats during intro, beat-patterns, fills and dance section.
+phrase drumHatBar { repeat 4 { c8@hat c8@hat } | }
+phrase drumGrooveBar { repeat 2 { c8@kick c8@hat c8@snare c8@hat } | }
+phrase drumDanceBar { repeat 4 { c16@kick c16@hat c16@snare c16@hat } | }
+phrase drumFillBar { repeat 3 { c8@kick c8@hat } repeat 2 { c16@roll c16@roll } | }
+phrase drumHat4 { repeat 4 { drumHatBar } }
+phrase drumGroove4 { repeat 3 { drumGrooveBar } drumFillBar }
+phrase drumDance4 { repeat 3 { drumDanceBar } drumFillBar }
+phrase drumBreak8 { repeat 6 { drumHatBar } drumGrooveBar drumFillBar }
+
+channel 0 lead octave 5 {
+repeat 4 { r1 } melA1
+
+    repeat 2 { melA8 }
+    repeat 2 { melB8 }
+    melBreak1 melBreak2
+    repeat 2 { melChorus8 }
+    repeat 2 { melDance8 }
+    repeat 2 { melLift8 }
+    melTag8
+}
+
+channel 1  octave 4 {
+repeat 2 { chordA4 }
+
+    repeat 4 { chordA4 }
+    repeat 4 { chordB4 }
+    repeat 2 { chordBreak4 }
+    repeat 4 { chordChorus4 }
+    repeat 4 { chordDance4 }
+    repeat 4 { chordLift4 }
+    repeat 2 { chordTag4 }
 }
 
 channel 2 bass octave 2 {
-    entry_wait
-    entry_bass
+repeat 4 { r1 } bassA4d
+
+    repeat 2 { bassA4s } repeat 2 { bassA4d }
+    repeat 4 { bassB4 }
+    repeat 2 { bassBreak4 }
+    repeat 4 { bassChorus4 }
+    repeat 4 { bassDance4 }
+    repeat 4 { bassLift4 }
+    repeat 2 { bassTag4 }
 }
+
+channel 3 kick octave 6 {
+drumHat4 drumGroove4
+
+    repeat 8 { drumGroove4 }
+    drumBreak8
+    repeat 4 { drumGroove4 }
+    repeat 4 { drumDance4 }
+    repeat 4 { drumGroove4 }
+    repeat 2 { drumGroove4 }
+}
+
+
+
+//title "Arduventure Starting Garden"
+//tempo 120
+//meter 4/4
+//loop
+//envelope garden_decay {
+//    points 0ms:100%, 1/32:87.5%, 1/16:75%, 3/32:62.5%, 1/8:50%, 5/32:37.5%, 3/16:25%, 7/32:12.5%, 1/4:0%
+//    curve step
+//}
+//instrument garden_pluck {
+//    wave triangle
+//    duty 50%
+//    volume 12
+//    gate 100%
+//    envelope garden_decay
+//}
+//channel 2 garden_pluck octave 6 {
+//    repeat 2 { c4 e4 g4 e4 | }
+//    octave 5
+//    f4 a4 c'4 a4 |
+//    g4 b4 d'4 b4 |
+//}
+
+//title "Arduventure Field Theme"
+//tempo 135
+//meter 4/4
+//loop
+//envelope field_decay {
+//    points 0ms:100%, 1/64:75%, 1/32:50%, 3/64:25%, 1/16:0%
+//    curve step
+//}
+//instrument field_pluck {
+//    duty 25%
+//    volume 12
+//    gate 100%
+//    envelope field_decay
+//}
+//channel 0 field_pluck octave 3 {
+//    repeat 4 { c#8 c#16 c#16 } |
+//    octave 4
+//    repeat 2 { f#8 f#16 f#16 }
+//    repeat 2 { b8 b16 b16 } |
+//}
+
+//tempo 120
+//meter 4/4
+//automation 8ms
+//
+//envelope breath {
+//    points 0ms:0%, 60ms:100%, 120ms:85%
+//    release 60ms:0%
+//}
+//envelope pluck {
+//    points 0ms:100%, 80ms:65%
+//    release 24ms:0%
+//}
+//envelope hat_env { points 0ms:100%, 24ms:0% }
+//envelope snare_env { points 0ms:100%, 16ms:70%, 80ms:0% }
+//
+//instrument flute {
+//    duty 50% volume 10 envelope breath gate 85%
+//    lfo { target pitch depth 8cents period 200ms }
+//
+//    // vibrato
+//    lfo { target volume depth 5% period 80ms wave sine }
+//}
+//instrument harmony {
+//    duty 25%
+//    volume 5
+//    gate 85%
+//}
+//instrument bass {
+//    duty 50%
+//    volume 6
+//    gate 90%
+//}
+//instrument hat {
+//    wave noise volume 20 envelope hat_env
+//    note_cut { after 24ms }
+//}
+//instrument snare {
+//    wave noise volume 20 envelope snare_env
+//    noise_retrigger { every 16ms seed 11 }
+//    note_cut { after 80ms }
+//}
+//
+//phrase entry {
+//        c8 d8 e4. g8 |
+//    e1 | 
+//    r4 c8 d8 e4. g16 a16 |
+//    g2 e4. f8 |
+//    g4 f e f |
+//    d2.~d8 e16 d16 |
+//    c2.
+//}
+//phrase entry_harmony {
+//    e8 g8 c'8 g8 e8 g8 c'8 g8 |
+//    e8 a8 c'8 a8 e8 a8 c'8 a8 |
+//    e8 g8 c'8 g8 f8 a8 c'8 a8 |
+//    f8 a8 c'8 a8 e8 a8 c'8 a8 |
+//    f8 a8 c'8 a8 d'8 a8 f8 a8 |
+//    g8 b8 d'8 b8 g4 b4 |
+//    e8 g8 c'2 r4 |
+//}
+//phrase entry_bass {
+//    c2 g4 c'4 |
+//    a2 e4 a4 |
+//    c2 f2 |
+//    f2 c4 f4 |
+//    c4 f2 c4 |
+//    g2 d4 g4 |
+//    c1 |
+//}
+//phrase entry_wait { repeat 7 { r1 } }
+//
+//phrase climax {
+//         a8 b8 |
+//    c'2. b4 |
+//    g2. g4 |
+//    g f e f |
+//    d1 |
+//}
+//
+//channel 0 flute octave 5 {
+//    r4 entry r4 |
+//    r4 entry
+//    climax
+//}
+//
+//channel 1 harmony octave 3 {
+//    entry_wait
+//    entry_harmony
+//}
+//
+//channel 2 bass octave 2 {
+//    entry_wait
+//    entry_bass
+//}

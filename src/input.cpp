@@ -30,6 +30,10 @@ uint8_t input_wait_press(uint8_t mask) {
 
     for(;;) {
         avm_idle();
+        avm_idle();
+        avm_idle();
+        avm_idle();
+        avm_idle();
         uint8_t pressed = input_pressed() & mask;
         if(pressed)
             return pressed;

@@ -29,7 +29,7 @@ struct TimingObserver {
     int interrupt_vector = -1;
     bool before_active = false, before_i = false, masked = false;
     int64_t minimum = 100000, maximum = 0;
-    static constexpr uint64_t PERIOD = 2048;
+    static constexpr uint64_t PERIOD = 1024;
     static constexpr uint64_t ENTRY_CYCLES = 7; // AVR response 4 + vector JMP 3.
     static constexpr uint64_t WRITE_CYCLES = 14; // Body entry to completed OCR4A STS.
 
@@ -108,8 +108,8 @@ struct TimingObserver {
             before_active = c.active;
             before_i = (c.data[absim::reg::addr::SREG] & 128) != 0;
             if(!next_due && device.music_enabled()) {
-                require(c.timer1.divider == 8 && c.timer1.top == 255,
-                        "expected 7812.5 Hz Timer1 CTC output");
+                require(c.timer1.divider == 8 && c.timer1.top == 127,
+                        "expected 15625 Hz Timer1 CTC output");
                 require(!(c.data[absim::reg::addr::TIFR1] & 2), "observer attached with IRQ pending");
                 uint64_t ticks = c.timer1.ocrNa > c.timer1.tcnt ?
                     c.timer1.ocrNa - c.timer1.tcnt :

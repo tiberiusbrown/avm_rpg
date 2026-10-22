@@ -11,8 +11,8 @@ comparisons below retain the identities of their original inputs.
 
 ## Unsmoothed 8/16 kHz experiment (current)
 
-The current firmware defaults to **7812.5 Hz output and synthesis**, with no
-midpoint smoothing. `avm_audio_rate` can select **15625 Hz** synthesis at runtime.
+The current firmware defaults to **15625 Hz output and synthesis**, with no
+midpoint smoothing. `avm_audio_rate` can select **7812.5 Hz** synthesis at runtime.
 Both modes retain the early PWM store and Timer0 phase alignment. A5/D1..D3
 assets store increments at the 15625 Hz basis; foreground commit doubles them
 for 8 kHz. All six songs were regenerated, with the game's gain of 180 retained.
@@ -20,7 +20,8 @@ At that boost the mix can clip; playback tests allow saturation when the live
 amplitudes can reach the PWM limit. Score tests retain their headroom check at
 the reference master of 64.
 
-The [current measurement](audio_timing_data/unsmoothed.json) records 430469
+The [archived measurement](audio_timing_data/unsmoothed.json), taken with the
+former 7812.5 Hz default, records 430469
 normal and 62500 FX-C output interrupts, with extra delay **0..7 cycles** and
 **zero delays of 10 or more cycles**. PWM interval error is -6..+7 cycles.
 The PWM store completes at compare + 21 cycles plus interrupt acceptance delay.

@@ -37,7 +37,7 @@ __attribute__((noinline)) void status_screen() {
 }
 
 __attribute__((noinline)) void menu_screen() {
-    static uint8_t audio_rate = AVM_AUDIO_RATE_8KHZ;
+    static uint8_t audio_rate = AVM_AUDIO_RATE_16KHZ;
     uint8_t selection = 0;
     char const PROGMEM* feedback = nullptr;
 

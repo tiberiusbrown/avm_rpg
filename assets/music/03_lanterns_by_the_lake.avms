@@ -1,0 +1,106 @@
+// LANTERNS BY THE LAKE
+// Gentle 6/8 twilight theme in E minor / G major.
+// 24 bars; melodic 8-bar phrases, rippling broken chords, very sparse percussion.
+title "Lanterns by the Lake"
+description "A quiet lakeside hamlet as lanterns appear along the docks."
+tempo 112
+meter 6/8
+loop
+
+// Rounded triangle lead; pulse chimes provide movement below long melody notes.
+envelope flute_breath { points 0ms:65%, 28ms:100%, 190ms:85% release 100ms:0% curve step }
+envelope glass_pluck { points 0ms:100%, 140ms:65%, 380ms:40% release 60ms:0% curve step }
+envelope low_bloom { points 0ms:100%, 300ms:78% release 90ms:0% curve step }
+envelope distant_rustle { points 0ms:100%, 48ms:25%, 80ms:0% curve step }
+
+instrument reed_flute {
+    wave triangle volume 12 envelope flute_breath gate 92%
+    lfo { target pitch depth 8cents period 340ms wave sine phase note }
+}
+instrument soft_chimes_major {
+    wave pulse duty 12.5% volume 5 envelope glass_pluck gate 92%
+    arpeggio { offsets 0,4,7,11 step 144ms repeat }
+}
+instrument soft_chimes_minor {
+    wave pulse duty 12.5% volume 5 envelope glass_pluck gate 92%
+    arpeggio { offsets 0,3,7,10 step 144ms repeat }
+}
+instrument lake_bass { wave triangle volume 7 envelope low_bloom gate 86% }
+instrument lake_rustle { wave noise volume 2 envelope distant_rustle gate 50% }
+
+// Each accompaniment phrase is one 6/8 measure: two dotted-quarter pulses.
+phrase low_em { e4. b4. | }
+phrase low_c  { c4. g4. | }
+phrase low_g  { g4. d'4. | }
+phrase low_d  { d4. a4. | }
+phrase low_am { a4. e'4. | }
+phrase low_bm { b4. f#'4. | }
+phrase low_gb { b,4. d4. | }
+
+// A whispered splash on the last beat, alternating with complete silence.
+phrase little_rustle { r4. c,8 r8 r8 | }
+phrase still_water { r2. | }
+
+// CH0: first eight-bar question; an eight-bar answer; then a soft return.
+channel 0 reed_flute octave 4 {
+    // A — E minor to G major, ending on the dominant.
+    g8 b8 e'4 d'8 b8 |
+    e'8 d'8 b4 a8 g8 |
+    b4. a8 g8 d8 |
+    a8 b8 a4 f#8 d8 |
+    e8 g8 a4 c'8 b8 |
+    d'8 c'8 b4 g8 a8 |
+    g8 b8 e'4 d'8 c'8 |
+    a4. f#4. |
+
+    // B — briefly rises into a more hopeful G-major register.
+    b8 d'8 g'4 f#'8 d'8 |
+    a8 d'8 f#'4 e'8 d'8 |
+    g8 b8 e'4 d'8 b8 |
+    a8 g8 f#4 e8 d8 |
+    e8 g8 c'4 b8 g8 |
+    a8 c'8 e'4 d'8 c'8 |
+    f#8 a8 d'4 c'8 a8 |
+    b4. g4. |
+
+    // A' — same contour, but the last four measures settle at home.
+    g8 b8 e'4 d'8 b8 |
+    e'8 d'8 b4 a8 g8 |
+    b4. a8 g8 d8 |
+    a8 b8 a4 f#8 d8 |
+    g8 c'8 e'4 d'8 c'8 |
+    b8 d'8 g'4 f#'8 d'8 |
+    c'8 b8 a4 f#8 a8 |
+    g4. e4. |
+}
+
+// CH1: one arpeggiated dotted-half chord per measure.
+// Instrument overrides make the major/minor quality visually obvious.
+channel 1 soft_chimes_minor octave 3 {
+    e2. | c2.@soft_chimes_major | g2.@soft_chimes_major | d2.@soft_chimes_major |
+    a2. | b2. | c2.@soft_chimes_major | d2.@soft_chimes_major |
+    g2.@soft_chimes_major | d2.@soft_chimes_major | e2. | b2. |
+    c2.@soft_chimes_major | a2. | d2.@soft_chimes_major | g2.@soft_chimes_major |
+    e2. | c2.@soft_chimes_major | g2.@soft_chimes_major | d2.@soft_chimes_major |
+    c2.@soft_chimes_major | g2.@soft_chimes_major | a2. | e2. |
+}
+
+// CH2: slow, plainly notated two-note bass, no octave jumps outside the phrases.
+channel 2 lake_bass octave 2 {
+    low_em low_c low_g low_d
+    low_am low_bm low_c low_d
+    low_g low_d low_em low_bm
+    low_c low_am low_d low_g
+    low_em low_c low_g low_d
+    low_c low_gb low_am low_em
+}
+
+// CH3: scenery rather than a drum kit; mostly silent.
+channel 3 lake_rustle octave 5 {
+    repeat 2 { still_water little_rustle }
+    repeat 2 { still_water little_rustle }
+    repeat 4 { still_water }
+    repeat 2 { still_water little_rustle }
+    repeat 2 { still_water little_rustle }
+    repeat 2 { still_water little_rustle }
+}

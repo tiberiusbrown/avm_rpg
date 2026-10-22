@@ -1,0 +1,115 @@
+// WINDING MEADOW ROAD
+// A cheerful-but-gentle travel theme in D Mixolydian (D, C, G, A).
+// 24 bars, four independent voices, 8-bar A / B / A' form.
+title "Winding Meadow Road"
+description "A walking-speed journey between small villages and open fields."
+tempo 116
+meter 4/4
+loop
+
+// This tune uses the ATMlib-style pattern of short phrases over independently
+// repeated bass/drum cells, with modest envelopes and occasional timbre swaps.
+envelope whistle_attack { points 0ms:100%, 120ms:82%, 360ms:68% release 52ms:0% curve step }
+envelope mellow_bell { points 0ms:100%, 240ms:72% release 90ms:0% curve step }
+envelope chord_decay { points 0ms:100%, 200ms:67%, 480ms:48% release 48ms:0% curve step }
+envelope rolling_bass { points 0ms:100%, 170ms:78% release 44ms:0% curve step }
+envelope clack { points 0ms:100%, 36ms:35%, 72ms:0% curve step }
+
+instrument path_whistle { wave pulse duty 25% volume 12 envelope whistle_attack gate 86% }
+instrument path_bell { wave triangle volume 11 envelope mellow_bell gate 94% }
+instrument path_chord_major {
+    wave pulse duty 12.5% volume 5 envelope chord_decay gate 84%
+    arpeggio { offsets 0,4,7 step 116ms repeat }
+}
+instrument path_chord_minor {
+    wave pulse duty 12.5% volume 5 envelope chord_decay gate 84%
+    arpeggio { offsets 0,3,7 step 116ms repeat }
+}
+instrument path_bass { wave saw volume 6 envelope rolling_bass gate 78% }
+instrument path_clack { wave noise volume 2 envelope clack gate 50% }
+
+// One rhythmic bass figure per measure. The saw is purposely quiet to avoid
+// overpowering the melody on the Arduboy piezo.
+phrase bass_d  { d4 a8 d'8 a,4 d8 a8 | }
+phrase bass_c  { c4 g8 c'8 g,4 c8 g8 | }
+phrase bass_g  { g4 d'8 g'8 d4 g8 d'8 | }
+phrase bass_a  { a4 e'8 a'8 e4 a8 e'8 | }
+phrase bass_em { e4 b8 e'8 b,4 e8 b8 | }
+phrase bass_bm { b,4 f#8 b8 f#,4 b,8 f#8 | }
+
+phrase step_light { r4 c8 r8 r4 c8 r8 | }
+phrase step_sparse { r2 c8 r8 r4 | }
+phrase step_none { r1 | }
+
+// Two-bar melodic ideas recur with different endings, like tracker patterns.
+phrase road_call {
+    f#8 a8 d'4 e'8 d'8 a4 |
+    g8 a8 b4 a8 g8 f#4 |
+}
+phrase road_answer {
+    e8 g8 c'4 b8 a8 g4 |
+    f#8 a8 d'4 c'8 b8 a4 |
+}
+
+channel 0 path_whistle octave 4 {
+    // A — the road bends through D, C, G and A.
+    road_call
+    road_answer
+    f#8 a8 d'4 f#'8 e'8 d'4 |
+    e'8 d'8 c'4 g8 a8 b4 |
+    b8 d'8 g'4 f#'8 e'8 d'4 |
+    f#8 e8 d2. |
+
+    // B — warmer bell-like tones over Em and Bm before opening up again.
+    use path_bell
+    b4 g8 e8 g4 b4 |
+    a8 f#8 d4 f#8 a8 d'4 |
+    c'4 b8 a8 g4 e4 |
+    f#8 a8 c'4 b8 a8 e4 |
+    g4 b8 d'8 e'4 d'4 |
+    c'8 b8 a4 g4 e4 |
+    f#8 a8 d'4 c'8 b8 a4 |
+    a2 r4 f#4 |
+
+    // A' — familiar melody returns, closing with an open-road cadence.
+    use path_whistle
+    road_call
+    road_answer
+    d'8 e'8 f#'4 e'8 d'8 a4 |
+    b8 a8 g4 e8 g8 b4 |
+    a8 b8 d'4 f#'8 e'8 d'4 |
+    f#8 e8 d2. |
+}
+
+// CH1: repeated half-measure chord attacks; arpeggio provides fine motion.
+// The root choices follow the large-scale harmonic structure in the melody.
+channel 1 path_chord_major octave 3 {
+    d2 a2 | c2 g2 | g2 d2 | a2 e2 |
+    d2 a2 | c2 g2 | g2 d2 | d2 a2 |
+    e2@path_chord_minor b2@path_chord_minor |
+    b2@path_chord_minor f#2@path_chord_minor |
+    c2 g2 | a2 e2 |
+    g2 d2 | c2 g2 | a2 e2 | a2 e2 |
+    d2 a2 | c2 g2 | g2 d2 | a2 e2 |
+    d2 a2 | c2 g2 | g2 d2 | d2 a2 |
+}
+
+// CH2: four-beat walking ostinatos. These are deliberately easy to transpose.
+channel 2 path_bass octave 3 {
+    bass_d bass_c bass_g bass_a
+    bass_d bass_c bass_g bass_d
+    bass_em bass_bm bass_c bass_a
+    bass_g bass_c bass_a bass_a
+    bass_d bass_c bass_g bass_a
+    bass_d bass_c bass_g bass_d
+}
+
+// CH3: an occasional soft footstep / stick-click; no busy hi-hat wash.
+channel 3 path_clack octave 5 {
+    repeat 4 { step_light }
+    repeat 4 { step_sparse }
+    repeat 4 { step_none }
+    repeat 4 { step_sparse }
+    repeat 4 { step_light }
+    repeat 4 { step_sparse }
+}

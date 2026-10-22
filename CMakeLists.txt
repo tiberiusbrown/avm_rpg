@@ -83,6 +83,21 @@ add_custom_target(rpg_assets DEPENDS ${ASSET_OUTPUTS})
 add_dependencies(rpg_rules rpg_assets)
 add_dependencies(rpg_world_tests rpg_assets)
 
+file(GLOB MUSIC_SCORES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/music/*.avms")
+# A changed file list must regenerate the catalog even when a score was removed.
+set(MUSIC_MANIFEST "${CMAKE_CURRENT_BINARY_DIR}/music_sources.txt")
+file(GENERATE OUTPUT "${MUSIC_MANIFEST}" CONTENT "${MUSIC_SCORES}\n")
+set(MUSIC_CATALOG_OUTPUTS
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated/music_ids.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated/music_tracks.h")
+add_custom_command(OUTPUT ${MUSIC_CATALOG_OUTPUTS}
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_music_catalog.py"
+        --source-dir "${CMAKE_CURRENT_SOURCE_DIR}/assets/music"
+        --output-dir "${CMAKE_CURRENT_SOURCE_DIR}/generated"
+    DEPENDS tools/generate_music_catalog.py "${MUSIC_MANIFEST}" ${MUSIC_SCORES}
+    VERBATIM)
+add_custom_target(rpg_music_catalog ALL DEPENDS ${MUSIC_CATALOG_OUTPUTS})
+
 # Compile exported dispatch with new, unimplemented named/unnamed handlers.
 # Keep the fixture unlinked so its generated Handler definition is independent.
 set(HANDLER_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/handler-fixture")
@@ -101,6 +116,7 @@ add_dependencies(rpg_world_tests rpg_handler_fixture)
 
 if(TARGET rpg_device_tests)
     add_dependencies(rpg_device_tests rpg_assets)
+    add_dependencies(rpg_device_tests rpg_music_catalog)
     add_dependencies(rpg_audio_timing_tests rpg_assets)
 endif()
 
@@ -126,19 +142,21 @@ if(RPG_BUILD_GUEST)
     if(NOT EXISTS "${RPG_MUSIC_COMPILER}")
         set(RPG_MUSIC_COMPILER "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/avm_music.py")
     endif()
-    set(MUSIC_OUTPUTS)
-    foreach(song IN ITEMS test)
-        string(TOUPPER "${song}" symbol)
-        set(score "${CMAKE_CURRENT_SOURCE_DIR}/assets/music/${song}.avms")
+    set(MUSIC_OUTPUTS ${MUSIC_CATALOG_OUTPUTS})
+    foreach(score IN LISTS MUSIC_SCORES)
+        get_filename_component(song "${score}" NAME_WLE)
+        string(REGEX REPLACE "[^A-Za-z0-9_]" "_" symbol "${song}")
+        string(TOUPPER "MUSIC_${symbol}" symbol)
         set(output "${CMAKE_CURRENT_SOURCE_DIR}/generated/${song}_music.h")
         add_custom_command(OUTPUT "${output}"
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_music.py"
-                --compiler "${RPG_MUSIC_COMPILER}" "${score}" "${output}" --name "${symbol}_MUSIC"
+                --compiler "${RPG_MUSIC_COMPILER}" "${score}" "${output}" --name "${symbol}_DATA"
             DEPENDS "${score}" "${RPG_MUSIC_COMPILER}" tools/compile_music.py
             VERBATIM)
         list(APPEND MUSIC_OUTPUTS "${output}")
     endforeach()
     add_custom_target(rpg_music DEPENDS ${MUSIC_OUTPUTS})
+    add_dependencies(rpg_music rpg_music_catalog)
     if(TARGET rpg_device_tests)
         add_dependencies(rpg_device_tests rpg_music)
         add_dependencies(rpg_audio_timing_tests rpg_music)

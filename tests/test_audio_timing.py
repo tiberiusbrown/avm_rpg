@@ -97,10 +97,10 @@ def main():
             delta, count = int(row["delta_cycles"]), int(row["count"])
             aggregate[key][delta] += count
             per_scenario[(variant, row["scenario"], row["path"], row["metric"])][delta] += count
-    summary = dict(audio_timer=1, clock_hz=16000000, output_period_cycles=2048, synthesis_period_cycles=2048,
+    summary = dict(audio_timer=1, clock_hz=16000000, output_period_cycles=1024, synthesis_period_cycles=1024,
                    entry_baseline_cycles=7, pwm_baseline_cycles=21,
                    definition="Entry lateness = first ISR body instruction - Timer1 compare deadline - 7; "
-                              "PWM lateness subtracts 21; output and synthesis interval errors subtract 2048.",
+                              "PWM lateness subtracts 21; output and synthesis interval errors subtract 1024.",
                    identity=identity,
                    distributions={"/".join(key): summarize(hist) for key, hist in aggregate.items()},
                    scenarios={"/".join(key): summarize(hist) for key, hist in per_scenario.items()})
@@ -187,14 +187,14 @@ def plot(distributions, out):
         axes[0, column].set_title(f"{variant.upper()}: ISR entry lateness")
         axes[0, column].set_xlabel("Cycles beyond compare + 7 (zero is ideal)")
         axes[1, column].set_title(f"{variant.upper()}: PWM interval error")
-        axes[1, column].set_xlabel("Actual interval minus 2048 cycles (zero is ideal)")
+        axes[1, column].set_xlabel("Actual interval minus 1024 cycles (zero is ideal)")
         for row in range(2):
             axes[row, column].set_yscale("log")
             axes[row, column].set_ylabel("Interrupts (%) — logarithmic scale")
             axes[row, column].grid(alpha=.2)
             axes[row, column].legend(fontsize=8)
     fig.suptitle("AVM RPG / original soundtrack — emulated Timer1 timing at 16 MHz\n"
-                 "1 cycle = 62.5 ns; output and synthesis 7,812.5 Hz (unsmoothed)", fontsize=13)
+                 "1 cycle = 62.5 ns; output and synthesis 15,625 Hz (unsmoothed)", fontsize=13)
     fig.savefig(out / "audio-timing.png", dpi=160)
     fig.savefig(out / "audio-timing.svg")
     plt.close(fig)
