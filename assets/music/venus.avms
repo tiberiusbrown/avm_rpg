@@ -1,8 +1,7 @@
-title "Venus — readable arrangement"
+title "Venus"
 description "Condensed arrangement of Venus.ftm: C-minor arpeggios, swelling chords, and pulsing bass."
 tempo 150
 meter 4/4
-loop
 
 // One bar is 1.6 seconds. The 16ms tracker volume frames were replaced by
 // envelopes and gate lengths. The Cm / Gm / Ab / Fm progression is retained.

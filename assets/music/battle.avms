@@ -1,0 +1,245 @@
+// Battle — Ted Kerr (FamiTracker module, 2017)
+// AVMS arrangement from BattleTheme.ftm
+//
+// NES voices: Pulse 1 -> ch0; Pulse 2 -> ch1; Triangle -> ch2;
+//             Noise -> ch3. The DPCM channel has no samples: it only
+//             changes the order at two half-pattern boundaries.
+//
+// The 5-tick / 150-tempo tracker row is one sixteenth at 180 BPM.
+// The resulting arrangement is 20 measures (320 tracker rows).
+//
+// Most notes and drum hits retain their original pitch and onset.
+// NES instrument volume sequences are approximated by AVMS envelopes.
+// The later rising-volume sustained note uses a built-in slide and LFO.
+
+title "Battle"
+description "Readable arrangement of Ted Kerr's 2017 FamiTracker Battle theme"
+tempo 180
+meter 4/4
+automation 16ms
+
+// ------------------------ Instrument definitions -------------------------
+// Source instrument 03 (piano): a bright pulse with a gradual volume decay.
+envelope piano_decay {
+    points 0ms:100%, 48ms:93%, 96ms:78%, 160ms:57%, 224ms:40%, 280ms:29%
+    release 168ms:0%
+    curve step
+}
+
+// Source instrument 02 (lead): faster attack/decay, with 75%-to-50% duty.
+envelope lead_decay {
+    points 0ms:100%, 16ms:80%, 50ms:67%, 100ms:55%, 200ms:47%
+    curve step
+}
+
+// The source triangle-bass sequence fades completely after ~14 NTSC ticks.
+envelope bass_decay {
+    points 0ms:100%, 48ms:75%, 96ms:40%, 160ms:13%, 216ms:0%
+    curve step
+}
+
+envelope drum_decay {
+    points 0ms:100%, 16ms:85%, 48ms:55%, 80ms:28%, 116ms:0%
+    curve step
+}
+
+envelope hat_decay {
+    points 0ms:100%, 16ms:67%, 48ms:33%, 80ms:0%
+    curve step
+}
+
+instrument piano {
+    wave pulse duty 25% volume 15 gate 100% envelope piano_decay
+}
+instrument piano_soft {
+    wave pulse duty 25% volume 10 gate 100% envelope piano_decay
+}
+instrument piano_ghost {
+    wave pulse duty 25% volume 6 gate 100% envelope piano_decay
+}
+// The second pulse channel retains its broader duty when switching to piano.
+instrument piano_wide {
+    wave pulse duty 50% volume 13 gate 100% envelope piano_decay
+}
+instrument lead {
+    wave pulse volume 11 gate 100% envelope lead_decay
+    duty_slide { from 75% to 50% over 16ms }
+}
+instrument lead_soft {
+    wave pulse volume 6 gate 100% envelope lead_decay
+    duty_slide { from 75% to 50% over 16ms }
+}
+instrument triangle_bass {
+    wave triangle volume 12 gate 100% envelope bass_decay
+}
+instrument kick  { wave noise volume 10 envelope drum_decay gate 100% }
+instrument snare { wave noise volume 8  envelope drum_decay gate 100% }
+instrument hat   { wave noise volume 4  envelope hat_decay  gate 100% }
+
+// ----------------------- Pulse 1: main figures --------------------------
+// Main C-minor figure; the long C# anticipates the resolution.
+phrase opening_motif {
+    c8 g8 f#8 d#8 c8 c#4 c8 |
+}
+
+// Second measure of the opening: starts after the previous held C.
+phrase opening_answer {
+    r8 g,4 g,8 g#,8 g,8 f#,8 d#,8 |
+}
+
+// Rapid sixteenth-note turnaround at the end of each opening statement.
+phrase turnaround_low {
+    r4
+    c,16 g,16@piano_ghost c,16@piano_soft g,16@piano_ghost
+    c#,16 f#,16@piano_ghost c#,16@piano_soft f#,16@piano_ghost
+    c,16 g,16@piano_ghost c,16@piano_soft g,16@piano_ghost |
+}
+phrase turnaround_high {
+    r4 c,8 c,8@piano_soft d,8 d,8@piano_soft d#,8 d#,8@piano_soft |
+}
+
+// Original two-bar reply: alternating upper/lower sixteenths.
+phrase reply_first {
+    repeat 2 {
+        a#,16@piano_soft d#16 a#,16@piano_ghost d#16
+        g,16@piano_soft d16 g,16@piano_ghost d16
+    } |
+}
+phrase reply_second {
+    repeat 2 {
+        d16@piano_soft d#16 d16@piano_ghost d#16
+        c16@piano_soft d16 c16@piano_ghost d16
+    } |
+}
+
+// Climactic four-bar call: three repeated, shifting sixteenth patterns,
+// followed by the sustained G with rising volume and tracker vibrato.
+phrase chase_c  { c16@lead_soft c#16 repeat 7 { c16 c#16 } | }
+phrase chase_f  { repeat 8 { f16 c16 } | }
+phrase chase_g  { repeat 8 { g16 f16 } | }
+phrase chase_hold {
+    volume_slide { from 7 to 14 over 7/8 }
+    lfo { target pitch depth 35cents period 180ms wave sine }
+    g1 |
+    volume_slide off
+    lfo pitch off
+}
+phrase chase_four_bars { chase_c chase_f chase_g chase_hold }
+
+channel 0 piano octave 3 {
+    // A: repeated motif, low turnaround, alternating two-bar reply (6 bars)
+    opening_motif opening_answer opening_motif turnaround_low
+    reply_first reply_second
+
+    // A': the opening motif moves up an octave (6 bars)
+    octave 4
+    opening_motif opening_answer opening_motif turnaround_high
+    octave 3
+    reply_first reply_second
+
+    // B: driving lead section, twice (8 bars)
+    use lead
+    repeat 2 { chase_four_bars }
+}
+
+// ---------------- Pulse 2: arpeggios, then unison response ---------------
+// Continuous C-minor sixteenth arpeggio, retriggering the fast lead envelope.
+phrase rolling_cm { repeat 4 { c16 d#16 g16 d#16 } | }
+phrase rolling_fill {
+    c16 d#16 g16 d#16
+    g'16@piano_wide d#16 g16 d#16
+    d'16@piano_wide d#16 g16 d#16
+    d#'16@piano_wide d#16 g16 d#16 |
+}
+
+// Half-pattern before the FamiTracker Bxx order jumps.
+phrase bridge_high {
+    volume_slide { from 8 to 15 over 1/4 }
+    c2
+    volume_slide off
+    d#16 g16 d#8 d4 |
+}
+phrase bridge_low {
+    volume_slide { from 15 to 8 over 3/8 }
+    d2
+    volume_slide off
+    octave 3
+    d#16 g16 d#8 d4 |
+    octave 4
+}
+phrase bridge_two_bars { bridge_high bridge_low }
+
+// Motif of the second half. It is also used by triangle bass.
+phrase answer_motif {
+    c8 c16 c16 c#8 c8 a#,8 c8 g#,8 a#,8 |
+}
+phrase pedal_motif {
+    c8 c8 c4 c8 c8 c4 |
+}
+
+channel 1 lead octave 4 {
+    // A: three repeated four-beat rolling figures and a high-register fill.
+    repeat 3 { rolling_cm } rolling_fill
+    bridge_two_bars
+
+    // A': exact repeat of the opening pulse-2 phrasing.
+    repeat 3 { rolling_cm } rolling_fill
+    bridge_two_bars
+
+    // B: piano voice doubles the rhythmic bass figure in alternating octaves.
+    use piano_wide
+    octave 3 answer_motif
+    octave 2 answer_motif
+    octave 3 answer_motif
+    octave 2 pedal_motif
+
+    // B': same notes shifted up by an octave, like the original module.
+    octave 4 answer_motif
+    octave 3 answer_motif
+    octave 4 answer_motif
+    octave 3 pedal_motif
+}
+
+// ------------------ Triangle: repeating bass and runs -------------------
+phrase bass_c_bar { c4. c4 c4 c8 | }
+phrase bass_c_end { c4. c8 c2 | }
+phrase bass_c_four { repeat 3 { bass_c_bar } bass_c_end }
+
+// This climb is intentionally not arpeggiated: the tracker retriggers the
+// original triangle instrument on every written note.
+phrase bass_climb_low {
+    g#8 g#8 a#8 g#8 c'8 g#4 g#16 a#16 |
+}
+phrase bass_climb_high {
+    g#8 g#8 a#8 g#8 c'8 g#4 g#,16 a#,,16 |
+}
+phrase bass_climb_two {
+    octave 3 bass_climb_low
+    octave 4 bass_climb_high
+}
+
+phrase bass_chase_four {
+    octave 3 answer_motif
+    octave 2 answer_motif
+    octave 3 answer_motif
+    octave 2 pedal_motif
+}
+
+channel 2 triangle_bass octave 3 {
+    bass_c_four bass_climb_two
+    octave 3 bass_c_four bass_climb_two
+    repeat 2 { bass_chase_four }
+}
+
+// ------------------------- Noise percussion -----------------------------
+// Original noise pattern repeats unchanged for every measure.
+// Instrument overrides distinguish low kick, mid snare, and light hats.
+phrase drum_half_bar {
+    f#8@kick g'16@hat g'16@hat
+    c#'8@snare g'16@hat g'16@hat
+}
+phrase drum_bar { repeat 2 { drum_half_bar } | }
+
+channel 3 kick octave 1 {
+    repeat 20 { drum_bar }
+}

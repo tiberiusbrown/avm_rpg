@@ -55,13 +55,17 @@ extern "C" void setup() {
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     game_new();
-    avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
-    avm_audio_music_volume(MUSIC_MASTER_VOLUME);
-    music_selection = MUSIC_DEFAULT;
-    avm_audio_play(MUSIC_TRACKS[music_selection].data);
+
 }
 
 extern "C" void loop() {
     title_screen();
+    
+    avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
+    avm_audio_music_volume(MUSIC_MASTER_VOLUME);
+    avm_audio_music_loop(1);
+    music_selection = MUSIC_DEFAULT;
+    avm_audio_play(MUSIC_TRACKS[music_selection].data);
+    
     explore();
 }

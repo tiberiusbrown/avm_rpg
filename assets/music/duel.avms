@@ -1,0 +1,194 @@
+title "Duel"
+description "Duel: three tonal voices and busy percussion, reduced from 5 simultaneous tonal parts"
+tempo 204
+meter 4/4
+automation 16ms
+// Source uses NES pulse x2, triangle, noise, and MMC5 pulse x2 (five tonal voices).
+// AVM can play only three tonal voices: select NES pulse 0, MMC5 pulse 2, and triangle.
+// The doubled NES pulse 1 and MMC5 pulse 1 are left out of this reduction.
+
+// ------------------- Instrument palette -------------------
+
+// Three tonal voices (the source had FIVE). A pulse echo and one MMC5 voice are omitted.
+envelope fierce { points 0ms:100%, 50ms:85%, 100ms:55%, 185ms:22% release 35ms:0% curve step }
+envelope soft { points 0ms:100%, 65ms:75%, 150ms:40% release 35ms:0% curve step }
+envelope noise_hit { points 0ms:100%, 28ms:65%, 65ms:25%, 110ms:0% curve step }
+instrument duel_lead { wave pulse duty 25% volume 15 envelope fierce gate 92% }
+instrument duel_bend { wave pulse duty 25% volume 15 envelope fierce gate 92% frequency_slide { delta 110cents over 90ms } }
+instrument duel_mmc5 { wave pulse duty 50% volume 10 envelope soft gate 83% }
+instrument duel_mmc5_high { wave pulse duty 25% volume 10 envelope soft gate 83% }
+instrument duel_bass { wave triangle volume 12 gate 90% }
+instrument duel_kick { wave noise volume 10 envelope noise_hit gate 80% }
+instrument duel_snare { wave noise volume 8 envelope noise_hit gate 80% }
+instrument duel_hat { wave noise volume 4 envelope noise_hit gate 75% }
+
+
+// ------------------- Reusable four-bar patterns -------------------
+// Pattern 00, 12 attacks
+phrase lead_00 {
+    octave 4
+    use duel_lead
+    r8 a2*5/4 g4 |
+    a8 b4@duel_bend a4 g4 a8 |
+    r8 d#2 d#8 d8 c8 |
+    c1 |
+}
+// Pattern 01, 19 attacks
+phrase lead_01 {
+    octave 4
+    use duel_lead
+    r8 a,8 a,8 g,8 a,8 a,4 c8 |
+    r8 d8 d8 c8 c#4@duel_bend g4 |
+    r8 d#8 d#8 d8 d#8 g8 d#8 d8 |
+    c1 |
+}
+// Pattern 02, 13 attacks
+phrase lead_02 {
+    octave 4
+    use duel_lead
+    r8 a2*5/4 g4 |
+    a8 repeat 3 { b4@duel_bend } d'8 |
+    c'8 a2 a8 g8 c8 |
+    d#1 |
+}
+// Pattern 03, 20 attacks
+phrase lead_03 {
+    octave 4
+    use duel_lead
+    r8 e8 e8 d#8 e4 e8 d#8 |
+    e4 g4. a8 g8 e8 |
+    c8 g#,8@duel_bend a,8 a,8 a,8 a,8 g,8 a,8 |
+    r8 a,1*7/8 |
+}
+// Pattern 04, 12 attacks
+phrase lead_04 {
+    octave 4
+    use duel_lead
+    r8 b8 b8 a8 b4 b8 a8 |
+    f'4 e'4. d'8 e'8 d'8 |
+    b1 |
+    r4 r4 r4 r4 |
+}
+// Pattern 05, 11 attacks
+phrase lead_05 {
+    octave 4
+    use duel_lead
+    r8 c#8 c#8 b,8 c#4 c#4 |
+    d4 e4 a4. c#8 |
+    a#,2 b,2 |
+    r4 r4 r4 r4 |
+}
+// Pattern 06, 16 attacks
+phrase lead_06 {
+    octave 4
+    use duel_lead
+    r8 c#8 c#8 b,8 c#4 c#8 b,8 |
+    c4 c8 b,8 c8 c8 c8 d8 |
+    a,2 g#,2 |
+    r8 g#,1*7/8 |
+}
+// Pattern 00, 25 attacks
+phrase mmc5_00 {
+    octave 2
+    use duel_mmc5
+    e8 e8 g8 e8 g4 e8 g8 |
+    r8 a8 g8 g8 e4 g4 |
+    d#'8 d#'8 g'8 d#'8 a'4 d#'8 g'8 |
+    r8 a8 d'8 a8 f8 a8 a4 |
+}
+// Pattern 01, 32 attacks
+phrase mmc5_01 {
+    octave 3
+    use duel_mmc5
+    b,8 d8 d#8 e8 f#8 f8 e8 d#8 |
+    b,8 d8 d#8 e8 f#8 f8 e8 d#8 |
+    b,8 d8 d#8 e8 f8 e8 d#8 d8 |
+    b,8 d8 d#8 e8 f8 e8 d#8 d8 |
+}
+// Pattern 02, 32 attacks
+phrase mmc5_02 {
+    octave 3
+    use duel_mmc5
+    b,8 d8 d#8 e8 f#8 f8 e8 d#8 |
+    b,8 d8 d#8 e8 f#8 f8 e8 d#8 |
+    b,8 d8 d#8 e8 f8 e8 d#8 d8 |
+    f#8 f8 e8 d#8 d8 c#8 c8 b,8 |
+}
+// Pattern 03, 32 attacks
+phrase mmc5_03 {
+    octave 3
+    use duel_mmc5
+    a,8 c#8 e8 f8 g8 f8 e8 c#8 |
+    a,8 c#8 e8 f8 g8 f8 e8 c#8 |
+    g8 d8 g8 g#8 g8 d8 g8 g#8 |
+    g8 d8 g8 g#8 g8 d8 g8 g#8 |
+}
+// Pattern 04, 32 attacks
+phrase mmc5_04 {
+    octave 3
+    use duel_mmc5
+    d,8 f,8 a,8 g#,8 a,8 d8 a,8 f,8 |
+    d8 f8 a8 g#8 a8 d'8 a8 f8 |
+    e8 b,8 g#8 f8 e8 b,8 e8 d8 |
+    e8 e8 g#8 f8 e8 f8 e8 b,8 |
+}
+// Pattern 00, 20 attacks
+phrase bass_00 {
+    octave 2
+    use duel_bass
+    a4 a8 a8 a4. g8 |
+    a4 a8 a8 a4. g8 |
+    f4 f8 f8 f4. c8 |
+    f4 f8 f8 f4. c8 |
+}
+// Pattern 01, 20 attacks
+phrase bass_01 {
+    octave 2
+    use duel_bass
+    b4 b8 b8 b4. b8 |
+    b4 b8 b8 b4. b8 |
+    g4 g8 g8 g4. g8 |
+    g4 g8 g8 g4. g8 |
+}
+// Pattern 02, 22 attacks
+phrase bass_02 {
+    octave 2
+    use duel_bass
+    a8 a8 a8 a4 a8 a8 a8 |
+    r8 a4. a8 a8 a8 a8 |
+    g4 g8 g8 g4. g8 |
+    g4 g8 g8 g4. g8 |
+}
+// Pattern 03, 20 attacks
+phrase bass_03 {
+    octave 3
+    use duel_bass
+    d,4 d,8 d,8 d,4. d,8 |
+    d,4 d,8 d,8 d,4. d,8 |
+    e4 e8 e8 e4. e8 |
+    e4 e8 e8 e4. e8 |
+}
+// Pattern 00, 48 attacks
+phrase drums_00 {
+    octave 2
+    use duel_hat
+    repeat 2 { g,8@duel_kick f16 f16 c8@duel_snare f16 f16 } |
+    repeat 2 { g,8@duel_kick f16 f16 c8@duel_snare f16 f16 } |
+    repeat 2 { g,8@duel_kick f16 f16 c8@duel_snare f16 f16 } |
+    repeat 2 { g,8@duel_kick f16 f16 c8@duel_snare f16 f16 } |
+}
+
+// ------------------- Pattern order / four output channels -------------------
+channel 0 duel_lead octave 3 {
+    lead_00 lead_01 lead_02 lead_03 lead_04
+    lead_04 lead_05 lead_06
+}
+channel 1 duel_mmc5 octave 3 {
+    repeat 4 { mmc5_00 } mmc5_01 mmc5_02 mmc5_03 mmc5_04
+}
+channel 2 duel_bass octave 3 {
+    repeat 4 { bass_00 } bass_01 bass_01 bass_02 bass_03
+}
+channel 3 duel_kick octave 3 {
+    repeat 8 { drums_00 }
+}

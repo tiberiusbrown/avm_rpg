@@ -1,0 +1,2335 @@
+// "Spring Thing" — source: spring.ftm, original NES/FamiTracker module.
+// 200 BPM, speed 6, 64 sixteenth-note rows per 4-bar frame.
+// The original author indicated 0:05.235; the FTM itself jumps to frame 1 at 0:04.800.
+// Four audible NES voices: pulse 1, pulse 2, triangle, noise. DPCM unused.
+// Readable note/phrase transcription with approximated NES envelopes and effects.
+// Notes, pitches, repeated attacks, cut events, and order are retained.
+// AVMS phrases/repeats are source readability constructs in today's compiler.
+
+title "Spring Thing — 4.800s loop"
+description "NES Spring Thing, readable AVMS transcription; loops"
+tempo 200
+meter 4/4
+automation 16ms
+
+
+// Instrument envelopes approximate tracker volume-sequence macros.
+// They intentionally replace the 60Hz per-frame changes with editable shapes.
+envelope quick_tap { points 0ms:100%, 25ms:75%, 50ms:35%, 90ms:0% curve step }
+envelope key_decay { points 0ms:95%, 25ms:100%, 50ms:55%, 75ms:35%, 115ms:0% curve step }
+envelope medium_decay { points 0ms:100%, 25ms:80%, 65ms:60%, 105ms:42%, 155ms:35% curve step }
+envelope long_decay { points 0ms:100%, 40ms:85%, 90ms:65%, 160ms:40%, 260ms:0% curve step }
+envelope soft_fade { points 0ms:45%, 120ms:38%, 300ms:22%, 500ms:10%, 1150ms:0% curve step }
+envelope hat_decay { points 0ms:100%, 15ms:55%, 35ms:20%, 65ms:0% curve step }
+envelope snare_decay { points 0ms:100%, 25ms:80%, 55ms:35%, 100ms:0% curve step }
+envelope triangle_tap { points 0ms:100%, 28ms:90%, 65ms:0% curve step }
+
+
+// All three tonal waveforms are native AVMS synthesis; noise uses channel 3.
+// The original FamiTracker instruments are named alongside these equivalents.
+instrument triangle_bass { wave triangle volume 13 gate 95% }      // bass
+instrument bright_solo  { wave pulse duty 12.5% volume 12 envelope quick_tap } // solo1
+instrument key_pluck   { wave pulse duty 25% volume 12 envelope key_decay }    // skey
+instrument key_long    { wave pulse duty 25% volume 12 envelope medium_decay } // skey2
+instrument solo_long   { wave pulse duty 12.5% volume 12 envelope long_decay lfo { target pitch depth 12cents period 340ms wave sine } } // solo2
+instrument solo_fade   { wave pulse duty 12.5% volume 10 envelope soft_fade }  // solo2f
+instrument triangle_kick { wave triangle volume 13 envelope triangle_tap }    // tkick
+instrument triangle_snare { wave triangle volume 11 envelope triangle_tap }  // tsnare
+instrument hat_tap     { wave noise volume 7 envelope hat_decay }  // hat1
+instrument hat_soft    { wave noise volume 5 envelope hat_decay }  // hat2
+instrument noise_snare { wave noise volume 11 envelope snare_decay } // nsnare
+
+
+// ==================== REUSABLE FOUR-BAR PATTERNS ====================
+
+// ---- LEAD — original NES channel 0 ----
+// FamiTracker pattern 00 — four bars
+phrase lead_theme_a {
+    r8.
+    use solo_long
+    volume 13
+    f16
+    volume 15
+    g4 f e8 f4 c2. c8 |
+    f4 e8 d4 c d16*10
+    use key_pluck
+    volume 11
+    g,, r g,, r b,, r b, r |
+}
+
+// FamiTracker pattern 01 — four bars
+phrase lead_theme_b {
+    r8
+    use key_pluck
+    volume 8
+    b,
+    use solo_long
+    volume 15
+    g4 f e8 f4 c2 a,8 c e |
+    f4 e8 d4 c d16*10
+    use key_pluck
+    volume 11
+    g,, r g,, r b,, r b, r |
+}
+
+// FamiTracker pattern 02 — four bars
+phrase lead_theme_c {
+    r8
+    use solo_long
+    volume 15
+    e, g, c e4. c8 |
+    frequency_slide { from c4 to d4 over 189ms curve linear }
+    d4
+    frequency_slide off
+    c b,8 c4 a,2. d,8
+    frequency_slide { from d3 to e3 over 133ms curve linear }
+    e,
+    frequency_slide off
+    d, |
+    b,2
+    use key_pluck
+    volume 11
+    b,,16 r b,, r g,, r g,, r |
+}
+
+// FamiTracker pattern 03 — four bars
+phrase lead_theme_d {
+    r8
+    use solo_long
+    volume 15
+    g f e f4. e8 |
+    frequency_slide { from e4 to f4 over 189ms curve linear }
+    f4
+    frequency_slide off
+    c b,8 c4 f4..
+    volume 13
+    e16
+    volume 15
+    f8 e4 b,8
+    frequency_slide { from b3 to c4 over 300ms curve linear }
+    c4
+    frequency_slide off
+    volume 13
+    c
+    volume 11
+    c
+    volume 9
+    c
+    volume 7
+    c8 |
+}
+
+// FamiTracker pattern 04 — four bars
+phrase lead_opening_b {
+    r4
+    use key_pluck
+    volume 4
+    c,,8 c, e,
+    use key_long
+    volume 6
+    e, g,4 |
+    f, e,8 f,4 c,4. |
+    use key_pluck
+    volume 4
+    e,8 c, c,,
+    use key_long
+    volume 6
+    e, f,4 e,8 d,4 c, d,8
+    volume 9
+    b,4 d |
+}
+
+// FamiTracker pattern 06 — four bars
+phrase lead_opening_c {
+    r8
+    use key_long
+    volume 12
+    c, e, g, c4. g,8 |
+    f,4 e, d,8 e,4 d,2. c,8 d, e, |
+    g,4
+    volume 9
+    g,
+    volume 12
+    b, g, |
+}
+
+// FamiTracker pattern 07 — four bars
+phrase lead_opening_d {
+    r8
+    use key_long
+    volume 12
+    e, f, g, c4. c8 |
+    d4 c d8 e4 d2. a,8 c f |
+    c' c'4 c'8 c'2 |
+}
+
+// FamiTracker pattern 08 — four bars
+phrase lead_refrain_a {
+    use solo_long
+    volume 15
+    c2. e8 c2.. c8 a,2.. g,8 b,16*10 g,8 b, d e |
+}
+
+// FamiTracker pattern 09 — four bars
+phrase lead_refrain_b {
+    use solo_long
+    volume 15
+    c2. e8 c2.. e8 f2. f8 e d |
+    g2 g,8 b, d f |
+}
+
+// FamiTracker pattern 0A — four bars
+phrase lead_refrain_c {
+    use solo_long
+    volume 15
+    e2. e8 f16*10 a,8 c d e |
+    d2. f8 g16*10 b,8 c e f |
+}
+
+// FamiTracker pattern 0B — four bars
+phrase lead_refrain_d {
+    use solo_long
+    volume 15
+    e2. e8 f16*10 a,8 c d e |
+    f2. f8
+    frequency_slide { from f4 to c5 over 257ms curve linear }
+    c' |
+    frequency_slide off
+    c'2
+    use solo_fade
+    volume 15
+    c' |
+}
+
+// FamiTracker pattern 0C — four bars
+phrase lead_bridge_a {
+    r4
+    use key_long
+    volume 8
+    c,
+    volume 6
+    c,
+    volume 5
+    c, |
+    volume 4
+    c,
+    volume 2
+    c,
+    volume 1
+    c, c,8
+    volume 2
+    g,16
+    volume 4
+    g, |
+    volume 9
+    g,4 f,8
+    volume 2
+    g,4 f,8
+    volume 10
+    e, f, |
+    e,
+    volume 3
+    f,
+    volume 11
+    d,4
+    volume 4
+    d, d, |
+}
+
+// FamiTracker pattern 0D — four bars
+phrase lead_bridge_b {
+    use key_long
+    volume 4
+    d,4
+    volume 10
+    c,
+    volume 9
+    c,
+    volume 8
+    c, |
+    volume 4
+    c,
+    volume 2
+    c,
+    volume 1
+    c, c,8
+    volume 2
+    g,16
+    volume 4
+    g, |
+    volume 8
+    g,4 f,
+    volume 3
+    f,
+    volume 10
+    e,8 d, |
+    e,
+    volume 4
+    d, e,4
+    volume 12
+    c,
+    volume 13
+    d, |
+}
+
+// FamiTracker pattern 0E — four bars
+phrase lead_bridge_c {
+    use key_long
+    volume 13
+    g,4
+    volume 6
+    g,
+    volume 4
+    g,
+    volume 13
+    c, |
+    d,
+    volume 6
+    c, d,
+    volume 13
+    c, |
+    g, f,
+    volume 6
+    f,8
+    volume 13
+    d, e, d, |
+    volume 4
+    e, d,
+    volume 13
+    d,4 c, d, |
+}
+
+// FamiTracker pattern 0F — four bars
+phrase lead_bridge_d {
+    use key_long
+    volume 13
+    g,4
+    volume 6
+    g,
+    volume 2
+    g,
+    volume 13
+    c, |
+    d,
+    volume 6
+    c, d,
+    volume 13
+    c, |
+    g,
+    volume 14
+    f,8 g,
+    volume 6
+    f, f,
+    volume 14
+    a, c4
+    volume 10
+    c
+    volume 8
+    c
+    volume 4
+    c
+    volume 2
+    c8 |
+}
+
+// FamiTracker pattern 10 — four bars
+phrase lead_outro {
+    use key_pluck
+    volume 11
+    c,,8 c, e,
+    use key_long
+    volume 12
+    e, g,
+    volume 6
+    e, g,4 |
+    f, e,8 f,4 c,8
+    use key_pluck
+    volume 4
+    c,, c, |
+    e,
+    use key_long
+    volume 6
+    f, a,4 d e8 d4 c b,8
+    volume 10
+    b,4 d |
+}
+
+// ---- HARMONY — original NES channel 1 ----
+// FamiTracker pattern 00 — four bars
+phrase harmony_theme_a {
+    use key_pluck
+    volume 11
+    c,,8 c, e, c,
+    use bright_solo
+    volume 10
+    g4 f |
+    e8 f4 c4.
+    use key_pluck
+    volume 11
+    e,8 c, |
+    c,,
+    use bright_solo
+    volume 10
+    c f4 e8 d4 c d4.
+    use key_pluck
+    volume 11
+    b,,16 r b,, r d, r d r |
+}
+
+// FamiTracker pattern 01 — four bars
+phrase harmony_theme_b {
+    use key_pluck
+    volume 11
+    c,,8 c, e, c,
+    use bright_solo
+    volume 10
+    g4 f |
+    e8 f4 c8
+    use key_pluck
+    volume 11
+    c,, c, e,
+    use bright_solo
+    volume 10
+    a, |
+    c e f4 e8 d4 c d4.
+    use key_pluck
+    volume 11
+    b,,16 r b,, r d, r d r |
+}
+
+// FamiTracker pattern 02 — four bars
+phrase harmony_theme_c {
+    use key_pluck
+    volume 11
+    e,,8 e, g, e,
+    use bright_solo
+    volume 10
+    g, c e4. c8
+    frequency_slide { from c4 to d4 over 189ms curve linear }
+    d4
+    frequency_slide off
+    c b,8 c |
+    use key_pluck
+    volume 11
+    d,, d, e, d,
+    use solo_long
+    volume 8
+    a,4.
+    use bright_solo
+    volume 10
+    d,8 |
+    frequency_slide { from d3 to e3 over 133ms curve linear }
+    e,
+    frequency_slide off
+    d, b,4
+    use key_pluck
+    volume 11
+    d,16 r d, r b,, r b,, r |
+}
+
+// FamiTracker pattern 03 — four bars
+phrase harmony_theme_d {
+    use key_pluck
+    volume 11
+    e,,8 e, g, e,
+    use bright_solo
+    volume 8
+    f
+    volume 10
+    e f4. e8
+    frequency_slide { from e4 to f4 over 189ms curve linear }
+    f4
+    frequency_slide off
+    c b,8 c |
+    use key_pluck
+    volume 11
+    d,, d, f, d,4
+    use bright_solo
+    volume 10
+    f8 e4 |
+    b,8
+    frequency_slide { from b3 to c4 over 300ms curve linear }
+    c4.
+    frequency_slide off
+    use key_pluck
+    volume 10
+    c,8 g, c g |
+}
+
+// FamiTracker pattern 04 — four bars
+phrase harmony_opening_b {
+    use key_pluck
+    volume 11
+    c,,8 c, e,
+    use key_long
+    volume 12
+    e, g,4 f, |
+    e,8 f,4 c,4.
+    use key_pluck
+    volume 11
+    e,8 c, |
+    c,,
+    use key_long
+    volume 12
+    e, f,4 e,8 d,4 c, d,4.
+    use key_pluck
+    volume 12
+    b,,16 r b,, r d, r d r |
+}
+
+// FamiTracker pattern 06 — four bars
+phrase harmony_opening_c {
+    use key_pluck
+    volume 11
+    e,,8 e, g,
+    use key_long
+    volume 6
+    c, e, g, c4. g,8 f,4
+    use key_pluck
+    volume 11
+    f,,8 f, a,
+    use key_long
+    volume 6
+    e,4 d,
+    volume 5
+    d,
+    volume 4
+    d,
+    volume 8
+    c,8 |
+    d, e, g,4
+    use key_pluck
+    volume 11
+    b,,8 b, d b, |
+}
+
+// FamiTracker pattern 07 — four bars
+phrase harmony_opening_d {
+    use key_pluck
+    volume 11
+    e,,8 e, g,
+    use key_long
+    volume 6
+    e, f, g, c4. c8 d4
+    use key_pluck
+    volume 11
+    f,,8 f, a,
+    use key_long
+    volume 6
+    e4 d
+    volume 4
+    d
+    volume 2
+    d
+    volume 6
+    a,8 |
+    c f c' c'4
+    volume 3
+    c'8 c'4 |
+}
+
+// FamiTracker pattern 08 — four bars
+phrase harmony_refrain_a {
+    use key_pluck
+    volume 11
+    c,8 c
+    use key_long
+    volume 15
+    e c4
+    use key_pluck
+    volume 11
+    c8 e c |
+    a,, a,
+    use key_long
+    volume 15
+    c a,4
+    use key_pluck
+    volume 11
+    a,8 c a, |
+    f,, f,
+    use key_long
+    volume 15
+    a, f,4
+    use key_pluck
+    volume 11
+    f,8 a, f, |
+    g,, g,
+    use key_long
+    volume 15
+    b, g,4
+    use key_pluck
+    volume 11
+    g,8 b, g, |
+}
+
+// FamiTracker pattern 09 — four bars
+phrase harmony_refrain_b {
+    use key_pluck
+    volume 11
+    c,8 c
+    use key_long
+    volume 15
+    e c4
+    use key_pluck
+    volume 11
+    c8 e c |
+    a,, a,
+    use key_long
+    volume 15
+    c a,4
+    use key_pluck
+    volume 11
+    a,8 c a, |
+    f,, f,
+    use key_long
+    volume 15
+    e f4
+    use key_pluck
+    volume 11
+    f,8 a, f, |
+    g,, g,
+    use key_long
+    volume 15
+    d g4
+    use key_pluck
+    volume 11
+    g,8 b, g, |
+}
+
+// FamiTracker pattern 0A — four bars
+phrase harmony_refrain_c {
+    use key_pluck
+    volume 11
+    e,,8 e,
+    use key_long
+    volume 15
+    f e4
+    use key_pluck
+    volume 11
+    e,8 g, e, |
+    f,, f,
+    use key_long
+    volume 15
+    e f4
+    use key_pluck
+    volume 11
+    f,8 a, f, |
+    d,, d,
+    use key_long
+    volume 15
+    e d4
+    use key_pluck
+    volume 11
+    d,8 f, d, |
+    g,, g,
+    use key_long
+    volume 15
+    f g4
+    use key_pluck
+    volume 11
+    g,8 b, g, |
+}
+
+// FamiTracker pattern 0B — four bars
+phrase harmony_refrain_d {
+    use key_pluck
+    volume 11
+    e,,8 e,
+    use key_long
+    volume 15
+    f e4
+    use key_pluck
+    volume 11
+    e,8 g, e, |
+    f,, f,
+    use key_long
+    volume 15
+    e f4
+    use key_pluck
+    volume 11
+    f,8 a, f, |
+    d, d
+    use key_long
+    volume 15
+    e f4
+    use key_pluck
+    volume 11
+    d8 f d |
+    c, c
+    use key_long
+    volume 15
+    f c'
+    volume 13
+    f c'
+    volume 10
+    f c' |
+}
+
+// FamiTracker pattern 0C — four bars
+phrase harmony_bridge_a {
+    use key_pluck
+    volume 11
+    c,,8 c, e, c,
+    volume 4
+    e, c,
+    volume 2
+    e, c, |
+    volume 1
+    e, c, r4
+    volume 7
+    c,,8
+    volume 8
+    c,
+    volume 9
+    e,
+    volume 10
+    c, |
+    volume 11
+    f,, f, a, f,
+    volume 4
+    a, f,
+    volume 2
+    a, f, |
+    volume 11
+    g,, g, b, g,
+    volume 4
+    b,
+    volume 11
+    b,, b, d, |
+}
+
+// FamiTracker pattern 0D — four bars
+phrase harmony_bridge_b {
+    use key_pluck
+    volume 11
+    c,,8 c, e, c,
+    volume 4
+    e, c,
+    volume 2
+    e, c, |
+    volume 1
+    e, c, r4
+    volume 7
+    c,,8
+    volume 8
+    c,
+    volume 9
+    e,
+    volume 10
+    c, |
+    volume 11
+    f,, f, a, f,
+    volume 4
+    a, f,
+    volume 2
+    a, f, |
+    volume 11
+    g,, g, b, g,
+    volume 4
+    b,
+    volume 11
+    b,, b, d, |
+}
+
+// FamiTracker pattern 0E — four bars
+phrase harmony_bridge_c {
+    use key_pluck
+    volume 11
+    e,,8 e, g, e,
+    volume 4
+    g, e,
+    volume 2
+    g, e, |
+    volume 11
+    f,, f, a, f,
+    volume 4
+    a, f,
+    volume 2
+    a, f, |
+    volume 11
+    d,, d, f, d,
+    volume 4
+    f, d,
+    volume 2
+    f, d, |
+    volume 11
+    g,, g, b, g,
+    volume 4
+    b, g,
+    volume 2
+    b, g, |
+}
+
+// FamiTracker pattern 0F — four bars
+phrase harmony_bridge_d {
+    use key_pluck
+    volume 11
+    e,,8 e, g, e,
+    volume 4
+    g, e,
+    volume 2
+    g, e, |
+    volume 11
+    f,, f, a, f,
+    volume 4
+    a, f,
+    volume 2
+    a, f, |
+    volume 11
+    d,, d, f, d,
+    volume 4
+    f, d,
+    volume 11
+    a,, a, |
+    c, c e c
+    volume 2
+    e c
+    volume 1
+    e c |
+}
+
+// FamiTracker pattern 10 — four bars
+phrase harmony_outro {
+    use key_long
+    volume 9
+    f8 c'
+    volume 8
+    f c'
+    volume 7
+    f c'
+    volume 12
+    f,4 |
+    e,8 f,4 c,8
+    use key_pluck
+    volume 11
+    c,, c, e,
+    use key_long
+    volume 12
+    f, |
+    a,4 d e8 d4 c b,4. g,8
+    use key_pluck
+    volume 11
+    b,,
+    use key_long
+    volume 12
+    b,
+    use key_pluck
+    volume 11
+    d |
+}
+
+// ---- BASS — original NES channel 2 ----
+// FamiTracker pattern 00 — four bars
+phrase bass_theme_a {
+    use triangle_kick
+    c4
+    use triangle_bass
+    c'8 c16 r
+    use triangle_snare
+    c4
+    use triangle_bass
+    c'8 r |
+    use triangle_kick
+    a,4
+    use triangle_bass
+    a8 a,16 r
+    use triangle_snare
+    a,4
+    use triangle_bass
+    a8 r |
+    use triangle_kick
+    f,4
+    use triangle_bass
+    f8 f,16 r
+    use triangle_snare
+    f,4
+    use triangle_bass
+    f8 r |
+    use triangle_kick
+    g,4
+    use triangle_bass
+    g8 g,16 r
+    use triangle_snare
+    g, r
+    use triangle_bass
+    g, r
+    use triangle_kick
+    b, r b, r |
+}
+
+// FamiTracker pattern 01 — four bars
+phrase bass_theme_b {
+    use triangle_kick
+    c4
+    use triangle_bass
+    c'8 c16 r
+    use triangle_snare
+    c4
+    use triangle_bass
+    c'8 r |
+    use triangle_kick
+    a,4
+    use triangle_bass
+    a8 a,16 r
+    use triangle_snare
+    a,8
+    use triangle_bass
+    a f a, |
+    use triangle_kick
+    f,4
+    use triangle_bass
+    f8 f,16 r
+    use triangle_snare
+    f,4
+    use triangle_bass
+    f8 r |
+    use triangle_kick
+    g,4
+    use triangle_bass
+    g8 g,
+    use triangle_snare
+    b,16 r
+    use triangle_bass
+    b, r
+    use triangle_kick
+    d r d r |
+}
+
+// FamiTracker pattern 02 — four bars
+phrase bass_theme_c {
+    use triangle_kick
+    e,4
+    use triangle_bass
+    e8 e,16 r
+    use triangle_snare
+    e,4
+    use triangle_bass
+    e8 r |
+    use triangle_kick
+    f,4
+    use triangle_bass
+    f8 f,16 r
+    use triangle_snare
+    f,4
+    use triangle_bass
+    f8 r |
+    use triangle_kick
+    d,4
+    use triangle_bass
+    d8 d,16 r
+    use triangle_snare
+    d,4
+    use triangle_bass
+    d8 r |
+    use triangle_kick
+    g,4
+    use triangle_bass
+    g8 g,
+    use triangle_snare
+    b,16 r
+    use triangle_bass
+    b, r
+    use triangle_kick
+    g, r g, r |
+}
+
+// FamiTracker pattern 03 — four bars
+phrase bass_theme_d {
+    use triangle_kick
+    e,4
+    use triangle_bass
+    e8 e,16 r
+    use triangle_snare
+    e,4
+    use triangle_bass
+    e8 r |
+    use triangle_kick
+    f,4
+    use triangle_bass
+    f8 f,16 r
+    use triangle_snare
+    f,4
+    use triangle_bass
+    f8 r |
+    use triangle_kick
+    d,4
+    use triangle_bass
+    d'8 d16 r
+    use triangle_snare
+    d,4
+    use triangle_bass
+    d'8 r |
+    use triangle_kick
+    c4
+    use triangle_bass
+    c'8 c
+    use triangle_snare
+    c16 r c r c r c r |
+}
+
+// FamiTracker pattern 04 — four bars
+phrase bass_opening_b {
+    use triangle_bass
+    c4 r8 c16 r c4 r |
+    a, r8 a,16 r a,4 r |
+    f, r8 f,16 r f,4 r |
+    g, r8 g,16 r b,8 r d r |
+}
+
+// FamiTracker pattern 06 — four bars
+phrase bass_opening_c {
+    use triangle_bass
+    e,4 r8 e,16 r e,4 r |
+    f, r8 f,16 r f,4 r |
+    d, r8 d,16 r d,4 r |
+    g, r8 g,16 r b,8 r g, r |
+}
+
+// FamiTracker pattern 07 — four bars
+phrase bass_opening_d {
+    use triangle_bass
+    e,4 r8 e,16 r e,4 r |
+    f, r8 f,16 r f,4 r |
+    d, r8 d,16 r d,8 r a, r |
+    c4 r8 c16 r c4 r |
+}
+
+// FamiTracker pattern 08 — four bars
+phrase bass_refrain_a {
+    use triangle_kick
+    c16 r
+    use triangle_bass
+    c8 c' c16 r
+    use triangle_snare
+    c r
+    use triangle_bass
+    c8 c' c |
+    use triangle_kick
+    a,16 r
+    use triangle_bass
+    a,8 a a,16 r
+    use triangle_snare
+    a, r
+    use triangle_bass
+    a,8 a a, |
+    use triangle_kick
+    f,16 r
+    use triangle_bass
+    f,8 f f,16 r
+    use triangle_snare
+    f, r
+    use triangle_bass
+    f,8 f f, |
+    use triangle_kick
+    g,16 r
+    use triangle_bass
+    g,8 g g,16 r
+    use triangle_snare
+    g, r
+    use triangle_bass
+    g, r
+    use triangle_kick
+    b, r b, r |
+}
+
+// FamiTracker pattern 09 — four bars
+phrase bass_refrain_b {
+    use triangle_kick
+    c16 r
+    use triangle_bass
+    c8 c' c16 r
+    use triangle_snare
+    c r
+    use triangle_bass
+    c8 c' c |
+    use triangle_kick
+    a,16 r
+    use triangle_bass
+    a,8 a a,16 r
+    use triangle_snare
+    a,8
+    use triangle_bass
+    a f a, |
+    use triangle_kick
+    f,16 r
+    use triangle_bass
+    f,8 f f,16 r
+    use triangle_snare
+    f, r
+    use triangle_bass
+    f,8 f f, |
+    use triangle_kick
+    g,16 r
+    use triangle_bass
+    g,8 g g,
+    use triangle_snare
+    b,16 r
+    use triangle_bass
+    b, r
+    use triangle_snare
+    d r
+    use triangle_kick
+    d r |
+}
+
+// FamiTracker pattern 0A — four bars
+phrase bass_refrain_c {
+    use triangle_kick
+    e,16 r
+    use triangle_bass
+    e,8 e e,16 r
+    use triangle_snare
+    e, r
+    use triangle_bass
+    e,8 e e, |
+    use triangle_kick
+    f,16 r
+    use triangle_bass
+    f,8 f f,16 r
+    use triangle_snare
+    f, r
+    use triangle_bass
+    f,8 f f, |
+    use triangle_kick
+    d,16 r
+    use triangle_bass
+    d,8 d d,16 r
+    use triangle_snare
+    d, r
+    use triangle_bass
+    d,8 d d, |
+    use triangle_kick
+    g,16 r
+    use triangle_bass
+    g,8 g g,
+    use triangle_snare
+    b,16 r
+    use triangle_bass
+    b, r
+    use triangle_kick
+    g, r g, r |
+}
+
+// FamiTracker pattern 0B — four bars
+phrase bass_refrain_d {
+    use triangle_kick
+    e,16 r
+    use triangle_bass
+    e,8 e e,16 r
+    use triangle_snare
+    e, r
+    use triangle_bass
+    e,8 e e, |
+    use triangle_kick
+    f,16 r
+    use triangle_bass
+    f,8 f f,16 r
+    use triangle_snare
+    f, r
+    use triangle_bass
+    f,8 f f, |
+    use triangle_kick
+    d,16 r
+    use triangle_bass
+    d,8 d' d16 r
+    use triangle_snare
+    d, r
+    use triangle_bass
+    d,8 d' d |
+    use triangle_kick
+    c16 r
+    use triangle_bass
+    c8 c' c
+    use triangle_snare
+    c16 r c r c r c r |
+}
+
+// FamiTracker pattern 0C — four bars
+phrase bass_bridge_a {
+    use triangle_kick
+    c16 r
+    use triangle_bass
+    c8 r2. |
+    a,8 r a, r16*10 |
+    f, r f,8 r2. |
+    g,8 r g, r4. b,8 r |
+}
+
+// FamiTracker pattern 0D — four bars
+phrase bass_bridge_b {
+    use triangle_bass
+    c16 r c8 r2. |
+    a,8 r a, r16*10 |
+    f, r f,8 r2. |
+    g,8 r g, r b, r d4 |
+}
+
+// FamiTracker pattern 0E — four bars
+phrase bass_bridge_c {
+    use triangle_kick
+    e,16 r
+    use triangle_bass
+    e,8 r4
+    use triangle_snare
+    e,8 r
+    use triangle_bass
+    e, f, |
+    r4
+    use triangle_kick
+    f,8 r
+    use triangle_snare
+    f, r
+    use triangle_bass
+    f, r |
+    use triangle_kick
+    d,16 r
+    use triangle_bass
+    d,8 r4
+    use triangle_snare
+    d,8 r
+    use triangle_bass
+    d, g, |
+    r4
+    use triangle_kick
+    g,8 r
+    use triangle_snare
+    b, r
+    use triangle_bass
+    g, r |
+}
+
+// FamiTracker pattern 0F — four bars
+phrase bass_bridge_d {
+    use triangle_kick
+    e,16 r
+    use triangle_bass
+    e,8 r4
+    use triangle_snare
+    e,8 r
+    use triangle_bass
+    e, f, |
+    r4
+    use triangle_kick
+    f,8 r
+    use triangle_snare
+    f, r
+    use triangle_bass
+    f, r |
+    use triangle_kick
+    d,16 r
+    use triangle_bass
+    d,8 r4
+    use triangle_snare
+    d,8 r
+    use triangle_bass
+    a, c |
+    r c r c16 r
+    use triangle_snare
+    c4
+    use triangle_kick
+    c16 r c r |
+}
+
+// FamiTracker pattern 10 — four bars
+phrase bass_outro {
+    use triangle_bass
+    c4 r8 c16 r c4 r |
+    a, r8 a,16 r a,4 r |
+    f, r8 f,16 r f,4 r |
+    g, r8 g,16 r g,8 r b, r |
+}
+
+// ---- DRUMS — original NES channel 3 ----
+// FamiTracker pattern 00 — four bars
+phrase drums_theme_a {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d' |
+    use hat_tap
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 13
+    d'
+    volume 10
+    d' |
+}
+
+// FamiTracker pattern 01 — four bars
+phrase drums_theme_b {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d' |
+    use hat_tap
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 13
+    d'
+    volume 10
+    d' |
+}
+
+// FamiTracker pattern 02 — four bars
+phrase drums_theme_c {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d' |
+    use hat_tap
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 13
+    d'
+    volume 14
+    d'
+    volume 15
+    d' |
+}
+
+// FamiTracker pattern 03 — four bars
+phrase drums_theme_d {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 10
+    f,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d' |
+    use hat_tap
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b,
+    volume 10
+    f,
+    volume 13
+    f, |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 6
+    a,
+    volume 8
+    g,
+    use noise_snare
+    volume 15
+    c
+    volume 13
+    c
+    volume 15
+    c
+    volume 13
+    c |
+}
+
+// FamiTracker pattern 04 — four bars
+phrase drums_opening_b {
+    r16*60
+    use hat_tap
+    volume 13
+    b,8
+    volume 10
+    b, |
+}
+
+// FamiTracker pattern 06 — four bars
+phrase drums_opening_c {
+    use hat_tap
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 8
+    a |
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4 a8 a |
+}
+
+// FamiTracker pattern 07 — four bars
+phrase drums_opening_d {
+    use hat_tap
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 8
+    a |
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 13
+    a4
+    volume 3
+    a |
+}
+
+// FamiTracker pattern 08 — four bars
+phrase drums_refrain_a {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 13
+    d'
+    volume 14
+    d'
+    volume 15
+    d' |
+}
+
+// FamiTracker pattern 09 — four bars
+phrase drums_refrain_b {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 13
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 15
+    d' |
+}
+
+// FamiTracker pattern 0A — four bars
+phrase drums_refrain_c {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 13
+    d'
+    volume 14
+    d'
+    volume 15
+    d' |
+}
+
+// FamiTracker pattern 0B — four bars
+phrase drums_refrain_d {
+    use hat_tap
+    volume 13
+    c,8
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 13
+    c,
+    use hat_soft
+    volume 8
+    d'
+    use hat_tap
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c
+    use hat_tap
+    volume 8
+    b, d'
+    volume 6
+    d' |
+    volume 8
+    b,
+    volume 13
+    f,
+    volume 8
+    d'
+    volume 6
+    d'
+    use noise_snare
+    volume 15
+    c c c# c# |
+}
+
+// FamiTracker pattern 0C — four bars
+phrase drums_bridge_a {
+    use noise_snare
+    volume 14
+    c4
+    use hat_tap
+    volume 10
+    b,
+    volume 8
+    b,
+    volume 6
+    b, |
+    volume 4
+    b,
+    volume 3
+    d#'
+    volume 2
+    d#'
+    volume 1
+    d#' |
+    volume 8
+    c#'
+    volume 10
+    a,
+    volume 8
+    a,
+    volume 6
+    a, |
+    volume 4
+    a,
+    volume 3
+    c#'
+    volume 2
+    c#'
+    volume 1
+    c#' |
+}
+
+// FamiTracker pattern 0D — four bars
+phrase drums_bridge_b {
+    use hat_tap
+    volume 8
+    c'4
+    volume 10
+    g#,
+    volume 8
+    g#,
+    volume 6
+    g#, |
+    volume 4
+    g#,
+    volume 3
+    c'
+    volume 2
+    c'
+    volume 1
+    c' |
+    volume 8
+    b
+    volume 10
+    g,
+    volume 8
+    g,
+    volume 6
+    g, |
+    volume 4
+    g,
+    volume 3
+    b
+    volume 2
+    b
+    volume 13
+    b,8
+    volume 10
+    b, |
+}
+
+// FamiTracker pattern 0E — four bars
+phrase drums_bridge_c {
+    use hat_tap
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 8
+    a |
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 13
+    a8 a |
+}
+
+// FamiTracker pattern 0F — four bars
+phrase drums_bridge_d {
+    use hat_tap
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 8
+    a |
+    volume 10
+    d'8
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    use noise_snare
+    volume 15
+    c4
+    use hat_tap
+    volume 2
+    a8
+    use hat_soft
+    volume 10
+    c' |
+    use hat_tap
+    volume 10
+    d'
+    volume 8
+    d'
+    use hat_soft
+    volume 10
+    c'
+    use hat_tap
+    volume 8
+    d'
+    volume 10
+    a4
+    use noise_snare
+    volume 15
+    c8 c |
+}
+
+// FamiTracker pattern 10 — four bars
+phrase drums_outro {
+    use hat_tap
+    volume 13
+    d'4
+    volume 6
+    d'
+    volume 4
+    d'
+    volume 3
+    d' |
+    volume 2
+    d'
+    volume 1
+    d'16*44 |
+}
+
+
+// ===================== FINAL CHANNEL ARRANGEMENT =====================
+
+// Lead — NES pulse 1
+channel 0 octave 4 {
+    // Introduction
+    lead_opening_b lead_opening_c lead_opening_d
+    // First statement
+    lead_theme_a lead_theme_b lead_theme_c lead_theme_d
+    // Second statement
+    lead_refrain_a lead_refrain_b lead_refrain_c lead_refrain_d
+    // Bridge
+    lead_bridge_a lead_bridge_b lead_bridge_c lead_bridge_d
+    // Returning theme
+    lead_theme_a lead_theme_b lead_theme_c lead_theme_d
+    // Closing refrain
+    lead_refrain_a lead_refrain_b lead_refrain_c lead_refrain_d
+    // Ending / turnaround
+    lead_outro
+}
+
+// Harmony — NES pulse 2
+channel 1 octave 4 {
+    // Introduction
+    harmony_opening_b harmony_opening_c harmony_opening_d
+    // First statement
+    harmony_theme_a harmony_theme_b harmony_theme_c harmony_theme_d
+    // Second statement
+    harmony_refrain_a harmony_refrain_b harmony_refrain_c harmony_refrain_d
+    // Bridge
+    harmony_bridge_a harmony_bridge_b harmony_bridge_c harmony_bridge_d
+    // Returning theme
+    harmony_theme_a harmony_theme_b harmony_theme_c harmony_theme_d
+    // Closing refrain
+    harmony_refrain_a harmony_refrain_b harmony_refrain_c harmony_refrain_d
+    // Ending / turnaround
+    harmony_outro
+}
+
+// Bass — NES triangle bass + tonal drums
+channel 2 octave 3 {
+    // Introduction
+    bass_opening_b bass_opening_c bass_opening_d
+    // First statement
+    bass_theme_a bass_theme_b bass_theme_c bass_theme_d
+    // Second statement
+    bass_refrain_a bass_refrain_b bass_refrain_c bass_refrain_d
+    // Bridge
+    bass_bridge_a bass_bridge_b bass_bridge_c bass_bridge_d
+    // Returning theme
+    bass_theme_a bass_theme_b bass_theme_c bass_theme_d
+    // Closing refrain
+    bass_refrain_a bass_refrain_b bass_refrain_c bass_refrain_d
+    // Ending / turnaround
+    bass_outro
+}
+
+// Drums — NES noise percussion
+channel 3 octave 4 {
+    // Introduction
+    drums_opening_b drums_opening_c drums_opening_d
+    // First statement
+    drums_theme_a drums_theme_b drums_theme_c drums_theme_d
+    // Second statement
+    drums_refrain_a drums_refrain_b drums_refrain_c drums_refrain_d
+    // Bridge
+    drums_bridge_a drums_bridge_b drums_bridge_c drums_bridge_d
+    // Returning theme
+    drums_theme_a drums_theme_b drums_theme_c drums_theme_d
+    // Closing refrain
+    drums_refrain_a drums_refrain_b drums_refrain_c drums_refrain_d
+    // Ending / turnaround
+    drums_outro
+}

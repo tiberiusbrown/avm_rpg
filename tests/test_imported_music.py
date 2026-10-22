@@ -41,7 +41,7 @@ def audible_events(data):
         if not mask:
             command = data[offset]
             offset += 1
-            if command == 2:
+            if command == 1:
                 return ticks, events
             assert command == 0
             continue
@@ -89,8 +89,8 @@ for song in SONGS:
             if not mask:
                 command = data[offset]
                 offset += 1
-                assert command in (0, 2)
-                if command == 2:
+                assert command in (0, 1)
+                if command == 1:
                     break
                 continue
             if not frames:

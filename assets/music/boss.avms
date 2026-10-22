@@ -1,9 +1,8 @@
-title "Boss — faithful, readable arrangement"
+title "Boss"
 description "Closer four-voice adaptation of Boss.ftm: original rhythms, bass pulse, drum groove, and pitch motion."
 tempo 120
 meter 4/4
 automation 8ms
-loop
 
 // 17 measures / 34 seconds, matching the original loop.
 // The FamiTracker conversion encoded every 16–20 ms volume frame as a note.
