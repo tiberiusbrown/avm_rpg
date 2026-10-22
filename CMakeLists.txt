@@ -147,7 +147,7 @@ if(RPG_BUILD_GUEST)
         get_filename_component(song "${score}" NAME_WLE)
         string(REGEX REPLACE "[^A-Za-z0-9_]" "_" symbol "${song}")
         string(TOUPPER "MUSIC_${symbol}" symbol)
-        set(output "${CMAKE_CURRENT_SOURCE_DIR}/generated/${song}_music.h")
+        set(output "${CMAKE_CURRENT_SOURCE_DIR}/generated/music_${song}.h")
         add_custom_command(OUTPUT "${output}"
             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_music.py"
                 --compiler "${RPG_MUSIC_COMPILER}" "${score}" "${output}" --name "${symbol}_DATA"

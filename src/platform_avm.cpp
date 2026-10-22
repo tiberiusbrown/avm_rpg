@@ -58,7 +58,6 @@ extern "C" void setup() {
     avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
     avm_audio_music_volume(MUSIC_MASTER_VOLUME);
     music_selection = MUSIC_DEFAULT;
-    music_selection = MUSIC_01_WILLOWBROOK_MORNING;
     avm_audio_play(MUSIC_TRACKS[music_selection].data);
 }
 
