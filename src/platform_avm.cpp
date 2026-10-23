@@ -3,7 +3,7 @@
 #include <avm.h>
 #include "music.h"
 
-constexpr uint8_t MUSIC_MASTER_VOLUME = 96;
+constexpr uint8_t MUSIC_MASTER_VOLUME = 64;
 static uint8_t music_selection;
 
 char const PROGMEM* music_next() {
