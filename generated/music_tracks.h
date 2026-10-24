@@ -6,7 +6,7 @@
 
 constexpr char AVM_PROGMEM MUSIC_BATTLE_TITLE[] = "Battle";
 constexpr char AVM_PROGMEM MUSIC_BOSS_TITLE[] = "Boss";
-constexpr char AVM_PROGMEM MUSIC_PEACEFUL_TITLE[] = "Peaceful";
+constexpr char AVM_PROGMEM MUSIC_PEACEFUL_TITLE[] = "Peaceful Village";
 
 constexpr MusicTrack AVM_PROGMEM MUSIC_TRACKS[] = {
     {MUSIC_BATTLE_DATA, MUSIC_BATTLE_TITLE},

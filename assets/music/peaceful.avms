@@ -1,128 +1,86 @@
-title "Peaceful"
-description "An original village theme: a lilting pulse melody, quiet broken chords, and warm triangle bass, inspired by NES-era Final Fantasy."
-tempo 100
+
+title "Peaceful Village"
+tempo 104
 meter 4/4
-automation 16ms
 volume 200%
+automation 8ms
 
-// C major, 24 measures, 57.600 seconds. A (8) - B (8) - A' (8).
-// The NES inspiration is in the three-voice texture and lyrical phrasing;
-// the melody and arrangement are original, not a transcription of FF1.
-// Channels 0 and 2 carry the tune and harmony when SFX borrows channel 1.
-// No noise part: leave room for footsteps, dialogue, and village ambience.
-
-envelope reed_env {
-    points 0ms:85%, 16ms:100%, 96ms:85%, 240ms:75%
-    release 24ms:0%
-    curve step
+envelope lead_env {
+    points 0ms:0%, 12ms:100%, 210ms:85%, 400ms:68%
+    release 40ms:0%
 }
-envelope pluck_env {
-    points 0ms:100%, 48ms:80%, 112ms:60%, 208ms:40%
-    release 16ms:0%
-    curve step
+envelope chord_env {
+    points 0ms:100%, 96ms:85%, 220ms:65%
+    release 28ms:0%
 }
 envelope bass_env {
-    points 0ms:100%, 96ms:90%, 240ms:80%
-    release 24ms:0%
-    curve step
+    points 0ms:100%, 160ms:78%
+    release 48ms:0%
+}
+envelope tick_env {
+    points 0ms:100%, 12ms:45%, 40ms:0%
 }
 
-instrument reed { wave pulse duty 50% volume 12 envelope reed_env gate 92% }
-instrument pluck { wave pulse duty 25% volume 6 envelope pluck_env gate 76% }
-instrument bass { wave triangle volume 13 envelope bass_env gate 88% }
-
-// A: a small arch, an answering descent, then a breath on the dominant.
-phrase tune_greeting { e4 g8 a8 g4 e4 | }
-phrase tune_answer { d4. e8 g4 d4 | }
-phrase tune_garden { c4 e8 g8 a4 g8 e8 | }
-phrase tune_shade { b,4 d4 e4. r8 | }
-phrase tune_sunlight { a4 g8 f8 e4 f4 | }
-phrase tune_rooftops { g2 e4 c4 | }
-phrase tune_stroll { d4 f8 a8 g4 f8 e8 | }
-phrase tune_breath { d2 b,4 r4 | }
-
-// B: climb toward the bell-like E6 once, then walk back into the refrain.
-phrase tune_square { f4. a8 c'4 a4 | }
-phrase tune_fountain { g4 e8 d8 e2 | }
-phrase tune_bells { f4 a4 d'4 c'8 a8 | }
-phrase tune_distance { b2 g4 r4 | }
-phrase tune_highlight { g4 b8 d'8 e'4 d'8 b8 | }
-phrase tune_homeward { c'4. b8 a4 e4 | }
-phrase tune_lane { f4 e8 d8 a,4 c4 | }
-phrase tune_return { b,4 d4 f4 d4 | }
-
-// A': familiar opening, altered answer, and a tonic arrival. The last D
-// is a gentle pickup into the opening E when the game repeats the score.
-phrase tune_answer_high { d4. e8 g4 b4 | }
-phrase tune_garden_home { a4 g8 e8 c4 e4 | }
-phrase tune_shade_home { b,4 d4 e2 | }
-phrase tune_doorstep { d4 e8 f8 a4 f4 | }
-phrase tune_cadence { g4. f8 d4 b,4 | }
-phrase tune_welcome { c2 r4 d4 | }
-
-channel 0 reed octave 5 {
-    tune_greeting tune_answer tune_garden tune_shade
-    tune_sunlight tune_rooftops tune_stroll tune_breath
-
-    tune_square tune_fountain tune_bells tune_distance
-    tune_highlight tune_homeward tune_lane tune_return
-
-    tune_greeting tune_answer_high tune_garden_home tune_shade_home
-    tune_sunlight tune_doorstep tune_cadence tune_welcome
+instrument melody {
+    wave pulse duty 25% volume 14
+    envelope lead_env gate 90%
+}
+instrument harmony {
+    wave pulse duty 50% volume 8
+    envelope chord_env gate 85%
+}
+instrument bass {
+    wave saw volume 10
+    envelope bass_env gate 85%
+}
+instrument footstep {
+    wave noise volume 3
+    envelope tick_env gate 60%
 }
 
-// A delayed first pluck lets the melody speak before each broken chord.
-// Slow written arpeggios suggest a lute without a constant tracker buzz.
-phrase chord_c { r8 g,8 c8 e8 g4 e8 c8 | }
-phrase chord_g { r8 g,8 b,8 d8 g4 d8 b,8 | }
-phrase chord_am { r8 a,8 c8 e8 a4 e8 c8 | }
-phrase chord_em { r8 b,8 e8 g8 b4 g8 e8 | }
-phrase chord_f { r8 a,8 c8 f8 a4 f8 c8 | }
-phrase chord_dm7 { r8 a,8 c8 d8 f4 d8 c8 | }
-phrase chord_g7 { r8 b,8 d8 f8 g4 f8 d8 | }
+// Melody: opening motif, answer, and return.
+channel 0 melody octave 5 {
+    d8  g8  a4      b4      a8  g8  |
+    f#8 a8  d'4     c'8 b8  a4      |
+    b8  g8  e4      g8  a8  b4      |
+    g4      e8  d8  e4      r4      |
 
-// Broader counterpoint under B gives the middle section breathing room.
-phrase counter_square { e4 c4 f2 | }
-phrase counter_fountain { g,4 c4 g2 | }
-phrase counter_bells { a,8 d8 f4 a4 f4 | }
-phrase counter_distance { d4 f4 d4 b,4 | }
-phrase counter_highlight { b,8 e8 g4 b4 g4 | }
-phrase counter_homeward { e2 c4 e4 | }
-phrase counter_lane { a,4 d4 f4 e4 | }
-phrase counter_return { r4 g,8 b,8 d4 f4 | }
-phrase chord_welcome { r8 g,8 c8 e8 g4 e4 | }
-
-channel 1 pluck octave 4 {
-    chord_c chord_g chord_am chord_em
-    chord_f chord_c chord_dm7 chord_g7
-
-    counter_square counter_fountain counter_bells counter_distance
-    counter_highlight counter_homeward counter_lane counter_return
-
-    chord_c chord_g chord_am chord_em
-    chord_f chord_dm7 chord_g7 chord_welcome
+    d8  g8  a4   b4      d'4 |
+    c'8 b8  a4   g8  e8  g4  |
+    f#8 a8  d'4  c'8 a8  f#4 |
+    g2           b4      g4  |
 }
 
-// Mostly half-note roots with a quiet two-step answer. The C4-B3-A3-G3
-// opening bass descent and F3-E3-D3 reply keep triangle fundamentals clear.
-phrase bass_c { c'2 g4 e4 | }
-phrase bass_b { b2 d4 g4 | }
-phrase bass_a { a2 e4 c'4 | }
-phrase bass_g { g2 b4 e'4 | }
-phrase bass_f { f2 c'4 a4 | }
-phrase bass_e { e2 g4 c'4 | }
-phrase bass_d { d2 a4 f4 | }
-phrase bass_dominant { g4 d4 g4 f4 | }
-phrase bass_em { e2 b4 g4 | }
-phrase bass_welcome { c2 g4 c'4 | }
+// Harmony: G - D - Em - C - G - C - D - G.
+channel 1 harmony octave 3 {
+    arpeggio { offsets 0,4,7 step 96ms }
+    r8 g8 r4 r8 g8 r4 |
+    r8 d8 r4 r8 d8 r4 |
 
-channel 2 bass octave 3 {
-    bass_c bass_b bass_a bass_g
-    bass_f bass_e bass_d bass_dominant
+    arpeggio { offsets 0,3,7 step 96ms }
+    r8 e8 r4 r8 e8 r4 |
 
-    bass_f bass_e bass_d bass_dominant
-    bass_em bass_a bass_d bass_dominant
+    arpeggio { offsets 0,4,7 step 96ms }
+    r8 c8 r4 r8 c8 r4 |
+    r8 g8 r4 r8 g8 r4 |
+    r8 c8 r4 r8 c8 r4 |
+    r8 d8 r4 r8 d8 r4 |
+    r8 g8 r4 r8 g8 r4 |
+}
 
-    bass_c bass_b bass_a bass_g
-    bass_f bass_d bass_dominant bass_welcome
+// Bass: sustained roots with simple fifths.
+channel 2 bass octave 2 {
+    g2  d'4 g4  |
+    d'2 a4  d'4 |
+    e'2 b4  e'4 |
+    c'2 g4  c'4 |
+    g2  d'4 g4  |
+    c'2 g4  c'4 |
+    d'2 a4  d'4 |
+    g2  d'4 g4  |
+}
+
+// Soft ticks on beats two and four.
+channel 3 footstep octave 5 {
+    repeat 8 { r4 c8 r8 r4 c8 r8 | }
 }
