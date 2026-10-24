@@ -3,7 +3,7 @@
 #include <avm.h>
 #include "music.h"
 
-constexpr uint8_t MUSIC_MASTER_VOLUME = 64;
+constexpr uint8_t MUSIC_MASTER_VOLUME = 128;
 static uint8_t music_selection;
 
 char const PROGMEM* music_next() {
@@ -61,7 +61,7 @@ extern "C" void setup() {
 extern "C" void loop() {
     title_screen();
     
-    avm_audio_lowpass(AVM_AUDIO_LOWPASS_MILD);
+    //avm_audio_lowpass(AVM_AUDIO_LOWPASS_MILD);
     avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
     avm_audio_music_volume(MUSIC_MASTER_VOLUME);
     avm_audio_music_loop(1);

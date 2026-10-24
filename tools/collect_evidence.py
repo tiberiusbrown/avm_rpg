@@ -153,8 +153,8 @@ def main():
             )
     lines += [
         "",
-        "Ten CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,",
-        "chunk_world, tiled_pipeline, generated_assets, content, imported_music and audio_timing. Pipeline tests check",
+        "Eight CTest suites cover core, essential_npcs, npc_lifecycle_hooks, flags,",
+        "chunk_world, tiled_pipeline, generated_assets and content. Pipeline tests check",
         "every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,",
         "padding, maximum map dimensions, chunk relocation and default handlers.\n",
         "```text",

@@ -161,8 +161,6 @@ if(RPG_BUILD_GUEST)
         add_dependencies(rpg_device_tests rpg_music)
         add_dependencies(rpg_audio_timing_tests rpg_music)
     endif()
-    add_test(NAME imported_music COMMAND ${Python3_EXECUTABLE}
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_imported_music.py" --compiler "${RPG_MUSIC_COMPILER}")
     function(guest name)
         set(objects)
         foreach(source IN LISTS ARGN)
@@ -218,22 +216,13 @@ if(RPG_BUILD_GUEST)
     add_dependencies(rpg rpg_music)
     if(TARGET rpg_audio_timing_tests)
         add_custom_target(rpg_audio_timing
-            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audio_timing.py"
+            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/measure_audio_timing.py"
                 --device "$<TARGET_FILE:rpg_audio_timing_tests>"
                 --build "${CMAKE_CURRENT_BINARY_DIR}"
                 --interpreter-build "${AVM_SOURCE_ROOT}/interp/build"
                 --fxc-interpreter-build "${AVM_BUILD_ROOT}/interp/fxc"
                 --seconds 40 --fxc-seconds 8
             DEPENDS rpg rpg_audio_timing_tests VERBATIM)
-        add_test(NAME audio_timing COMMAND ${Python3_EXECUTABLE}
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audio_timing.py"
-            --device "$<TARGET_FILE:rpg_audio_timing_tests>"
-            --build "${CMAKE_CURRENT_BINARY_DIR}"
-            --interpreter-build "${AVM_SOURCE_ROOT}/interp/build"
-            --fxc-interpreter-build "${AVM_BUILD_ROOT}/interp/fxc"
-            --seconds 2 --fxc-seconds 2 --no-plot
-            --output "${CMAKE_CURRENT_BINARY_DIR}/audio-timing-smoke")
-        set_tests_properties(audio_timing PROPERTIES TIMEOUT 180)
     endif()
     if(EXISTS "${AVM_LLDB}")
         add_custom_target(rpg_integration

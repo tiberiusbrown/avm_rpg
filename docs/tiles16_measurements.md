@@ -35,8 +35,8 @@ the proof targets 20 FPS. All measured RPG frames also meet the 33 ms interval.
 | fxc_pixel_scroll | 30 | 257,021 | 325,554 | 105360 | 30.3049 |
 | fxc_dense_collision | 30 | 227,970 | 230,569 | 97316 | 30.3044 |
 
-Ten CTest suites pass: core, essential_npcs, npc_lifecycle_hooks, flags,
-chunk_world, tiled_pipeline, generated_assets, content, original_music and audio_timing. Pipeline tests check
+Eight CTest suites cover core, essential_npcs, npc_lifecycle_hooks, flags,
+chunk_world, tiled_pipeline, generated_assets and content. Pipeline tests check
 every source bitmap/alpha pixel, all 255 usable indices, the reserved cell,
 padding, maximum map dimensions, chunk relocation and default handlers.
 

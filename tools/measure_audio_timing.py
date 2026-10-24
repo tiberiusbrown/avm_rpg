@@ -1,4 +1,4 @@
-"""Measure Timer1 latency in the actual RPG, with calibrated native AVR timing."""
+"""Manually measure Timer1 latency in the RPG; this is not a regression test."""
 
 import argparse
 from collections import Counter, defaultdict

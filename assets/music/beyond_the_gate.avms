@@ -1,0 +1,145 @@
+// Beyond the Gate — original fantasy overworld exploration loop.
+// E minor | 116 BPM | 16 measures (~33.1 seconds).
+// The last B7 resolves into the first Em on loop restart.
+// Loop at runtime with avm_audio_music_loop(1).
+
+title "Beyond the Gate"
+description "Curious and adventurous travel beyond the safety of town"
+tempo 116
+meter 4/4
+volume max
+automation 8ms
+
+envelope traveler_env {
+    points 0ms:0%, 12ms:100%, 140ms:84%, 340ms:67%
+    release 40ms:0%
+}
+envelope lantern_env {
+    points 0ms:100%, 80ms:78%, 190ms:52%
+    release 28ms:0%
+}
+envelope walking_env {
+    points 0ms:100%, 130ms:78%, 270ms:55%
+    release 36ms:0%
+}
+envelope step_env {
+    points 0ms:100%, 20ms:36%, 45ms:0%
+}
+envelope brush_env {
+    points 0ms:100%, 26ms:48%, 70ms:0%
+}
+
+instrument traveler { wave pulse duty 25% volume 14 envelope traveler_env gate 90% }
+instrument lantern  { wave pulse duty 50% volume 7 envelope lantern_env gate 82% }
+instrument walking  { wave saw volume 9 envelope walking_env gate 84% }
+instrument step     { wave noise volume 2 envelope step_env gate 60% }
+instrument brush    { wave noise volume 3 envelope brush_env gate 60% }
+
+// E minor wandering theme: rising calls and gently falling replies.
+// The high notes hint at possibility; B7 turnarounds suggest danger ahead.
+channel 0 traveler octave 5 {
+    e8   g8  b4  a8   g8  f#4 | // Em
+    f#8  a8  d'4 c'8  a8  f#4 | // D
+    e8   g8  c'4 b8   g8  e4  | // C
+    f#8  a8  b8  d#'8 c'8 b8 a4 | // B7
+
+    g8   b8  e'4 d'8  b8  g4  | // Em
+    b8   g8  d'4 b8   a8  g4  | // G
+    a8  c'8  e'4 d'8 c'8 a4  | // Am
+    b8   a8  f#8 d#8 f#4 r4 | // B7
+
+    e8   g8  b8  e'8 d'4 b8  a8 | // Em
+    f#8  a8  d'4 c'8 b8  a4  | // D
+    g8   b8  d'4 e'8 d'8 b4  | // G
+    f#8  b8  d'4 c'8 b8  f#4 | // Bm
+
+    e8   g8  c'4 b8 g8  e4   | // C
+    a8  c'8  e'4 c'8 a8 g4   | // Am
+    f#8  a8  b4  d#'8 c'8 a4 | // B7
+    b8   a8  f#8 d#8 f#4 r4 | // B7 -> Em
+}
+
+// Airy offbeat broken chords, leaving space for the melody.
+// Arpeggios rotate notes rather than sounding them simultaneously.
+channel 1 lantern octave 3 {
+    arpeggio { offsets 0,3,7 step 60ms }
+    r8 e8 r4 r8 e8 r4 | // Em
+
+    arpeggio { offsets 0,4,7 step 60ms }
+    r8 d8 r4 r8 d8 r4 | // D
+    r4 c4 r8 c8 r4   | // C
+
+    arpeggio { offsets 0,4,7,10 step 52ms }
+    r8 b,8 r4 r8 b,8 r4 | // B7
+
+    arpeggio { offsets 0,3,7 step 60ms }
+    r8 e8 r4 r8 e8 r4 | // Em
+
+    arpeggio { offsets 0,4,7 step 60ms }
+    r8 g8 r4 r8 g8 r4 | // G
+
+    arpeggio { offsets 0,3,7 step 60ms }
+    r8 a8 r4 r8 a8 r4 | // Am
+
+    arpeggio { offsets 0,4,7,10 step 52ms }
+    r8 b,8 r4 r8 b,8 r4 | // B7
+
+    arpeggio { offsets 0,3,7 step 60ms }
+    r4 e4 r8 e8 r4   | // Em
+
+    arpeggio { offsets 0,4,7 step 60ms }
+    r8 d8 r4 r8 d8 r4 | // D
+    r4 g4 r8 g8 r4   | // G
+
+    arpeggio { offsets 0,3,7 step 60ms }
+    r8 b,8 r4 r8 b,8 r4 | // Bm
+
+    arpeggio { offsets 0,4,7 step 60ms }
+    r8 c8 r4 r8 c8 r4 | // C
+
+    arpeggio { offsets 0,3,7 step 60ms }
+    r8 a8 r4 r8 a8 r4 | // Am
+
+    arpeggio { offsets 0,4,7,10 step 52ms }
+    r8 b,8 r4 r8 b,8 r4 | // B7
+    r8 b,8 r8 b,8 r4 b,4 | // B7 -> Em
+}
+
+// Light root/fifth movement: steady walking, not a battle ostinato.
+// Notes center on B2–E3 for an audible low register on a piezo.
+channel 2 walking octave 2 {
+    e'4 b8 e'8 b4 e'4   | // Em
+    d'4 a8 d'8 a4 d'4   | // D
+    c'4 g8 c'8 g4 c'4   | // C
+    b4 f#'8 b8 a4 f#'4 | // B7
+
+    e'4 b8 e'8 b4 e'4   | // Em
+    g4 d'8 g8 d'4 g4   | // G
+    a4 e'8 a8 e'4 a4   | // Am
+    b4 f#'8 b8 a4 f#'4 | // B7
+
+    e'4 b8 e'8 b4 e'4   | // Em
+    d'4 a8 d'8 a4 d'4   | // D
+    g4 d'8 g8 d'4 g4   | // G
+    b4 f#'8 b8 f#'4 b4 | // Bm
+
+    c'4 g8 c'8 g4 c'4   | // C
+    a4 e'8 a8 e'4 a4   | // Am
+    b4 f#'8 b8 a4 f#'4 | // B7
+    b4 f#'8 a8 b4 r4   | // B7 -> Em
+}
+
+// Quiet footsteps / rustling grass. Leave plenty of air around hits.
+phrase trail_step { r4 c8@step r8 r4 g8@brush r8 | }
+phrase trail_turn { r4 c8@step r8 g8@brush r8 c8@step r8 | }
+
+channel 3 octave 4 {
+    repeat 3 { trail_step }
+    trail_turn
+    repeat 3 { trail_step }
+    trail_turn
+    repeat 3 { trail_step }
+    trail_turn
+    repeat 3 { trail_step }
+    trail_turn
+}

@@ -2,7 +2,7 @@
 title "Peaceful Village"
 tempo 104
 meter 4/4
-volume 200%
+volume max
 automation 8ms
 
 envelope lead_env {

@@ -328,7 +328,7 @@ CTest's timing case uses shorter two-second normal/FXC windows plus calibration.
 The final full selected capture is in `build/audio-timing-selected-timer1`;
 original Timer3, initial Timer1 and unified runs remain in sibling folders.
 
-`tests/test_audio_timing.py` accepts `--baseline` for Timer3 JSON and repeatable
+`tools/measure_audio_timing.py` accepts `--baseline` for Timer3 JSON and repeatable
 `--comparison` arguments for other archived summaries, plus `--analyze-only`
 to replot matching existing CSVs. Durable data: [Timer3](audio_timing_data/timer3.json),
 [selected Timer1](audio_timing_data/timer1.json),

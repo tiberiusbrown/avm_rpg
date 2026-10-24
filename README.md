@@ -102,7 +102,7 @@ time, and foreground interrupt-disabled spans in the packaged game. The full
 run covers a complete song plus dialogue, menus, saving, walking, and collision;
 it also checks FXC and calibrates against known NOP/CLI workloads. CSV and JSON
 distributions are written to `build/audio-timing`; matplotlib adds PNG/SVG plots.
-CTest's `audio_timing` runs shorter two-second gameplay windows. See
+Audio timing is a manual measurement tool and is excluded from CTest. See
 [the timing investigation](docs/audio_timing.md) for measured results and definitions.
 
 See [Tiled/asset pipeline](docs/tiled_pipeline.md), [world architecture](docs/chunk_world.md),
