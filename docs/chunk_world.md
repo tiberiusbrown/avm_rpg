@@ -1,24 +1,26 @@
 # Chunk world — 16x16 conversion
 
-The world uses finite TMX areas with 16x16 terrain and characters. Each immutable
-storage/logic chunk covers 8x4 tiles (128x64 pixels), with 32 byte tile IDs in
-PROGMEM. Chunks never become RAM objects. A 9x5 effective tile cache covers the
+The world uses finite TMX areas with 16x16 terrain and characters. Immutable
+map data stores one byte per tile in contiguous rows in PROGMEM, without padding.
+Logic chunks cover 8x4 tiles (128x64 pixels) and determine handler dispatch only;
+they never become RAM objects. A 9x5 effective tile cache covers the
 display plus a partial edge row and column: 45 entries and two byte origins,
 47 bytes total, replacing the former 155-byte cache.
 
 Area IDs, tile coordinates, chunk coordinates and logical dimensions remain
 bytes; actor/camera coordinates remain 16-bit pixels. Maximum logical dimensions
 remain 240x248 tiles. The largest chunk grid is 30x62: final chunk index 1859,
-final stored byte offset 59519. Chunk indices and offsets widen to uint16_t.
-Map padding, out-of-window and wrong-area reads use TILE_OUTSIDE=0xFF. Usable
+final stored byte offset 59519. Chunk indices and map offsets widen to uint16_t.
+Outside-map, out-of-window and wrong-area reads use TILE_OUTSIDE=0xFF. Usable
 atlas IDs are 0x00..0xFE; the final atlas cell is reserved and has no sprite frame.
 
 `game.dimensions` caches the active logical width/height. Camera, movement, bounds,
-cache loading, tile setters and save validation use those dimensions rather than
-padding. Camera centering accounts for a 16-pixel character. The loader fills
-every cache row with the sentinel, then copies contiguous PROGMEM spans split
-at 8-tile chunk boundaries. All consumers read through `cached_tile()`; there
-is no offscreen projection or arbitrary PROGMEM tile lookup API.
+cache loading, tile setters and save validation use those dimensions.
+Camera centering accounts for a 16-pixel character. The loader fills the cache
+with the sentinel, then computes the clipped row count, byte count and starting
+pointers once. Each row uses one PROGMEM copy with source stride equal to map
+width and destination stride equal to CACHE_WIDTH. All consumers read through
+`cached_tile()`; there is no offscreen projection or arbitrary PROGMEM tile lookup API.
 
 ## Frame order
 

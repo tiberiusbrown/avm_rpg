@@ -149,8 +149,13 @@ class Pipeline(unittest.TestCase):
         )
         self.assertEqual(len(re.findall(r"\d+", data)), 59520)
 
-    def test_padding_and_chunk_layout(self):
+    def test_row_major_map_without_chunk_padding(self):
         self.dimensions(19, 13)
+        gids = [1 + (x + y * 19) % 255 for y in range(13) for x in range(19)]
+        # Keep the authored spawn passable while giving every other tile a
+        # distinct index, including rows and columns across handler chunks.
+        gids[5 * 19 + 7] = 1
+        self.tree.find("layer/data").text = ",".join(map(str, gids))
         self.write()
         result = export_world(self.root)
         body = (
@@ -159,13 +164,8 @@ class Pipeline(unittest.TestCase):
             .split("};", 1)[0]
         )
         data = list(map(int, re.findall(r"\d+", body)))
-        self.assertEqual(len(data), 3 * 4 * 32)
-        for cy in range(4):
-            for cx in range(3):
-                for y in range(4):
-                    for x in range(8):
-                        expected = 0 if cx * 8 + x < 19 and cy * 4 + y < 13 else 255
-                        self.assertEqual(data[(cy * 3 + cx) * 32 + y * 8 + x], expected)
+        self.assertEqual(len(data), 19 * 13)
+        self.assertEqual(data, [gid - 1 for gid in gids])
 
     def test_rectangle_expansion_at_four_chunks(self):
         sign = self.sign()

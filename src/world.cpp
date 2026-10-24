@@ -20,40 +20,32 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
         return;
     }
     uint8_t width = dimensions.width_tiles, height = dimensions.height_tiles;
-    uint8_t columns = (uint8_t)(((uint16_t)width + CHUNK_WIDTH - 1) / CHUNK_WIDTH);
-    uint16_t max_x = width > CHUNK_WIDTH ? (uint16_t)(width - CHUNK_WIDTH) * TILE : 0;
-    uint16_t max_y = height > CHUNK_HEIGHT ? (uint16_t)(height - CHUNK_HEIGHT) * TILE : 0;
+    uint16_t max_x = width >= CACHE_WIDTH ? (uint16_t)(width - (CACHE_WIDTH - 1)) * TILE : 0;
+    uint16_t max_y = height >= CACHE_HEIGHT ? (uint16_t)(height - (CACHE_HEIGHT - 1)) * TILE : 0;
     if(camera.x > max_x)
         camera.x = max_x;
     if(camera.y > max_y)
         camera.y = max_y;
     cache.origin_tx = (uint8_t)(camera.x >> TILE_SHIFT);
     cache.origin_ty = (uint8_t)(camera.y >> TILE_SHIFT);
-    uint8_t* dst = cache.tiles;
+    memset(cache.tiles, TILE_OUTSIDE, sizeof(cache.tiles));
 
-    // Contiguous row spans use the native program-memory copy service. No full
-    // chunk is ever resident. The sentinel also fills the extra edge row/column.
-    for(uint8_t row = 0; row < CACHE_HEIGHT; ++row) {
-        memset(dst, TILE_OUTSIDE, CACHE_WIDTH);
-        uint16_t y = (uint16_t)cache.origin_ty + row;
-        uint16_t x = cache.origin_tx;
-        uint8_t done = 0;
-        if(y < height) {
-            while(done < CACHE_WIDTH && x < width) {
-                uint8_t count = (uint8_t)(CHUNK_WIDTH - (x & (CHUNK_WIDTH - 1)));
-                if(count > CACHE_WIDTH - done)
-                    count = (uint8_t)(CACHE_WIDTH - done);
-                if(count > width - x)
-                    count = (uint8_t)(width - x);
-                uint16_t chunk = (y / CHUNK_HEIGHT) * columns + (x / CHUNK_WIDTH);
-                uint16_t offset = chunk * (CHUNK_WIDTH * CHUNK_HEIGHT) +
-                                  (y & (CHUNK_HEIGHT - 1)) * CHUNK_WIDTH + (x & (CHUNK_WIDTH - 1));
-                memcpy(dst + done, tiles + offset, count);
-                done = (uint8_t)(done + count);
-                x += count;
-            }
-        }
+    uint8_t rows = height - cache.origin_ty;
+    if(rows > CACHE_HEIGHT)
+        rows = CACHE_HEIGHT;
+    uint8_t row_bytes = width - cache.origin_tx;
+    if(row_bytes > CACHE_WIDTH)
+        row_bytes = CACHE_WIDTH;
+    if(!rows || !row_bytes)
+        return;
+    uint8_t* dst = cache.tiles;
+    uint8_t const PROGMEM* src = tiles + (uint16_t)cache.origin_ty * width + cache.origin_tx;
+
+    // Map rows are contiguous. Uncopied right/bottom cells retain the sentinel.
+    for(uint8_t row = 0; row < rows; ++row) {
+        memcpy(dst, src, row_bytes);
         dst += CACHE_WIDTH;
+        src += width;
     }
 }
 

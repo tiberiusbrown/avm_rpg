@@ -13,19 +13,23 @@ static void panel() {
 }
 
 void rpg_render_world() {
-    Camera c = game.camera;
-    uint8_t tx, ty;
+    int16_t left = -(int16_t)(game.camera.x & (TILE - 1));
+    int16_t top = -(int16_t)(game.camera.y & (TILE - 1));
+    uint8_t const* tiles = game.cache.tiles;
     avm_set_sprite(TILE_SPRITES);
-    for(ty = 0; ty < CACHE_HEIGHT; ++ty) {
-        for(tx = 0; tx < CACHE_WIDTH; ++tx) {
-            uint8_t tile = game.cache.tiles[(uint16_t)ty * CACHE_WIDTH + tx];
+    for(int16_t y = top; y < (CACHE_HEIGHT - 1) * TILE; y += TILE) {
+        // A fixed row span preserves unrolling. Native drawing clips the
+        // extra column when the camera is tile-aligned.
+        uint8_t const* row_end = tiles + CACHE_WIDTH;
+        for(int16_t x = left; tiles != row_end; x += TILE) {
+            uint8_t tile = *tiles++;
             if(tile == TILE_OUTSIDE)
                 continue;
-            avm_draw_overwrite((int16_t)tx * TILE - (int16_t)(c.x & (TILE - 1)),
-                               (int16_t)ty * TILE - (int16_t)(c.y & (TILE - 1)), tile);
+            avm_draw_overwrite(x, y, tile);
         }
     }
 
+    Camera c = game.camera;
     avm_set_sprite(ACTOR_SPRITES);
     uint8_t order[NPC_CAPACITY + 1];
     uint8_t count = actor_draw_order(order);

@@ -44,7 +44,8 @@ def main():
     if not args.resume:
         for suffix in ["elf", "elf.resources.json", "elf.lto.json", "arduboy", "fxc.arduboy"]:
             shutil.copy2(artifacts / f"rpg.{suffix}", trial / f"rpg.{suffix}")
-        for source in [*ROOT.glob("src/**/*.cpp"), *ROOT.glob("src/**/*.h")]:
+        for source in [*ROOT.glob("src/**/*.cpp"), *ROOT.glob("src/**/*.h"),
+                       *ROOT.glob("generated/*.cpp"), *ROOT.glob("generated/*.h")]:
             target = trial / "source" / source.relative_to(ROOT)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
@@ -54,7 +55,7 @@ def main():
     if not args.resume or not profile.exists():
         run(
             [profiler, "record", elf, "--warmup", "1s", "--for", "8s", "--native",
-             "--source-map", f"{ROOT / 'src'}={trial / 'source/src'}",
+             "--source-map", f"{ROOT}={trial / 'source'}",
              "--replay", trial / "replay.json", "-o", profile],
             trial / "record.log",
         )

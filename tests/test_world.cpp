@@ -30,8 +30,37 @@ bool dialogue_ask(char const PROGMEM*) {
 static uint8_t authored_tile(Area const& area, unsigned x, unsigned y) {
     if(x >= area.width || y >= area.height)
         return TILE_OUTSIDE;
-    unsigned chunk = (y / 4) * area.chunk_columns + x / 8;
-    return area.tiles[chunk * 32 + (y % 4) * 8 + x % 8];
+    return area.tiles[y * area.width + x];
+}
+
+static void window_edges() {
+    static uint8_t tiles[(unsigned)MAX_MAP_WIDTH * MAX_MAP_HEIGHT];
+    for(unsigned i = 0; i < sizeof(tiles); ++i)
+        tiles[i] = (uint8_t)((i * 17 + i / 32) % TILE_OUTSIDE);
+    unsigned widths[] = {0, 1, 7, 8, 9, 15, 16, 17, MAX_MAP_WIDTH};
+    unsigned heights[] = {0, 1, 3, 4, 5, 7, 8, 9, MAX_MAP_HEIGHT};
+    uint16_t cameras[] = {0, 1, 15, 16, 31, 47, 65535};
+    for(unsigned width : widths) {
+        for(unsigned height : heights) {
+            Area area{(uint8_t)width, (uint8_t)height, (uint8_t)((width + 7) / 8),
+                      (uint8_t)((height + 3) / 4), tiles, {0, 0}};
+            unsigned max_x = width >= CACHE_WIDTH ? (width - (CACHE_WIDTH - 1)) * TILE : 0;
+            unsigned max_y = height >= CACHE_HEIGHT ? (height - (CACHE_HEIGHT - 1)) * TILE : 0;
+            for(uint16_t y : cameras) {
+                for(uint16_t x : cameras) {
+                    TileCache cache{};
+                    reload_tile_window(cache, tiles, {area.width, area.height}, {x, y});
+                    unsigned tx = (x < max_x ? x : max_x) / TILE;
+                    unsigned ty = (y < max_y ? y : max_y) / TILE;
+                    CHECK(cache.origin_tx == tx && cache.origin_ty == ty);
+                    for(unsigned cy = 0; cy < CACHE_HEIGHT; ++cy)
+                        for(unsigned cx = 0; cx < CACHE_WIDTH; ++cx)
+                            CHECK(cache.tiles[cy * CACHE_WIDTH + cx] ==
+                                  authored_tile(area, tx + cx, ty + cy));
+                }
+            }
+        }
+    }
 }
 
 static void terrain_footprints() {
@@ -66,6 +95,7 @@ static void terrain_footprints() {
 
 int main() {
     run_world_scenarios();
+    window_edges();
     terrain_footprints();
     game_new();
     Area const& area = *world_area(AREA_OUTDOOR);

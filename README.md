@@ -78,7 +78,8 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 The bottom-right atlas cell (0xFF) is reserved for the impassable outside-map
 sentinel. Black cells retain their indices. Characters use direction order
 north/east/south/west, rest on frame 1, and walk through 1,2,1,3.
-Chunks cover 8x4 tiles; a 9x5 cache supports smooth scrolling and uses 108 fewer
+Map tiles are stored in contiguous rows without padding. Handler chunks cover
+8x4 tiles; a 9x5 cache supports smooth scrolling and uses 108 fewer
 RAM bytes than the previous 17x9 cache.
 
 The installed SDK must include `bin/avm/interp.fxc.hex`. Update an older SDK

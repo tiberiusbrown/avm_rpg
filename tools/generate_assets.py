@@ -677,18 +677,7 @@ def export_world(root=ROOT):
             f"extern uint8_t const PROGMEM {prefix}_TILES[];",
             f"extern Area const PROGMEM {prefix}_AREA;",
         ]
-        data = []
-        for cy in range(m.rows):
-            for cx in range(m.columns):
-                for ly in range(CHUNK_HEIGHT):
-                    for lx in range(CHUNK_WIDTH):
-                        x, y = cx * CHUNK_WIDTH + lx, cy * CHUNK_HEIGHT + ly
-                        data.append(
-                            m.data[y * m.width + x]
-                            if x < m.width and y < m.height
-                            else 255
-                        )
-        assets += array_lines(f"constexpr uint8_t PROGMEM {prefix}_TILES[]", data)
+        assets += array_lines(f"constexpr uint8_t PROGMEM {prefix}_TILES[]", m.data)
         spawn = names[m.spawn]
         assets.append(
             f"constexpr Area PROGMEM {prefix}_AREA"

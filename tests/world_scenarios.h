@@ -1,12 +1,12 @@
 #include "world_assets.h"
 
 struct LargeTiles {
-    uint8_t tiles[30u * 62u * 32u];
+    uint8_t tiles[240u * 248u];
 };
 
 constexpr LargeTiles make_large_tiles() {
     LargeTiles result{};
-    result.tiles[1859u * 32u] = TILE_SIGN;
+    result.tiles[244u * 240u + 232u] = TILE_SIGN;
     result.tiles[59519u] = TILE_GRASS;
     return result;
 }

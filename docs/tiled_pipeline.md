@@ -8,9 +8,10 @@ Pillow suffice for regeneration. Run `python tools/generate_assets.py`, or use
 
 Use finite orthogonal right-down TMX maps, 16x16 tiles, uncompressed CSV layers,
 and external `assets/tilesets/world.tsx`. The maximum logical area remains
-240x248 tiles. Storage chunks are 8x4 tiles (32 bytes). Layers flatten in document
-order; zero GIDs leave underlying tiles untouched. Empty cells and padding become
-the outside sentinel, 255. No flipping, rotation, infinite/compressed maps, offsets,
+240x248 tiles. Map data stores exactly width * height tile IDs in row-major order,
+without chunk padding. The 8x4 chunks organize handler dispatch only.
+Layers flatten in document order; zero GIDs leave underlying tiles untouched.
+Empty cells become the outside sentinel, 255. No flipping, rotation, infinite/compressed maps, offsets,
 hidden/translucent layers or per-tile animation is supported.
 
 `tiles16.png` is opaque monochrome, 256x256, with 16 columns and 16 rows. Runtime

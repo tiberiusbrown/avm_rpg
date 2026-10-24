@@ -8,10 +8,11 @@ map authority; generated native C++ calls associate each footprint with all
 intersecting chunks. Moving an anchor moves its constants and dispatch without
 handwritten ownership changes. No custom interpreter or runtime registry exists.
 
-The sole resident tile cache is 17x9 bytes with byte origins, fully reloaded every
-simulation frame. Chunks remain in PROGMEM. Byte tile/chunk/map dimensions enforce
+The sole resident tile cache is 9x5 bytes with byte origins, fully reloaded every
+simulation frame. Map tiles remain row-major in PROGMEM; 8x4 chunks determine
+handler dispatch, independently of tile storage. Byte tile/chunk/map dimensions enforce
 the 240x248 limit, while pixels and flattened indices use uint16_t. Logical
-bounds clip padded storage and camera edges. Active area dimensions are cached in
+bounds clip map reads and camera edges. Active area dimensions are cached in
 Game's existing two-byte MapDimensions on entry or
 cross-area teleport. Runtime camera, chunk, cache, setter and membership bounds
 use those RAM values; save validation still checks the candidate area before
