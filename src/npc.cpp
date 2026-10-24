@@ -35,6 +35,9 @@ void npc_reset() {
 void npc_begin_frame() {
     game.npcs.request_count = 0;
     for(auto& n : game.npcs.actors) {
+        // Activation clears the entire slot before reuse.
+        if(!n.id)
+            continue;
         if(!(n.state & NPC_PUSHED)) {
             n.push = 0;
             n.state &= ~NPC_CAN_DETOUR;
@@ -383,6 +386,8 @@ void npc_repair() {
 void npc_player_begin(DIRECTION dir) {
     if(dir != game.npcs.push_direction || dir == STILL) {
         for(auto& n : game.npcs.actors) {
+            if(!n.id)
+                continue;
             n.push = 0;
             n.state &= ~NPC_CAN_DETOUR;
         }

@@ -20,8 +20,12 @@ uint8_t input_pressed() {
 }
 
 void input_wait_release(uint8_t mask) {
-    while(avm_buttons() & mask)
+    while(avm_buttons() & mask) {
         avm_idle();
+        avm_idle();
+        avm_idle();
+        avm_idle();
+    }
     input_sync();
 }
 
@@ -29,7 +33,6 @@ uint8_t input_wait_press(uint8_t mask) {
     input_wait_release(mask);
 
     for(;;) {
-        avm_idle();
         avm_idle();
         avm_idle();
         avm_idle();
@@ -42,5 +45,6 @@ uint8_t input_wait_press(uint8_t mask) {
 
 void input_wait_frame() {
     while(!avm_next_frame()) {
+        avm_idle();
     }
 }

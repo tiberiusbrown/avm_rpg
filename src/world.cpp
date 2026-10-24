@@ -90,10 +90,19 @@ bool terrain_clear(uint16_t x, uint16_t y) {
             x2 = (uint8_t)((x + FOOT_RIGHT) >> TILE_SHIFT);
     uint8_t y1 = (uint8_t)((y + FOOT_TOP) >> TILE_SHIFT),
             y2 = (uint8_t)((y + FOOT_BOTTOM) >> TILE_SHIFT);
-    for(uint8_t ty = y1; ty <= y2; ++ty)
-        for(uint8_t tx = x1; tx <= x2; ++tx)
-            if(tile_solid(cached_tile({game.area, tx, ty})))
-                return false;
+    // A foot box intersects at most two columns and two rows. Preserve the
+    // row-major short circuit without loop counters or duplicate tile reads.
+    static_assert(FOOT_WIDTH <= TILE && FOOT_HEIGHT <= TILE);
+    if(tile_solid(cached_tile({game.area, x1, y1})))
+        return false;
+    if(x2 != x1 && tile_solid(cached_tile({game.area, x2, y1})))
+        return false;
+    if(y2 != y1) {
+        if(tile_solid(cached_tile({game.area, x1, y2})))
+            return false;
+        if(x2 != x1 && tile_solid(cached_tile({game.area, x2, y2})))
+            return false;
+    }
     return true;
 }
 
