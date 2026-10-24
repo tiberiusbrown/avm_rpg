@@ -14,9 +14,17 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
+| Peaceful | Original NES-inspired village theme: pulse melody, broken chords, triangle bass | C major / 4/4 | 100 | 57.600 s |
 | Boss | FamiTracker APU/VRC6 melody, pulse guitar, saw bass, and percussion | Tracker speed 5 | 200 | 34.000 s |
 | Venus | FamiTracker VRC6 melody, APU harmony, saw bass, and percussion | Tracker speed 8 | 200 | 25.600 s |
 | Good Endings | Cleaned MIDI glockenspiel, lute/horn/viola accompaniment, and electric bass | 4/4 | 120 | 172.000 s |
+
+[`peaceful.avms`](assets/music/peaceful.avms) is a 24-bar A-B-A' town theme with
+an original melody inspired by the gentle three-voice texture of NES Final Fantasy.
+The middle eight bars introduce a higher answering melody and sparser counterpoint;
+the final phrase resolves to C, with a pickup into the next loop. It uses channels
+0/1/2 and leaves noise free. The generated catalog exposes it as `MUSIC_PEACEFUL`
+and displays **Peaceful** in the music menu.
 
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through the scores in filename order, wrapping at the end. The selected
