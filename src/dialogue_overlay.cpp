@@ -2,7 +2,25 @@
 
 #include <avm.h>
 
-static constexpr uint8_t LEFT = 6, RIGHT = 122, FIRST_LINE = 39, LAST_LINE = 53;
+// Overlay geometry. Changing the visible line count recomputes every position below.
+static constexpr uint8_t DISPLAY_WIDTH = 128, DISPLAY_HEIGHT = 64;
+static constexpr uint8_t DIALOGUE_VISIBLE_LINES = 3;
+static constexpr uint8_t BORDER = 1, PADDING = 1, GAP_ABOVE = 1;
+
+// AVM_FONT_BR5D: seven-pixel line spacing, five pixels above the baseline, and
+// descenders that reach the baseline row.
+static constexpr uint8_t LINE_HEIGHT = 7, ASCENT = 5;
+static constexpr uint8_t PROMPT_GAP = 1, PROMPT_ROWS = ASCENT + 1;
+
+static constexpr uint8_t OVERLAY_HEIGHT =
+    2 * BORDER + 2 * PADDING + DIALOGUE_VISIBLE_LINES * LINE_HEIGHT + PROMPT_GAP + PROMPT_ROWS;
+static constexpr uint8_t OVERLAY_TOP = DISPLAY_HEIGHT - OVERLAY_HEIGHT;
+
+static constexpr uint8_t LEFT = BORDER + PADDING;
+static constexpr uint8_t RIGHT = DISPLAY_WIDTH - BORDER - PADDING;
+static constexpr uint8_t FIRST_LINE = OVERLAY_TOP + BORDER + PADDING + ASCENT;
+static constexpr uint8_t LAST_LINE = FIRST_LINE + (DIALOGUE_VISIBLE_LINES - 1) * LINE_HEIGHT;
+static constexpr uint8_t PROMPT_BASELINE = DISPLAY_HEIGHT - BORDER - PADDING - 1;
 
 static uint8_t dialogue_x, dialogue_y;
 
@@ -14,8 +32,10 @@ static bool separator(char c) {
 }
 
 static void clear_overlay() {
-    avm_draw_filled_rect_black(2, 30, 124, 34);
-    avm_draw_filled_rect_white(2, 30, 124, 1);
+    avm_draw_filled_rect_black(0, OVERLAY_TOP - GAP_ABOVE, DISPLAY_WIDTH, GAP_ABOVE);
+    avm_draw_filled_rect_white(0, OVERLAY_TOP, DISPLAY_WIDTH, OVERLAY_HEIGHT);
+    avm_draw_filled_rect_black(BORDER, OVERLAY_TOP + BORDER, DISPLAY_WIDTH - 2 * BORDER,
+                               OVERLAY_HEIGHT - 2 * BORDER);
     dialogue_x = LEFT;
     dialogue_y = FIRST_LINE;
 }
@@ -23,19 +43,19 @@ static void clear_overlay() {
 static void open_overlay() {
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
-    avm_draw_filled_rect_black(0, 0, 128, 64);
+    avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     rpg_render_world();
     clear_overlay();
 }
 
 static void close_overlay() {
-    avm_draw_filled_rect_black(0, 0, 128, 64);
+    avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     rpg_render_world();
     avm_display(true);
 }
 
 static bool wait_for_input(DIALOGUE_PROMPT prompt) {
-    avm_draw_text(LEFT, 62,
+    avm_draw_text(LEFT, PROMPT_BASELINE,
                   prompt == DIALOGUE_MORE     ? F("A more / B leave")
                   : prompt == DIALOGUE_CHOICE ? F("A yes / B no")
                                               : F("A / B close"));
@@ -48,9 +68,9 @@ static bool wait_for_input(DIALOGUE_PROMPT prompt) {
 }
 
 static bool next_line() {
-    if(dialogue_y + AVM_FONT_BR5D->line_height <= LAST_LINE) {
+    if(dialogue_y + LINE_HEIGHT <= LAST_LINE) {
         dialogue_x = LEFT;
-        dialogue_y += AVM_FONT_BR5D->line_height;
+        dialogue_y += LINE_HEIGHT;
         return true;
     }
 

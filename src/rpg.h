@@ -10,6 +10,7 @@
 #else
 #define PROGMEM
 #define F(text) (text)
+#define memcpy_P(dst, src, size) memcpy((dst), (src), (size))
 #endif
 
 #ifdef _MSC_VER

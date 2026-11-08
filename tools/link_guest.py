@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 from resources import inspect
@@ -24,7 +25,12 @@ command = [
     "-o",
     str(elf),
 ]
-run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+# avm-clang starts avm-ld by bare name, so the SDK bin directory must be on PATH.
+sdk_bin = Path(args.compiler).resolve().parent
+link_env = dict(os.environ, PATH=os.pathsep.join([str(sdk_bin), os.environ.get("PATH", "")]))
+run = subprocess.run(
+    command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=link_env
+)
 print(run.stdout, end="")
 elf.with_suffix(".link.txt").write_text(run.stdout)
 if run.returncode:

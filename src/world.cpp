@@ -43,7 +43,7 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
 
     // Map rows are contiguous. Uncopied right/bottom cells retain the sentinel.
     for(uint8_t row = 0; row < rows; ++row) {
-        memcpy(dst, src, row_bytes);
+        memcpy_P(dst, src, row_bytes);
         dst += CACHE_WIDTH;
         src += width;
     }
