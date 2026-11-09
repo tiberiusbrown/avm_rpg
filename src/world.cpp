@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "logic/npc_logic.h"
 #include "world_assets.h"
 
 #include <string.h>
@@ -206,6 +207,7 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
         // Blocking work sees the complete cache. Flag changes wait for the next tiles pass.
         RPG_PHASE(5);
         process_all_chunks<STAGE_DIALOGUE>();
+        npc_dialogue();
         if(teleported) {
             refresh_tile_cache();
             RPG_PHASE(6);

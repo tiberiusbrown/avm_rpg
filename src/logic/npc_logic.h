@@ -11,5 +11,7 @@ void npc_on_event(Npc& npc, NPC_EVENT event);
 void npc_on_retire(Npc const& npc, NPC_RETIRE_REASON reason);
 void npc_logic_restore();
 void npc_talk(NPC_ID id);
+// Shows the pending NPC dialogue. Call once per frame after the Dialogue stage.
+void npc_dialogue();
 
 #endif

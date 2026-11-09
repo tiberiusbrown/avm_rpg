@@ -2,10 +2,10 @@
 #include "map_positions.h"
 
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
-    static constexpr NpcDefinition PROGMEM VILLAGER{NPC_STAND, SOUTH, 1, 16, 16,   0,
-                                                    0,         3,     0, 1,  false};
-    static constexpr NpcDefinition PROGMEM WANDERER{NPC_WANDER, WEST, 1, 24, 24,   16,
-                                                    12,         2,    0, 2,  false};
+    static constexpr NpcDefinition PROGMEM VILLAGER{NPC_STAND, SOUTH, 1, 16, 16,  0,
+                                                    0,         3,     0, 1,  true};
+    static constexpr NpcDefinition PROGMEM WANDERER{NPC_WANDER, WEST, 1, 24, 24,  16,
+                                                    12,         2,    0, 2,  true};
     switch(id) {
         case NPC_VILLAGER:
             return &VILLAGER;
@@ -41,4 +41,25 @@ void npc_on_retire(Npc const&, NPC_RETIRE_REASON) {}
 
 void npc_logic_restore() {}
 
-void npc_talk(NPC_ID) {}
+// Talking only records the request. Blocking dialogue runs later in npc_dialogue().
+static NPC_ID pending_talk = NPC_NONE;
+
+void npc_talk(NPC_ID id) {
+    pending_talk = id;
+}
+
+void npc_dialogue() {
+    NPC_ID id = pending_talk;
+    pending_talk = NPC_NONE;
+    switch(id) {
+        case NPC_VILLAGER:
+            dialogue_show(
+                F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove."));
+            break;
+        case NPC_WANDERER:
+            dialogue_show(F("I walk this path every night. Mind the roots near the old oak."));
+            break;
+        default:
+            break;
+    }
+}

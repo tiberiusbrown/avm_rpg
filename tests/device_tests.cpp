@@ -459,6 +459,26 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
 
+    // Stand one tile north of the villager, facing it, and talk with A.
+    auto npc_state = d.state();
+    auto villager = std::find_if(npc_state.npcs.actors, npc_state.npcs.actors + NPC_CAPACITY,
+                                 [](Npc const& n) { return n.id == NPC_VILLAGER; });
+    require(villager != npc_state.npcs.actors + NPC_CAPACITY, "villager is not active");
+    npc_state.player.x = villager->actor.x;
+    npc_state.player.y = villager->actor.y - TILE;
+    npc_state.player.facing = SOUTH;
+    npc_state.player.walking = 0;
+    d.set_state(npc_state);
+    d.advance(0, 800000);
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_TYPING, "villager talk did not open dialogue");
+    d.wait_for_typing();
+    require(d.prompt() == DIALOGUE_DONE, "villager dialogue did not reach its final prompt");
+    d.capture(out / "npc-dialogue.pgm");
+    d.advance(0, 8000000);
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_CLOSED, "villager dialogue did not close");
+
     d.tap(BTN_B);
     auto menu_state = d.state();
     unsigned menu_serial = d.serial();

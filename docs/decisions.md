@@ -151,7 +151,8 @@ letter. A during typing finishes the current page; A at a prompt advances or
 confirms, but is ignored for half a second after the prompt appears. B dismisses
 or declines at a prompt. Each prompt requires a fresh press. Five-byte text scratch lives in shallow
 helpers that return before input waits; no page buffer or glyph table is stored.
-Facing plus proximity identifies an NPC on an A edge. Iona's ordinary function
+Facing plus proximity identifies an NPC on an A edge; `npc_talk` records the request
+and `npc_dialogue` shows that NPC's line in the Dialogue phase. Iona's ordinary function
 calls show an introduction, ask a question, and apply its result; accepting sets
 the lantern flag and grants five gold once. Menu B opens/closes;
 A selects Status/Save/Return. Startup allows New or Continue only after validating

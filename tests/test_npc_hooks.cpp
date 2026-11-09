@@ -66,6 +66,8 @@ void npc_logic_restore() {
 
 void npc_talk(NPC_ID) {}
 
+void npc_dialogue() {}
+
 bool dialogue_show(char const PROGMEM*) {
     return true;
 }
