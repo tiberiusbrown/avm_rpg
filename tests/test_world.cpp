@@ -255,6 +255,67 @@ static void corner_assist() {
     tile_collision_reset();
 }
 
+// Blocked for the player at one world pixel: outside the map, or solid in its tile's mask.
+static bool oracle_pixel_blocked(uint16_t wx, uint16_t wy) {
+    if(!game.dimensions.pixel_bounds(wx, wy))
+        return true;
+    uint16_t mask =
+        tile_collision(cached_tile({AREA_OUTDOOR, (uint8_t)(wx >> 4), (uint8_t)(wy >> 4)}));
+    if(mask == 0xFFFF)
+        return true;
+    return mask != 0 && collision_pixel_solid(mask, wx & 15, wy & 15);
+}
+
+// Random partial masks: the foot-box test and the leading-edge probe agree with per-pixel
+// oracles, so the table-driven tests cannot drift from the triangle rule.
+static void random_masks() {
+    game_new();
+    constexpr uint8_t SHAPE = TILE_ATLAS_25;
+    set_tile({AREA_OUTDOOR, 9, 2}, SHAPE);
+    uint32_t seed = 2026;
+    for(unsigned trial = 0; trial < 200; ++trial) {
+        seed = seed * 1664525u + 1013904223u;
+        tile_collision_override(SHAPE, (uint16_t)(seed >> 16));
+        for(unsigned y = 20; y <= 40; ++y) {
+            for(unsigned x = 128; x <= 152; ++x) {
+                CHECK(player_terrain_clear(x, y) == oracle_clear(x, y));
+                for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
+                    bool horizontal = dir == EAST || dir == WEST;
+                    uint8_t expected = 0;
+                    for(unsigned i = 0; i < 8; ++i) {
+                        unsigned wx = horizontal ? x + (dir == EAST ? FOOT_RIGHT : FOOT_LEFT)
+                                                 : x + FOOT_LEFT + i;
+                        unsigned wy = horizontal ? y + FOOT_TOP + i
+                                                 : y + (dir == SOUTH ? FOOT_BOTTOM : FOOT_TOP);
+                        if(oracle_pixel_blocked((uint16_t)wx, (uint16_t)wy))
+                            expected = (uint8_t)(expected | (1u << i));
+                    }
+                    CHECK(player_leading_edge((uint16_t)x, (uint16_t)y, dir) == expected);
+                }
+            }
+        }
+    }
+    tile_collision_reset();
+}
+
+// Tile edits last only until the next frame's reload. An edit that nothing reapplies resets
+// by itself, even when the camera does not move.
+static void tile_edits_reset_each_frame() {
+    game_new();
+    TilePos pos = {AREA_OUTDOOR, 4, 4}; // Grass inside the cache window.
+    uint8_t authored = cached_tile(pos);
+    uint8_t origin_x = game.cache.origin_tx, origin_y = game.cache.origin_ty;
+    CHECK(authored != TILE_TREE);
+    set_tile(pos, TILE_TREE);
+    CHECK(cached_tile(pos) == TILE_TREE);
+    update_visible_world(0, false);
+    CHECK(cached_tile(pos) == authored);
+    CHECK(game.cache.origin_tx == origin_x && game.cache.origin_ty == origin_y);
+    // With no edit, the cache keeps matching the map frame after frame.
+    update_visible_world(0, false);
+    CHECK(cached_tile(pos) == authored);
+}
+
 int main() {
     run_world_scenarios();
     window_edges();
@@ -262,6 +323,8 @@ int main() {
     collision_triangles();
     player_shapes();
     corner_assist();
+    random_masks();
+    tile_edits_reset_each_frame();
     game_new();
     Area const& area = *world_area(AREA_OUTDOOR);
     for(unsigned y = 0; y <= 128; y += 3) {

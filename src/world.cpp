@@ -33,22 +33,46 @@ bool tile_solid(uint8_t tile) {
     return tile_collision(tile) != 0;
 }
 
-bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y) {
-    // Triangles are closed shapes. A pixel center lies in one triangle, or on a quadrant
-    // diagonal where it lies on the shared edge of two. That center is solid when either
-    // triangle is solid, so a diagonal edge rasterizes as one unbroken line.
-    uint8_t quadrant = (uint8_t)(((y >> 3) << 1) | (x >> 3));
-    int16_t u = (int16_t)(2 * (x & 7) - 7), v = (int16_t)(2 * (y & 7) - 7);
+// One quadrant's triangle rule. (x, y) are quadrant-local pixels from 0 to 7, and the nibble
+// orders its bits north, east, south, west. A pixel center is solid when it lies in a solid
+// triangle, or on the shared edge of a solid one.
+constexpr bool quadrant_solid(uint8_t nibble, uint8_t x, uint8_t y) {
+    int16_t u = (int16_t)(2 * x - 7), v = (int16_t)(2 * y - 7);
     int16_t au = u < 0 ? (int16_t)-u : u, av = v < 0 ? (int16_t)-v : v;
-    uint8_t horizontal = u > 0 ? 1 : 3;
-    uint8_t vertical = v > 0 ? 2 : 0;
-    bool across = (mask >> (quadrant * 4 + horizontal)) & 1;
-    bool along = (mask >> (quadrant * 4 + vertical)) & 1;
+    bool across = ((nibble >> (u > 0 ? 1 : 3)) & 1) != 0;
+    bool along = ((nibble >> (v > 0 ? 2 : 0)) & 1) != 0;
     if(au > av)
         return across;
     if(av > au)
         return along;
     return across || along;
+}
+
+// Solid pixels of every quadrant pattern. Bit x of row[nibble][y] is pixel (x, y), so one
+// foot-box row inside a quadrant is a single byte test.
+struct QuadrantRows {
+    uint8_t row[16][8];
+};
+
+constexpr QuadrantRows make_quadrant_rows() {
+    QuadrantRows rows{};
+    for(uint8_t nibble = 0; nibble < 16; ++nibble)
+        for(uint8_t y = 0; y < 8; ++y)
+            for(uint8_t x = 0; x < 8; ++x)
+                if(quadrant_solid(nibble, x, y))
+                    rows.row[nibble][y] = (uint8_t)(rows.row[nibble][y] | (1u << x));
+    return rows;
+}
+
+// 128 bytes of flash, computed from quadrant_solid at compile time.
+static constexpr QuadrantRows PROGMEM QUADRANT_ROWS = make_quadrant_rows();
+
+bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y) {
+    // Triangles are closed shapes. A pixel center on a quadrant diagonal is solid when either
+    // triangle that shares the diagonal is solid, so a diagonal edge rasterizes as one line.
+    uint8_t quadrant = (uint8_t)(((y >> 3) << 1) | (x >> 3));
+    return quadrant_solid((uint8_t)((mask >> (quadrant * 4)) & 0xF), (uint8_t)(x & 7),
+                          (uint8_t)(y & 7));
 }
 
 #ifndef RPG_AVM
@@ -124,13 +148,67 @@ uint8_t cached_tile(TilePos pos) {
     return TILE_OUTSIDE;
 }
 
-// True when any pixel of [x0,x1] x [y0,y1] is solid in one tile's mask.
+// True when any pixel of [x0,x1] x [y0,y1] is solid in one tile's mask. A row crosses at most
+// two quadrants, and each crossing is one window over that quadrant's row byte.
 static bool mask_hits(uint16_t mask, uint8_t x0, uint8_t x1, uint8_t y0, uint8_t y1) {
-    for(uint8_t y = y0; y <= y1; ++y)
-        for(uint8_t x = x0; x <= x1; ++x)
-            if(collision_pixel_solid(mask, x, y))
+    for(uint8_t y = y0; y <= y1; ++y) {
+        uint8_t left = (uint8_t)((y >> 3) << 1), qy = (uint8_t)(y & 7);
+        if(x0 < 8) {
+            uint8_t nibble = (uint8_t)((mask >> (4 * left)) & 0xF);
+            uint8_t hi = x1 < 7 ? x1 : 7;
+            uint8_t window = (uint8_t)(((2u << hi) - 1) & ~((1u << x0) - 1));
+            if(QUADRANT_ROWS.row[nibble][qy] & window)
                 return true;
+        }
+        if(x1 >= 8) {
+            uint8_t nibble = (uint8_t)((mask >> (4 * (left + 1))) & 0xF);
+            uint8_t lo = x0 > 8 ? (uint8_t)(x0 - 8) : 0;
+            uint8_t window = (uint8_t)(((2u << (x1 - 8)) - 1) & ~((1u << lo) - 1));
+            if(QUADRANT_ROWS.row[nibble][qy] & window)
+                return true;
+        }
+    }
     return false;
+}
+
+// Solid at one pixel of a tile's mask. Whole-tile masks skip the table.
+static bool mask_pixel(uint16_t mask, uint8_t x, uint8_t y) {
+    if(!mask)
+        return false;
+    if(mask == 0xFFFF)
+        return true;
+    uint8_t quadrant = (uint8_t)(((y >> 3) << 1) | (x >> 3));
+    uint8_t nibble = (uint8_t)((mask >> (4 * quadrant)) & 0xF);
+    return ((QUADRANT_ROWS.row[nibble][y & 7] >> (x & 7)) & 1) != 0;
+}
+
+__attribute__((noinline)) uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir) {
+    static_assert(FOOT_WIDTH == 8 && FOOT_HEIGHT == 8, "sidestep bits cover the 8-pixel edge");
+    bool horizontal = dir == EAST || dir == WEST;
+    // The column of an east or west step, or the row of a north or south one.
+    uint16_t fixed = horizontal ? (uint16_t)(x + (dir == EAST ? FOOT_RIGHT : FOOT_LEFT))
+                                : (uint16_t)(y + (dir == SOUTH ? FOOT_BOTTOM : FOOT_TOP));
+    uint8_t bits = 0;
+    uint16_t tile_key = 0, mask = 0;
+    bool loaded = false;
+    for(uint8_t i = 0; i < 8; ++i) {
+        uint16_t wx = horizontal ? fixed : (uint16_t)(x + FOOT_LEFT + i);
+        uint16_t wy = horizontal ? (uint16_t)(y + FOOT_TOP + i) : fixed;
+        bool blocked = true;
+        if(game.dimensions.pixel_bounds(wx, wy)) {
+            uint16_t key = (uint16_t)(((wy >> TILE_SHIFT) << 8) | (wx >> TILE_SHIFT));
+            if(!loaded || key != tile_key) {
+                tile_key = key;
+                loaded = true;
+                mask = tile_collision(cached_tile(
+                    {game.area, (uint8_t)(wx >> TILE_SHIFT), (uint8_t)(wy >> TILE_SHIFT)}));
+            }
+            blocked = mask_pixel(mask, (uint8_t)(wx & (TILE - 1)), (uint8_t)(wy & (TILE - 1)));
+        }
+        if(blocked)
+            bits = (uint8_t)(bits | (1u << i));
+    }
+    return bits;
 }
 
 // The player's foot box checked pixel by pixel against each tile's collision mask.

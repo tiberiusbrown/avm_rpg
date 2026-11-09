@@ -152,6 +152,9 @@ uint8_t cached_tile(TilePos p);
 bool terrain_clear(uint16_t x, uint16_t y);
 // Player foot box against collision masks. Full tiles block the whole box.
 bool player_terrain_clear(uint16_t x, uint16_t y);
+// Bit i is set when pixel i of the foot box's leading edge is blocked: the right or left
+// column for east and west steps, and the bottom or top row for south and north steps.
+uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir);
 void reload_tile_cache();
 bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
 void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);

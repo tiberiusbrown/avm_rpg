@@ -62,42 +62,69 @@ static bool next_pixel(uint16_t x, uint16_t y, DIRECTION dir, uint16_t& nx, uint
     return true;
 }
 
+// How one pixel step ended. Only a terrain block lets the player sidestep.
+enum STEP_RESULT : uint8_t { STEP_MOVED, STEP_TERRAIN, STEP_NPC, STEP_EDGE };
+
 // Moves one pixel in dir when that pixel is clear for the actor.
-static bool step_actor(Actor* a, DIRECTION dir) {
+static STEP_RESULT step_actor(Actor* a, DIRECTION dir) {
     uint16_t x, y;
     if(!next_pixel(a->x, a->y, dir, x, y))
-        return false;
+        return STEP_EDGE;
     bool player = a == &game.player;
-    bool clear = player ? player_terrain_clear(x, y) : terrain_clear(x, y);
-    if(!clear || (player && !npc_player_clear(x, y, dir)))
-        return false;
+    if(!(player ? player_terrain_clear(x, y) : terrain_clear(x, y)))
+        return STEP_TERRAIN;
+    if(player && !npc_player_clear(x, y, dir))
+        return STEP_NPC;
     a->x = x;
     a->y = y;
-    return true;
+    return STEP_MOVED;
 }
 
-// When terrain blocks the player's next pixel, a sidestep of up to CORNER_ASSIST_PIXELS
-// toward a clear position moves the player one pixel sideways. Walking on from there
-// takes it past a corner a few pixels deep. Deeper overlaps stay blocked, and NPCs never
-// sidestep.
+static_assert(CORNER_ASSIST_PIXELS < FOOT_WIDTH, "sidestep shifts stay within the edge");
 
-static bool sidestep_corner(Actor* a, DIRECTION dir) {
+// A sidestep of `shift` pixels toward side 0 (north or west) keeps the edge pixels below the
+// shift, which therefore must be clear. Side 1 (south or east) keeps the pixels above it. The
+// exact foot-box test still decides each candidate.
+static bool sidestep_admissible(uint8_t edge, uint8_t shift, uint8_t side) {
+    if(side == 0)
+        return (edge & ((1u << (FOOT_WIDTH - shift)) - 1)) == 0;
+    return (edge >> shift) == 0;
+}
+
+// A blocked player step sidesteps by up to CORNER_ASSIST_PIXELS toward a clear position, as a
+// one-pixel move in that direction. Walking on from there takes it past a corner a few pixels
+// deep. Deeper overlaps stay blocked, and NPCs never sidestep.
+__attribute__((noinline)) static bool sidestep_corner(Actor* a, DIRECTION dir) {
     uint16_t fx, fy;
-    if(!next_pixel(a->x, a->y, dir, fx, fy) || player_terrain_clear(fx, fy))
+    if(!next_pixel(a->x, a->y, dir, fx, fy))
+        return false;
+    uint8_t edge = player_leading_edge(fx, fy, dir);
+    // Every edge pixel is blocked, so no sidestep up to the assist distance clears it.
+    if(edge == 0xFF)
         return false;
     bool horizontal = dir == EAST || dir == WEST;
+    // A strafe pixel depends only on its side, so each side is tested at most once.
+    uint8_t strafe[2] = {0, 0}; // 0 untested, 1 clear, 2 blocked
     for(uint8_t shift = 1; shift <= CORNER_ASSIST_PIXELS; ++shift) {
         for(uint8_t side = 0; side < 2; ++side) {
-            DIRECTION sidestep = horizontal ? (side ? SOUTH : NORTH) : (side ? EAST : WEST);
-            uint16_t cx = fx, cy = fy;
-            if(horizontal)
-                cy = side ? (uint16_t)(fy + shift) : (uint16_t)(fy - shift);
-            else
-                cx = side ? (uint16_t)(fx + shift) : (uint16_t)(fx - shift);
-            uint16_t sx, sy;
-            if(!player_terrain_clear(cx, cy) || !next_pixel(a->x, a->y, sidestep, sx, sy) ||
-               !player_terrain_clear(sx, sy) || !npc_player_clear(sx, sy, sidestep))
+            if(!sidestep_admissible(edge, shift, side))
                 continue;
+            int16_t offset = side ? shift : -shift;
+            uint16_t cx = horizontal ? fx : (uint16_t)(fx + offset);
+            uint16_t cy = horizontal ? (uint16_t)(fy + offset) : fy;
+            if(!player_terrain_clear(cx, cy))
+                continue;
+            DIRECTION sidestep = horizontal ? (side ? SOUTH : NORTH) : (side ? EAST : WEST);
+            if(!strafe[side]) {
+                uint16_t sx, sy;
+                bool clear = next_pixel(a->x, a->y, sidestep, sx, sy) &&
+                             player_terrain_clear(sx, sy) && npc_player_clear(sx, sy, sidestep);
+                strafe[side] = clear ? 1 : 2;
+            }
+            if(strafe[side] == 2)
+                continue;
+            uint16_t sx, sy;
+            next_pixel(a->x, a->y, sidestep, sx, sy);
             a->x = sx;
             a->y = sy;
             return true;
@@ -116,11 +143,12 @@ bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
     a->facing = dir;
 
     while(pixels--) {
-        if(step_actor(a, dir)) {
+        STEP_RESULT step = step_actor(a, dir);
+        if(step == STEP_MOVED) {
             moved = true;
             continue;
         }
-        if(a == &game.player && sidestep_corner(a, dir)) {
+        if(step == STEP_TERRAIN && a == &game.player && sidestep_corner(a, dir)) {
             moved = true;
             // The sidestep uses this pixel, and the forward pixel is taken if it is now clear.
             step_actor(a, dir);
