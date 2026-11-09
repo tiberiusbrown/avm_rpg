@@ -77,10 +77,10 @@ static void terrain_footprints() {
     // Every arrangement of four solid/passable tiles, at every pixel alignment.
     // The oracle checks each foot pixel independently of the corner algorithm.
     for(unsigned mask = 0; mask < 16; ++mask) {
-        memset(game.cache.tiles, TILE_GROUND, sizeof(game.cache.tiles));
+        memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
         for(unsigned tile = 0; tile < 4; ++tile)
             game.cache.tiles[(2 + tile / 2) * CACHE_WIDTH + 3 + tile % 2] =
-                mask & (1u << tile) ? TILE_TREE : TILE_GROUND;
+                mask & (1u << tile) ? TILE_TREE : TILE_GRASS_06;
         for(unsigned sy = 0; sy < TILE; ++sy) {
             for(unsigned sx = 0; sx < TILE; ++sx) {
                 uint16_t x = (uint16_t)(6 * TILE + sx - FOOT_LEFT);

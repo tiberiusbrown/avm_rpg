@@ -63,8 +63,8 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.
-- `assets_src/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
-- `assets_src/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
+- `assets/images/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
+- `assets/images/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild

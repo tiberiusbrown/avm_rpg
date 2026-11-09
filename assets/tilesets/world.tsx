@@ -1,18 +1,18 @@
 <?xml version='1.0' encoding='utf-8'?>
 <tileset version="1.10" tiledversion="1.11.2" name="world" tilewidth="16" tileheight="16" tilecount="256" columns="16">
-  <image source="../../assets_src/tiles16.png" width="256" height="256" />
+  <image source="../images/tiles16.png" width="256" height="256" />
   <tile id="0">
     <properties>
       <property name="runtime_id" type="int" value="0" />
-      <property name="symbol" type="string" value="GROUND" />
-      <property name="solid" type="bool" value="false" />
+      <property name="symbol" type="string" value="EMPTY" />
+      <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
   <tile id="1">
     <properties>
       <property name="runtime_id" type="int" value="1" />
-      <property name="symbol" type="string" value="ATLAS_01" />
+      <property name="symbol" type="string" value="TREE_PLUS_NORTH" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -20,7 +20,7 @@
   <tile id="2">
     <properties>
       <property name="runtime_id" type="int" value="2" />
-      <property name="symbol" type="string" value="ATLAS_02" />
+      <property name="symbol" type="string" value="TREE_ROUND" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -28,7 +28,7 @@
   <tile id="3">
     <properties>
       <property name="runtime_id" type="int" value="3" />
-      <property name="symbol" type="string" value="ATLAS_03" />
+      <property name="symbol" type="string" value="TREE_CLUMP_TOP_LEFT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -36,7 +36,7 @@
   <tile id="4">
     <properties>
       <property name="runtime_id" type="int" value="4" />
-      <property name="symbol" type="string" value="ATLAS_04" />
+      <property name="symbol" type="string" value="TREE_CLUMP_TOP_RIGHT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -52,16 +52,16 @@
   <tile id="6">
     <properties>
       <property name="runtime_id" type="int" value="6" />
-      <property name="symbol" type="string" value="ATLAS_06" />
-      <property name="solid" type="bool" value="true" />
+      <property name="symbol" type="string" value="GRASS_06" />
+      <property name="solid" type="bool" value="false" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
   <tile id="7">
     <properties>
       <property name="runtime_id" type="int" value="7" />
-      <property name="symbol" type="string" value="ATLAS_07" />
-      <property name="solid" type="bool" value="true" />
+      <property name="symbol" type="string" value="GRASS_07" />
+      <property name="solid" type="bool" value="false" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -132,7 +132,7 @@
   <tile id="16">
     <properties>
       <property name="runtime_id" type="int" value="16" />
-      <property name="symbol" type="string" value="ATLAS_10" />
+      <property name="symbol" type="string" value="TREE_PLUS_WEST" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -140,7 +140,7 @@
   <tile id="17">
     <properties>
       <property name="runtime_id" type="int" value="17" />
-      <property name="symbol" type="string" value="ATLAS_11" />
+      <property name="symbol" type="string" value="TREE_PLUS_CENTER" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -148,7 +148,7 @@
   <tile id="18">
     <properties>
       <property name="runtime_id" type="int" value="18" />
-      <property name="symbol" type="string" value="ATLAS_12" />
+      <property name="symbol" type="string" value="TREE_PLUS_EAST" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -156,7 +156,7 @@
   <tile id="19">
     <properties>
       <property name="runtime_id" type="int" value="19" />
-      <property name="symbol" type="string" value="ATLAS_13" />
+      <property name="symbol" type="string" value="TREE_CLUMP_BOTTOM_LEFT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -164,7 +164,7 @@
   <tile id="20">
     <properties>
       <property name="runtime_id" type="int" value="20" />
-      <property name="symbol" type="string" value="ATLAS_14" />
+      <property name="symbol" type="string" value="TREE_CLUMP_BOTTOM_RIGHT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -180,16 +180,16 @@
   <tile id="22">
     <properties>
       <property name="runtime_id" type="int" value="22" />
-      <property name="symbol" type="string" value="ATLAS_16" />
-      <property name="solid" type="bool" value="true" />
+      <property name="symbol" type="string" value="GRASS_16" />
+      <property name="solid" type="bool" value="false" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
   <tile id="23">
     <properties>
       <property name="runtime_id" type="int" value="23" />
-      <property name="symbol" type="string" value="ATLAS_17" />
-      <property name="solid" type="bool" value="true" />
+      <property name="symbol" type="string" value="GRASS_17" />
+      <property name="solid" type="bool" value="false" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -268,7 +268,7 @@
   <tile id="33">
     <properties>
       <property name="runtime_id" type="int" value="33" />
-      <property name="symbol" type="string" value="ATLAS_21" />
+      <property name="symbol" type="string" value="TREE_PLUS_SOUTH" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -284,7 +284,7 @@
   <tile id="35">
     <properties>
       <property name="runtime_id" type="int" value="35" />
-      <property name="symbol" type="string" value="ATLAS_23" />
+      <property name="symbol" type="string" value="TREE_SPLIT_HORIZONTAL" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -292,7 +292,7 @@
   <tile id="36">
     <properties>
       <property name="runtime_id" type="int" value="36" />
-      <property name="symbol" type="string" value="ATLAS_24" />
+      <property name="symbol" type="string" value="TREE_SPLIT_VERTICAL" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -308,7 +308,7 @@
   <tile id="38">
     <properties>
       <property name="runtime_id" type="int" value="38" />
-      <property name="symbol" type="string" value="GRASS" />
+      <property name="symbol" type="string" value="FLOWERS_26" />
       <property name="solid" type="bool" value="false" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -316,8 +316,8 @@
   <tile id="39">
     <properties>
       <property name="runtime_id" type="int" value="39" />
-      <property name="symbol" type="string" value="ATLAS_27" />
-      <property name="solid" type="bool" value="true" />
+      <property name="symbol" type="string" value="FLOWERS_27" />
+      <property name="solid" type="bool" value="false" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -388,7 +388,7 @@
   <tile id="48">
     <properties>
       <property name="runtime_id" type="int" value="48" />
-      <property name="symbol" type="string" value="ROCK" />
+      <property name="symbol" type="string" value="SWITCH_RIGHT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -396,7 +396,7 @@
   <tile id="49">
     <properties>
       <property name="runtime_id" type="int" value="49" />
-      <property name="symbol" type="string" value="ATLAS_31" />
+      <property name="symbol" type="string" value="SWITCH_LEFT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -404,7 +404,7 @@
   <tile id="50">
     <properties>
       <property name="runtime_id" type="int" value="50" />
-      <property name="symbol" type="string" value="ATLAS_32" />
+      <property name="symbol" type="string" value="POT" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -412,7 +412,7 @@
   <tile id="51">
     <properties>
       <property name="runtime_id" type="int" value="51" />
-      <property name="symbol" type="string" value="LANTERN" />
+      <property name="symbol" type="string" value="POT_BROKEN" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -532,7 +532,7 @@
   <tile id="66">
     <properties>
       <property name="runtime_id" type="int" value="66" />
-      <property name="symbol" type="string" value="ATLAS_42" />
+      <property name="symbol" type="string" value="CHEST_CLOSED" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -540,7 +540,7 @@
   <tile id="67">
     <properties>
       <property name="runtime_id" type="int" value="67" />
-      <property name="symbol" type="string" value="ATLAS_43" />
+      <property name="symbol" type="string" value="CHEST_OPEN" />
       <property name="solid" type="bool" value="true" />
       <property name="portal" type="bool" value="false" />
     </properties>

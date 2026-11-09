@@ -42,6 +42,86 @@ assert {o["handler"] for o in m.objects if o["handler"]} == {
     "read_sign",
     "update_wanderer",
 }
+# Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
+assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["solid"]
+assert 0 not in m.data, "0x00 is EMPTY and must not be painted"
+for index, symbol in (
+    (0x06, "GRASS_06"),
+    (0x07, "GRASS_07"),
+    (0x16, "GRASS_16"),
+    (0x17, "GRASS_17"),
+    (0x26, "FLOWERS_26"),
+    (0x27, "FLOWERS_27"),
+):
+    assert tiles[index]["symbol"] == symbol and not tiles[index]["solid"]
+for index, symbol in (
+    (0x30, "SWITCH_RIGHT"),
+    (0x31, "SWITCH_LEFT"),
+    (0x32, "POT"),
+    (0x33, "POT_BROKEN"),
+    (0x42, "CHEST_CLOSED"),
+    (0x43, "CHEST_OPEN"),
+):
+    assert tiles[index]["symbol"] == symbol and tiles[index]["solid"]
+for index, symbol in (
+    (0x01, "TREE_PLUS_NORTH"),
+    (0x02, "TREE_ROUND"),
+    (0x10, "TREE_PLUS_WEST"),
+    (0x11, "TREE_PLUS_CENTER"),
+    (0x12, "TREE_PLUS_EAST"),
+    (0x21, "TREE_PLUS_SOUTH"),
+    (0x23, "TREE_SPLIT_HORIZONTAL"),
+    (0x24, "TREE_SPLIT_VERTICAL"),
+    (0x03, "TREE_CLUMP_TOP_LEFT"),
+    (0x04, "TREE_CLUMP_TOP_RIGHT"),
+    (0x13, "TREE_CLUMP_BOTTOM_LEFT"),
+    (0x14, "TREE_CLUMP_BOTTOM_RIGHT"),
+):
+    assert tiles[index]["symbol"] == symbol and tiles[index]["solid"]
+# TREE_ROUND is for isolated single trees. Groups use the tiling pieces.
+round_trees = {
+    (x, y) for y in range(m.height) for x in range(m.width) if m.data[y * m.width + x] == 0x02
+}
+for x, y in round_trees:
+    for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+        assert (nx, ny) not in round_trees, f"TREE_ROUND at {(x, y)} touches another"
+# Tree seams: each side of a tree piece is empty, H or V. Neighbors must match, and
+# nothing may face outside the map. Mirrors assets/maps/AUTHORING.md.
+TREE_SEAMS = {
+    0x02: (None, None, None, None),
+    0x23: ("H", "H", None, None),
+    0x24: (None, None, "V", "V"),
+    0x03: (None, "H", None, "V"),
+    0x04: ("H", None, None, "V"),
+    0x13: (None, "H", "V", None),
+    0x14: ("H", None, "V", None),
+    0x01: (None, None, None, "V"),
+    0x10: (None, "H", None, None),
+    0x11: ("H", "H", "V", "V"),
+    0x12: ("H", None, None, None),
+    0x21: (None, None, "V", None),
+}
+SIDES = {0: (-1, 0), 1: (1, 0), 2: (0, -1), 3: (0, 1)}
+OPPOSITE = {0: 1, 1: 0, 2: 3, 3: 2}
+
+
+def seam(value, side):
+    return TREE_SEAMS[value][side] if value in TREE_SEAMS else None
+
+
+for y in range(m.height):
+    for x in range(m.width):
+        value = m.data[y * m.width + x]
+        for side, (dx, dy) in SIDES.items():
+            nx, ny = x + dx, y + dy
+            if not (0 <= nx < m.width and 0 <= ny < m.height):
+                assert seam(value, side) is None, f"tree seam faces outside at {(x, y)}"
+                continue
+            other = m.data[ny * m.width + nx]
+            assert seam(value, side) == seam(other, OPPOSITE[side]), (
+                f"tree seam mismatch at {(x, y)} side {side}"
+            )
+assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
 for name in ("VillagerHome", "WandererHome", "VillagerWest", "VillagerEast"):
     assert (names[name]["tx"], names[name]["ty"]) in seen
 for path in (ROOT / "assets/maps").glob("*.tmx"):

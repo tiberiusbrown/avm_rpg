@@ -21,8 +21,7 @@ class Pipeline(unittest.TestCase):
             prefix="rpg16-test-", dir=ROOT / "build"
         )
         self.root = Path(self.temp.name)
-        for name in ("assets", "assets_src"):
-            shutil.copytree(ROOT / name, self.root / name)
+        shutil.copytree(ROOT / "assets", self.root / "assets")
         self.path = self.root / "assets/maps/outdoor.tmx"
         self.tree = ET.parse(self.path)
 
@@ -46,7 +45,8 @@ class Pipeline(unittest.TestCase):
         layer = self.tree.find("layer")
         layer.set("width", str(width))
         layer.set("height", str(height))
-        layer.find("data").text = ",".join(["1"] * (width * height))
+        # gid 7 is GRASS_06, the passable floor. gid 1 is EMPTY and is solid.
+        layer.find("data").text = ",".join(["7"] * (width * height))
 
     def test_determinism_and_stable_atlas_indices(self):
         first = generate(self.root)
@@ -71,7 +71,7 @@ class Pipeline(unittest.TestCase):
             self.assertEqual(data[:2], [16, 16])
             stride = 64 if masked else 32
             self.assertEqual(len(data), 2 + frames * stride)
-            image = Image.open(self.root / "assets_src" / file).convert("RGBA")
+            image = Image.open(self.root / "assets" / "images" / file).convert("RGBA")
             columns = image.width // 16
             opaque_black, transparent = False, False
             for frame in range(frames):
@@ -107,13 +107,13 @@ class Pipeline(unittest.TestCase):
             export_world(self.root)
 
     def test_nonbinary_alpha_and_opaque_tiles_validation(self):
-        path = self.root / "assets_src/actors16.png"
+        path = self.root / "assets/images/actors16.png"
         image = Image.open(path).convert("RGBA")
         image.putpixel((0, 0), (0, 0, 0, 127))
         image.save(path)
         with self.assertRaisesRegex(ValueError, "binary monochrome and alpha"):
             generate(self.root)
-        path = self.root / "assets_src/tiles16.png"
+        path = self.root / "assets/images/tiles16.png"
         image = Image.open(path).convert("RGBA")
         image.putpixel((0, 0), (0, 0, 0, 0))
         image.save(path)
@@ -154,7 +154,7 @@ class Pipeline(unittest.TestCase):
         gids = [1 + (x + y * 19) % 255 for y in range(13) for x in range(19)]
         # Keep the authored spawn passable while giving every other tile a
         # distinct index, including rows and columns across handler chunks.
-        gids[5 * 19 + 7] = 1
+        gids[5 * 19 + 7] = 7
         self.tree.find("layer/data").text = ",".join(map(str, gids))
         self.write()
         result = export_world(self.root)
@@ -277,8 +277,7 @@ def write_handler_fixture(output):
         prefix="handler-fixture-", dir=output.parent
     ) as temp:
         root = Path(temp)
-        for name in ("assets", "assets_src"):
-            shutil.copytree(ROOT / name, root / name)
+        shutil.copytree(ROOT / "assets", root / "assets")
         path = root / "assets/maps/outdoor.tmx"
         tree = ET.parse(path)
         group = tree.find("objectgroup")

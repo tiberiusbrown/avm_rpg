@@ -19,3 +19,4 @@
 - Preserve deterministic rules, fixed capacities, and AVM memory/stack budgets.
 - Build and test in RelWithDebInfo; keep the playable `rpg.arduboy` updated in the repository root.
 - Do not hardcode map positions in game code. Name the position as a point object in the map's Logic group and use the generated `positions::` constant. Derive nearby positions as offsets from a marker.
+- Before editing maps or tiles, read `assets/maps/AUTHORING.md`.

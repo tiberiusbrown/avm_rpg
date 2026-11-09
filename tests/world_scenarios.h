@@ -7,7 +7,7 @@ struct LargeTiles {
 constexpr LargeTiles make_large_tiles() {
     LargeTiles result{};
     result.tiles[244u * 240u + 232u] = TILE_SIGN;
-    result.tiles[59519u] = TILE_GRASS;
+    result.tiles[59519u] = TILE_GRASS_06;
     return result;
 }
 
@@ -19,13 +19,15 @@ static void run_world_scenarios() {
     CHECK(CACHE_WIDTH == 11 && CACHE_HEIGHT == 7 && sizeof(TileCache) == 79);
     CHECK(TILE_COUNT == 255 && TILE_OUTSIDE == 255 && TILE_SIGN == 0x41);
     CHECK(tile_solid(TILE_OUTSIDE) && !tile_portal(TILE_OUTSIDE));
-    CHECK(!tile_solid(TILE_GROUND) && tile_solid(TILE_SIGN));
+    CHECK(!tile_solid(TILE_GRASS_06) && !tile_solid(TILE_FLOWERS_26) && tile_solid(TILE_SIGN));
+    CHECK(tile_solid(TILE_EMPTY) && tile_solid(TILE_SWITCH_LEFT) && tile_solid(TILE_POT));
+    CHECK(tile_solid(TILE_POT_BROKEN) && tile_solid(TILE_CHEST_CLOSED) && tile_solid(TILE_CHEST_OPEN));
     game.dimensions = {240, 248};
     reload_tile_window(game.cache, LARGE_TILES.tiles, {240, 248}, {65535, 65535});
     // The view clamps to the last full screen, and the cache trails it by one tile.
     CHECK(game.cache.origin_tx == 231 && game.cache.origin_ty == 243);
     CHECK(game.cache.tiles[1 * CACHE_WIDTH + 1] == TILE_SIGN);  // Authored at (232, 244).
-    CHECK(game.cache.tiles[4 * CACHE_WIDTH + 8] == TILE_GRASS); // Authored at (239, 247).
+    CHECK(game.cache.tiles[4 * CACHE_WIDTH + 8] == TILE_GRASS_06); // Authored at (239, 247).
     CHECK(game.cache.tiles[9] == TILE_OUTSIDE && game.cache.tiles[5 * CACHE_WIDTH] == TILE_OUTSIDE);
     CHECK(cached_tile({2, 232, 244}) == TILE_OUTSIDE);
     CHECK(cached_tile({game.area, 230, 244}) == TILE_OUTSIDE);

@@ -55,7 +55,7 @@ static void npc_test_foot_geometry() {
     game.camera = {0, 0};
     game.cache.origin_tx = game.cache.origin_ty = 0;
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
-    set_tile({AREA_OUTDOOR, 3, 3}, TILE_GROUND);
+    set_tile({AREA_OUTDOOR, 3, 3}, TILE_GRASS_06);
     CHECK(terrain_clear(44, 40) && terrain_clear(52, 48));
     CHECK(!terrain_clear(43, 40) && !terrain_clear(53, 40));
     CHECK(!terrain_clear(44, 39) && !terrain_clear(44, 49));
@@ -90,7 +90,7 @@ static void npc_test_corridor(bool can_detour) {
     game.cache.origin_tx = game.cache.origin_ty = 0;
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
     for(uint8_t x = 0; x < CACHE_WIDTH; ++x)
-        set_tile({AREA_OUTDOOR, x, 3}, TILE_GROUND);
+        set_tile({AREA_OUTDOOR, x, 3}, TILE_GRASS_06);
     uint16_t y = can_detour ? 48 : 44;
     game.player = {20, y, EAST, 0};
     auto& blocker = game.npcs.actors[0];
@@ -128,8 +128,8 @@ static void npc_test_yield() {
     game.cache.origin_tx = game.cache.origin_ty = 0;
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
     for(uint8_t x = 0; x < CACHE_WIDTH; ++x)
-        set_tile({AREA_OUTDOOR, x, 3}, TILE_GROUND);
-    set_tile({AREA_OUTDOOR, 3, 2}, TILE_GROUND);
+        set_tile({AREA_OUTDOOR, x, 3}, TILE_GRASS_06);
+    set_tile({AREA_OUTDOOR, 3, 2}, TILE_GRASS_06);
     game.player = {40, 44, EAST, 0};
     auto& blocker = game.npcs.actors[0];
     blocker = {};

@@ -858,7 +858,7 @@ def export_world(root=ROOT):
 
 
 def read_sprite_sheet(name, columns, rows, root=ROOT):
-    path = root / "assets_src" / name
+    path = root / "assets" / "images" / name
     with Image.open(path) as image:
         require(
             image.format == "PNG"

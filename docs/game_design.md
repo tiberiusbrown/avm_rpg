@@ -477,7 +477,7 @@ The human can give high-level reactions (“quests feel repetitive,” “more p
 rpg/
   docs/                 design specification, AVM contract, decisions
   design/               world bible, quest graph, region/NPC registers
-  assets_src/           editable maps, text, sprites, audio source
+  assets/               editable maps, tilesets, sprites, audio source
   tools/                packers, map validators, content linters
   src/core/             pure game state, movement, inventory, combat
   src/world/            area loading, NPC spawning and movement

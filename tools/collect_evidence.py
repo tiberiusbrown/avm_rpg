@@ -47,7 +47,7 @@ def main():
         ROOT / name
         for name in ("CMakeLists.txt", "AGENTS.md", "README.md", ".clang-format")
     ]
-    for folder in ("src", "tests", "tools", "generated", "assets", "assets_src"):
+    for folder in ("src", "tests", "tools", "generated", "assets"):
         files += [
             p
             for p in (ROOT / folder).rglob("*")
