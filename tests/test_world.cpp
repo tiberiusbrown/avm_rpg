@@ -100,10 +100,131 @@ static void terrain_footprints() {
     }
 }
 
+// Pixel p is solid when its center falls in a solid triangle. Oracle: each foot pixel checked
+// against its own tile mask, without the block loop.
+static bool oracle_clear(uint16_t x, uint16_t y) {
+    for(unsigned fy = FOOT_TOP; fy <= FOOT_BOTTOM; ++fy) {
+        for(unsigned fx = FOOT_LEFT; fx <= FOOT_RIGHT; ++fx) {
+            unsigned wx = x + fx, wy = y + fy;
+            uint8_t tile = cached_tile({AREA_OUTDOOR, (uint8_t)(wx >> 4), (uint8_t)(wy >> 4)});
+            uint16_t mask = tile_collision(tile);
+            if(mask == 0xFFFF || (mask && collision_pixel_solid(mask, wx & 15, wy & 15)))
+                return false;
+        }
+    }
+    return true;
+}
+
+// NPCs treat any collision as a solid tile.
+static bool oracle_any_solid(uint16_t x, uint16_t y) {
+    for(unsigned fy = FOOT_TOP; fy <= FOOT_BOTTOM; ++fy) {
+        for(unsigned fx = FOOT_LEFT; fx <= FOOT_RIGHT; ++fx) {
+            unsigned wx = x + fx, wy = y + fy;
+            if(tile_solid(cached_tile({AREA_OUTDOOR, (uint8_t)(wx >> 4), (uint8_t)(wy >> 4)})))
+                return false;
+        }
+    }
+    return true;
+}
+
+static void collision_triangles() {
+    // Each pixel lies in one triangle, or on the shared edge of two on a quadrant diagonal.
+    for(unsigned y = 0; y < TILE; ++y) {
+        for(unsigned x = 0; x < TILE; ++x) {
+            unsigned hits = 0;
+            for(unsigned bit = 0; bit < 16; ++bit)
+                hits += (unsigned)collision_pixel_solid(1u << bit, x, y);
+            bool diagonal =
+                (2 * (x & 7) - 7 == 2 * (y & 7) - 7) || (2 * (x & 7) - 7 == -(2 * (y & 7) - 7));
+            CHECK(hits == (diagonal ? 2u : 1u));
+            CHECK(collision_pixel_solid(0xFFFF, x, y));
+            CHECK(!collision_pixel_solid(0, x, y));
+            // Top half is the top two quadrants; bottom-right corner is one whole quadrant.
+            CHECK(collision_pixel_solid(0x00FF, x, y) == (y < 8));
+            CHECK(collision_pixel_solid(0xF000, x, y) == (x >= 8 && y >= 8));
+        }
+    }
+    // Quadrant bits: top-left north triangle contains the top-left edge center.
+    CHECK(collision_pixel_solid(0x0001, 4, 0) && !collision_pixel_solid(0x0001, 0, 4));
+    CHECK(collision_pixel_solid(0x0010, 12, 0) && !collision_pixel_solid(0x0010, 15, 4));
+    CHECK(collision_pixel_solid(0x0600, 0, 15) && collision_pixel_solid(0x0600, 7, 12));
+    CHECK(!collision_pixel_solid(0x0600, 0, 12) && !collision_pixel_solid(0x0600, 3, 8));
+}
+
+static void player_shapes() {
+    game_new();
+    constexpr uint8_t SLOPE_TILE = TILE_ATLAS_25;
+    // A 45 degree slope in the grass: solid bottom-right, half of the bottom-left quadrant.
+    constexpr uint16_t SLOPE = 0xF600;
+    set_tile({AREA_OUTDOOR, 9, 2}, SLOPE_TILE);
+    CHECK(cached_tile({AREA_OUTDOOR, 9, 2}) == SLOPE_TILE);
+    tile_collision_override(SLOPE_TILE, SLOPE);
+
+    // Player feet test each pixel. NPCs still treat the whole tile as solid.
+    for(unsigned y = 20; y <= 40; ++y) {
+        for(unsigned x = 120; x <= 150; ++x) {
+            CHECK(player_terrain_clear(x, y) == oracle_clear(x, y));
+            CHECK(terrain_clear(x, y) == oracle_any_solid(x, y));
+        }
+    }
+
+    // Walking east into the slope slides up one pixel per step, along the edge.
+    game.player.x = 132;
+    game.player.y = 32;
+    static uint16_t const UP_SLIDE[][2] = {{133, 31}, {134, 30}, {135, 29}, {136, 28}};
+    for(auto const& p : UP_SLIDE) {
+        CHECK(actor_move(&game.player, EAST, 1));
+        CHECK(game.player.x == p[0] && game.player.y == p[1]);
+    }
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+    // The climb continues across the tile without stalling on any step.
+    for(unsigned step = 0; step < 36; ++step) {
+        uint16_t x = game.player.x;
+        CHECK(actor_move(&game.player, EAST, 1) && game.player.x == x + 1);
+    }
+    CHECK(game.player.y < 28 && player_terrain_clear(game.player.x, game.player.y));
+
+    // The mirrored slope slides down, and every step moves east with at most one pixel down.
+    tile_collision_override(SLOPE_TILE, 0x30F3);
+    game.player.x = 132;
+    game.player.y = 32;
+    int slides = 0;
+    for(unsigned step = 0; step < 16; ++step) {
+        uint16_t x = game.player.x, y = game.player.y;
+        CHECK(actor_move(&game.player, EAST, 1));
+        CHECK(game.player.x == x + 1 && (game.player.y == y || game.player.y == y + 1));
+        slides += game.player.y == y + 1;
+    }
+    CHECK(slides > 0 && player_terrain_clear(game.player.x, game.player.y));
+
+    // Vertical steps slide sideways along the same slope.
+    tile_collision_override(SLOPE_TILE, SLOPE);
+    game.player.x = 140;
+    game.player.y = 23;
+    slides = 0;
+    for(unsigned step = 0; step < 16; ++step) {
+        uint16_t x = game.player.x, y = game.player.y;
+        CHECK(actor_move(&game.player, SOUTH, 1));
+        CHECK(game.player.y == y + 1 && (game.player.x == x || game.player.x == x - 1));
+        slides += game.player.x == x - 1;
+    }
+    CHECK(slides > 0 && player_terrain_clear(game.player.x, game.player.y));
+
+    // A full tile never slides.
+    tile_collision_override(SLOPE_TILE, 0xFFFF);
+    game.player.x = 132;
+    game.player.y = 32;
+    CHECK(!actor_move(&game.player, EAST, 1));
+    CHECK(game.player.x == 132 && game.player.y == 32);
+    tile_collision_reset();
+}
+
 int main() {
     run_world_scenarios();
     window_edges();
     terrain_footprints();
+    collision_triangles();
+    player_shapes();
     game_new();
     Area const& area = *world_area(AREA_OUTDOOR);
     for(unsigned y = 0; y <= 128; y += 3) {

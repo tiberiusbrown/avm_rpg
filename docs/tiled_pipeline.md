@@ -20,9 +20,11 @@ ID equals `row * 16 + column`: the top-right cell is 0x0F, and the sign is 0x41.
 The TSX declares all 256 cells, with `reserved=true` as the only property on cell
 255. The exporter excludes that cell from runtime tiles and sprite frames; TMX
 GID 256 with firstgid=1 is rejected. Usable cells have explicit `runtime_id`
-0..254, unique `symbol`, and bool `solid`/`portal` properties. Blank black cells
+0..254, unique `symbol`, an int `collision` mask from 0 to 65535, and a bool `portal`
+property. `assets/maps/AUTHORING.md` describes the mask. Blank black cells
 remain valid indexed frames and are not deduplicated or removed. Unused cells
-default to solid in this sample; mark new terrain deliberately when authoring.
+default to full collision (65535) in this sample; mark new terrain deliberately when
+authoring.
 
 Each 16x16 tile occupies 32 bytes: 16 top-page columns, then 16 bottom-page columns.
 Within a byte, bit zero is the uppermost pixel. The sprite array begins with

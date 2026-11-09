@@ -135,11 +135,25 @@ static_assert(sizeof(Actor::x) == 2 && sizeof(Actor::y) == 2 && sizeof(Camera::x
 Area const PROGMEM* world_area(uint8_t id);
 void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimensions dimensions,
                         Camera camera);
+// Any collision at all makes a tile solid for NPCs, navigation and cached reads.
 bool tile_solid(uint8_t tile);
+// Sixteen triangles: four per 8x8 quadrant (top-left, top-right, bottom-left,
+// bottom-right), each nibble ordered north, east, south, west. Player movement only.
+uint16_t tile_collision(uint8_t tile);
+bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y);
+#ifndef RPG_AVM
+// Host tests substitute masks for tiles that the shipped tileset does not use.
+void tile_collision_override(uint8_t tile, uint16_t mask);
+void tile_collision_reset();
+#endif
 bool tile_portal(uint8_t tile);
 // Wrong-area and out-of-window reads return the solid TILE_OUTSIDE sentinel.
 uint8_t cached_tile(TilePos p);
 bool terrain_clear(uint16_t x, uint16_t y);
+// Player foot box against collision masks. Full tiles block the whole box.
+bool player_terrain_clear(uint16_t x, uint16_t y);
+// True when the foot box is blocked only by partial collision masks, never by a full tile.
+bool player_blocked_by_slope(uint16_t x, uint16_t y);
 void reload_tile_cache();
 bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
 void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);

@@ -12,7 +12,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from generate_assets import export_world, generate, load_world
+from generate_assets import COLLISION_OVERLAY, collision_overlay, collision_pixel_solid, export_world, generate, load_world
 
 
 class Pipeline(unittest.TestCase):
@@ -197,7 +197,7 @@ class Pipeline(unittest.TestCase):
 
     def test_safe_spawn_and_duplicate_names(self):
         self.tree.find("properties/property[@name='spawn']").set("value", "GroveSign")
-        self.fails("passable baseline")
+        self.fails("tiles without collision")
         self.tree.find("properties/property[@name='spawn']").set("value", "PlayerStart")
         self.sign().set("name", "PlayerStart")
         self.fails("duplicate world location")
@@ -294,6 +294,32 @@ def write_handler_fixture(output):
         tree.write(path, encoding="utf-8", xml_declaration=True)
         for name, content in export_world(root).items():
             (output / name).write_text(content, encoding="utf-8", newline="\n")
+
+
+class CollisionOverlay(unittest.TestCase):
+    def test_pixel_rule_counts_and_quadrants(self):
+        # The top half covers 128 pixels. Each quadrant nibble covers 64 pixels with
+        # diagonal centers shared by two triangles, so a single full quadrant is 64.
+        self.assertEqual(sum(collision_pixel_solid(0x00FF, x, y) for x in range(16) for y in range(16)), 128)
+        self.assertEqual(sum(collision_pixel_solid(0xF000, x, y) for x in range(16) for y in range(16)), 64)
+        self.assertEqual(sum(collision_pixel_solid(0xFFFF, x, y) for x in range(16) for y in range(16)), 256)
+        self.assertTrue(collision_pixel_solid(0x0001, 4, 0) and not collision_pixel_solid(0x0001, 0, 4))
+
+    def test_ramps_are_clean_diagonals(self):
+        # 0xF660 is solid where x + y >= 15, and 0xCF0C is solid where y >= x.
+        for y in range(16):
+            for x in range(16):
+                self.assertEqual(collision_pixel_solid(0xF660, x, y), x + y >= 15, (x, y))
+                self.assertEqual(collision_pixel_solid(0xCF0C, x, y), y >= x, (x, y))
+                # 0xC600 is the triangle below the center and the two bottom corners.
+                self.assertEqual(collision_pixel_solid(0xC600, x, y), 2 * y - 15 >= abs(2 * x - 15), (x, y))
+
+    def test_overlay_is_current_png(self):
+        image_path = ROOT / COLLISION_OVERLAY
+        self.assertTrue(image_path.exists())
+        with image_path.open("rb") as handle:
+            self.assertEqual(handle.read(8), b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(image_path.read_bytes(), collision_overlay(ROOT))
 
 
 if __name__ == "__main__":

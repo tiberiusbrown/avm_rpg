@@ -17,7 +17,7 @@ start = names[m.spawn]["tx"], names[m.spawn]["ty"]
 
 
 def clear(x, y):
-    return not tiles[m.data[y * m.width + x]]["solid"]
+    return tiles[m.data[y * m.width + x]]["collision"] == 0
 
 
 seen, queue = {start}, deque([start])
@@ -43,7 +43,7 @@ assert {o["handler"] for o in m.objects if o["handler"]} == {
     "update_wanderer",
 }
 # Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
-assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["solid"]
+assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["collision"] == 0xFFFF
 assert 0 not in m.data, "0x00 is EMPTY and must not be painted"
 for index, symbol in (
     (0x06, "GRASS_06"),
@@ -53,31 +53,19 @@ for index, symbol in (
     (0x26, "FLOWERS_26"),
     (0x27, "FLOWERS_27"),
 ):
-    assert tiles[index]["symbol"] == symbol and not tiles[index]["solid"]
+    assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == 0
 for index, symbol in (
-    (0x30, "SWITCH_RIGHT"),
-    (0x31, "SWITCH_LEFT"),
     (0x32, "POT"),
-    (0x33, "POT_BROKEN"),
     (0x42, "CHEST_CLOSED"),
     (0x43, "CHEST_OPEN"),
 ):
-    assert tiles[index]["symbol"] == symbol and tiles[index]["solid"]
+    assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == 0xFFFF
 for index, symbol in (
-    (0x01, "TREE_PLUS_NORTH"),
     (0x02, "TREE_ROUND"),
-    (0x10, "TREE_PLUS_WEST"),
     (0x11, "TREE_PLUS_CENTER"),
-    (0x12, "TREE_PLUS_EAST"),
-    (0x21, "TREE_PLUS_SOUTH"),
-    (0x23, "TREE_SPLIT_HORIZONTAL"),
     (0x24, "TREE_SPLIT_VERTICAL"),
-    (0x03, "TREE_CLUMP_TOP_LEFT"),
-    (0x04, "TREE_CLUMP_TOP_RIGHT"),
-    (0x13, "TREE_CLUMP_BOTTOM_LEFT"),
-    (0x14, "TREE_CLUMP_BOTTOM_RIGHT"),
 ):
-    assert tiles[index]["symbol"] == symbol and tiles[index]["solid"]
+    assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == 0xFFFF
 # TREE_ROUND is for isolated single trees. Groups use the tiling pieces.
 round_trees = {
     (x, y) for y in range(m.height) for x in range(m.width) if m.data[y * m.width + x] == 0x02
@@ -121,6 +109,45 @@ for y in range(m.height):
             assert seam(value, side) == seam(other, OPPOSITE[side]), (
                 f"tree seam mismatch at {(x, y)} side {side}"
             )
+# Shaped collision: quadrant bits are TL 0-3, TR 4-7, BL 8-11, BR 12-15.
+for index, symbol, mask in (
+    (0x01, "TREE_PLUS_NORTH", 0xFF00),
+    (0x03, "TREE_CLUMP_TOP_LEFT", 0xFFF0),
+    (0x13, "TREE_CLUMP_BOTTOM_LEFT", 0xF0FF),
+    (0x14, "TREE_CLUMP_BOTTOM_RIGHT", 0x0FFF),
+    (0x04, "TREE_CLUMP_TOP_RIGHT", 0xFF0F),
+    (0x05, "ATLAS_05", 0xFFFF),
+    (0x10, "TREE_PLUS_WEST", 0xF0F0),
+    (0x12, "TREE_PLUS_EAST", 0x0F0F),
+    (0x23, "TREE_SPLIT_HORIZONTAL", 0xFFFF),
+    (0x25, "ATLAS_25", 0xFFFF),
+    (0x21, "TREE_PLUS_SOUTH", 0x00FF),
+    (0x30, "SWITCH_RIGHT", 0xFF00),
+    (0x33, "POT_BROKEN", 0xFF00),
+    (0x20, "TREE", 0xFFC6),
+    (0x31, "SWITCH_LEFT", 0xFF00),
+    (0x90, "ATLAS_90", 0xF660),
+    (0x92, "ATLAS_92", 0xCF0C),
+    (0x81, "ATLAS_81", 0xC600),
+):
+    assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == mask
+# Fully walkable atlas cells: no collision at all.
+for index, symbol in (
+    (0x34, "ATLAS_34"),
+    (0x35, "ATLAS_35"),
+    (0x36, "ATLAS_36"),
+    (0x44, "ATLAS_44"),
+    (0x45, "ATLAS_45"),
+    (0x46, "ATLAS_46"),
+    (0x54, "ATLAS_54"),
+    (0x55, "ATLAS_55"),
+    (0x56, "ATLAS_56"),
+    (0x65, "ATLAS_65"),
+    (0x66, "ATLAS_66"),
+    (0x75, "ATLAS_75"),
+    (0x76, "ATLAS_76"),
+):
+    assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == 0
 assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
 for name in ("VillagerHome", "WandererHome", "VillagerWest", "VillagerEast"):
     assert (names[name]["tx"], names[name]["ty"]) in seen

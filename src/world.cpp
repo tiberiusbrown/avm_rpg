@@ -8,6 +8,50 @@ uint8_t frame_pressed;
 bool teleported;
 
 #ifndef RPG_AVM
+static uint16_t collision_override[256];
+static bool collision_overridden[256];
+
+void tile_collision_override(uint8_t tile, uint16_t mask) {
+    collision_override[tile] = mask;
+    collision_overridden[tile] = true;
+}
+
+void tile_collision_reset() {
+    memset(collision_overridden, 0, sizeof(collision_overridden));
+}
+#endif
+
+uint16_t tile_collision(uint8_t tile) {
+#ifndef RPG_AVM
+    if(collision_overridden[tile])
+        return collision_override[tile];
+#endif
+    return TILE_COLLISION[tile];
+}
+
+bool tile_solid(uint8_t tile) {
+    return tile_collision(tile) != 0;
+}
+
+bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y) {
+    // Triangles are closed shapes. A pixel center lies in one triangle, or on a quadrant
+    // diagonal where it lies on the shared edge of two. That center is solid when either
+    // triangle is solid, so a diagonal edge rasterizes as one unbroken line.
+    uint8_t quadrant = (uint8_t)(((y >> 3) << 1) | (x >> 3));
+    int16_t u = (int16_t)(2 * (x & 7) - 7), v = (int16_t)(2 * (y & 7) - 7);
+    int16_t au = u < 0 ? (int16_t)-u : u, av = v < 0 ? (int16_t)-v : v;
+    uint8_t horizontal = u > 0 ? 1 : 3;
+    uint8_t vertical = v > 0 ? 2 : 0;
+    bool across = (mask >> (quadrant * 4 + horizontal)) & 1;
+    bool along = (mask >> (quadrant * 4 + vertical)) & 1;
+    if(au > av)
+        return across;
+    if(av > au)
+        return along;
+    return across || along;
+}
+
+#ifndef RPG_AVM
 uint16_t chunk_trace[3][CHUNK_TRACE_CAPACITY];
 uint8_t chunk_trace_count[3];
 unsigned feature_trace_count[3];
@@ -80,6 +124,53 @@ uint8_t cached_tile(TilePos pos) {
     return TILE_OUTSIDE;
 }
 
+enum TERRAIN_BLOCK : uint8_t { TERRAIN_CLEAR, TERRAIN_SLOPE, TERRAIN_SOLID };
+
+// True when any pixel of [x0,x1] x [y0,y1] is solid in one tile's mask.
+static bool mask_hits(uint16_t mask, uint8_t x0, uint8_t x1, uint8_t y0, uint8_t y1) {
+    for(uint8_t y = y0; y <= y1; ++y)
+        for(uint8_t x = x0; x <= x1; ++x)
+            if(collision_pixel_solid(mask, x, y))
+                return true;
+    return false;
+}
+
+// The player's foot box checked pixel by pixel against each tile's collision mask.
+// Partial masks report TERRAIN_SLOPE so a blocked step can slide along their edge.
+static TERRAIN_BLOCK player_block(uint16_t x, uint16_t y) {
+    if(!game.dimensions.pixel_bounds(x, y))
+        return TERRAIN_SOLID;
+    uint16_t left = x + FOOT_LEFT, right = x + FOOT_RIGHT;
+    uint16_t top = y + FOOT_TOP, bottom = y + FOOT_BOTTOM;
+    TERRAIN_BLOCK result = TERRAIN_CLEAR;
+    for(uint16_t ty = top >> TILE_SHIFT; ty <= (bottom >> TILE_SHIFT); ++ty) {
+        for(uint16_t tx = left >> TILE_SHIFT; tx <= (right >> TILE_SHIFT); ++tx) {
+            uint16_t mask = tile_collision(cached_tile({game.area, (uint8_t)tx, (uint8_t)ty}));
+            if(!mask)
+                continue;
+            if(mask == 0xFFFF)
+                return TERRAIN_SOLID;
+            uint16_t ox = tx << TILE_SHIFT, oy = ty << TILE_SHIFT;
+            uint16_t lo_x = left > ox ? left : ox,
+                     hi_x = right < ox + TILE - 1 ? right : ox + TILE - 1;
+            uint16_t lo_y = top > oy ? top : oy,
+                     hi_y = bottom < oy + TILE - 1 ? bottom : oy + TILE - 1;
+            if(mask_hits(mask, (uint8_t)(lo_x - ox), (uint8_t)(hi_x - ox), (uint8_t)(lo_y - oy),
+                         (uint8_t)(hi_y - oy)))
+                result = TERRAIN_SLOPE;
+        }
+    }
+    return result;
+}
+
+bool player_terrain_clear(uint16_t x, uint16_t y) {
+    return player_block(x, y) == TERRAIN_CLEAR;
+}
+
+bool player_blocked_by_slope(uint16_t x, uint16_t y) {
+    return player_block(x, y) == TERRAIN_SLOPE;
+}
+
 bool terrain_clear(uint16_t x, uint16_t y) {
     if(!game.dimensions.pixel_bounds(x, y))
         return false;
@@ -123,7 +214,8 @@ bool Game::player_is_in_region(TileRegion region) const {
     return region.contains({area, (uint8_t)x, (uint8_t)y});
 }
 
-// A closing feature ejects N/E/S/W at increasing distances of 1..16 pixels.
+// A closing feature ejects N/E/S/W at increasing distances of 1..16 pixels. Only the player
+// ejects, so this uses the player's collision.
 static bool eject_actor(Actor& actor) {
     uint16_t x = actor.x, y = actor.y;
     for(uint8_t radius = 1; radius <= TILE; ++radius) {
@@ -137,7 +229,7 @@ static bool eject_actor(Actor& actor) {
                 ny += radius;
             if(dir == WEST)
                 nx -= radius;
-            if(nx >= 0 && ny >= 0 && terrain_clear((uint16_t)nx, (uint16_t)ny)) {
+            if(nx >= 0 && ny >= 0 && player_terrain_clear((uint16_t)nx, (uint16_t)ny)) {
                 actor.x = (uint16_t)nx;
                 actor.y = (uint16_t)ny;
                 actor.walking = 0;
@@ -176,7 +268,7 @@ void refresh_tile_cache() {
 }
 
 static void repair_player_overlap() {
-    if(!terrain_clear(game.player.x, game.player.y) && !eject_actor(game.player)) {
+    if(!player_terrain_clear(game.player.x, game.player.y) && !eject_actor(game.player)) {
         Area const PROGMEM* a = world_area(game.area);
         game.player.x = a->spawn.x;
         game.player.y = a->spawn.y;

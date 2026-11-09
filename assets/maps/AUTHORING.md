@@ -7,8 +7,10 @@ specified in `docs/tiled_pipeline.md`. Read that first when you need an exact ru
 ## Files
 
 - `assets/maps/*.tmx`: one finite orthogonal Tiled map per area.
-- `assets/tilesets/world.tsx`: metadata for every atlas cell (symbol, solid, portal).
+- `assets/tilesets/world.tsx`: metadata for every atlas cell (symbol, collision, portal).
 - `assets/images/tiles16.png`: the 256x256 monochrome atlas. `tiles16.xcf` is its editable source.
+- `assets/images/tiles16_collision.png`: the atlas with solid collision pixels tinted red, for
+  checking shapes. The generator writes it on every run, so open it after changing a mask.
 - After any change, run `python tools/generate_assets.py`, then `tests/test_pipeline.py`
   and `tests/test_content.py`. The generator writes `generated/`, including
   `tile_ids.h` and `map_positions.h`.
@@ -31,36 +33,40 @@ specified in `docs/tiled_pipeline.md`. Read that first when you need an exact ru
 | Hex | ID | Symbol | Passable | Meaning |
 | --- | --- | --- | --- | --- |
 | `0x00` | 0 | `EMPTY` | no | Blank placeholder. Never paint it. |
-| `0x01` | 1 | `TREE_PLUS_NORTH` | no | Top arm of the round-tree plus. |
+| `0x01` | 1 | `TREE_PLUS_NORTH` | partly | Top arm of the round-tree plus. Solid on the bottom half. |
 | `0x02` | 2 | `TREE_ROUND` | no | One isolated round tree. Do not clump it. |
-| `0x03` | 3 | `TREE_CLUMP_TOP_LEFT` | no | Clump piece. The tree continues down and to the right. |
-| `0x04` | 4 | `TREE_CLUMP_TOP_RIGHT` | no | Clump piece. The tree continues left and down. |
+| `0x03` | 3 | `TREE_CLUMP_TOP_LEFT` | partly | Clump piece. The tree continues down and to the right. The top-left quadrant is open. |
+| `0x04` | 4 | `TREE_CLUMP_TOP_RIGHT` | partly | Clump piece. The tree continues left and down. The top-right quadrant is open. |
 | `0x06` | 6 | `GRASS_06` | yes | Grass floor. Mix it with the other grass cells. |
 | `0x07` | 7 | `GRASS_07` | yes | Grass floor. Mix it with the other grass cells. |
-| `0x10` | 16 | `TREE_PLUS_WEST` | no | Left arm of the round-tree plus. |
+| `0x10` | 16 | `TREE_PLUS_WEST` | partly | Left arm of the round-tree plus. Solid on the right half. |
 | `0x11` | 17 | `TREE_PLUS_CENTER` | no | Center of the round-tree plus. |
-| `0x12` | 18 | `TREE_PLUS_EAST` | no | Right arm of the round-tree plus. |
-| `0x13` | 19 | `TREE_CLUMP_BOTTOM_LEFT` | no | Clump piece. The tree continues right and up. |
-| `0x14` | 20 | `TREE_CLUMP_BOTTOM_RIGHT` | no | Clump piece. The tree continues left and up. |
+| `0x12` | 18 | `TREE_PLUS_EAST` | partly | Right arm of the round-tree plus. Solid on the left half. |
+| `0x13` | 19 | `TREE_CLUMP_BOTTOM_LEFT` | partly | Clump piece. The tree continues right and up. The bottom-left quadrant is open. |
+| `0x14` | 20 | `TREE_CLUMP_BOTTOM_RIGHT` | partly | Clump piece. The tree continues left and up. The bottom-right quadrant is open. |
 | `0x16` | 22 | `GRASS_16` | yes | Grass floor. Mix it with the other grass cells. |
 | `0x17` | 23 | `GRASS_17` | yes | Grass floor. Mix it with the other grass cells. |
-| `0x20` | 32 | `TREE` | no | Pine tree obstacle. |
-| `0x21` | 33 | `TREE_PLUS_SOUTH` | no | Bottom arm of the round-tree plus. |
+| `0x20` | 32 | `TREE` | partly | Pine tree obstacle. Solid except for a house-shaped roof at the top. |
+| `0x21` | 33 | `TREE_PLUS_SOUTH` | partly | Bottom arm of the round-tree plus. Solid on the top half. |
 | `0x23` | 35 | `TREE_SPLIT_HORIZONTAL` | no | Two half trees in one tile: the right half of a tree on the left side, and the left half of a tree on the right side. |
 | `0x24` | 36 | `TREE_SPLIT_VERTICAL` | no | Two half trees in one tile: the bottom half of a tree on the top side, and the top half of a tree on the bottom side. |
 | `0x26` | 38 | `FLOWERS_26` | yes | Flowers on grass. Use sparingly among the grass. |
 | `0x27` | 39 | `FLOWERS_27` | yes | Flowers on grass. Use sparingly among the grass. |
-| `0x30` | 48 | `SWITCH_RIGHT` | no | Interactive lever pointing right. |
-| `0x31` | 49 | `SWITCH_LEFT` | no | Interactive lever pointing left. |
+| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Solid on the bottom half. |
+| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Solid on the bottom half. |
 | `0x32` | 50 | `POT` | no | Unbroken pot. Collectible. |
-| `0x33` | 51 | `POT_BROKEN` | no | Broken pot. The collected state of `POT`. |
+| `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Solid on the bottom half. |
 | `0x41` | 65 | `SIGN` | no | Signpost. The `read_sign` handler belongs on it. |
 | `0x42` | 66 | `CHEST_CLOSED` | no | Closed chest. Collectible. |
 | `0x43` | 67 | `CHEST_OPEN` | no | Opened chest. The collected state of `CHEST_CLOSED`. |
 
-Only six cells are walkable: `GRASS_06`, `GRASS_07`, `GRASS_16`, `GRASS_17`,
-`FLOWERS_26` and `FLOWERS_27`. Every other cell is solid by default, including
-`EMPTY` and the unnamed cells listed below. Check the atlas cell before you paint it.
+Nineteen cells are fully walkable: `GRASS_06`, `GRASS_07`, `GRASS_16`, `GRASS_17`,
+`FLOWERS_26`, `FLOWERS_27`, `0x34` to `0x36`, `0x44` to `0x46`, `0x54` to `0x56`, and
+`0x65`, `0x66`, `0x75` and `0x76`.
+Shaped cells are partly walkable, and the shapes are listed in
+[What solidity means](#what-solidity-means). Every other cell is solid by default,
+including `EMPTY` and the unnamed cells listed below. Check the atlas cell before you
+paint it.
 
 The four grass cells are interchangeable floor. Paint them in a mix. Choose among them
 when you paint, because the game does not randomize at runtime and the exported map
@@ -108,26 +114,68 @@ Descriptions of unnamed regions are approximate and come from visual inspection.
 Check a cell before you rely on it. A cell with no entry here is solid by default.
 
 - `0x01` to `0x05`, `0x10` to `0x15` and `0x21` to `0x24`: round trees and their
-  pieces. Solid. The named cells are in the table. `0x05`, `0x15` and `0x22` are unnamed
-  pieces of the same family.
+  pieces. Solid, except where a shape in [What solidity means](#what-solidity-means)
+  opens part of the cell. The named cells are in the table. `0x05`, `0x15` and `0x22` are
+  unnamed pieces of the same family.
 - `0x08` to `0x0F`: blank black cells. Solid, so check them before you use them.
-- `0x25`: a blank black cell that is **solid**. It looks like floor but is not.
-- `0x34` to `0x37`: boulders, sacks and speckles. Solid.
-- `0x44` to `0x47`: crates and boxes, plus vertical bar patterns. Solid.
-- `0x80` to `0x8F`: building fronts, doors and windows. Solid.
-- `0x90` to `0x9F`: wall and window panels, and signboards. Solid.
+- `0x25`: a blank black cell that is solid. It looks like floor but is not.
+- `0x34` to `0x36`: walkable. `0x37`: boulders, sacks and speckles. Solid.
+- `0x44` to `0x46`: walkable. `0x47`: crates and boxes, plus vertical bar patterns. Solid.
+- `0x54` to `0x56`: walkable.
+- `0x65`, `0x66`, `0x75` and `0x76`: walkable.
+- `0x80` to `0x8F`: building fronts, doors and windows. Solid, except `0x81`, which is a
+  triangle. See the shapes list.
+- `0x90` to `0x9F`: wall and window panels, and signboards. Solid, except the ramps `0x90`
+  and `0x92`.
 - `0xA0` to `0xC7`: roofs, hatching, paving and framed pavers. Solid.
 
 ## What solidity means
 
-- **Collision is per whole cell.** A solid cell blocks the player or an NPC whenever
-  the actor's foot box would overlap it.
-- **The foot box is the lower half of the cell.** It is an 8x8 box at pixel offset
-  `(4, 8)` inside each 16x16 cell, so the bottom 8 rows decide what is blocked. Draw
-  the base of a solid object in those rows, where the feet stop.
+- **Every tile has a 16-bit collision mask**, set as the `collision` property in
+  `world.tsx` (0 to 65535). `0` is passable. `65535` is fully solid. NPCs, navigation and
+  cache checks treat any nonzero mask as entirely solid.
+- **The player tests the mask pixel by pixel.** The foot box is the 8x8 area at pixel
+  offset `(4, 8)` inside each 16x16 cell, so the bottom half of the cell decides most
+  blocks. A foot pixel is blocked when its tile's mask marks that pixel solid.
+- **The mask is sixteen triangles.** Split the tile into four 8x8 quadrants, in the order
+  top-left, top-right, bottom-left and bottom-right. Each quadrant has four triangles that
+  share its center and two adjacent corners. Each quadrant takes one nibble of the mask,
+  and its bits run north, east, south, west:
+
+  | Bits | Quadrant | Bits | Quadrant |
+  | --- | --- | --- | --- |
+  | 0 to 3 | top-left | 8 to 11 | bottom-left |
+  | 4 to 7 | top-right | 12 to 15 | bottom-right |
+
+  `0x00FF` is the top half. `0xF000` is the bottom-right quadrant. `0xF600` is a 45-degree
+  corner solid below the diagonal that runs from the bottom-left to the top-right corner.
+- **Shapes assigned so far.** Each mask is written in decimal in `world.tsx`, and the hex
+  values here show the quadrant bits.
+  - `0x01`: solid on the bottom half (`0xFF00`).
+  - `0x03`: top-left quadrant open (`0xFFF0`).
+  - `0x04`: top-right quadrant open (`0xFF0F`).
+  - `0x13`: bottom-left quadrant open (`0xF0FF`).
+  - `0x14`: bottom-right quadrant open (`0x0FFF`).
+  - `0x10`: solid on the right half (`0xF0F0`).
+  - `0x12`: solid on the left half (`0x0F0F`).
+  - `0x20`: solid except a house roof at the top, with 45-degree slopes from the peak at
+    top center to both top corners (`0xFFC6`).
+  - `0x21`: solid on the top half (`0x00FF`).
+  - `0x30`: solid on the bottom half (`0xFF00`).
+  - `0x31`: solid on the bottom half (`0xFF00`).
+  - `0x33`: solid on the bottom half (`0xFF00`).
+  - `0x81`: solid triangle with vertices at the two bottom corners and the center (`0xC600`).
+  - `0x90`: ramp, solid below the diagonal from bottom-left to top-right (`0xF660`).
+  - `0x92`: ramp, solid below the diagonal from top-left to bottom-right (`0xCF0C`).
+- **Pixel rule.** A pixel is solid when its center lies in a solid triangle. A center on a
+  quadrant diagonal lies on the edge of two triangles, and it is solid when either one is.
+- **Sloped edges slide.** When a player's step is blocked by a partial mask, and the
+  one-pixel diagonal step beside it is clear, the player slides diagonally along the edge.
+  Full tiles never slide.
 - **Unpainted cells are outside, not ground.** An empty CSV cell (GID `0`) becomes the
   sentinel, which is not walkable. Paint every cell that should be playable.
-- **Interactive tiles are solid.** Switches, pots and chests block movement. The player
+- **Interactive tiles are solid.** Pots and chests block movement fully. `SWITCH_LEFT` is
+  solid on its bottom half, like `SWITCH_RIGHT` and `POT_BROKEN`. The player
   interacts by standing next to one and facing it, so its handler point goes on the
   tile itself, as `read_sign` does on `SIGN`. No handler uses these tiles yet.
 - **Collectibles change state.** A collected `POT` becomes `POT_BROKEN`, and a collected
@@ -206,10 +254,10 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 1. Draw the cell in `assets/images/tiles16.png`, in an empty cell or in an existing
    cell you are replacing. Keep the cell index equal to the runtime ID.
 2. In `world.tsx`, set `runtime_id` to the cell index and give the cell its symbol,
-   `solid` and `portal` values. Symbols must be unique.
+   `collision` mask and `portal` value. Symbols must be unique.
 3. Regenerate. Renaming a symbol changes its `TILE_<symbol>` constant, so update any
    code that refers to it.
-4. Check every map that uses the cell. Changing `solid` changes how every map plays.
+4. Check every map that uses the cell. Changing `collision` changes how every map plays.
 
 ## Before committing a map
 

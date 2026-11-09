@@ -1,13 +1,14 @@
 """Deterministic finite TMX/TSX -> native C++20/AVM program assets."""
 
 import argparse
+import io
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 TILE_SIZE = 16
@@ -121,7 +122,7 @@ def tileset(path):
         require(
             len(tile) == 1 and tile[0].tag == "properties",
             path,
-            "tile animation, per-tile images and collision shapes are unsupported; use solid property",
+            "tile animation and per-tile images are unsupported; use the collision property",
         )
         p = properties(tile, path)
         if local == 255:
@@ -138,14 +139,19 @@ def tileset(path):
             "explicit runtime_id 0..254 required",
         )
         require(
-            type(p.get("solid")) is bool and type(p.get("portal")) is bool,
+            type(p.get("collision")) is int and 0 <= p["collision"] <= 0xFFFF,
             path,
-            "each tile needs bool solid and portal properties",
+            "each tile needs an int collision property 0..65535",
+        )
+        require(
+            type(p.get("portal")) is bool,
+            path,
+            "each tile needs a bool portal property",
         )
         records[local] = dict(
             runtime=runtime,
             symbol=identifier(p.get("symbol"), path),
-            solid=int(p["solid"]),
+            collision=p["collision"],
             portal=int(p["portal"]),
             image=image_path,
             frame=local,
@@ -560,9 +566,9 @@ def load_world(root):
         cell = spawn["tx"], spawn["ty"]
         tile = m.data[cell[1] * m.width + cell[0]]
         require(
-            tile in metadata and not metadata[tile]["solid"],
+            tile in metadata and metadata[tile]["collision"] == 0,
             m.symbol,
-            "spawn must be on passable baseline tiles",
+            "spawn must be on tiles without collision",
         )
         require(
             cell not in tile_owners,
@@ -570,6 +576,53 @@ def load_world(root):
             "safe spawn must not overlap a native handler",
         )
     return sorted(maps, key=lambda m: m.area), metadata, names
+
+
+COLLISION_OVERLAY = "assets/images/tiles16_collision.png"
+
+
+def collision_pixel_solid(mask, x, y):
+    # Mirrors collision_pixel_solid in src/world.cpp: closed triangles, quadrant bits
+    # ordered top-left, top-right, bottom-left, bottom-right with north, east, south, west.
+    quadrant = ((y >> 3) << 1) | (x >> 3)
+    u, v = 2 * (x & 7) - 7, 2 * (y & 7) - 7
+    across = (mask >> (quadrant * 4 + (1 if u > 0 else 3))) & 1
+    along = (mask >> (quadrant * 4 + (2 if v > 0 else 0))) & 1
+    if abs(u) > abs(v):
+        return bool(across)
+    if abs(v) > abs(u):
+        return bool(along)
+    return bool(across or along)
+
+
+def collision_overlay(root=ROOT, scale=3):
+    """PNG of the atlas with solid collision pixels tinted red, for inspection."""
+    _, metadata, _ = load_world(root)
+    atlas = Image.open(root / "assets/images/tiles16.png").convert("RGB")
+    margin, cell = 14, 16 * scale + 1
+    image = Image.new("RGB", (margin + 16 * cell, margin + 16 * cell), (40, 40, 40))
+    draw = ImageDraw.Draw(image)
+    for index in range(256):
+        row, column = divmod(index, 16)
+        ox, oy = margin + column * cell, margin + row * cell
+        # The reserved cell has no metadata and is treated as solid.
+        mask = metadata[index]["collision"] if index in metadata else 0xFFFF
+        for y in range(16):
+            for x in range(16):
+                on = atlas.getpixel((column * 16 + x, row * 16 + y))[0] > 127
+                solid = mask == 0xFFFF or (mask != 0 and collision_pixel_solid(mask, x, y))
+                if solid:
+                    color = (255, 60, 60) if on else (120, 0, 0)
+                else:
+                    color = (255, 255, 255) if on else (0, 0, 0)
+                left, top = ox + x * scale, oy + y * scale
+                draw.rectangle([left, top, left + scale - 1, top + scale - 1], fill=color)
+    for i in range(16):
+        draw.text((margin + i * cell + 3, 2), f"{i:X}", fill=(255, 255, 0))
+        draw.text((2, margin + i * cell + 3), f"{i:X}", fill=(255, 255, 0))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def read_tileset_frames(root):
@@ -660,7 +713,7 @@ def export_world(root=ROOT):
         "#pragma once",
         '#include "rpg.h"',
         '#include "tile_ids.h"',
-        "extern uint8_t const PROGMEM TILE_SOLID[];",
+        "extern uint16_t const PROGMEM TILE_COLLISION[];",
         "extern uint8_t const PROGMEM TILE_PORTALS[];",
     ]
     assets = [prologue, '#include "world_assets.h"', '#include "chunk.h"']
@@ -687,34 +740,22 @@ def export_world(root=ROOT):
             + f"{spawn['tx'] * TILE_SIZE}, {spawn['ty'] * TILE_SIZE}"
             + "}};"
         )
-    for array, key in (("TILE_SOLID", "solid"), ("TILE_PORTALS", "portal")):
-        assets += array_lines(
-            f"constexpr uint8_t PROGMEM {array}[]",
-            [t[key] for _, t in sorted(metadata.items())],
-        )
-    for fn, key in (("tile_solid", "solid"), ("tile_portal", "portal")):
-        if not any(t[key] for t in metadata.values()):
-            result = "tile >= TILE_COUNT" if key == "solid" else "false"
-            assets += [
-                f"bool {fn}(uint8_t tile) {{",
-                "    (void)tile;",
-                f"    return {result};",
-                "}",
-            ]
-            continue
-        assets += [f"bool {fn}(uint8_t tile) {{", "    switch(tile) {"]
+    assets += array_lines(
+        "constexpr uint16_t PROGMEM TILE_COLLISION[]",
+        [t["collision"] for _, t in sorted(metadata.items())] + [0xFFFF],
+    )
+    assets += array_lines(
+        "constexpr uint8_t PROGMEM TILE_PORTALS[]",
+        [t["portal"] for _, t in sorted(metadata.items())],
+    )
+    if not any(t["portal"] for t in metadata.values()):
+        assets += ["bool tile_portal(uint8_t tile) {", "    (void)tile;", "    return false;", "}"]
+    else:
+        assets += ["bool tile_portal(uint8_t tile) {", "    switch(tile) {"]
         for i, t in sorted(metadata.items()):
-            if t[key]:
+            if t["portal"]:
                 assets.append(f"        case {i}: return true;")
-        assets += [
-            (
-                "        default: return tile >= TILE_COUNT;"
-                if key == "solid"
-                else "        default: return false;"
-            ),
-            "    }",
-            "}",
-        ]
+        assets += ["        default: return false;", "    }", "}"]
     assets += ["Area const PROGMEM* world_area(uint8_t id) {", "    switch(id) {"]
     assets += [f"        case {m.area}: return &{m.symbol}_AREA;" for m in maps]
     assets += ["        default: return nullptr;", "    }", "}"]
@@ -969,6 +1010,13 @@ def main():
         else:
             if not path.exists() or path.read_bytes() != text.encode("utf-8"):
                 path.write_text(text, encoding="utf-8", newline="\n")
+    overlay = ROOT / COLLISION_OVERLAY
+    image = collision_overlay(ROOT)
+    if args.check:
+        if not overlay.exists() or overlay.read_bytes() != image:
+            parser.error(f"{overlay} is stale; run python tools/generate_assets.py")
+    elif not overlay.exists() or overlay.read_bytes() != image:
+        overlay.write_bytes(image)
     print(
         "Asset generation/check passed (named locations, map shapes, sprite layouts)."
     )

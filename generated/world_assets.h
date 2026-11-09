@@ -3,7 +3,7 @@
 #pragma once
 #include "rpg.h"
 #include "tile_ids.h"
-extern uint8_t const PROGMEM TILE_SOLID[];
+extern uint16_t const PROGMEM TILE_COLLISION[];
 extern uint8_t const PROGMEM TILE_PORTALS[];
 inline constexpr uint8_t OUTDOOR_WIDTH = 18;
 inline constexpr uint8_t OUTDOOR_HEIGHT = 12;

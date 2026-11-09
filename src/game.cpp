@@ -41,6 +41,27 @@ static DIRECTION direction(uint8_t held) {
     return STILL;
 }
 
+// A blocked player step that meets only partial collision slides one pixel sideways along
+// the shape edge, when that diagonal step is clear. Full tiles never slide.
+static bool slide_player(Actor* a, uint16_t x, uint16_t y, DIRECTION dir) {
+    if(!player_blocked_by_slope(x, y))
+        return false;
+    bool horizontal = dir == EAST || dir == WEST;
+    for(uint8_t side = 0; side < 2; ++side) {
+        uint16_t cx = x, cy = y;
+        if(horizontal)
+            cy = side ? (uint16_t)(y + 1) : (uint16_t)(y - 1);
+        else
+            cx = side ? (uint16_t)(x + 1) : (uint16_t)(x - 1);
+        if(player_terrain_clear(cx, cy) && npc_player_clear(cx, cy, dir)) {
+            a->x = cx;
+            a->y = cy;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
     bool moved = false;
 
@@ -68,12 +89,19 @@ bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
         if(dir == EAST)
             ++x;
 
-        if(!terrain_clear(x, y) || (a == &game.player && !npc_player_clear(x, y, dir)))
-            break;
-
-        a->x = x;
-        a->y = y;
-        moved = true;
+        bool player = a == &game.player;
+        bool clear = player ? player_terrain_clear(x, y) : terrain_clear(x, y);
+        if(clear && (!player || npc_player_clear(x, y, dir))) {
+            a->x = x;
+            a->y = y;
+            moved = true;
+            continue;
+        }
+        if(player && slide_player(a, x, y, dir)) {
+            moved = true;
+            continue;
+        }
+        break;
     }
 
     a->walking = (uint8_t)moved;
