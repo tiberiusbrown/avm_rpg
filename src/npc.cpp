@@ -480,7 +480,8 @@ void npc_update() {
                 n.state ^= NPC_WALK_PHASE;
                 uint8_t random = (uint8_t)rng_next();
                 n.actor.facing = (DIRECTION)(random & 3);
-                n.timer = (n.state & NPC_WALK_PHASE ? def->walk : def->pause) + (random & 7);
+                // Jitter doubles from 0 to 7 ticks to 0 to 15 frames.
+                n.timer = (n.state & NPC_WALK_PHASE ? def->walk : def->pause) + (random & 15);
             }
             if((n.state & NPC_WALK_PHASE) && !step(n, n.actor.facing)) {
                 n.state &= ~NPC_WALK_PHASE;

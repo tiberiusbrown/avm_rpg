@@ -94,19 +94,20 @@ four-space formatting rules in `AGENTS.md`.
 
 ## Pixel exploration and pacing
 
-Positions are unsigned 16-bit pixels; player speed is 2 px per 50 ms step
-(40 px/s), NPC speed 1 px per walking step. Movement tests every intermediate
+Positions are unsigned 16-bit pixels; player speed is 1 px per 20 ms frame
+(50 px/s), NPC speed 1 px per walking step. Movement tests every intermediate
 pixel, including all terrain tiles touched by a 6×5-foot collision box at
 sprite offset (1,3). It cannot tunnel even if a future action requests a large
 step. Opposing directions cancel per axis; if both remaining axes are held,
 vertical takes precedence. There is no diagonal speed boost. Facing changes
 when blocked; walking animation occurs only on successful displacement.
 
-Use SDK `avm_set_frame_rate(20)` and `avm_next_frame`, rather than an additional
-timer. Motion is independent of workload while frames meet the 50 ms deadline.
+Use SDK `avm_set_frame_rate(50)` and `avm_next_frame`, rather than an additional
+timer. Motion is independent of workload while frames meet the 20 ms deadline.
 There is no catch-up after an overloaded frame; blocking safe-point operations
-may stall simulation. The measured M1 workload, including 12 NPCs, meets the
-deadline, so additional timing infrastructure is unwarranted.
+may stall simulation. The 20 FPS M1 workload, including 12 NPCs, met its deadline.
+The 50 FPS device QA requires every exploration frame under the 320,000-cycle
+budget, so additional timing infrastructure is unwarranted.
 
 ## Camera, content and actors
 
@@ -116,11 +117,11 @@ and AVM sprite clipping. Background assets are 8×8 program sprites. Empty paths
 and interior floors are skipped on the cleared buffer. NPCs draw a small overhead
 bar to distinguish them from the player. Simple actor animation uses two leg
 phases per facing. No caching/compression/dirty rectangles were needed to pass
-20 FPS; decorative detail can be added only with new measurements.
+50 FPS; decorative detail can be added only with new measurements.
 
 Active capacity is 12 actors, eight guest bytes each. Normal gameplay uses three
 outdoor walkers and one stationary interior caretaker. The stress build activates
-12 outdoor walkers. Walkers choose facing/wait/walk on 12..35-step timers, then
+12 outdoor walkers. Walkers choose facing/wait/walk on 48..63-frame timers, then
 advance pixel by pixel until blocked or out of their authored rectangle. They
 never occupy the required doorway or its approach. Collision includes player
 and other NPCs; blocked walkers wait then reconsider. No pathfinding, recursion,
@@ -211,7 +212,7 @@ Four appended quest flags (relocation, arrival, absence and dispatch) fit the
 existing save byte/version/24-byte record. Saving a dispatched journey completes
 it logically at the destination on reconstruction.
 
-Preserve terrain authority and the 17x9 cache. After eight push frames, check two
+Preserve terrain authority and the 17x9 cache. After sixteen push frames, check two
 short player walkaround lanes. If either is clear, the NPC holds its position and
 ordinary collision. Otherwise plan a side step and animate one pixel per update;
 if no step is safe or it becomes blocked, allow only that player/NPC relationship

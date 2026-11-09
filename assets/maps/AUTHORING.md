@@ -221,7 +221,7 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   interactive or collectible tile takes its handler the same way. A handler point must
   not share a cell with the spawn.
 - **Routes** are polylines on the Routes layer, with `mode` set to `once`, `loop` or
-  `reverse` (default `once`), and `pause` set from 0 to 255 (default 8). A route needs
+  `reverse` (default `once`), and `pause` set from 0 to 255 (default 16). A route needs
   2 to 255 waypoints. Each waypoint must sit inside a tile, not on a tile edge or
   corner. Keep waypoints on passable tiles where an NPC can stand.
 - Do not use object types, classes or templates. The exporter rejects them.

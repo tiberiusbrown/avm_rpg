@@ -41,7 +41,7 @@ static void animate() {
                 actor.walking = 1;
                 uint8_t expected[] = {0, 1, 0, 2};
                 CHECK(actor_frame(actor, row, ticks) ==
-                      row * 12 + dir * 3 + expected[(ticks >> 2) & 3]);
+                      row * 12 + dir * 3 + expected[(ticks / WALK_POSE_TICKS) & 3]);
                 actor.walking = 0;
             }
         }

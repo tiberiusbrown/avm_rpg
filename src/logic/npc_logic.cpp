@@ -2,9 +2,9 @@
 #include "map_positions.h"
 
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
-    static constexpr NpcDefinition PROGMEM VILLAGER{NPC_STAND, SOUTH, 1, 16, 16,  0,
+    static constexpr NpcDefinition PROGMEM VILLAGER{NPC_STAND, SOUTH, 1, 32, 32,  0,
                                                     0,         3,     0, 1,  true};
-    static constexpr NpcDefinition PROGMEM WANDERER{NPC_WANDER, WEST, 1, 24, 24,  16,
+    static constexpr NpcDefinition PROGMEM WANDERER{NPC_WANDER, WEST, 1, 48, 48,  16,
                                                     12,         2,    0, 2,  true};
     switch(id) {
         case NPC_VILLAGER:

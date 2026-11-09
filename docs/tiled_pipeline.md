@@ -34,7 +34,7 @@ width=16, height=16, followed by all 255 frames in runtime-ID order.
 
 `actors16.png` is 192x256 RGBA: 12 columns and 16 character rows. Every row has
 three north, three east, three south and three west frames. Zero-based pose 0
-is standing; walking uses offsets 0,1,0,2. Each pose lasts four simulation ticks.
+is standing; walking uses offsets 0,1,0,2. Each pose lasts eight simulation ticks.
 `actor_frame()` shares this selection between player and NPC rendering. The
 player uses row 0; `NpcDefinition::sprite_row` selects an NPC's row (0..15).
 

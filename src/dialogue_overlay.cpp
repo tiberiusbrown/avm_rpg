@@ -22,9 +22,9 @@ static constexpr uint8_t FIRST_LINE = OVERLAY_TOP + BORDER + PADDING + ASCENT;
 static constexpr uint8_t LAST_LINE = FIRST_LINE + (DIALOGUE_VISIBLE_LINES - 1) * LINE_HEIGHT;
 static constexpr uint8_t PROMPT_BASELINE = DISPLAY_HEIGHT - BORDER - PADDING - 1;
 
-// Frames run at 30 Hz. Each letter appears on its own frame and blips for that frame.
+// Frames run at 50 Hz. Each letter appears on its own frame and blips for that frame.
 // A prompt ignores A for half a second so a press that finished typing cannot advance.
-static constexpr uint8_t ADVANCE_GUARD_FRAMES = 15;
+static constexpr uint8_t ADVANCE_GUARD_FRAMES = 25;
 static constexpr uint8_t BLIP_AMPLITUDE = 18;
 static uint8_t const PROGMEM BLIP_NOTES[8] = {67, 69, 71, 74, 76, 79, 81, 83};
 

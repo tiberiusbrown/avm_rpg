@@ -73,7 +73,7 @@ Player and NPC collision use an 8x8 foot box at (4,8), rather than the whole
 it is never simulated against arbitrary offscreen tiles. Terrain repair tries
 nearby positions before retiring a blocked actor.
 
-After eight sustained push frames, two short walkaround lanes are checked. Where
+After sixteen sustained push frames, two short walkaround lanes are checked. Where
 the player can detour, the NPC holds position. Otherwise a safe short side step
 is animated; if none fits or a yield becomes blocked, only that player/NPC pair
 may overlap until separation. The 8x8 footprints can fit side by side in a 16-pixel lane

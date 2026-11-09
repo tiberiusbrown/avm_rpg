@@ -67,8 +67,11 @@ struct Actor {
 #include "npc_types.h"
 
 
+// Each walking pose lasts this many simulation ticks, which is 160 ms at 50 Hz.
+inline constexpr uint16_t WALK_POSE_TICKS = 8;
+
 constexpr uint16_t actor_frame(Actor const& actor, uint8_t sprite_row, uint16_t ticks) {
-    uint8_t phase = (ticks >> 2) & 3;
+    uint8_t phase = (ticks / WALK_POSE_TICKS) & 3;
     uint8_t step = actor.walking && (phase & 1) ? (phase == 1 ? 1 : 2) : 0;
     return (uint16_t)sprite_row * 12 + actor.facing * 3 + step;
 }

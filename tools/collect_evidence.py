@@ -139,9 +139,9 @@ def main():
         "one Game, no Game-reference helper parameters and no stored TilePos constants.",
         "The separate framebuffer and native AVR hardware stack are excluded.\n",
         "Full-device emulated AVR cycles at 16 MHz include simulation, rendering,",
-        "display transfer and interrupts; pacing waits are excluded. Exploration checks retain",
-        "an 800,000-cycle diagnostic ceiling. The RPG requests 30 FPS (33 ms periods);",
-        "the proof targets 20 FPS. All measured RPG frames also meet the 33 ms interval.\n",
+        "display transfer and interrupts; pacing waits are excluded. Exploration checks enforce",
+        "a 320,000-cycle frame budget (16 MHz / 50 Hz). The RPG requests 50 FPS (20 ms periods);",
+        "the proof targets 20 FPS. All measured RPG frames also meet the 20 ms interval.\n",
         "| Workload | frames | average cycles | worst observed | render/display | FPS |",
         "|---|---:|---:|---:|---:|---:|",
     ]

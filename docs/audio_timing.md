@@ -297,15 +297,17 @@ cache reloads and interrupts, so these are observed workload costs.
 | fxc_pixel_scroll | 257,077 | 258,183 | +0.43% |
 | fxc_dense_collision | 227,842 | 231,867 | +1.77% |
 
-All measured exploration frames satisfy the 800,000-cycle diagnostic ceiling
+At 30 fps, when these captures were made, all measured exploration frames
+satisfied the 800,000-cycle diagnostic ceiling
 and their actual frame interval. The largest selected Timer1 frame is 326,809
 cycles (20.43 ms); the largest unified frame is 313,667 cycles (19.60 ms).
 Observed maxima do not prove a universal execution bound.
 
 The unified experiment's benefit was finer time resolution and fractional
 pacing: 62.5 us raw ticks and approximately 30.00 fps. The selected implementation
-retains 33 ms periods for a requested 30 fps (approximately 30.30 observed),
-with lower CPU cost. RPG static storage is **266 bytes**, its complete guest
+retained 33 ms periods for the 30 fps used here (approximately 30.30 observed),
+with lower CPU cost. The RPG now requests 50 fps (20 ms periods), which these
+captures do not cover. RPG static storage is **266 bytes**, its complete guest
 stack bound is **171 bytes**, and the native private allocation is unchanged.
 Selected firmware is **29,052 bytes**, below the 29,696-byte limit.
 

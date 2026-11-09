@@ -51,7 +51,7 @@ bool game_save() {
 }
 
 extern "C" void setup() {
-    avm_set_frame_rate(30);
+    avm_set_frame_rate(50);
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     game_new();

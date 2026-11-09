@@ -138,7 +138,7 @@ struct Device {
                 last.reload = stages.reload;
                 last.chunks = stages.chunks;
                 last.collision = stages.collision;
-                require(last.total <= 800000, "exploration frame exceeded 800000-cycle budget");
+                require(last.total <= 320000, "exploration frame exceeded the 320000-cycle budget");
                 frames.push_back(last);
             }
             previous_marker = marker;
@@ -388,7 +388,7 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
     }
 
     double fps = n > 1 ? double(n - 1) * 16000000.0 / double(last - first) : 0;
-    require(worst <= 800000, "exploration frame exceeded 800000-cycle budget");
+    require(worst <= 320000, "exploration frame exceeded the 320000-cycle budget");
     std::cout << "{\"workload\":\"" << name << "\",\"frames\":" << n
               << ",\"average_cycles\":" << sum / n << ",\"worst_cycles\":" << worst
               << ",\"average_render_display_cycles\":" << render / n << ",\"observed_fps\":" << fps
@@ -398,7 +398,7 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
               << ",\"worst_chunk_cycles\":" << chunks_worst
               << ",\"average_collision_cycles\":" << collision / n
               << ",\"worst_collision_cycles\":" << collision_worst
-              << ",\"budget_cycles\":800000}\n";
+              << ",\"budget_cycles\":320000}\n";
 }
 
 #ifndef RPG_DEVICE_TEST_LIBRARY

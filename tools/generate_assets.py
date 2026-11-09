@@ -312,7 +312,7 @@ def load_world(root):
                         where,
                         "route properties: mode, pause; route_id is exporter-assigned",
                     )
-                    mode, pause = props.get("mode", "once"), props.get("pause", 8)
+                    mode, pause = props.get("mode", "once"), props.get("pause", 16)
                     require(name not in route_names, where, "duplicate route name")
                     require(
                         mode in ("once", "loop", "reverse")

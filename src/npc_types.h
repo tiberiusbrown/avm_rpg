@@ -50,7 +50,10 @@ constexpr NPC_STATE& operator^=(NPC_STATE& left, NPC_STATE right) {
 }
 
 inline constexpr uint8_t NPC_CAPACITY = 8;
-inline constexpr uint8_t NPC_PUSH_FRAMES = 8, NPC_STUCK_FRAMES = 24;
+// Doubled from the 30 Hz counts of 8 and 24 frames. Real-time durations rise about 20 percent.
+inline constexpr uint8_t NPC_PUSH_FRAMES = 16, NPC_STUCK_FRAMES = 48;
+static_assert((NPC_PUSH_FRAMES & (NPC_PUSH_FRAMES - 1)) == 0,
+              "push detour mask needs a power of two");
 
 struct Npc {
     Actor actor;
