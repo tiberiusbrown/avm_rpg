@@ -809,7 +809,7 @@ def export_world(root=ROOT):
     dispatch += [
         "template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(ChunkCoord coord) {",
         "#ifndef RPG_AVM",
-        "    if(chunk_trace_count[STAGE] < 4)",
+        "    if(chunk_trace_count[STAGE] < CHUNK_TRACE_CAPACITY)",
         "        chunk_trace[STAGE][chunk_trace_count[STAGE]++] = "
         "(uint16_t)coord.y * world_area(coord.area)->chunk_columns + coord.x;",
         "#endif",

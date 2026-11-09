@@ -119,8 +119,9 @@ plus `avm_draw_overwrite` / `avm_draw_plus_mask` removes repeated pointer argume
 Services clip signed coordinates. Sprite assets begin with width,height;
 16×16 frames are 32 page-major column bytes (16 columns for each eight-pixel page). Plus-mask frames interleave each
 image byte with its mask. `avm_draw_filled_rect_white/black` accept signed x/y and
-8-bit width/height. The current RPG renders effective partial tiles from its 45-byte live
-cache, with byte tile origins and a 16-bit pixel camera snapshot.
+8-bit width/height. The current RPG renders effective partial tiles from its 77-byte live
+cache (11x7 tiles: the 9x5 view span plus a margin tile on every side), with byte tile origins
+and a 16-bit pixel camera snapshot.
 
 `avm_set_text_font(AVM_FONT_BR5D)` selects the preferred variable-width ASCII
 font, with five pixels above the baseline, descenders, and seven-pixel line

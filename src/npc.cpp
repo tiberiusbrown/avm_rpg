@@ -23,14 +23,6 @@ bool npc_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
            oy < y + FOOT_HEIGHT;
 }
 
-void npc_reset() {
-    for(auto const& n : game.npcs.actors)
-        if(n.id)
-            npc_on_retire(n, NPC_RETIRED_RESET);
-    memset(&game.npcs, 0, sizeof(game.npcs));
-    game.npcs.push_direction = STILL;
-    npc_logic_restore();
-}
 
 void npc_begin_frame() {
     game.npcs.request_count = 0;
@@ -58,14 +50,75 @@ static bool higher_priority(NPC_ID a, NPC_ID b) {
     return pa > pb || (pa == pb && a < b);
 }
 
+// Residence index: dormant NPCs sorted by residence area, chunk row, and chunk column.
+// Map limits keep the fields below 32, 64, and 32, so each key fits in 16 bits.
+static_assert(MAX_MAP_WIDTH / CHUNK_WIDTH <= 32 && MAX_MAP_HEIGHT / CHUNK_HEIGHT <= 64,
+              "chunk key fields fit their bit ranges");
+
+static uint16_t residence_key(TilePos p) {
+    return (uint16_t)((p.area << 11) | ((p.y / CHUNK_HEIGHT) << 5) | (p.x / CHUNK_WIDTH));
+}
+
+static uint16_t residence_key_of(NPC_ID id) {
+    return residence_key(game.npcs.residence[id]);
+}
+
+static bool is_dormant(NPC_ID id) {
+    auto& pool = game.npcs;
+    for(uint8_t i = 0; i < pool.dormant_count; ++i)
+        if(pool.dormant[i] == id)
+            return true;
+    return false;
+}
+
+// First dormant entry whose key is at least key.
+static uint8_t dormant_lower_bound(uint16_t key) {
+    auto& pool = game.npcs;
+    uint8_t low = 0, high = pool.dormant_count;
+    while(low < high) {
+        uint8_t mid = (uint8_t)((low + high) / 2);
+        if(residence_key_of(pool.dormant[mid]) < key)
+            low = (uint8_t)(mid + 1);
+        else
+            high = mid;
+    }
+    return low;
+}
+
+static void dormant_insert(NPC_ID id) {
+    auto& pool = game.npcs;
+    if(is_dormant(id))
+        return;
+    uint8_t at = dormant_lower_bound((uint16_t)(residence_key_of(id) + 1));
+    for(uint8_t i = pool.dormant_count; i > at; --i)
+        pool.dormant[i] = pool.dormant[i - 1];
+    pool.dormant[at] = id;
+    ++pool.dormant_count;
+}
+
+static void dormant_remove(NPC_ID id) {
+    auto& pool = game.npcs;
+    uint8_t i = 0;
+    while(i < pool.dormant_count && pool.dormant[i] != id)
+        ++i;
+    if(i == pool.dormant_count)
+        return;
+    for(++i; i < pool.dormant_count; ++i)
+        pool.dormant[i - 1] = pool.dormant[i];
+    --pool.dormant_count;
+}
+
+static bool in_view(TilePos p, NpcView const& view) {
+    return p.area == view.area && p.x >= view.left && p.x <= view.right && p.y >= view.top &&
+           p.y <= view.bottom;
+}
+
+// Chunk handlers request static NPCs. Requests are admitted by npc_reconcile.
 void npc_request(NPC_ID id, TilePos anchor) {
     // Visible incumbents already own their slot and retain behavior/position.
-    // Their canonical reassignment is resolved when they leave the view.
-    if(npc_find(id))
+    if(npc_find(id) || !npc_definition(id) || npc_is_dynamic(id))
         return;
-    if(!npc_definition(id))
-        return;
-    TilePos home = npc_home(id, npc_placement(id));
+    TilePos home = npc_home(id);
     if(home.area != game.area || home.area != anchor.area || home.x != anchor.x ||
        home.y != anchor.y)
         return;
@@ -90,6 +143,16 @@ void npc_request(NPC_ID id, TilePos anchor) {
     for(uint8_t i = pool.request_count - 1; i > index; --i)
         pool.requests[i] = pool.requests[i - 1];
     pool.requests[index] = id;
+}
+
+bool npc_destination_valid(TilePos destination) {
+    Area const PROGMEM* area = world_area(destination.area);
+    return area && destination.x < area->width && destination.y < area->height;
+}
+
+void npc_residence_defaults() {
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
+        game.npcs.residence[id] = npc_home((NPC_ID)id);
 }
 
 static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
@@ -118,55 +181,149 @@ static bool spawn_clear(Npc const* self, uint16_t x, uint16_t y) {
                                      (uint8_t)((y + FOOT_CENTER_Y) >> TILE_SHIFT)}));
 }
 
+
+
 static void retire(Npc& n, NPC_RETIRE_REASON reason) {
     npc_on_retire(n, reason);
+    NPC_ID id = n.id;
     n.id = NPC_NONE;
+    // Static NPCs return only when their chunk requests them again.
+    if(!npc_is_dynamic(id))
+        return;
+    // A dynamic NPC now lives at its residence; a visible residence is admitted this frame.
+    dormant_insert(id);
+    if(in_view(game.npcs.residence[id], game.npcs.view))
+        game.npcs.pending |= (uint8_t)(1u << id);
+}
+
+static NpcView view_now() {
+    Camera camera = game_camera();
+    return {game.area,
+            (uint8_t)(camera.x >> TILE_SHIFT),
+            (uint8_t)((camera.x + 127) >> TILE_SHIFT),
+            (uint8_t)(camera.y >> TILE_SHIFT),
+            (uint8_t)((camera.y + 63) >> TILE_SHIFT)};
+}
+
+// Places a dormant NPC at its residence if the tile is clear and a slot is free.
+// Places an NPC at home if the tile is clear and a slot is free.
+static bool spawn_at(NPC_ID id, TilePos home) {
+    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
+    if(!spawn_clear(nullptr, x, y)) {
+        saturate(game.npcs.activation_deferrals);
+        return false;
+    }
+    Npc* slot = nullptr;
+    for(auto& n : game.npcs.actors)
+        if(!n.id) {
+            slot = &n;
+            break;
+        }
+    if(!slot) {
+        saturate(game.npcs.capacity_faults);
+        return false;
+    }
+    *slot = {};
+    auto def = npc_definition(id);
+    slot->id = id;
+    slot->actor = {x, y, def->facing, 0};
+    slot->behavior = def->behavior;
+    slot->route = def->route;
+    npc_on_activate(*slot);
+    if(slot->behavior == NPC_ROUTE)
+        slot->state |= NPC_ROUTE_PENDING;
+    return true;
+}
+
+// A dynamic NPC is placed at its residence and leaves the residence index.
+static bool admit(NPC_ID id) {
+    if(!spawn_at(id, game.npcs.residence[id]))
+        return false;
+    dormant_remove(id);
+    return true;
+}
+
+// Only dormant NPCs whose residence lies in the new visible rectangle are touched.
+static void admit_view() {
+    NpcView const view = game.npcs.view;
+    NPC_ID candidates[NPC_ID_LIMIT];
+    uint8_t count = 0;
+    for(uint8_t row = view.top / CHUNK_HEIGHT; row <= view.bottom / CHUNK_HEIGHT; ++row) {
+        uint16_t low = residence_key(TilePos{view.area, view.left, (uint8_t)(row * CHUNK_HEIGHT)});
+        uint16_t high =
+            residence_key(TilePos{view.area, view.right, (uint8_t)(row * CHUNK_HEIGHT)});
+        for(uint8_t i = dormant_lower_bound(low);
+            i < game.npcs.dormant_count && residence_key_of(game.npcs.dormant[i]) <= high; ++i)
+            if(in_view(game.npcs.residence[game.npcs.dormant[i]], view))
+                candidates[count++] = game.npcs.dormant[i];
+    }
+    for(uint8_t i = 1; i < count; ++i)
+        for(uint8_t j = i; j > 0 && higher_priority(candidates[j], candidates[j - 1]); --j) {
+            NPC_ID swap = candidates[j];
+            candidates[j] = candidates[j - 1];
+            candidates[j - 1] = swap;
+        }
+    for(uint8_t i = 0; i < count; ++i)
+        if(!admit(candidates[i]))
+            game.npcs.pending |= (uint8_t)(1u << candidates[i]);
+}
+
+// Visible but blocked admissions are retried until placed or out of view.
+static void admit_pending() {
+    auto& pool = game.npcs;
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
+        uint8_t bit = (uint8_t)(1u << id);
+        if(!(pool.pending & bit))
+            continue;
+        if(!is_dormant((NPC_ID)id) || !in_view(game.npcs.residence[id], pool.view)) {
+            pool.pending &= (uint8_t)~bit;
+            continue;
+        }
+        if(admit((NPC_ID)id))
+            pool.pending &= (uint8_t)~bit;
+    }
 }
 
 void npc_reconcile() {
-    // Existing visible actors have retention priority, even after their assignment changes.
-    for(auto& n : game.npcs.actors) {
+    auto& pool = game.npcs;
+    NpcView view = view_now();
+    bool moved = !(view == pool.view);
+    pool.view = view;
+    // Visible actors keep their slots. Dynamic NPCs leaving view teleport to their residence.
+    for(auto& n : pool.actors)
         if(n.id && !npc_visible(n.actor.x, n.actor.y))
             retire(n, NPC_RETIRED_OFFSCREEN);
+    // Static NPCs requested by chunk handlers this frame spawn at home.
+    for(uint8_t i = 0; i < pool.request_count; ++i) {
+        NPC_ID id = pool.requests[i];
+        TilePos home = npc_home(id);
+        if(!npc_find(id) && home.area == game.area)
+            spawn_at(id, home);
     }
-    for(uint8_t i = 0; i < game.npcs.request_count; ++i) {
-        NPC_ID id = game.npcs.requests[i];
-        if(npc_find(id))
-            continue;
-        uint8_t placement = npc_placement(id);
-        TilePos home = npc_home(id, placement);
-        uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
-        if(home.area != game.area || !spawn_clear(nullptr, x, y)) {
-            saturate(game.npcs.activation_deferrals);
-            continue;
-        }
-        Npc* slot = nullptr;
-        for(auto& n : game.npcs.actors)
-            if(!n.id) {
-                slot = &n;
-                break;
-            }
-        if(!slot) {
-            saturate(game.npcs.capacity_faults);
-            continue;
-        }
-        *slot = {};
-        auto def = npc_definition(id);
-        slot->id = id;
-        slot->placement = placement;
-        slot->actor = {x, y, def->facing, 0};
-        slot->behavior = def->behavior;
-        slot->route = def->route;
-        npc_on_activate(*slot);
-        if(slot->behavior == NPC_ROUTE)
-            slot->state |= NPC_ROUTE_PENDING;
-    }
+    if(moved)
+        admit_view();
+    admit_pending();
+}
+
+void npc_reset() {
+    for(auto const& n : game.npcs.actors)
+        if(n.id)
+            npc_on_retire(n, NPC_RETIRED_RESET);
+    TilePos residence[NPC_ID_LIMIT];
+    memcpy(residence, game.npcs.residence, sizeof(residence));
+    memset(&game.npcs, 0, sizeof(game.npcs));
+    memcpy(game.npcs.residence, residence, sizeof(residence));
+    game.npcs.push_direction = STILL;
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
+        if(npc_definition((NPC_ID)id) && npc_is_dynamic((NPC_ID)id))
+            dormant_insert((NPC_ID)id);
+    npc_logic_restore();
 }
 
 static bool leashed(Npc const& n, uint16_t x, uint16_t y) {
     if(n.behavior != NPC_WANDER)
         return true;
-    TilePos home = npc_home(n.id, n.placement);
+    TilePos home = game.npcs.residence[n.id];
     auto def = npc_definition(n.id);
     int16_t dx = (int16_t)x - (int16_t)((uint16_t)home.x * TILE);
     int16_t dy = (int16_t)y - (int16_t)((uint16_t)home.y * TILE);
@@ -231,6 +388,32 @@ bool npc_follow_route(NPC_ID id, uint8_t route) {
     n->waypoint = n->timer = n->stuck = 0;
     n->state &= ~(NPC_BACKWARD | NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR);
     n->state |= NPC_ROUTE_PENDING;
+    n->push = 0;
+    return true;
+}
+
+bool npc_set_destination(NPC_ID id, TilePos destination) {
+    if(!npc_definition(id) || !npc_is_dynamic(id) || !npc_destination_valid(destination))
+        return false;
+    Npc* n = npc_find(id);
+    if(!n) {
+        // Dormant: only its position in the residence index changes.
+        dormant_remove(id);
+        game.npcs.residence[id] = destination;
+        dormant_insert(id);
+        if(in_view(destination, game.npcs.view))
+            game.npcs.pending |= (uint8_t)(1u << id);
+        return true;
+    }
+    game.npcs.residence[id] = destination;
+    if(destination.area != game.area) {
+        // An active NPC cannot walk to another area, so it leaves now and waits there.
+        retire(*n, NPC_RETIRED_OFFSCREEN);
+        return true;
+    }
+    n->behavior = NPC_TRAVEL;
+    n->timer = n->stuck = 0;
+    n->state &= ~(NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR | NPC_ROUTE_PENDING);
     n->push = 0;
     return true;
 }
@@ -303,7 +486,7 @@ void npc_update() {
                 n.state &= ~NPC_WALK_PHASE;
                 n.timer = def->pause;
             }
-        } else if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE) {
+        } else if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE || n.behavior == NPC_TRAVEL) {
             PixelPos target;
             auto path = n.behavior == NPC_ROUTE ? npc_route(n.route) : nullptr;
             if(n.behavior == NPC_ROUTE) {
@@ -323,6 +506,9 @@ void npc_update() {
                 }
                 target = {(uint16_t)((uint16_t)path->points[n.waypoint].x * TILE),
                           (uint16_t)((uint16_t)path->points[n.waypoint].y * TILE)};
+            } else if(n.behavior == NPC_TRAVEL) {
+                TilePos home = game.npcs.residence[n.id];
+                target = {(uint16_t)home.x * TILE, (uint16_t)home.y * TILE};
             } else {
                 target = n.target;
             }
@@ -340,7 +526,7 @@ void npc_update() {
                 n.stuck = 0;
                 if(path)
                     n.timer = def->pause; // Bounded wait, retry this authored segment.
-                else {
+                else if(n.behavior != NPC_TRAVEL) {
                     n.behavior = NPC_STAND;
                     n.state |= NPC_TARGET_FAILED;
                     npc_on_event(n, NPC_EVENT_TARGET_FAILED);

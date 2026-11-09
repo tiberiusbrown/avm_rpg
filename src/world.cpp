@@ -8,7 +8,7 @@ uint8_t frame_pressed;
 bool teleported;
 
 #ifndef RPG_AVM
-uint16_t chunk_trace[3][4];
+uint16_t chunk_trace[3][CHUNK_TRACE_CAPACITY];
 uint8_t chunk_trace_count[3];
 unsigned feature_trace_count[3];
 #endif
@@ -21,14 +21,19 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
         return;
     }
     uint8_t width = dimensions.width_tiles, height = dimensions.height_tiles;
-    uint16_t max_x = width >= CACHE_WIDTH ? (uint16_t)(width - (CACHE_WIDTH - 1)) * TILE : 0;
-    uint16_t max_y = height >= CACHE_HEIGHT ? (uint16_t)(height - (CACHE_HEIGHT - 1)) * TILE : 0;
+    // Clamp the view to the map, as game_camera does. The cache then trails the view by the
+    // margin; its far edge may extend past the map, where the sentinel tile remains.
+    uint16_t max_x = width > DISPLAY_TILE_WIDTH ? (uint16_t)(width - DISPLAY_TILE_WIDTH) * TILE : 0;
+    uint16_t max_y =
+        height > DISPLAY_TILE_HEIGHT ? (uint16_t)(height - DISPLAY_TILE_HEIGHT) * TILE : 0;
     if(camera.x > max_x)
         camera.x = max_x;
     if(camera.y > max_y)
         camera.y = max_y;
-    cache.origin_tx = (uint8_t)(camera.x >> TILE_SHIFT);
-    cache.origin_ty = (uint8_t)(camera.y >> TILE_SHIFT);
+    uint8_t view_tx = (uint8_t)(camera.x >> TILE_SHIFT),
+            view_ty = (uint8_t)(camera.y >> TILE_SHIFT);
+    cache.origin_tx = view_tx >= CACHE_MARGIN ? (uint8_t)(view_tx - CACHE_MARGIN) : 0;
+    cache.origin_ty = view_ty >= CACHE_MARGIN ? (uint8_t)(view_ty - CACHE_MARGIN) : 0;
     memset(cache.tiles, TILE_OUTSIDE, sizeof(cache.tiles));
 
     uint8_t rows = height - cache.origin_ty;

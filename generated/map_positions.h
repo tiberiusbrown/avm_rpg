@@ -5,6 +5,8 @@
 namespace positions {
 inline constexpr TilePos GroveSign{1, 7, 4};
 inline constexpr TilePos PlayerStart{1, 7, 5};
+inline constexpr TilePos VillagerEast{1, 16, 7};
 inline constexpr TilePos VillagerHome{1, 5, 5};
+inline constexpr TilePos VillagerWest{1, 1, 5};
 inline constexpr TilePos WandererHome{1, 10, 6};
 }

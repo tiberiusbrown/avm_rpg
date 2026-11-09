@@ -91,7 +91,9 @@ void refresh_tile_cache();
 
 #ifndef RPG_AVM
 // Test-only trace: no guest storage or per-feature registry.
-extern uint16_t chunk_trace[3][4];
+// A scrolling window intersects at most 3x3 chunks.
+inline constexpr uint8_t CHUNK_TRACE_CAPACITY = 9;
+extern uint16_t chunk_trace[3][CHUNK_TRACE_CAPACITY];
 extern uint8_t chunk_trace_count[3];
 extern unsigned feature_trace_count[3];
 #endif

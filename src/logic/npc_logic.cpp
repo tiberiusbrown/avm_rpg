@@ -16,13 +16,13 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     }
 }
 
-uint8_t npc_placement(NPC_ID) {
-    return 0;
+// The villager roams between residences; the wanderer always stays in its chunk.
+bool npc_is_dynamic(NPC_ID id) {
+    return id == NPC_VILLAGER;
 }
 
-TilePos npc_home(NPC_ID id, uint8_t placement) {
-    if(placement == NPC_PLACEMENT_ABSENT)
-        return {};
+// Default residence. Quest code moves dynamic NPCs with npc_set_destination.
+TilePos npc_home(NPC_ID id) {
     switch(id) {
         case NPC_VILLAGER:
             return positions::VillagerHome;
@@ -55,6 +55,11 @@ void npc_dialogue() {
         case NPC_VILLAGER:
             dialogue_show(
                 F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove."));
+            // Talking sends the villager to the other end of the clearing, named by map markers.
+            npc_set_destination(NPC_VILLAGER,
+                                game.npcs.residence[NPC_VILLAGER] == positions::VillagerEast
+                                    ? positions::VillagerWest
+                                    : positions::VillagerEast);
             break;
         case NPC_WANDERER:
             dialogue_show(F("I walk this path every night. Mind the roots near the old oak."));

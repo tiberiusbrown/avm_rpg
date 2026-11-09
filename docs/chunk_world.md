@@ -3,9 +3,10 @@
 The world uses finite TMX areas with 16x16 terrain and characters. Immutable
 map data stores one byte per tile in contiguous rows in PROGMEM, without padding.
 Logic chunks cover 8x4 tiles (128x64 pixels) and determine handler dispatch only;
-they never become RAM objects. A 9x5 effective tile cache covers the
-display plus a partial edge row and column: 45 entries and two byte origins,
-47 bytes total, replacing the former 155-byte cache.
+they never become RAM objects. An 11x7 effective tile cache covers the 9x5 view span
+plus one margin tile on every side: 77 entries and two byte origins, 79 bytes total.
+The margin lets walking NPCs leave view before the cache edge. It replaces the former
+155-byte cache.
 
 Area IDs, tile coordinates, chunk coordinates and logical dimensions remain
 bytes; actor/camera coordinates remain 16-bit pixels. Maximum logical dimensions

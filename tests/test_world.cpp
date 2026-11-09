@@ -42,16 +42,23 @@ static void window_edges() {
     uint16_t cameras[] = {0, 1, 15, 16, 31, 47, 65535};
     for(unsigned width : widths) {
         for(unsigned height : heights) {
-            Area area{(uint8_t)width, (uint8_t)height, (uint8_t)((width + 7) / 8),
-                      (uint8_t)((height + 3) / 4), tiles, {0, 0}};
-            unsigned max_x = width >= CACHE_WIDTH ? (width - (CACHE_WIDTH - 1)) * TILE : 0;
-            unsigned max_y = height >= CACHE_HEIGHT ? (height - (CACHE_HEIGHT - 1)) * TILE : 0;
+            Area area{(uint8_t)width,
+                      (uint8_t)height,
+                      (uint8_t)((width + 7) / 8),
+                      (uint8_t)((height + 3) / 4),
+                      tiles,
+                      {0, 0}};
+            unsigned max_x = width > DISPLAY_TILE_WIDTH ? (width - DISPLAY_TILE_WIDTH) * TILE : 0;
+            unsigned max_y =
+                height > DISPLAY_TILE_HEIGHT ? (height - DISPLAY_TILE_HEIGHT) * TILE : 0;
             for(uint16_t y : cameras) {
                 for(uint16_t x : cameras) {
                     TileCache cache{};
                     reload_tile_window(cache, tiles, {area.width, area.height}, {x, y});
-                    unsigned tx = (x < max_x ? x : max_x) / TILE;
-                    unsigned ty = (y < max_y ? y : max_y) / TILE;
+                    unsigned vx = (x < max_x ? x : max_x) / TILE;
+                    unsigned vy = (y < max_y ? y : max_y) / TILE;
+                    unsigned tx = vx >= CACHE_MARGIN ? vx - CACHE_MARGIN : 0;
+                    unsigned ty = vy >= CACHE_MARGIN ? vy - CACHE_MARGIN : 0;
                     CHECK(cache.origin_tx == tx && cache.origin_ty == ty);
                     for(unsigned cy = 0; cy < CACHE_HEIGHT; ++cy)
                         for(unsigned cx = 0; cx < CACHE_WIDTH; ++cx)
@@ -81,8 +88,8 @@ static void terrain_footprints() {
                 bool expected = true;
                 for(unsigned fy = FOOT_TOP; fy <= FOOT_BOTTOM; ++fy) {
                     for(unsigned fx = FOOT_LEFT; fx <= FOOT_RIGHT; ++fx) {
-                        unsigned tile = (((y + fy) >> TILE_SHIFT) - 4) * 2 +
-                                        ((x + fx) >> TILE_SHIFT) - 6;
+                        unsigned tile =
+                            (((y + fy) >> TILE_SHIFT) - 4) * 2 + ((x + fx) >> TILE_SHIFT) - 6;
                         if(mask & (1u << tile))
                             expected = false;
                     }
@@ -103,20 +110,23 @@ int main() {
         for(unsigned x = 0; x <= 160; x += 5) {
             reload_tile_window(game.cache, area.tiles, {area.width, area.height},
                                {(uint16_t)x, (uint16_t)y});
-            CHECK(game.cache.origin_tx == x / 16 && game.cache.origin_ty == y / 16);
+            unsigned ox = x / TILE >= CACHE_MARGIN ? x / TILE - CACHE_MARGIN : 0;
+            unsigned oy = y / TILE >= CACHE_MARGIN ? y / TILE - CACHE_MARGIN : 0;
+            CHECK(game.cache.origin_tx == ox && game.cache.origin_ty == oy);
             for(unsigned cy = 0; cy < CACHE_HEIGHT; ++cy)
                 for(unsigned cx = 0; cx < CACHE_WIDTH; ++cx)
                     CHECK(game.cache.tiles[cy * CACHE_WIDTH + cx] ==
-                          authored_tile(area, x / 16 + cx, y / 16 + cy));
+                          authored_tile(area, ox + cx, oy + cy));
         }
     }
-    // A scrolling window intersects at most four 8x4 chunks, in row-major order.
+    // The 11x7 window intersects at most nine 8x4 chunks, in row-major order.
     world_enter(AREA_OUTDOOR, 7 * TILE, 5 * TILE, SOUTH);
     HandlerStage stages[] = {STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE};
     for(HandlerStage stage : stages) {
-        CHECK(chunk_trace_count[stage] == 4);
+        CHECK(chunk_trace_count[stage] == 6);
         CHECK(chunk_trace[stage][0] == 0 && chunk_trace[stage][1] == 1);
         CHECK(chunk_trace[stage][2] == 3 && chunk_trace[stage][3] == 4);
+        CHECK(chunk_trace[stage][4] == 6 && chunk_trace[stage][5] == 7);
     }
     CHECK(!terrain_clear(game.camera.x + CACHE_WIDTH * TILE, game.player.y));
     CHECK(cached_tile({AREA_OUTDOOR, 0, 0}) == TILE_OUTSIDE);

@@ -27,11 +27,11 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     return id == NPC_VILLAGER ? &DEFINITION : nullptr;
 }
 
-uint8_t npc_placement(NPC_ID) {
-    return 0;
+bool npc_is_dynamic(NPC_ID) {
+    return true;
 }
 
-TilePos npc_home(NPC_ID, uint8_t) {
+TilePos npc_home(NPC_ID) {
     return positions::VillagerHome;
 }
 

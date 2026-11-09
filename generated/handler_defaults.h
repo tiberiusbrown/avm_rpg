@@ -11,16 +11,10 @@ template <TilePos POS> using Dialogue = Tag<POS, STAGE_DIALOGUE>;
 template <TilePos POS, HandlerStage STAGE>
 void read_sign(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
-void update_villager(Tag<POS, STAGE>) {}
-template <TilePos POS, HandlerStage STAGE>
 void update_wanderer(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_read_sign() {
     read_sign(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_update_villager() {
-    update_villager(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_update_wanderer() {
@@ -31,9 +25,6 @@ template <TilePos POS, HandlerStage STAGE>
 struct Handler {
     void read_sign() {
         handler_impl::dispatch_read_sign<POS, STAGE>();
-    }
-    void update_villager() {
-        handler_impl::dispatch_update_villager<POS, STAGE>();
     }
     void update_wanderer() {
         handler_impl::dispatch_update_wanderer<POS, STAGE>();

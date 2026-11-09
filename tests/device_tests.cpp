@@ -5,6 +5,7 @@
 
 #pragma pack(push, 1)
 #include "rpg.h"
+#include "map_positions.h"
 #include "tile_ids.h"
 #pragma pack(pop)
 #include "music_catalog.h"
@@ -18,7 +19,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 73 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
+static_assert(sizeof(Game) == 105 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -478,6 +479,84 @@ int main(int argc, char** argv) try {
     d.advance(0, 8000000);
     d.tap(BTN_A);
     require(d.prompt() == DIALOGUE_CLOSED, "villager dialogue did not close");
+
+    // Each conversation sends the villager to the other end of the clearing. It walks while
+    // visible and teleports to its residence once it leaves view.
+    auto villager_in = [](Game const& g) -> Npc const* {
+        for(auto const& n : g.npcs.actors)
+            if(n.id == NPC_VILLAGER)
+                return &n;
+        return nullptr;
+    };
+    auto place_player = [&](uint8_t tx, uint8_t ty, DIRECTION facing) {
+        Game g = d.state();
+        g.player.x = (uint16_t)tx * TILE;
+        g.player.y = (uint16_t)ty * TILE;
+        g.player.facing = facing;
+        g.player.walking = 0;
+        d.set_state(g);
+        d.advance(0, 800000);
+    };
+    auto close_villager_dialogue = [&]() {
+        d.wait_for_typing();
+        require(d.prompt() == DIALOGUE_DONE, "villager dialogue did not reach its final prompt");
+        d.advance(0, 8000000);
+        d.tap(BTN_A);
+        require(d.prompt() == DIALOGUE_CLOSED, "villager dialogue did not close");
+    };
+    TilePos const west = positions::VillagerWest, east = positions::VillagerEast;
+
+    // Leg one: the first talk sent it east. The player stands still; the villager walks out
+    // of view on its own and teleports to its residence.
+    {
+        Game g = d.state();
+        require(g.npcs.residence[NPC_VILLAGER] == east, "talk did not send the villager east");
+        auto const* v = villager_in(g);
+        require(v && v->behavior == NPC_TRAVEL, "villager did not walk toward the east corner");
+    }
+    unsigned walked = 0;
+    while(villager_in(d.state()) && walked < 900) {
+        d.advance(0, 533334);
+        ++walked;
+    }
+    require(!villager_in(d.state()), "villager never left view with the player standing still");
+    require(walked > 30, "villager left view without walking");
+    require(d.state().npcs.residence[NPC_VILLAGER] == east, "villager lost its east residence");
+
+    // It appears at the east corner once the player can see it.
+    place_player(east.x - 1, east.y, EAST);
+    {
+        Game g = d.state();
+        auto const* v = villager_in(g);
+        require(v && v->actor.x == 16 * TILE && v->actor.y == 7 * TILE,
+                "villager did not appear at the east corner");
+    }
+    d.capture(out / "npc-east.pgm");
+
+    // Leg two: talking at the east corner sends it west, where it walks while visible.
+    place_player(east.x - 1, east.y, EAST);
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_TYPING, "talking at the east corner did not open dialogue");
+    close_villager_dialogue();
+    require(d.state().npcs.residence[NPC_VILLAGER] == west,
+            "second talk did not send the villager west");
+    // Row six keeps the clearing's row seven inside the camera's vertical range.
+    place_player(east.x - 4, east.y - 1, NORTH);
+    walked = 0;
+    while(villager_in(d.state()) && walked < 900) {
+        d.advance(0, 533334);
+        ++walked;
+    }
+    require(!villager_in(d.state()), "villager never left view on the way west");
+    require(walked > 30, "villager left view without walking west");
+    place_player(west.x + 2, west.y, EAST);
+    {
+        Game g = d.state();
+        auto const* v = villager_in(g);
+        require(v && v->actor.x == 1 * TILE && v->actor.y == 5 * TILE,
+                "villager did not appear at the west corner");
+    }
+    d.capture(out / "npc-west.pgm");
 
     d.tap(BTN_B);
     auto menu_state = d.state();

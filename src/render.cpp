@@ -15,18 +15,22 @@ static void panel() {
 void rpg_render_world() {
     int16_t left = -(int16_t)(game.camera.x & (TILE - 1));
     int16_t top = -(int16_t)(game.camera.y & (TILE - 1));
-    uint8_t const* tiles = game.cache.tiles;
+    // The cache trails the view by its margin, so the view starts inside the window.
+    uint8_t view_x = (uint8_t)((game.camera.x >> TILE_SHIFT) - game.cache.origin_tx);
+    uint8_t view_y = (uint8_t)((game.camera.y >> TILE_SHIFT) - game.cache.origin_ty);
+    uint8_t const* tiles = game.cache.tiles + view_y * CACHE_WIDTH + view_x;
     avm_set_sprite(TILE_SPRITES);
-    for(int16_t y = top; y < (CACHE_HEIGHT - 1) * TILE; y += TILE) {
+    for(int16_t y = top; y < DISPLAY_TILE_HEIGHT * TILE; y += TILE) {
         // A fixed row span preserves unrolling. Native drawing clips the
         // extra column when the camera is tile-aligned.
-        uint8_t const* row_end = tiles + CACHE_WIDTH;
+        uint8_t const* row_end = tiles + VIEW_SPAN_WIDTH;
         for(int16_t x = left; tiles != row_end; x += TILE) {
             uint8_t tile = *tiles++;
             if(tile == TILE_OUTSIDE)
                 continue;
             avm_draw_overwrite(x, y, tile);
         }
+        tiles += CACHE_WIDTH - VIEW_SPAN_WIDTH;
     }
 
     Camera c = game.camera;

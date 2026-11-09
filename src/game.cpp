@@ -24,6 +24,7 @@ void game_new() {
     game.hp = 20;
     game.max_hp = 20;
     game.level = 1;
+    npc_residence_defaults();
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);
     world_enter(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);

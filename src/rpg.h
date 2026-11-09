@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "world_types.h"
 #include "area_ids.h"
+#include "npc_ids.h"
 
 #ifdef RPG_AVM
 #include <avm/pgmspace.h>
@@ -27,11 +28,10 @@ extern volatile uint8_t world_phase;
 #endif
 
 enum {
-    SAVE_VERSION = 4,
+    SAVE_VERSION = 5,
     SAVE_HEADER_BYTES = 20,
-    SAVE_BYTES = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + 2 > 24
-                     ? SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + 2
-                     : 24,
+    SAVE_NPC_BYTES = 3 * (NPC_ID_LIMIT - 1),
+    SAVE_BYTES = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + SAVE_NPC_BYTES + 2,
     SAVE_CRC_OFFSET = SAVE_BYTES - 2
 };
 
@@ -65,6 +65,7 @@ struct Actor {
 };
 
 #include "npc_types.h"
+
 
 constexpr uint16_t actor_frame(Actor const& actor, uint8_t sprite_row, uint16_t ticks) {
     uint8_t phase = (ticks >> 2) & 3;

@@ -40,10 +40,9 @@ assert m.data[sign["ty"] * m.width + sign["tx"]] == 0x41
 assert (sign["tx"], sign["ty"] + 1) == start
 assert {o["handler"] for o in m.objects if o["handler"]} == {
     "read_sign",
-    "update_villager",
     "update_wanderer",
 }
-for name in ("VillagerHome", "WandererHome"):
+for name in ("VillagerHome", "WandererHome", "VillagerWest", "VillagerEast"):
     assert (names[name]["tx"], names[name]["ty"]) in seen
 for path in (ROOT / "assets/maps").glob("*.tmx"):
     node = ET.parse(path).getroot()

@@ -1,10 +1,11 @@
 #ifndef NPC_TYPES_H
 #define NPC_TYPES_H
 
-// Explicit identities are save/quest contracts, never slot or authoring indices.
-enum NPC_ID : uint8_t { NPC_NONE = 0, NPC_VILLAGER = 1, NPC_WANDERER = 2 };
+#include "npc_ids.h"
 
-enum NPC_BEHAVIOR : uint8_t { NPC_STAND, NPC_WANDER, NPC_TARGET, NPC_ROUTE };
+
+// NPC_TRAVEL walks toward the residence and never gives up while visible.
+enum NPC_BEHAVIOR : uint8_t { NPC_STAND, NPC_WANDER, NPC_TARGET, NPC_ROUTE, NPC_TRAVEL };
 
 enum NPC_ROUTE_MODE : uint8_t { ROUTE_ONCE, ROUTE_LOOP, ROUTE_REVERSE };
 
@@ -49,7 +50,6 @@ constexpr NPC_STATE& operator^=(NPC_STATE& left, NPC_STATE right) {
 }
 
 inline constexpr uint8_t NPC_CAPACITY = 8;
-inline constexpr uint8_t NPC_PLACEMENT_ABSENT = 255;
 inline constexpr uint8_t NPC_PUSH_FRAMES = 8, NPC_STUCK_FRAMES = 24;
 
 struct Npc {
@@ -61,22 +61,39 @@ struct Npc {
     };
 
     NPC_ID id;
-    uint8_t placement;
     NPC_BEHAVIOR behavior;
     uint8_t timer, waypoint;
     NPC_STATE state;
     uint8_t stuck, push;
+    uint8_t reserved; // Keeps the record even-sized, so host and AVM layouts match.
+};
+
+// Inclusive visible tile rectangle. Area 0 means no view has been admitted yet.
+struct NpcView {
+    uint8_t area, left, right, top, bottom;
+    bool operator==(NpcView const&) const = default;
 };
 
 struct NpcPool {
     Npc actors[NPC_CAPACITY];
+    // Where each dynamic NPC_ID lives while not in a slot. Saved; survives area changes.
+    TilePos residence[NPC_ID_LIMIT];
+    // Static NPCs requested by chunk handlers this frame, highest priority first.
     NPC_ID requests[NPC_CAPACITY];
-    uint8_t request_count, capacity_faults;
+    uint8_t request_count;
+    // Admissible NPCs without a slot, sorted by residence area, chunk row, and chunk column.
+    NPC_ID dormant[NPC_ID_LIMIT];
+    uint8_t dormant_count;
+    // One bit per NPC_ID: visible but blocked, retried each frame while still in view.
+    uint8_t pending;
+    NpcView view;
+    uint8_t capacity_faults, activation_deferrals;
     DIRECTION push_direction;
-    uint8_t activation_deferrals;
+    uint8_t reserved; // Keeps the pool even-sized, so host and AVM layouts match.
 };
 
+static_assert(NPC_ID_LIMIT <= 8, "pending admissions use one bit per NPC ID");
 static_assert(sizeof(Npc) == 18, "compact live NPC record");
-static_assert(sizeof(NpcPool) == 156, "fixed NPC storage, independent of authored count");
+static_assert(sizeof(NpcPool) == 176, "fixed NPC storage, independent of authored count");
 
 #endif

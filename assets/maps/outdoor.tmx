@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="18" height="12" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="5">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="18" height="12" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="7">
   <properties>
     <property name="area_id" type="int" value="1" />
     <property name="symbol" type="string" value="OUTDOOR" />
@@ -33,9 +33,12 @@
       <point />
     </object>
     <object id="3" name="VillagerHome" x="88" y="88">
-      <properties>
-        <property name="handler" value="update_villager" />
-      </properties>
+      <point />
+    </object>
+    <object id="5" name="VillagerWest" x="24" y="88">
+      <point />
+    </object>
+    <object id="6" name="VillagerEast" x="264" y="120">
       <point />
     </object>
     <object id="4" name="WandererHome" x="168" y="104">

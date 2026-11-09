@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "npc.h"
 
 #include <string.h>
 
@@ -46,6 +47,12 @@ void save_encode(uint8_t out[SAVE_BYTES]) {
     put16(out + 16, game.rng);
     put16(out + 18, FLAG_COUNT);
     memcpy(out + SAVE_HEADER_BYTES, game.flags.bytes, WorldFlags::BYTE_COUNT);
+    uint8_t* residence = out + SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT;
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id, residence += 3) {
+        residence[0] = game.npcs.residence[id].area;
+        residence[1] = game.npcs.residence[id].x;
+        residence[2] = game.npcs.residence[id].y;
+    }
 
     put16(out + SAVE_CRC_OFFSET, save_checksum(out));
 }
@@ -62,14 +69,22 @@ bool save_decode(uint8_t const* in, uint16_t length) {
     uint16_t rng;
     uint16_t count = get16(in + 18);
     uint16_t bytes = count / 8 + (count % 8 != 0);
-    if(!count || count > FLAG_COUNT || SAVE_HEADER_BYTES + bytes > size - 2)
+    uint16_t residence_at = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT;
+    if(count != FLAG_COUNT || residence_at + SAVE_NPC_BYTES > size - 2)
         return false;
     if(count % 8 && (in[SAVE_HEADER_BYTES + bytes - 1] >> (count % 8)))
         return false;
-    for(uint16_t i = SAVE_HEADER_BYTES + bytes; i < size - 2; ++i)
+    for(uint16_t i = residence_at + SAVE_NPC_BYTES; i < size - 2; ++i)
         if(in[i])
             return false;
     memcpy(flags.bytes, in + SAVE_HEADER_BYTES, bytes);
+    TilePos residence[NPC_ID_LIMIT] = {};
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
+        uint8_t const* r = in + residence_at + 3 * (id - 1);
+        residence[id] = {r[0], r[1], r[2]};
+        if(!npc_destination_valid(residence[id]))
+            return false;
+    }
     rng = get16(in + 16);
     uint16_t x = get16(in + 6), y = get16(in + 8);
     Area const PROGMEM* area = world_area(in[4]);
@@ -87,6 +102,8 @@ bool save_decode(uint8_t const* in, uint16_t length) {
     game.gold = get16(in + 14);
     game.flags = flags;
     game.rng = rng;
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
+        game.npcs.residence[id] = residence[id];
     world_enter(in[4], x, y, (DIRECTION)in[5]);
     return true;
 }

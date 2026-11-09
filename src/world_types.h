@@ -12,7 +12,14 @@ inline constexpr uint8_t FOOT_TOP = TILE - FOOT_HEIGHT, FOOT_BOTTOM = TILE - 1;
 inline constexpr uint8_t FOOT_CENTER_X = FOOT_LEFT + FOOT_WIDTH / 2;
 inline constexpr uint8_t FOOT_CENTER_Y = FOOT_TOP + FOOT_HEIGHT / 2;
 inline constexpr uint8_t CHUNK_WIDTH = 8, CHUNK_HEIGHT = 4;
-inline constexpr uint8_t CACHE_WIDTH = 9, CACHE_HEIGHT = 5;
+// The display shows 8x4 tiles, or 9x5 when the camera is not tile-aligned.
+inline constexpr uint8_t DISPLAY_TILE_WIDTH = 8, DISPLAY_TILE_HEIGHT = 4;
+inline constexpr uint8_t VIEW_SPAN_WIDTH = DISPLAY_TILE_WIDTH + 1,
+                         VIEW_SPAN_HEIGHT = DISPLAY_TILE_HEIGHT + 1;
+// One margin tile on every side lets a walking NPC leave view before the cache edge.
+inline constexpr uint8_t CACHE_MARGIN = 1;
+inline constexpr uint8_t CACHE_WIDTH = VIEW_SPAN_WIDTH + 2 * CACHE_MARGIN,
+                         CACHE_HEIGHT = VIEW_SPAN_HEIGHT + 2 * CACHE_MARGIN;
 inline constexpr uint8_t MAX_MAP_WIDTH = 240, MAX_MAP_HEIGHT = 248;
 inline constexpr uint8_t TILE_OUTSIDE = 255;
 
@@ -58,7 +65,7 @@ struct TileCache {
 static_assert(sizeof(TilePos) == 3 && sizeof(ChunkCoord) == 3, "byte tile/chunk coordinates");
 static_assert(sizeof(MapDimensions) == 2, "byte map dimensions");
 static_assert(sizeof(PixelPos) == 4, "16-bit pixel coordinates");
-static_assert(sizeof(TileCache) == 47 && sizeof(TileCache::tiles) == 45, "only 45 tile entries");
+static_assert(sizeof(TileCache) == 79 && sizeof(TileCache::tiles) == 77, "only 77 tile entries");
 static_assert(sizeof(TileRegion) == 5, "byte feature footprint/origin");
 
 #endif
