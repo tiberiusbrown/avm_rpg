@@ -49,7 +49,14 @@ enum {
 
 enum DIRECTION : uint8_t { NORTH, EAST, SOUTH, WEST, STILL = 4 };
 
-enum DIALOGUE_PROMPT : uint8_t { DIALOGUE_CLOSED, DIALOGUE_MORE, DIALOGUE_DONE, DIALOGUE_CHOICE };
+// DIALOGUE_TYPING means the overlay is open and its letters are still animating.
+enum DIALOGUE_PROMPT : uint8_t {
+    DIALOGUE_CLOSED,
+    DIALOGUE_MORE,
+    DIALOGUE_DONE,
+    DIALOGUE_CHOICE,
+    DIALOGUE_TYPING
+};
 
 struct Actor {
     uint16_t x, y;

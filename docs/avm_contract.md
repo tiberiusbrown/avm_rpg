@@ -127,9 +127,10 @@ font, with five pixels above the baseline, descenders, and seven-pixel line
 spacing. BR4, BR5 and BR5N alternatives exist. `avm_set_text_mode` selects overwrite/white
 transparent/black transparent. `avm_draw_text_P(x, baseline_y, flash_string)` and
 `avm_draw_textf_P` draw program text, including newline advances; returned cursors
-contain x/baseline_y. Dialogue streams flash strings through a five-byte chunk
-buffer, measures them with `avm_text_width`, and automatically wraps/pages within
-a fixed overlay. Oversized words split at glyph boundaries. No copied glyph
+contain x/baseline_y. Dialogue reveals flash strings one letter per frame,
+measures words with `avm_text_width` before placing them, and automatically
+wraps/pages within a fixed overlay. Each visible letter sounds a one-frame
+`avm_audio_tone_triangle` blip. Oversized words split at glyph boundaries. No copied glyph
 metrics or offline dialogue-fit checks are needed. Source: public header,
 `runtime/lib/font_br5d_x5.c`,
 interpreter text services.

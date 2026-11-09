@@ -146,8 +146,10 @@ uses the SDK frame limiter. Exploration uses `input_pressed` for actions and
 `dialogue_show(game, F("..."))` and `dialogue_ask(game, F("..."))` are blocking
 calls usable from game logic. They render a fixed lower
 overlay over the frozen world, wrap and paginate flash text using the runtime
-font, and return to their caller. A advances or confirms; B dismisses or declines.
-Each prompt requires a fresh press. Five-byte text scratch lives in shallow
+font, and return to their caller. Text types out letter by letter with a blip per
+letter. A during typing finishes the current page; A at a prompt advances or
+confirms, but is ignored for half a second after the prompt appears. B dismisses
+or declines at a prompt. Each prompt requires a fresh press. Five-byte text scratch lives in shallow
 helpers that return before input waits; no page buffer or glyph table is stored.
 Facing plus proximity identifies an NPC on an A edge. Iona's ordinary function
 calls show an introduction, ask a question, and apply its result; accepting sets

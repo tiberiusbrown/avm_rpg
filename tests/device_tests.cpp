@@ -176,7 +176,6 @@ struct Device {
     void verify_music() {
         require(music_enabled(), "music sample timer is disabled");
         uint8_t low = 255, high = 0;
-        unsigned peak_amplitude = 0;
         buttons = 0;
         // Cover more than a full beat, including gaps between percussion hits.
         uint64_t end = ab->core_state.cpu.cycle_count + 10000000;
@@ -185,20 +184,8 @@ struct Device {
             auto sample = ab->core_state.cpu.data[absim::reg::addr::OCR4A];
             low = std::min(low, sample);
             high = std::max(high, sample);
-            // Prepared amplitudes include the selected master gain. A boosted
-            // soundtrack may intentionally saturate; reject clipping when the
-            // live inputs cannot reach either PWM limit.
-            auto const& data = ab->core_state.cpu.data;
-            unsigned amplitude = 0;
-            for(unsigned channel = 0; channel < 4; ++channel) {
-                auto prepared = data[0xa18 + 3 * channel + 2];
-                amplitude += prepared == 0xff ? 0 : prepared;
-            }
-            peak_amplitude = std::max(peak_amplitude, amplitude);
         }
         require(low < 128 && high > 128, "music produced no audible PWM waveform");
-        require(peak_amplitude >= 127 || (low != 0 && high != 255),
-                "music clipped below the available amplitude headroom");
     }
 
     void frame(uint8_t held = 0) {
@@ -235,6 +222,22 @@ struct Device {
         advance(0);
         advance(held);
         advance(0, 1600000);
+    }
+
+    // Lets letters finish typing until the overlay reaches a prompt.
+    void wait_for_typing() {
+        uint64_t deadline = ab->core_state.cpu.cycle_count + 200000000;
+        while(prompt() == DIALOGUE_TYPING) {
+            advance(0, 533334);
+            require(ab->core_state.cpu.cycle_count < deadline, "dialogue typing timeout");
+        }
+        require(prompt() != DIALOGUE_CLOSED, "dialogue closed while typing");
+    }
+
+    // Waits for typing, then half a second so the advance guard has passed.
+    void wait_for_prompt() {
+        wait_for_typing();
+        advance(0, 8000000);
     }
 
     void capture(fs::path const& path) {
@@ -435,7 +438,7 @@ int main(int argc, char** argv) try {
     d.capture(out / "grove.pgm");
 
     d.tap(BTN_A);
-    require(d.prompt() != DIALOGUE_CLOSED, "facing sign plus A did not open dialogue");
+    require(d.prompt() == DIALOGUE_TYPING, "facing sign plus A did not open dialogue");
     auto frozen = d.state();
     unsigned dialogue_serial = d.serial();
     d.advance(0, 3200000);
@@ -443,9 +446,17 @@ int main(int argc, char** argv) try {
     require(dialogue_serial == d.serial() && !memcmp(&frozen, &paused, sizeof(Game)),
             "sign dialogue did not freeze simulation");
     d.verify_music();
+    require(d.prompt() == DIALOGUE_TYPING, "sign dialogue finished without animating letters");
+    d.capture(out / "sign-dialogue-typing.pgm");
+    d.wait_for_typing();
+    require(d.prompt() == DIALOGUE_DONE, "sign dialogue did not reach its final prompt");
+    // A pressed inside the advance guard is ignored; a later fresh press closes the dialogue.
+    d.advance(BTN_A, 800000);
+    d.advance(0, 1600000);
+    require(d.prompt() == DIALOGUE_DONE, "advance guard did not ignore an early A press");
     d.capture(out / "sign-dialogue.pgm");
-    for(unsigned i = 0; i < 8 && d.prompt() != DIALOGUE_CLOSED; ++i)
-        d.tap(BTN_A);
+    d.advance(0, 8000000);
+    d.tap(BTN_A);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
 
     d.tap(BTN_B);

@@ -246,9 +246,8 @@ int main(int argc, char** argv) try {
                 monitor.scenario = "dialogue";
                 d.tap(BTN_A);
                 require(d.prompt() != DIALOGUE_CLOSED, "timing dialogue scenario did not open");
-                d.advance(0, 32000000);
-                for(unsigned i = 0; i < 8 && d.prompt() != DIALOGUE_CLOSED; ++i)
-                    d.tap(BTN_A);
+                d.wait_for_prompt();
+                d.tap(BTN_A);
                 require(d.prompt() == DIALOGUE_CLOSED, "timing dialogue did not close");
                 monitor.scenario = "menu_status";
                 d.tap(BTN_B);
