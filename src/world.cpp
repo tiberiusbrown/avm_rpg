@@ -124,8 +124,6 @@ uint8_t cached_tile(TilePos pos) {
     return TILE_OUTSIDE;
 }
 
-enum TERRAIN_BLOCK : uint8_t { TERRAIN_CLEAR, TERRAIN_SLOPE, TERRAIN_SOLID };
-
 // True when any pixel of [x0,x1] x [y0,y1] is solid in one tile's mask.
 static bool mask_hits(uint16_t mask, uint8_t x0, uint8_t x1, uint8_t y0, uint8_t y1) {
     for(uint8_t y = y0; y <= y1; ++y)
@@ -136,20 +134,18 @@ static bool mask_hits(uint16_t mask, uint8_t x0, uint8_t x1, uint8_t y0, uint8_t
 }
 
 // The player's foot box checked pixel by pixel against each tile's collision mask.
-// Partial masks report TERRAIN_SLOPE so a blocked step can slide along their edge.
-static TERRAIN_BLOCK player_block(uint16_t x, uint16_t y) {
+bool player_terrain_clear(uint16_t x, uint16_t y) {
     if(!game.dimensions.pixel_bounds(x, y))
-        return TERRAIN_SOLID;
+        return false;
     uint16_t left = x + FOOT_LEFT, right = x + FOOT_RIGHT;
     uint16_t top = y + FOOT_TOP, bottom = y + FOOT_BOTTOM;
-    TERRAIN_BLOCK result = TERRAIN_CLEAR;
     for(uint16_t ty = top >> TILE_SHIFT; ty <= (bottom >> TILE_SHIFT); ++ty) {
         for(uint16_t tx = left >> TILE_SHIFT; tx <= (right >> TILE_SHIFT); ++tx) {
             uint16_t mask = tile_collision(cached_tile({game.area, (uint8_t)tx, (uint8_t)ty}));
             if(!mask)
                 continue;
             if(mask == 0xFFFF)
-                return TERRAIN_SOLID;
+                return false;
             uint16_t ox = tx << TILE_SHIFT, oy = ty << TILE_SHIFT;
             uint16_t lo_x = left > ox ? left : ox,
                      hi_x = right < ox + TILE - 1 ? right : ox + TILE - 1;
@@ -157,18 +153,10 @@ static TERRAIN_BLOCK player_block(uint16_t x, uint16_t y) {
                      hi_y = bottom < oy + TILE - 1 ? bottom : oy + TILE - 1;
             if(mask_hits(mask, (uint8_t)(lo_x - ox), (uint8_t)(hi_x - ox), (uint8_t)(lo_y - oy),
                          (uint8_t)(hi_y - oy)))
-                result = TERRAIN_SLOPE;
+                return false;
         }
     }
-    return result;
-}
-
-bool player_terrain_clear(uint16_t x, uint16_t y) {
-    return player_block(x, y) == TERRAIN_CLEAR;
-}
-
-bool player_blocked_by_slope(uint16_t x, uint16_t y) {
-    return player_block(x, y) == TERRAIN_SLOPE;
+    return true;
 }
 
 bool terrain_clear(uint16_t x, uint16_t y) {

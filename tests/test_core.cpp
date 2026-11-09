@@ -52,11 +52,11 @@ static void movement() {
     game_new();
     CHECK(game.player.x == 112 && game.player.y == 80 && game.player.facing == NORTH);
     game_update(BTN_RIGHT);
-    CHECK(game.player.x == 114 && game.player.walking);
+    CHECK(game.player.x == 112 + PLAYER_PIXELS_PER_FRAME && game.player.walking);
     game_update(BTN_LEFT);
     CHECK(game.player.x == 112 && game.player.facing == WEST);
     game_update(BTN_UP | BTN_DOWN | BTN_RIGHT);
-    CHECK(game.player.x == 114);
+    CHECK(game.player.x == 112 + PLAYER_PIXELS_PER_FRAME);
     game_update(BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT);
     CHECK(!game.player.walking);
     game_new();
@@ -65,7 +65,8 @@ static void movement() {
     CHECK(!actor_move(&game.player, NORTH, 1) && !game.player.walking);
     world_enter(AREA_OUTDOOR, 2 * TILE, 7 * TILE, EAST);
     npc_reset();
-    for(unsigned i = 0; i < 200; ++i)
+    // Walk until the obstacle at x = 260 stops the player, whatever the walking speed.
+    for(unsigned i = 0; i < 1000; ++i)
         game_update(BTN_RIGHT);
     CHECK(game.player.x == 260 && terrain_clear(game.player.x, game.player.y));
     CHECK(!game.dimensions.pixel_bounds(65535, 0));

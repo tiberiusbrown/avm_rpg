@@ -152,8 +152,6 @@ uint8_t cached_tile(TilePos p);
 bool terrain_clear(uint16_t x, uint16_t y);
 // Player foot box against collision masks. Full tiles block the whole box.
 bool player_terrain_clear(uint16_t x, uint16_t y);
-// True when the foot box is blocked only by partial collision masks, never by a full tile.
-bool player_blocked_by_slope(uint16_t x, uint16_t y);
 void reload_tile_cache();
 bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
 void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);
@@ -161,6 +159,10 @@ uint16_t rng_next();
 void game_new();
 void game_update(uint8_t held, uint8_t pressed = 0);
 bool actor_move(Actor* actor, DIRECTION dir, uint8_t pixels);
+// Player walking speed, in pixels per frame.
+inline constexpr uint8_t PLAYER_PIXELS_PER_FRAME = 1;
+// A blocked step is passed by sidestepping this many pixels or fewer.
+inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 Camera game_camera();
 // Block until acknowledged (true) or dismissed with B (false).
 bool dialogue_show(char const PROGMEM* words);

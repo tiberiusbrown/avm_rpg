@@ -169,9 +169,11 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   - `0x92`: ramp, solid below the diagonal from top-left to bottom-right (`0xCF0C`).
 - **Pixel rule.** A pixel is solid when its center lies in a solid triangle. A center on a
   quadrant diagonal lies on the edge of two triangles, and it is solid when either one is.
-- **Sloped edges slide.** When a player's step is blocked by a partial mask, and the
-  one-pixel diagonal step beside it is clear, the player slides diagonally along the edge.
-  Full tiles never slide.
+- **Corners slide.** When terrain blocks the player's next pixel, the player takes one pixel
+  sideways toward a position that clears the step, then keeps walking. The sidestep is a
+  normal one-pixel move, so a corner a few pixels deep no longer stops smooth movement,
+  and a slope's edge is followed the same way. Facing does not change. A deeper overlap
+  stays blocked, and NPCs never sidestep.
 - **Unpainted cells are outside, not ground.** An empty CSV cell (GID `0`) becomes the
   sentinel, which is not walkable. Paint every cell that should be playable.
 - **Interactive tiles are solid.** Pots and chests block movement fully. `SWITCH_LEFT` is

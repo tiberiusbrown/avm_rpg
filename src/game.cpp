@@ -41,21 +41,65 @@ static DIRECTION direction(uint8_t held) {
     return STILL;
 }
 
-// A blocked player step that meets only partial collision slides one pixel sideways along
-// the shape edge, when that diagonal step is clear. Full tiles never slide.
-static bool slide_player(Actor* a, uint16_t x, uint16_t y, DIRECTION dir) {
-    if(!player_blocked_by_slope(x, y))
+// The pixel one step from (x, y) in dir. False at the top or left edge.
+static bool next_pixel(uint16_t x, uint16_t y, DIRECTION dir, uint16_t& nx, uint16_t& ny) {
+    nx = x;
+    ny = y;
+    if(dir == NORTH) {
+        if(!y)
+            return false;
+        --ny;
+    }
+    if(dir == SOUTH)
+        ++ny;
+    if(dir == WEST) {
+        if(!x)
+            return false;
+        --nx;
+    }
+    if(dir == EAST)
+        ++nx;
+    return true;
+}
+
+// Moves one pixel in dir when that pixel is clear for the actor.
+static bool step_actor(Actor* a, DIRECTION dir) {
+    uint16_t x, y;
+    if(!next_pixel(a->x, a->y, dir, x, y))
+        return false;
+    bool player = a == &game.player;
+    bool clear = player ? player_terrain_clear(x, y) : terrain_clear(x, y);
+    if(!clear || (player && !npc_player_clear(x, y, dir)))
+        return false;
+    a->x = x;
+    a->y = y;
+    return true;
+}
+
+// When terrain blocks the player's next pixel, a sidestep of up to CORNER_ASSIST_PIXELS
+// toward a clear position moves the player one pixel sideways. Walking on from there
+// takes it past a corner a few pixels deep. Deeper overlaps stay blocked, and NPCs never
+// sidestep.
+
+static bool sidestep_corner(Actor* a, DIRECTION dir) {
+    uint16_t fx, fy;
+    if(!next_pixel(a->x, a->y, dir, fx, fy) || player_terrain_clear(fx, fy))
         return false;
     bool horizontal = dir == EAST || dir == WEST;
-    for(uint8_t side = 0; side < 2; ++side) {
-        uint16_t cx = x, cy = y;
-        if(horizontal)
-            cy = side ? (uint16_t)(y + 1) : (uint16_t)(y - 1);
-        else
-            cx = side ? (uint16_t)(x + 1) : (uint16_t)(x - 1);
-        if(player_terrain_clear(cx, cy) && npc_player_clear(cx, cy, dir)) {
-            a->x = cx;
-            a->y = cy;
+    for(uint8_t shift = 1; shift <= CORNER_ASSIST_PIXELS; ++shift) {
+        for(uint8_t side = 0; side < 2; ++side) {
+            DIRECTION sidestep = horizontal ? (side ? SOUTH : NORTH) : (side ? EAST : WEST);
+            uint16_t cx = fx, cy = fy;
+            if(horizontal)
+                cy = side ? (uint16_t)(fy + shift) : (uint16_t)(fy - shift);
+            else
+                cx = side ? (uint16_t)(fx + shift) : (uint16_t)(fx - shift);
+            uint16_t sx, sy;
+            if(!player_terrain_clear(cx, cy) || !next_pixel(a->x, a->y, sidestep, sx, sy) ||
+               !player_terrain_clear(sx, sy) || !npc_player_clear(sx, sy, sidestep))
+                continue;
+            a->x = sx;
+            a->y = sy;
             return true;
         }
     }
@@ -72,33 +116,14 @@ bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
     a->facing = dir;
 
     while(pixels--) {
-        uint16_t x = a->x, y = a->y;
-
-        if(dir == NORTH) {
-            if(!y)
-                break;
-            --y;
-        }
-        if(dir == SOUTH)
-            ++y;
-        if(dir == WEST) {
-            if(!x)
-                break;
-            --x;
-        }
-        if(dir == EAST)
-            ++x;
-
-        bool player = a == &game.player;
-        bool clear = player ? player_terrain_clear(x, y) : terrain_clear(x, y);
-        if(clear && (!player || npc_player_clear(x, y, dir))) {
-            a->x = x;
-            a->y = y;
+        if(step_actor(a, dir)) {
             moved = true;
             continue;
         }
-        if(player && slide_player(a, x, y, dir)) {
+        if(a == &game.player && sidestep_corner(a, dir)) {
             moved = true;
+            // The sidestep uses this pixel, and the forward pixel is taken if it is now clear.
+            step_actor(a, dir);
             continue;
         }
         break;
@@ -143,7 +168,7 @@ void game_update(uint8_t held, uint8_t pressed) {
     RPG_PHASE(6);
     npc_player_begin(direction(held));
     if(!did_teleport)
-        actor_move(&game.player, direction(held), 2);
+        actor_move(&game.player, direction(held), PLAYER_PIXELS_PER_FRAME);
     RPG_PHASE(0);
     ++game.ticks;
 }

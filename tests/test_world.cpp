@@ -210,12 +210,48 @@ static void player_shapes() {
     }
     CHECK(slides > 0 && player_terrain_clear(game.player.x, game.player.y));
 
-    // A full tile never slides.
+    // A full overlap of the foot box never slides.
     tile_collision_override(SLOPE_TILE, 0xFFFF);
     game.player.x = 132;
     game.player.y = 32;
     CHECK(!actor_move(&game.player, EAST, 1));
     CHECK(game.player.x == 132 && game.player.y == 32);
+    tile_collision_reset();
+}
+
+static void corner_assist() {
+    game_new();
+    // The wall sits in tile row 4, so the cache window (rows 2 to 8) covers both sides of it.
+    constexpr uint8_t WALL_TILE = TILE_ATLAS_25;
+    set_tile({AREA_OUTDOOR, 9, 4}, WALL_TILE);
+    tile_collision_override(WALL_TILE, 0xFFFF);
+
+    // Two pixels of the foot box below the wall's top edge: two sidesteps up, then the step.
+    game.player.x = 132;
+    game.player.y = 50;
+    CHECK(actor_move(&game.player, EAST, 2));
+    CHECK(game.player.x == 133 && game.player.y == 48);
+
+    // One pixel of walking near the corner is one pixel of sidestep, with no jump and
+    // the facing unchanged.
+    game.player.x = 132;
+    game.player.y = 50;
+    CHECK(actor_move(&game.player, EAST, 1));
+    CHECK(game.player.x == 132 && game.player.y == 49 && game.player.facing == EAST);
+
+    // Two pixels above the wall's bottom edge: the sidesteps go down instead.
+    game.player.x = 132;
+    game.player.y = 70;
+    CHECK(actor_move(&game.player, EAST, 2));
+    CHECK(game.player.x == 133 && game.player.y == 72);
+
+    // One pixel more overlap than the assist can clear, so the step stays blocked. The wall's
+    // top edge is at y = 64, so the foot box overlaps (y - 48) rows.
+    uint16_t deep = 48 + CORNER_ASSIST_PIXELS + 1;
+    game.player.x = 132;
+    game.player.y = deep;
+    CHECK(!actor_move(&game.player, EAST, 1));
+    CHECK(game.player.x == 132 && game.player.y == deep);
     tile_collision_reset();
 }
 
@@ -225,6 +261,7 @@ int main() {
     terrain_footprints();
     collision_triangles();
     player_shapes();
+    corner_assist();
     game_new();
     Area const& area = *world_area(AREA_OUTDOOR);
     for(unsigned y = 0; y <= 128; y += 3) {
