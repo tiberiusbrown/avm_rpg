@@ -108,6 +108,46 @@ Rules for tiled trees:
 - Never place `TREE_ROUND` next to a piece whose side facing it is a seam. Two
   `TREE_ROUND` tiles never touch orthogonally.
 
+## Roads
+
+Road pieces are walkable and sit on grass. There are two sets:
+
+- The 3x3 block, `0x34` to `0x36`, `0x44` to `0x46` and `0x54` to `0x56`, holds the
+  convex edges and corners of the road. Its center, `0x45`, is entirely road.
+- The 2x2 block, `0x65`, `0x66`, `0x75` and `0x76`, holds the concave (inside) corners,
+  where the road turns inward around grass.
+
+Use the tiling pieces when authoring roads when feasible. For narrow roads, or roads
+immediately next to buildings, you may use `0x45` without edge tiling.
+
+Each road tile in the 3x3 set takes the piece that matches the sides facing grass:
+
+| Piece | Sides facing grass | Use for |
+| --- | --- | --- |
+| `0x34` | top, left | Top-left corner |
+| `0x35` | top | Top edge |
+| `0x36` | top, right | Top-right corner |
+| `0x44` | left | Left edge |
+| `0x45` | none | Road interior |
+| `0x46` | right | Right edge |
+| `0x54` | bottom, left | Bottom-left corner |
+| `0x55` | bottom | Bottom edge |
+| `0x56` | bottom, right | Bottom-right corner |
+
+A road tile with grass on opposite sides, or on three or four sides, has no matching
+piece. Use `0x45` for it.
+
+The atlas lays out the 2x2 pieces as a block: `0x65` top-left, `0x66` top-right,
+`0x75` bottom-left and `0x76` bottom-right. Each piece is road with grass in one part:
+
+- `0x65`: grass in the bottom-right corner.
+- `0x66`: grass on the left side.
+- `0x75`: grass on the right side.
+- `0x76`: grass in the top-left corner.
+
+Use them at concave corners, where the road turns inward around grass. Pick the piece
+whose grass part sits toward that grass.
+
 ## Atlas layout
 
 Descriptions of unnamed regions are approximate and come from visual inspection.
@@ -119,10 +159,12 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   unnamed pieces of the same family.
 - `0x08` to `0x0F`: blank black cells. Solid, so check them before you use them.
 - `0x25`: a blank black cell that is solid. It looks like floor but is not.
-- `0x34` to `0x36`: walkable. `0x37`: boulders, sacks and speckles. Solid.
-- `0x44` to `0x46`: walkable. `0x47`: crates and boxes, plus vertical bar patterns. Solid.
-- `0x54` to `0x56`: walkable.
-- `0x65`, `0x66`, `0x75` and `0x76`: walkable.
+- `0x34` to `0x36`: road pieces, walkable. See [Roads](#roads).
+  `0x37`: boulders, sacks and speckles. Solid.
+- `0x44` to `0x46`: road pieces, walkable. `0x47`: crates and boxes, plus vertical bar
+  patterns. Solid.
+- `0x54` to `0x56`: road pieces, walkable.
+- `0x65`, `0x66`, `0x75` and `0x76`: road pieces, walkable.
 - `0x80` to `0x8F`: building fronts, doors and windows. Solid, except `0x81`, which is a
   triangle. See the shapes list.
 - `0x90` to `0x9F`: wall and window panels, and signboards. Solid, except the ramps `0x90`
@@ -202,6 +244,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   carry a handler.
 - Floors use the four grass cells in a mix. Add flowers sparingly, about one floor cell
   in eight, and never fill a room with them.
+- Lay roads with the road pieces in [Roads](#roads), not with grass cells.
 - The map's border is solid. Build it from round trees: the split and clump pieces along
   the edges, with isolated `TREE_ROUND` singles for variety. Keep the playable interior
   inside it.
@@ -272,6 +315,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   the spawn.
 - Route waypoints are on passable tiles and clear of edges and corners.
 - No large clumps of `TREE_ROUND` sit next to each other. Groups use the tiling pieces.
+- Roads use the road pieces in [Roads](#roads), except narrow roads and roads next to
+  buildings, which use `0x45` alone.
 - Every tree seam matches its neighbor, and no seam faces outside the map (see Round
   trees).
 - Device QA passes when a change touches NPCs, collisions or sightlines.
