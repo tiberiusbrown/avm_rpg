@@ -1,5 +1,6 @@
 """16x16 atlas/mask packing and finite Tiled authoring contracts."""
 
+import io
 import re
 import shutil
 import sys
@@ -11,8 +12,20 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
+# The largest logical map the exporter accepts.
+MAX_WIDTH, MAX_HEIGHT = 240, 248
 sys.path.insert(0, str(ROOT / "tools"))
-from generate_assets import COLLISION_OVERLAY, collision_overlay, collision_pixel_solid, export_world, generate, load_world
+from generate_assets import (
+    COLLISION_OVERLAY,
+    map_preview_path,
+    OUTSIDE_PREVIEW_GRAY,
+    collision_overlay,
+    collision_pixel_solid,
+    export_world,
+    generate,
+    load_world,
+    map_previews,
+)
 
 
 class Pipeline(unittest.TestCase):
@@ -32,7 +45,32 @@ class Pipeline(unittest.TestCase):
         self.tree.write(self.path, encoding="utf-8", xml_declaration=True)
 
     def sign(self):
-        return self.tree.find(".//object[@name='GroveSign']")
+        return self.object("GroveSign")
+
+    def object(self, name):
+        return self.tree.find(f".//object[@name='{name}']")
+
+    def tile_of(self, name):
+        obj = self.object(name)
+        return int(float(obj.get("x"))) // 16, int(float(obj.get("y"))) // 16
+
+    def move_to(self, obj, tx, ty):
+        obj.set("x", str(16 * tx + 8))
+        obj.set("y", str(16 * ty + 8))
+
+    def fit_objects(self, width, height):
+        """Move every named point into a small map: the spawn in the middle, the rest on
+        distinct tiles, so that the map is still a valid authoring input."""
+        spawn = (width // 2, height // 2)
+        free = [(x, y) for y in range(height) for x in range(width) if (x, y) != spawn]
+        for obj in self.tree.getroot().iter("object"):
+            if not obj.get("name"):
+                continue
+            if obj.get("name") == "PlayerStart":
+                self.move_to(obj, *spawn)
+            else:
+                self.move_to(obj, *free.pop(0))
+        return spawn
 
     def fails(self, message):
         self.write()
@@ -121,40 +159,47 @@ class Pipeline(unittest.TestCase):
             export_world(self.root)
 
     def test_sign_relocation_crosses_chunk(self):
+        tx, ty = self.tile_of("GroveSign")
         before = export_world(self.root)
-        self.sign().set("x", "136")
+        nx = (tx // 8 + 1) * 8  # The first tile of the next chunk column.
+        self.move_to(self.sign(), nx, ty)
         self.write()
         after = export_world(self.root)
-        self.assertIn("GroveSign{1, 7, 4}", before["map_positions.h"])
-        self.assertIn("GroveSign{1, 8, 4}", after["map_positions.h"])
-        body = after["chunk_dispatch.cpp"].split("static void run_chunk_1_1_1()", 1)[1]
+        self.assertIn(f"GroveSign{{1, {tx}, {ty}}}", before["map_positions.h"])
+        self.assertIn(f"GroveSign{{1, {nx}, {ty}}}", after["map_positions.h"])
+        body = after["chunk_dispatch.cpp"].split(
+            f"static void run_chunk_1_{nx // 8}_{ty // 4}()", 1
+        )[1]
         self.assertIn("Handler<positions::GroveSign, STAGE>{}.read_sign()", body)
 
     def test_maximum_map_and_high_chunk_index(self):
-        self.dimensions(240, 248)
-        self.sign().set("x", "3832")
-        self.sign().set("y", "3960")
+        width, height = MAX_WIDTH, MAX_HEIGHT
+        self.dimensions(width, height)
+        self.move_to(self.sign(), width - 1, height - 1)
         self.write()
         result = export_world(self.root)
-        self.assertIn("GroveSign{1, 239, 247}", result["map_positions.h"])
-        self.assertIn("OUTDOOR_CHUNK_COLUMNS = 30", result["world_assets.h"])
-        self.assertIn("OUTDOOR_CHUNK_ROWS = 62", result["world_assets.h"])
+        columns, rows = -(-width // 8), -(-height // 4)
+        self.assertIn(f"GroveSign{{1, {width - 1}, {height - 1}}}", result["map_positions.h"])
+        self.assertIn(f"OUTDOOR_CHUNK_COLUMNS = {columns}", result["world_assets.h"])
+        self.assertIn(f"OUTDOOR_CHUNK_ROWS = {rows}", result["world_assets.h"])
+        last = (rows - 1) * columns + columns - 1
         self.assertIn(
-            "case 1859: run_chunk_1_29_61<STAGE>()", result["chunk_dispatch.cpp"]
+            f"case {last}: run_chunk_1_{columns - 1}_{rows - 1}<STAGE>()", result["chunk_dispatch.cpp"]
         )
         data = (
             result["map_assets.cpp"]
             .split("OUTDOOR_TILES[] = {", 1)[1]
             .split("};", 1)[0]
         )
-        self.assertEqual(len(re.findall(r"\d+", data)), 59520)
+        self.assertEqual(len(re.findall(r"\d+", data)), width * height)
 
     def test_row_major_map_without_chunk_padding(self):
         self.dimensions(19, 13)
+        spawn = self.fit_objects(19, 13)
         gids = [1 + (x + y * 19) % 255 for y in range(13) for x in range(19)]
-        # Keep the authored spawn passable while giving every other tile a
-        # distinct index, including rows and columns across handler chunks.
-        gids[5 * 19 + 7] = 7
+        # Keep the spawn passable while giving every other tile a distinct index, including rows
+        # and columns across handler chunks.
+        gids[spawn[1] * 19 + spawn[0]] = 7
         self.tree.find("layer/data").text = ",".join(map(str, gids))
         self.write()
         result = export_world(self.root)
@@ -168,30 +213,37 @@ class Pipeline(unittest.TestCase):
         self.assertEqual(data, [gid - 1 for gid in gids])
 
     def test_rectangle_expansion_at_four_chunks(self):
+        # A two-by-two rectangle whose top-left tile sits just before a chunk corner.
+        tx, ty = self.tile_of("GroveSign")
+        bx, by = (tx // 8 + 1) * 8, (ty // 4 + 1) * 4
+        rx, ry = bx - 1, by - 1
         sign = self.sign()
-        sign.set("x", "112")
-        sign.set("y", "48")
+        sign.set("x", str(16 * rx))
+        sign.set("y", str(16 * ry))
         sign.set("width", "32")
         sign.set("height", "32")
         self.write()
         result = export_world(self.root)
-        self.assertIn("GroveSignRegion{{1, 7, 3}, 2, 2}", result["map_positions.h"])
-        for i, (cx, cy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
+        self.assertIn(f"GroveSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
+        for i, (dx, dy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
             body = (
                 result["chunk_dispatch.cpp"]
-                .split(f"static void run_chunk_1_{cx}_{cy}()", 1)[1]
+                .split(f"static void run_chunk_1_{rx // 8 + dx}_{ry // 4 + dy}()", 1)[1]
                 .split("\ntemplate <HandlerStage STAGE>", 1)[0]
             )
             self.assertIn(f"Handler<positions::GroveSign_{i}, STAGE>", body)
 
     def test_fractional_rectangle_edges(self):
-        self.sign().set("x", "127.9")
-        self.sign().set("y", "63.9")
+        tx, ty = self.tile_of("GroveSign")
+        bx, by = (tx // 8 + 1) * 8, (ty // 4 + 1) * 4
+        rx, ry = bx - 1, by - 1
+        self.sign().set("x", str(16 * rx + 15.9))
+        self.sign().set("y", str(16 * ry + 15.9))
         self.sign().set("width", "0.2")
         self.sign().set("height", "0.2")
         self.write()
         self.assertIn(
-            "GroveSignRegion{{1, 7, 3}, 2, 2}",
+            f"GroveSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}",
             export_world(self.root)["map_positions.h"],
         )
 
@@ -253,23 +305,23 @@ class Pipeline(unittest.TestCase):
             self.fails("conflicts with the generated Handler")
 
     def test_route_markers_and_ids(self):
+        sx, sy = self.tile_of("PlayerStart")
         group = ET.SubElement(self.tree.getroot(), "objectgroup", name="Routes")
-        route = ET.SubElement(group, "object", name="TestRoute", x="88", y="88")
+        route = ET.SubElement(group, "object", name="TestRoute", x=str(16 * sx + 8), y=str(16 * sy + 8))
         line = ET.SubElement(route, "polyline", points="0,0 0,16")
         self.write()
         result = export_world(self.root)
         self.assertIn("TestRoute = 1", result["npc_routes.h"])
-        self.assertIn("{5, 5}", result["npc_routes.cpp"])
-        self.assertIn("{5, 6}", result["npc_routes.cpp"])
-        route.set("x", "88.5")
+        self.assertIn(f"{{{sx}, {sy}}}", result["npc_routes.cpp"])
+        self.assertIn(f"{{{sx}, {sy + 1}}}", result["npc_routes.cpp"])
+        route.set("x", str(16 * sx + 8.5))
         self.write()
         self.assertEqual(result, export_world(self.root))
-        route.set("x", "80")
+        route.set("x", str(16 * sx))
         self.fails("inside tile boundaries")
-        route.set("x", "88")
+        route.set("x", str(16 * sx + 8))
         line.set("points", "0,0")
         self.fails("2..255")
-
 
 def write_handler_fixture(output):
     output.mkdir(parents=True, exist_ok=True)
@@ -281,9 +333,15 @@ def write_handler_fixture(output):
         path = root / "assets/maps/outdoor.tmx"
         tree = ET.parse(path)
         group = tree.find("objectgroup")
+        field = tree.find(".//object[@name='TestField']")
+        fx, fy = int(float(field.get("x"))) // 16, int(float(field.get("y"))) // 16
         for name in ("Pending0", "Pending1", None):
             obj = ET.SubElement(
-                group, "object", x="216", y="152", **({"name": name} if name else {})
+                group,
+                "object",
+                x=str(16 * fx + 8),
+                y=str(16 * fy + 8),
+                **({"name": name} if name else {}),
             )
             ET.SubElement(
                 ET.SubElement(obj, "properties"),
@@ -320,6 +378,31 @@ class CollisionOverlay(unittest.TestCase):
         with image_path.open("rb") as handle:
             self.assertEqual(handle.read(8), b"\x89PNG\r\n\x1a\n")
         self.assertEqual(image_path.read_bytes(), collision_overlay(ROOT))
+
+
+class MapPreviews(unittest.TestCase):
+    def test_previews_are_current_pngs(self):
+        for name, data in map_previews(ROOT).items():
+            self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n", name)
+            self.assertEqual((ROOT / name).read_bytes(), data, name)
+
+    def test_each_tile_is_its_atlas_cell_at_native_size(self):
+        maps, _, _ = load_world(ROOT)
+        atlas = Image.open(ROOT / "assets/images/tiles16.png").convert("L")
+        previews = map_previews(ROOT)
+        for m in maps:
+            name = map_preview_path(m.symbol)
+            image = Image.open(io.BytesIO(previews[name])).convert("L")
+            self.assertEqual(image.size, (m.width * 16, m.height * 16), name)
+            for index, runtime in enumerate(m.data):
+                x, y = index % m.width * 16, index // m.width * 16
+                cell = image.crop((x, y, x + 16, y + 16)).tobytes()
+                if runtime == 255:
+                    self.assertEqual(set(cell), {OUTSIDE_PREVIEW_GRAY}, (name, x, y))
+                    continue
+                left, top = runtime % 16 * 16, runtime // 16 * 16
+                expected = atlas.crop((left, top, left + 16, top + 16)).tobytes()
+                self.assertEqual(cell, expected, (name, x, y, runtime))
 
 
 if __name__ == "__main__":

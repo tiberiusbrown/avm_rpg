@@ -50,25 +50,27 @@ static void animate() {
 
 static void movement() {
     game_new();
-    CHECK(game.player.x == 112 && game.player.y == 80 && game.player.facing == NORTH);
+    uint16_t const start_x = positions::PlayerStart.x * TILE;
+    uint16_t const start_y = positions::PlayerStart.y * TILE;
+    CHECK(game.player.x == start_x && game.player.y == start_y && game.player.facing == NORTH);
     game_update(BTN_RIGHT);
-    CHECK(game.player.x == 112 + PLAYER_PIXELS_PER_FRAME && game.player.walking);
+    CHECK(game.player.x == start_x + PLAYER_PIXELS_PER_FRAME && game.player.walking);
     game_update(BTN_LEFT);
-    CHECK(game.player.x == 112 && game.player.facing == WEST);
+    CHECK(game.player.x == start_x && game.player.facing == WEST);
     game_update(BTN_UP | BTN_DOWN | BTN_RIGHT);
-    CHECK(game.player.x == 112 + PLAYER_PIXELS_PER_FRAME);
+    CHECK(game.player.x == start_x + PLAYER_PIXELS_PER_FRAME);
     game_update(BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT);
     CHECK(!game.player.walking);
     game_new();
     CHECK(actor_move(&game.player, NORTH, 8)); // Feet can approach the solid sign.
-    CHECK(game.player.y == 72);
+    CHECK(game.player.y == start_y - 8);
     CHECK(!actor_move(&game.player, NORTH, 1) && !game.player.walking);
-    world_enter(AREA_OUTDOOR, 2 * TILE, 7 * TILE, EAST);
+    world_enter(AREA_OUTDOOR, start_x, start_y, WEST);
     npc_reset();
-    // Walk until the obstacle at x = 260 stops the player, whatever the walking speed.
+    // Walk west until the tree line stops the player, whatever the walking speed.
     for(unsigned i = 0; i < 1000; ++i)
-        game_update(BTN_RIGHT);
-    CHECK(game.player.x == 260 && terrain_clear(game.player.x, game.player.y));
+        game_update(BTN_LEFT);
+    CHECK(game.player.x < start_x && player_terrain_clear(game.player.x, game.player.y));
     CHECK(!game.dimensions.pixel_bounds(65535, 0));
     CHECK(!terrain_clear(0, 0) && !terrain_clear(65535, 65535));
 
@@ -99,10 +101,12 @@ static void sign() {
     game.player.facing = EAST;
     game_update(0, BTN_A);
     CHECK(dialogues == before + 1);
-    world_enter(AREA_OUTDOOR, 6 * TILE, 5 * TILE, NORTH);
+    world_enter(AREA_OUTDOOR, (positions::GroveSign.x - 1) * TILE,
+                (positions::GroveSign.y + 1) * TILE, NORTH);
     game_update(0, BTN_A);
     CHECK(dialogues == before + 1); // Diagonals do not read the sign.
-    world_enter(AREA_OUTDOOR, 8 * TILE, 4 * TILE, WEST);
+    world_enter(AREA_OUTDOOR, (positions::GroveSign.x + 1) * TILE,
+                positions::GroveSign.y * TILE, WEST);
     game_update(0, BTN_A);
     CHECK(dialogues == before + 2);
 }
@@ -139,14 +143,15 @@ static void saves() {
     checksum(bad);
     CHECK(!save_decode(bad));
     memcpy(bad, record, sizeof(bad));
-    bad[6] = 7 * TILE;
+    bad[6] = positions::GroveSign.x * TILE;
     bad[7] = 0;
-    bad[8] = 4 * TILE; // Syntactically valid, but inside the sign.
+    bad[8] = positions::GroveSign.y * TILE; // Syntactically valid, but inside the sign.
     bad[9] = 0;
     checksum(bad);
     CHECK(save_decode(bad));
-    CHECK(terrain_clear(game.player.x, game.player.y));
-    CHECK(game.player.x != 7 * TILE || game.player.y != 4 * TILE);
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+    CHECK(game.player.x != positions::GroveSign.x * TILE ||
+          game.player.y != positions::GroveSign.y * TILE);
     CHECK(!save_decode(record, 3));
 }
 

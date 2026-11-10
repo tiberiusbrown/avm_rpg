@@ -11,6 +11,8 @@ specified in `docs/tiled_pipeline.md`. Read that first when you need an exact ru
 - `assets/images/tiles16.png`: the 256x256 monochrome atlas. `tiles16.xcf` is its editable source.
 - `assets/images/tiles16_collision.png`: the atlas with solid collision pixels tinted red, for
   checking shapes. The generator writes it on every run, so open it after changing a mask.
+- `assets/images/<SYMBOL>_preview.png`: a 1x preview of each map, drawn from the atlas. Open
+  it to check the whole layout at once.
 - After any change, run `python tools/generate_assets.py`, then `tests/test_pipeline.py`
   and `tests/test_content.py`. The generator writes `generated/`, including
   `tile_ids.h` and `map_positions.h`.
@@ -117,8 +119,8 @@ Road pieces are walkable and sit on grass. There are two sets:
 - The 2x2 block, `0x65`, `0x66`, `0x75` and `0x76`, holds the concave (inside) corners,
   where the road turns inward around grass.
 
-Use the tiling pieces when authoring roads when feasible. For narrow roads, or roads
-immediately next to buildings, you may use `0x45` without edge tiling.
+Use the tiling pieces when authoring roads when feasible. For footpaths and other narrow
+roads, you may use `0x45` without edge tiling.
 
 Each road tile in the 3x3 set takes the piece that matches the sides facing grass:
 
@@ -137,16 +139,79 @@ Each road tile in the 3x3 set takes the piece that matches the sides facing gras
 A road tile with grass on opposite sides, or on three or four sides, has no matching
 piece. Use `0x45` for it.
 
-The atlas lays out the 2x2 pieces as a block: `0x65` top-left, `0x66` top-right,
-`0x75` bottom-left and `0x76` bottom-right. Each piece is road with grass in one part:
+The 2x2 block holds the diagonal edges. Each piece is a 45-degree edge through the tile:
 
-- `0x65`: grass in the bottom-right corner.
-- `0x66`: grass on the left side.
-- `0x75`: grass on the right side.
-- `0x76`: grass in the top-left corner.
+- `0x65`: road to the north and west, grass to the southeast.
+- `0x76`: grass to the northwest, road to the southeast.
+- `0x66`: road to the northeast, grass to the southwest.
+- `0x75`: not a diagonal piece. Do not use it for roads.
 
-Use them at concave corners, where the road turns inward around grass. Pick the piece
-whose grass part sits toward that grass.
+Use them at concave corners. A grass cell with road on two orthogonal sides takes the piece
+that faces that road: road north and east gives `0x66`, road east and south gives `0x76`,
+and road west and north gives `0x65`. Road west and south has no piece, so leave that cell
+as grass.
+
+A diagonal road that runs from the bottom-left to the top-right (`/`) takes the diagonal
+pieces on both sides automatically: `0x76` on the northwest side and `0x65` on the southeast
+side. The 2x2 pieces sit on grass, so where trees line one side of the road instead, the road
+tiles on that side take 3x3 pieces. A road that runs from the top-left to the bottom-right
+(`\`) has only one matching piece, `0x66`, so its other side becomes a staircase. Avoid `\`
+diagonals.
+
+## Buildings
+
+A building is base walls with roofs above them. Base wall sections can join at the same
+or different y-levels, and one building can mix roof types.
+
+### Base walls
+
+- Empty base walls are 3 wide: `0xc0` is the left end, `0xc1` is interior, and `0xc2` is
+  the right end.
+- Decorated base walls with windows are 4 wide: `0x93` is the left end, `0x94` and `0x95`
+  are interior, and `0x96` is the right end.
+- A one-wide base wall is `0xc3`. Attach it to another building as a side extension, at
+  the same or a different y-level from the wall it joins.
+- Door tiles are `0x84` and `0x85`. They are interior pieces, so a door wall needs a side
+  piece at each end. Each building has exactly one door, on one of these tiles. The tile in
+  front of the door is the only road tile that touches the base wall (see
+  [Layout principles](#layout-principles)).
+
+### Slanted roofs
+
+Slanted roofs are only for 3-wide base walls, `0xc0` to `0xc2`.
+
+- The bottom roof tiles `0xb0`, `0xb1` and `0xb2` sit directly above the base wall.
+- `0xa1` sits above `0xb1`.
+- The top edge is `0x90`, `0x81` and `0x92`: `0x90` above `0xb0`, `0x81` above `0xa1`,
+  and `0x92` above `0xb2`.
+- To extend the roof deeper, add the middle roof tiles `0xa0`, `0x91` and `0xa2` between
+  the bottom roof and the top edge: `0xa0` above `0xb0`, `0x91` above `0xa1`, and `0xa2`
+  above `0xb2`. Then place the top edge above them: `0x90` above `0xa0`, `0x81` above
+  `0x91`, and `0x92` above `0xa2`.
+
+### Flat roofs
+
+Flat roofs sit above base walls that are two or more tiles wide. They use the 3x3 convex
+set from `0xa4` to `0xc6`:
+
+- Corners: `0xa4` top-left, `0xa6` top-right, `0xc4` bottom-left, and `0xc6` bottom-right.
+- Edges: `0xa5` top, `0xb4` left, `0xb6` right, and `0xc5` bottom.
+- Center: `0xb5`, which has no outline.
+
+The outline sits on the outside of the roof, so choose each tile by the sides that face
+outside the roof, as for roads.
+
+### One-wide roofs
+
+A one-wide base wall, `0xc3`, takes `0xb3` directly above it, `0xa3` above `0xb3`, and
+`0x81` above `0xa3` as the top and back edge.
+
+### Solidity
+
+Walls, doors and roofs are solid, except the shaped top-edge pieces `0x81`, `0x90` and
+`0x92`. See [What solidity means](#what-solidity-means). A door does not open by itself.
+Entering a building is handled by content code, not by the tile (see **Portals** in
+that section).
 
 ## Atlas layout
 
@@ -166,10 +231,11 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
 - `0x54` to `0x56`: road pieces, walkable.
 - `0x65`, `0x66`, `0x75` and `0x76`: road pieces, walkable.
 - `0x80` to `0x8F`: building fronts, doors and windows. Solid, except `0x81`, which is a
-  triangle. See the shapes list.
+  triangle. See the shapes list and [Buildings](#buildings).
 - `0x90` to `0x9F`: wall and window panels, and signboards. Solid, except the ramps `0x90`
-  and `0x92`.
-- `0xA0` to `0xC7`: roofs, hatching, paving and framed pavers. Solid.
+  and `0x92`. Decorated base walls and roof edges: see [Buildings](#buildings).
+- `0xA0` to `0xC7`: roofs, hatching, paving and framed pavers. Solid. Roofs and base
+  walls: see [Buildings](#buildings).
 
 ## What solidity means
 
@@ -231,6 +297,33 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   Content code triggers them from a handler with `teleport_player<POS>()`, and no
   content does this yet.
 
+## Layout principles
+
+These rules describe how roads, villages and trees should look. Follow them when you
+author a map by hand.
+
+- **Doors, not walls.** A road touches a building only at its door. The row below a base
+  wall is grass, except for the door's front tile. A footpath runs from that tile to the
+  road network, and its first tile runs straight south, because the tiles beside it touch
+  the wall.
+- **Organic villages.** Do not line houses up on one row. Space them at irregular
+  intervals and distances from the street. Each door's footpath can be a different length.
+- **Roads about two tiles wide.** Main roads are two tiles wide, and footpaths are one
+  tile wide. A diagonal road is one diagonal line of road tiles, which has about the same
+  width as a two-tile road.
+- **Winding, not straight.** Roads bend gently, changing direction every four to nine tiles.
+  Avoid straight runs longer than about fourteen tiles, and sharp zigzags with runs of one or
+  two tiles.
+- **No dead ends.** Every road ends at a junction, a door footpath, a village exit or the
+  map's edge. A road that stops anywhere else is a bug.
+- **Diagonal edges, not staircases.** Diagonal roads use the 2x2 diagonal pieces along their
+  grass edges. See the rules for `/` and `\` diagonals under Roads.
+- **Trees around roads.** Scatter single trees and small clumps near roads, two to four
+  tiles away, thinning with distance. A single tree never touches another tree.
+- **Soft forest edges.** Forest edges are not hard lines. Density falls off over a few
+  tiles, with loose trees marking the transition. The map's border is solid at its core and
+  fades gradually inward.
+
 ## Building a map
 
 - Use one Ground tile layer that covers the whole map. Layers overwrite each other
@@ -267,6 +360,9 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   `reverse` (default `once`), and `pause` set from 0 to 255 (default 16). A route needs
   2 to 255 waypoints. Each waypoint must sit inside a tile, not on a tile edge or
   corner. Keep waypoints on passable tiles where an NPC can stand.
+- **Test anchors.** `TestField` is open meadow for the native scenario tests, which paint
+  their own ground over it. Scenario positions are offsets from named points, such as
+  `TestField` or a resident's home. Test code never uses absolute map coordinates.
 - Do not use object types, classes or templates. The exporter rejects them.
 
 ## Artistic rules
@@ -307,6 +403,11 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 ## Before committing a map
 
 - The generator, `test_pipeline.py` and `test_content.py` all pass.
+- Roads touch a building only at its door front, and every road ends at a junction, a
+  door footpath, a village exit or the map's edge.
+- Diagonal road edges that border grass use `0x65`, `0x66` and `0x76`, with no staircases.
+  Roads are about two tiles wide and wind gently.
+- Single trees never touch another tree, and loose trees sit near roads.
 - No `EMPTY` (`0x00`) cell is painted, and the floor mixes the four grass cells.
 - The spawn is passable, and every named point and route is reachable from the spawn
   over passable tiles.
@@ -317,6 +418,9 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - No large clumps of `TREE_ROUND` sit next to each other. Groups use the tiling pieces.
 - Roads use the road pieces in [Roads](#roads), except narrow roads and roads next to
   buildings, which use `0x45` alone.
+- Each building has exactly one door, on an interior base wall tile (`0x84` or `0x85`).
+- Every base wall run starts and ends with a side piece (`0xc0` or `0xc2`, or `0x93` or
+  `0x96`), or is a single `0xc3`.
 - Every tree seam matches its neighbor, and no seam faces outside the map (see Round
   trees).
 - Device QA passes when a change touches NPCs, collisions or sightlines.

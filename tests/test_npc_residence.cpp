@@ -29,8 +29,8 @@ static void place_player(uint8_t tx, uint8_t ty) {
 
 static void test_defaults_and_view_admission() {
     game_new();
-    CHECK(game.npcs.residence[NPC_VILLAGER].x == 5 && game.npcs.residence[NPC_VILLAGER].y == 5);
-    CHECK(game.npcs.residence[NPC_WANDERER].x == 10 && game.npcs.residence[NPC_WANDERER].y == 6);
+    CHECK(game.npcs.residence[NPC_VILLAGER] == positions::VillagerHome);
+    CHECK(game.npcs.residence[NPC_WANDERER] == positions::WandererHome);
     CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
 
     // Leaving view does not teleport an active NPC. It keeps its slot and position.
@@ -53,12 +53,14 @@ static void test_static_npc_stays_in_its_chunk() {
 static void test_destination_admission_and_travel() {
     // Entering the area casts the villager at its new residence, which the player can see.
     npc_reset();
-    place_player(15, 7); // The player stands at (15,7), which sees the destination (16,7).
+    // The player stands beside the destination, which is then in view.
+    place_player(positions::VillagerEast.x - 1, positions::VillagerEast.y);
     CHECK(npc_set_destination(NPC_VILLAGER, positions::VillagerEast));
     update_visible_world(0, false);
     Npc* villager = npc_find(NPC_VILLAGER);
     CHECK(villager);
-    CHECK(villager->actor.x == 16 * TILE && villager->actor.y == 7 * TILE);
+    CHECK(villager->actor.x == positions::VillagerEast.x * TILE &&
+          villager->actor.y == positions::VillagerEast.y * TILE);
 
     // An active dynamic NPC walks toward a new destination; it does not teleport.
     uint16_t x = villager->actor.x, y = villager->actor.y;
@@ -94,9 +96,11 @@ static unsigned moved_pixels(uint16_t x, uint16_t y, Npc const& n) {
 // A walking NPC that leaves view keeps its slot and walks on. It never reappears at home.
 static void test_leaving_view_is_continuous() {
     game_new();
-    place_player(15, 7); // The camera's left edge is x=160; the wanderer's leash reaches 144.
+    // Five tiles east of the wanderer's home. Its leash reaches one tile west of home.
+    place_player(positions::WandererHome.x + 5, positions::WandererHome.y + 1);
     update_visible_world(0, false);
-    CHECK(npc_move_to(NPC_WANDERER, 144, 96));
+    CHECK(npc_move_to(NPC_WANDERER, positions::WandererHome.x * TILE - TILE,
+                      positions::WandererHome.y * TILE));
     Npc* wanderer = npc_find(NPC_WANDERER);
     CHECK(wanderer);
     bool left_view = false;
@@ -110,34 +114,42 @@ static void test_leaving_view_is_continuous() {
     CHECK(left_view);
 }
 
+static uint16_t home_x() {
+    return (uint16_t)(positions::VillagerHome.x * TILE);
+}
+
+static uint16_t home_y() {
+    return (uint16_t)(positions::VillagerHome.y * TILE);
+}
+
 // An NPC outside the terrain cache is not simulated, and it resumes from the same place.
 static void test_npc_outside_cache_is_frozen() {
     game_new();
     Npc* villager = npc_find(NPC_VILLAGER);
-    place_player(15, 7); // Far east: the villager's home lies outside the cache.
+    place_player(positions::VillagerEast.x, positions::VillagerEast.y); // Far east: the home is outside the cache.
     update_visible_world(0, false);
-    CHECK(npc_move_to(NPC_VILLAGER, 80, 96));
+    CHECK(npc_move_to(NPC_VILLAGER, home_x(), home_y() + TILE));
     for(unsigned frame = 0; frame < 20; ++frame)
         game_update(0);
-    CHECK(villager->actor.x == 80 && villager->actor.y == 80);
-    place_player(7, 5); // Back near the start, where the villager's home is cached again.
+    CHECK(villager->actor.x == home_x() && villager->actor.y == home_y());
+    place_player(positions::PlayerStart.x, positions::PlayerStart.y); // Back at the start, where the home is cached again.
     for(unsigned frame = 0; frame < 200 && villager->behavior != NPC_STAND; ++frame) {
         uint16_t x = villager->actor.x, y = villager->actor.y;
         game_update(0);
         CHECK(npc_find(NPC_VILLAGER) == villager);
         CHECK(moved_pixels(x, y, *villager) <= 1);
     }
-    CHECK(villager->actor.x == 80 && villager->actor.y == 96);
+    CHECK(villager->actor.x == home_x() && villager->actor.y == home_y() + TILE);
 }
 
 // NPCs step on every other frame, and their walk pose holds between steps.
 static void test_npc_steps_every_other_frame() {
     game_new();
     Npc* villager = npc_find(NPC_VILLAGER);
-    CHECK(npc_move_to(NPC_VILLAGER, 80, 96)); // Sixteen pixels south of home.
+    CHECK(npc_move_to(NPC_VILLAGER, home_x(), home_y() + TILE)); // Sixteen pixels south of home.
     unsigned frames = 0;
     bool moved_last = false;
-    for(; frames < 200 && villager->actor.y != 96; ++frames) {
+    for(; frames < 200 && villager->actor.y != home_y() + TILE; ++frames) {
         uint16_t x = villager->actor.x, y = villager->actor.y;
         game_update(0);
         bool moved = villager->actor.x != x || villager->actor.y != y;
@@ -145,7 +157,7 @@ static void test_npc_steps_every_other_frame() {
         CHECK(villager->actor.walking); // The pose holds between steps.
         moved_last = moved;
     }
-    CHECK(villager->actor.y == 96);
+    CHECK(villager->actor.y == home_y() + TILE);
     CHECK(frames >= 30 && frames <= 34); // About two frames per pixel.
 }
 

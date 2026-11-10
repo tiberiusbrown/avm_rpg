@@ -154,7 +154,8 @@ static void run(uint32_t seed, unsigned frames) {
         if(rng() % 120 == 0)
             npc_set_destination(NPC_VILLAGER, residences[rng() % 3]);
         if(rng() % 160 == 0)
-            npc_move_to(NPC_WANDERER, (uint16_t)(144 + rng() % 33), (uint16_t)(84 + rng() % 25));
+            npc_move_to(NPC_WANDERER, (uint16_t)(positions::WandererHome.x * TILE - 16 + rng() % 33),
+                      (uint16_t)(positions::WandererHome.y * TILE - 12 + rng() % 25));
         Snapshot before = take();
         Camera camera_before = game_camera();
         if(rng() % 25 == 0)
@@ -168,19 +169,20 @@ static void run(uint32_t seed, unsigned frames) {
     }
 }
 
-// A villager standing on (5,5) is embedded in a 2x2 block of solid tiles. Its nearest clear spot is
-// twelve pixels west, so it must walk out over many steps, and no step may jump.
+// A villager standing on its home is embedded in a 2x2 block of solid tiles. Its nearest clear spot
+// is twelve pixels west, so it must walk out over many steps, and no step may jump.
 static void test_tile_change_under_npc_walks_out() {
     game_new();
     Npc* villager = npc_find(NPC_VILLAGER);
-    CHECK(villager && villager->actor.x == 5 * TILE && villager->actor.y == 5 * TILE);
+    CHECK(villager && villager->actor.x == positions::VillagerHome.x * TILE &&
+          villager->actor.y == positions::VillagerHome.y * TILE);
     uint16_t start_x = villager->actor.x, start_y = villager->actor.y;
     for(unsigned frame = 0; frame < 120; ++frame) {
         Snapshot before = take();
         Camera camera_before = game_camera();
         update_visible_world(0, false);
-        for(uint8_t ty = 5; ty <= 6; ++ty)
-            for(uint8_t tx = 5; tx <= 6; ++tx)
+        for(uint8_t ty = positions::VillagerHome.y; ty <= positions::VillagerHome.y + 1; ++ty)
+            for(uint8_t tx = positions::VillagerHome.x; tx <= positions::VillagerHome.x + 1; ++tx)
                 cache_tile(tx, ty, TILE_TREE);
         npc_update();
         ++game.ticks;

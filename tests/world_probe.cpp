@@ -37,7 +37,7 @@ extern "C" void setup() {
     CHECK(dialogues == 1 && !frame_pressed);
     game.gold = 19;
     save_encode(record);
-    CHECK(save_decode(record) && game.gold == 19 && game.player.x == 112);
+    CHECK(save_decode(record) && game.gold == 19 && game.player.x == positions::PlayerStart.x * TILE);
     record[2] = 3;
     CHECK(!save_decode(record));
     probe_done();

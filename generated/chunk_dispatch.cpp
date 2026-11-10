@@ -1,21 +1,21 @@
 /* Generated from TMX/TSX; do not edit. */
 
 #include "logic/handlers.h"
-template <HandlerStage STAGE> static void run_chunk_1_0_1() {
+template <HandlerStage STAGE> static void run_chunk_1_5_15() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
-    Handler<positions::GroveSign, STAGE>{}.read_sign();
+    Handler<positions::WandererHome, STAGE>{}.update_wanderer();
     if constexpr(STAGE != STAGE_TILES) {
         if(teleported)
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_1_1() {
+template <HandlerStage STAGE> static void run_chunk_1_5_16() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
-    Handler<positions::WandererHome, STAGE>{}.update_wanderer();
+    Handler<positions::GroveSign, STAGE>{}.read_sign();
     if constexpr(STAGE != STAGE_TILES) {
         if(teleported)
             return;
@@ -28,9 +28,9 @@ template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(ChunkCoord coord) {
 #endif
     switch(coord.area) {
         case 1:
-            switch((uint16_t)coord.y * 3 + coord.x) {
-                case 3: run_chunk_1_0_1<STAGE>(); break;
-                case 4: run_chunk_1_1_1<STAGE>(); break;
+            switch((uint16_t)coord.y * 30 + coord.x) {
+                case 455: run_chunk_1_5_15<STAGE>(); break;
+                case 485: run_chunk_1_5_16<STAGE>(); break;
                 default: break;
             }
             break;

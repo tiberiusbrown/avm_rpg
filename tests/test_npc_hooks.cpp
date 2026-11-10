@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "map_positions.h"
 #include "chunk.h"
 #include "world_assets.h"
 #include "map_positions.h"
@@ -36,7 +37,9 @@ TilePos npc_home(NPC_ID) {
 }
 
 NpcRoute const PROGMEM* npc_route(uint8_t id) {
-    static constexpr RoutePoint POINTS[] = {{5, 5}, {5, 6}};
+    static constexpr RoutePoint POINTS[] = {
+        {positions::VillagerHome.x, positions::VillagerHome.y},
+        {positions::VillagerHome.x, static_cast<uint8_t>(positions::VillagerHome.y + 1)}};
     static constexpr NpcRoute ONCE{POINTS, 2, ROUTE_ONCE, 2, AREA_OUTDOOR};
     static constexpr NpcRoute REVERSE{POINTS, 2, ROUTE_REVERSE, 2, AREA_OUTDOOR};
     return id == 1 ? &ONCE : id == 2 ? &REVERSE : nullptr;
@@ -84,7 +87,7 @@ int main() {
     for(unsigned i = 0; i < 24; ++i)
         npc_update();
     CHECK(events[NPC_EVENT_ROUTE_STARTED] == 1 && events[NPC_EVENT_ROUTE_COMPLETED] == 1);
-    CHECK(n.actor.y == 96 && n.behavior == NPC_STAND);
+    CHECK(n.actor.y == (positions::VillagerHome.y + 1) * TILE && n.behavior == NPC_STAND);
     replace_route = true;
     CHECK(npc_follow_route(n.id, 1));
     npc_update();
@@ -108,13 +111,16 @@ int main() {
     uint16_t sx = stuck->actor.x, sy = stuck->actor.y;
     npc_update();
     CHECK(npc_find(NPC_VILLAGER) == stuck && stuck->actor.x == sx && stuck->actor.y == sy);
-    world_enter(AREA_OUTDOOR, 112, 80, NORTH);
+    world_enter(AREA_OUTDOOR, positions::PlayerStart.x * TILE, positions::PlayerStart.y * TILE,
+                NORTH);
     CHECK(npc_find(NPC_VILLAGER));
-    CHECK(npc_move_to(NPC_VILLAGER, 80, 81));
+    CHECK(npc_move_to(NPC_VILLAGER, positions::VillagerHome.x * TILE,
+                      positions::VillagerHome.y * TILE + 1));
     npc_update();
     npc_update();
     CHECK(events[NPC_EVENT_TARGET_REACHED] == 1);
-    world_enter(AREA_OUTDOOR, 15 * TILE, 9 * TILE, SOUTH);
+    world_enter(AREA_OUTDOOR, positions::VillagerEast.x * TILE, positions::VillagerEast.y * TILE,
+                SOUTH);
     // Scene exit retires the NPCs that were present, and only them. The villager's home is
     // outside the cache from here, so it is not cast until the cache covers it.
     CHECK(!npc_find(NPC_VILLAGER) && last_retirement == NPC_RETIRED_RESET);

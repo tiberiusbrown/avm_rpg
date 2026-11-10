@@ -625,6 +625,40 @@ def collision_overlay(root=ROOT, scale=3):
     return buffer.getvalue()
 
 
+MAP_PREVIEW_DIR = "assets/images"
+OUTSIDE_PREVIEW_GRAY = 128
+
+
+def map_preview_path(symbol):
+    return f"{MAP_PREVIEW_DIR}/{symbol}_preview.png"
+
+
+def map_previews(root=ROOT):
+    """1x PNG per map, keyed by its generated path: every tile is its atlas cell at
+    native 16x16 pixels. Unpainted outside cells (runtime ID 255) are flat gray, so
+    they stand out from the black EMPTY and blank atlas cells."""
+    maps, _, _ = load_world(root)
+    atlas = Image.open(root / "assets/images/tiles16.png").convert("L")
+    cells, previews = {}, {}
+    for m in maps:
+        image = Image.new(
+            "L", (m.width * TILE_SIZE, m.height * TILE_SIZE), OUTSIDE_PREVIEW_GRAY
+        )
+        for index, runtime in enumerate(m.data):
+            if runtime == 255:
+                continue
+            if runtime not in cells:
+                left = runtime % 16 * TILE_SIZE
+                top = runtime // 16 * TILE_SIZE
+                cells[runtime] = atlas.crop((left, top, left + TILE_SIZE, top + TILE_SIZE))
+            x, y = index % m.width, index // m.width
+            image.paste(cells[runtime], (x * TILE_SIZE, y * TILE_SIZE))
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        previews[map_preview_path(m.symbol)] = buffer.getvalue()
+    return previews
+
+
 def read_tileset_frames(root):
     _, metadata, _ = load_world(root)
     frames = []
@@ -1010,13 +1044,15 @@ def main():
         else:
             if not path.exists() or path.read_bytes() != text.encode("utf-8"):
                 path.write_text(text, encoding="utf-8", newline="\n")
-    overlay = ROOT / COLLISION_OVERLAY
-    image = collision_overlay(ROOT)
-    if args.check:
-        if not overlay.exists() or overlay.read_bytes() != image:
-            parser.error(f"{overlay} is stale; run python tools/generate_assets.py")
-    elif not overlay.exists() or overlay.read_bytes() != image:
-        overlay.write_bytes(image)
+    images = {ROOT / COLLISION_OVERLAY: collision_overlay(ROOT)}
+    images.update({ROOT / name: data for name, data in map_previews(ROOT).items()})
+    for path, data in images.items():
+        if args.check:
+            if not path.exists() or path.read_bytes() != data:
+                parser.error(f"{path} is stale; run python tools/generate_assets.py")
+        elif not path.exists() or path.read_bytes() != data:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
     print(
         "Asset generation/check passed (named locations, map shapes, sprite layouts)."
     )

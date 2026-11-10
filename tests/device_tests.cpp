@@ -6,6 +6,7 @@
 #pragma pack(push, 1)
 #include "rpg.h"
 #include "map_positions.h"
+#include "world_assets.h"
 #include "tile_ids.h"
 #pragma pack(pop)
 #include "music_catalog.h"
@@ -301,19 +302,21 @@ struct Device {
 static void verify_actor_layers(Device& d, fs::path const& out) {
     Game original = d.state();
     Game fixture = original;
-    fixture.player = {104, 88, SOUTH, 0};
+    // The fixture stands half a tile left of the spawn and one tile below it.
+    uint16_t const spawn_x = positions::PlayerStart.x * TILE, spawn_y = positions::PlayerStart.y * TILE;
+    fixture.player = {(uint16_t)(spawn_x - 8), (uint16_t)(spawn_y + 8), SOUTH, 0};
     fixture.npcs = {};
     // Deliberately reverse the NPC slots relative to depth, with the player between.
     fixture.npcs.actors[0].id = NPC_VILLAGER;
-    fixture.npcs.actors[0].actor = {116, 92, SOUTH, 0};
+    fixture.npcs.actors[0].actor = {(uint16_t)(spawn_x + 4), (uint16_t)(spawn_y + 12), SOUTH, 0};
     fixture.npcs.actors[1].id = NPC_WANDERER;
-    fixture.npcs.actors[1].actor = {112, 80, SOUTH, 0};
+    fixture.npcs.actors[1].actor = {spawn_x, spawn_y, SOUTH, 0};
     d.set_state(fixture);
     d.frame();
     d.frame();
     Game rendered = d.state();
-    require(rendered.player.y == 88 && rendered.npcs.actors[0].actor.y == 92 &&
-                rendered.npcs.actors[1].actor.y == 80,
+    require(rendered.player.y == spawn_y + 8 && rendered.npcs.actors[0].actor.y == spawn_y + 12 &&
+                rendered.npcs.actors[1].actor.y == spawn_y,
             "depth fixture unexpectedly moved");
 
     std::array<uint8_t, 1024> expected{}, covered{}, old_order{};
@@ -426,10 +429,14 @@ int main(int argc, char** argv) try {
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "new game did not default to 16 kHz audio");
     d.verify_music();
-    require(d.state().player.x == 112 && d.state().player.y == 80, "wrong 16x16 spawn");
-    require(d.state().dimensions.width_tiles == 18 && d.state().dimensions.height_tiles == 12,
-            "wrong sample map dimensions");
-    require(d.cached_tile(7, 4) == TILE_SIGN, "sign atlas index changed");
+    require(d.state().player.x == positions::PlayerStart.x * TILE &&
+                d.state().player.y == positions::PlayerStart.y * TILE,
+            "wrong spawn");
+    require(d.state().dimensions.width_tiles == OUTDOOR_WIDTH &&
+                d.state().dimensions.height_tiles == OUTDOOR_HEIGHT,
+            "wrong map dimensions");
+    require(d.cached_tile(positions::GroveSign.x, positions::GroveSign.y) == TILE_SIGN,
+            "sign atlas index changed");
     unsigned actors = 0;
     for(auto const& n : d.state().npcs.actors)
         actors += n.id != NPC_NONE;

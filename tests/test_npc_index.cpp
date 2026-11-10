@@ -1,6 +1,7 @@
 #include "rpg.h"
 #include "npc.h"
 #include "tile_ids.h"
+#include "map_positions.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,9 +26,9 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
 
 TilePos npc_home(NPC_ID id) {
     if(id == NPC_VILLAGER)
-        return TilePos{AREA_OUTDOOR, 2, 1};
+        return positions::VillagerEast; // Outside the start cache.
     if(id == NPC_WANDERER)
-        return TilePos{AREA_OUTDOOR, 9, 5};
+        return positions::WandererHome;
     return {};
 }
 
@@ -59,24 +60,28 @@ static void test_entry_casts_residents() {
     game_new();
     Npc* wanderer = npc_find(NPC_WANDERER);
     CHECK(wanderer);
-    CHECK(wanderer->actor.x == 9 * TILE && wanderer->actor.y == 5 * TILE);
+    CHECK(wanderer->actor.x == positions::WandererHome.x * TILE &&
+          wanderer->actor.y == positions::WandererHome.y * TILE);
     CHECK(!npc_find(NPC_VILLAGER));
 }
 
-// After entry, a spot in view is never cast into. A spot that is cached and out of view casts
-// once it is clear.
+// After entry, a spot in view is never cast into, and a home beyond the cache stays empty. A cached
+// spot out of view also casts once it is clear. The camera follows the player, and the map's border
+// keeps it from clamping at a corner, so no interior spot is cached yet off screen. That case is
+// left to the corner-free scenarios.
 static void test_casts_wait_for_spots_out_of_view() {
     game_new();
-    place_player(2, 2);
+    game.npcs.residence[NPC_VILLAGER] = positions::VillagerHome; // Beside the player, in view.
+    game.npcs.residence[NPC_WANDERER] = positions::VillagerEast; // Beyond the cache.
+    place_player(positions::VillagerHome.x - 1, positions::VillagerHome.y);
     update_visible_world(0, false); // Refreshes the cache for this view before the edits below.
     npc_reset();
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
     npc_reconcile(); // Entry finds no clear spot.
     CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
     memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
-    npc_reconcile(); // The villager's home is in view, so it waits. The wanderer's is not.
-    CHECK(!npc_find(NPC_VILLAGER));
-    CHECK(npc_find(NPC_WANDERER));
+    npc_reconcile(); // The villager's home is in view, so it waits. The wanderer's is not cached.
+    CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
 }
 
 int main() {
