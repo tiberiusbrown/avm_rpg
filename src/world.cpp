@@ -7,16 +7,37 @@
 uint8_t frame_pressed;
 bool teleported;
 
+// The foot position that last passed player_terrain_clear. Its answer depends only on the area,
+// the position, and the terrain, and terrain changes only through tile edits and reloads that
+// discard them. Until one of those events, a repeat of this position needs no tile reads.
+static bool foot_clear_known;
+static uint8_t foot_clear_area;
+static uint16_t foot_clear_x, foot_clear_y;
+// A reload discards tile edits, so it changes the terrain when an edit preceded it.
+static bool cache_edited;
+
+static bool player_foot_clear_known() {
+    return foot_clear_known && foot_clear_area == game.area && foot_clear_x == game.player.x &&
+           foot_clear_y == game.player.y;
+}
+
+void note_tile_edit() {
+    foot_clear_known = false;
+    cache_edited = true;
+}
+
 #ifndef RPG_AVM
 static uint16_t collision_override[256];
 static bool collision_overridden[256];
 
 void tile_collision_override(uint8_t tile, uint16_t mask) {
+    note_tile_edit();
     collision_override[tile] = mask;
     collision_overridden[tile] = true;
 }
 
 void tile_collision_reset() {
+    note_tile_edit();
     memset(collision_overridden, 0, sizeof(collision_overridden));
 }
 #endif
@@ -125,6 +146,10 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
 
 void reload_tile_cache() {
     game.camera = game_camera();
+    if(cache_edited) {
+        foot_clear_known = false;
+        cache_edited = false;
+    }
     reload_tile_window(game.cache, world_area(game.area)->tiles, game.dimensions, game.camera);
 }
 
@@ -134,8 +159,10 @@ void set_tile(TilePos pos, uint8_t tile) {
         return;
     uint16_t x = (uint16_t)(pos.x - game.cache.origin_tx);
     uint16_t y = (uint16_t)(pos.y - game.cache.origin_ty);
-    if(x < CACHE_WIDTH && y < CACHE_HEIGHT)
+    if(x < CACHE_WIDTH && y < CACHE_HEIGHT) {
+        note_tile_edit();
         game.cache.tiles[y * CACHE_WIDTH + x] = tile;
+    }
 }
 
 uint8_t cached_tile(TilePos pos) {
@@ -234,6 +261,10 @@ bool player_terrain_clear(uint16_t x, uint16_t y) {
                 return false;
         }
     }
+    foot_clear_known = true;
+    foot_clear_area = game.area;
+    foot_clear_x = x;
+    foot_clear_y = y;
     return true;
 }
 
@@ -334,7 +365,8 @@ void refresh_tile_cache() {
 }
 
 static void repair_player_overlap() {
-    if(!player_terrain_clear(game.player.x, game.player.y) && !eject_actor(game.player)) {
+    if(!player_foot_clear_known() && !player_terrain_clear(game.player.x, game.player.y) &&
+       !eject_actor(game.player)) {
         Area const PROGMEM* a = world_area(game.area);
         game.player.x = a->spawn.x;
         game.player.y = a->spawn.y;
@@ -387,6 +419,7 @@ void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     Area const PROGMEM* a = world_area(area);
     if(!a)
         return;
+    foot_clear_known = false;
     game.area = area;
     npc_reset();
     game.dimensions = {a->width, a->height};

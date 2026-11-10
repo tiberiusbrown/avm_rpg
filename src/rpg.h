@@ -20,11 +20,19 @@
 #define RPG_NOINLINE __attribute__((noinline))
 #endif
 
-#ifdef RPG_AVM
+// Device QA guests (RPG_DEVICE_QA) record the simulation phase and frame markers that the device
+// tests read. Shipping guests compile both out.
+#if defined(RPG_AVM) && defined(RPG_DEVICE_QA)
 extern volatile uint8_t world_phase;
 #define RPG_PHASE(value) (world_phase = (value))
+#define RPG_QA_MARK(call) call
+extern "C" void rpg_frame_begin();
+extern "C" void rpg_frame_end();
+extern "C" void rpg_render_begin();
+extern "C" void rpg_render_end();
 #else
 #define RPG_PHASE(value) ((void)0)
+#define RPG_QA_MARK(call) ((void)0)
 #endif
 
 enum {

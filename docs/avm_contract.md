@@ -260,8 +260,9 @@ functions. See AVM `docs/debugger_abi.md` and `docs/lldb.md`.
 --replay tests/replays/exploration.json --native -o run.avmp` collects elapsed
 emulated AVR cycles, not native guest instruction estimates or host wall time.
 `avm-prof report run.avmp --html report.html` resolves source/inlined costs.
-Recorded windows include interpreter, display and interrupt behavior. Full-device
-per-frame markers exclude pacing wait and include simulation, render and display.
+Recorded windows include interpreter, display and interrupt behavior. Device QA
+per-frame markers, recorded only by the `rpg_qa` guest, exclude pacing wait and include
+simulation, render and display.
 At 16 MHz the 20 FPS budget is 800000 cycles. Results and qualification limits
 are documented separately; physical hardware and non-Windows hosts remain
 **Unverified**.

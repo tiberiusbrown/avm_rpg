@@ -2,11 +2,6 @@
 
 #include <avm.h>
 
-extern "C" void rpg_frame_begin();
-extern "C" void rpg_frame_end();
-extern "C" void rpg_render_begin();
-extern "C" void rpg_render_end();
-
 __attribute__((noinline)) void title_screen() {
     bool can_continue = game_load();
     uint8_t selection = 0;
@@ -87,12 +82,12 @@ __attribute__((noinline)) void explore() {
             continue;
         }
 
-        rpg_frame_begin();
+        RPG_QA_MARK(rpg_frame_begin());
         game_update(input_held());
-        rpg_render_begin();
+        RPG_QA_MARK(rpg_render_begin());
         rpg_render_world();
         avm_display(true);
-        rpg_render_end();
-        rpg_frame_end();
+        RPG_QA_MARK(rpg_render_end());
+        RPG_QA_MARK(rpg_frame_end());
     }
 }

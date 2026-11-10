@@ -74,6 +74,9 @@ The old outdoor/interior/hall maps and their quests have been replaced by one
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
 - `rpg.fxc.arduboy`: Arduboy FX-C package, built from the same game with FX-C
   interpreter firmware (flash chip select on HWB/PE2), also refreshed by default.
+- `build/artifacts/rpg_qa.arduboy` and `rpg_qa.fxc.arduboy`: the same game with
+  device-QA frame markers. Device tests and QA scripts read these; the root packages
+  carry no markers.
 
 The bottom-right atlas cell (0xFF) is reserved for the impassable outside-map
 sentinel. Black cells retain their indices. Characters use direction order

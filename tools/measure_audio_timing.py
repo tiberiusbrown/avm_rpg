@@ -56,10 +56,10 @@ def main():
     out = (args.output or build / "audio-timing").resolve()
     out.mkdir(parents=True, exist_ok=True)
     firmware = {"normal": args.interpreter_build.resolve(), "fxc": args.fxc_interpreter_build.resolve()}
-    refs = symbols(build / "artifacts/rpg.elf")
+    refs = symbols(build / "artifacts/rpg_qa.elf")  # Markers come from the QA guest.
     identity = {}
     for variant, suffix in (("normal", ""), ("fxc", ".fxc")):
-        package = build / f"artifacts/rpg{suffix}.arduboy"
+        package = build / f"artifacts/rpg_qa{suffix}.arduboy"
         with zipfile.ZipFile(package) as archive:
             actual = archive.read("interp.hex")
             guest_hash = hashlib.sha256(archive.read("fxdata.bin")).hexdigest()
@@ -76,7 +76,7 @@ def main():
     if not args.only_calibration and not args.analyze_only:
         cases += [("normal", "", args.seconds, False), ("fxc", ".fxc", args.fxc_seconds, False)]
     for variant, suffix, seconds, calibration in cases:
-        command = [args.device.resolve(), build / f"artifacts/rpg{suffix}.arduboy",
+        command = [args.device.resolve(), build / f"artifacts/rpg_qa{suffix}.arduboy",
                    firmware[variant] / "interp.lst",
                    *[refs[name]["address"] for name in
                      ("game", "frame_marker", "frame_serial", "dialogue_prompt", "world_phase")],

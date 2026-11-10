@@ -105,4 +105,5 @@ python tools/collect_evidence.py --build build --write-docs
 Keep RelWithDebInfo and guest full LTO. For native-only builds pass `-HostOnly`.
 Full-device QA requires matching `AVM_SOURCE_ROOT` and `AVM_BUILD_ROOT`; SDK-only
 builds still run LLDB guest probes and source profiles, with device QA explicitly
-skipped. The default build refreshes root `rpg.arduboy`.
+skipped. The default build refreshes root `rpg.arduboy` and builds the marker-bearing
+`build/artifacts/rpg_qa.arduboy` that device QA reads.

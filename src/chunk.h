@@ -11,6 +11,8 @@ extern uint8_t frame_pressed;
 extern bool teleported;
 
 void set_tile(TilePos pos, uint8_t tile);
+// Records that the cache's tile data changed, so cached terrain answers no longer hold.
+void note_tile_edit();
 
 template <TilePos POS> void set_tile(uint8_t tile) {
     if(POS.area != game.area || POS.x >= game.dimensions.width_tiles ||
@@ -18,8 +20,10 @@ template <TilePos POS> void set_tile(uint8_t tile) {
         return;
     uint16_t x = (uint16_t)(POS.x - game.cache.origin_tx);
     uint16_t y = (uint16_t)(POS.y - game.cache.origin_ty);
-    if(x < CACHE_WIDTH && y < CACHE_HEIGHT)
+    if(x < CACHE_WIDTH && y < CACHE_HEIGHT) {
+        note_tile_edit();
         game.cache.tiles[y * CACHE_WIDTH + x] = tile;
+    }
 }
 
 template <TilePos POS> bool player_is_walking_onto() {

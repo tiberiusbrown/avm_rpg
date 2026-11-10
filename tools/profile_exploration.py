@@ -44,6 +44,9 @@ def main():
     if not args.resume:
         for suffix in ["elf", "elf.resources.json", "elf.lto.json", "arduboy", "fxc.arduboy"]:
             shutil.copy2(artifacts / f"rpg.{suffix}", trial / f"rpg.{suffix}")
+        # Device runs need markers, which only the QA guest records.
+        for suffix in ["elf", "arduboy", "fxc.arduboy"]:
+            shutil.copy2(artifacts / f"rpg_qa.{suffix}", trial / f"rpg_qa.{suffix}")
         for source in [*ROOT.glob("src/**/*.cpp"), *ROOT.glob("src/**/*.h"),
                        *ROOT.glob("generated/*.cpp"), *ROOT.glob("generated/*.h")]:
             target = trial / "source" / source.relative_to(ROOT)
@@ -72,12 +75,12 @@ def main():
         html = Path(scratch) / "profile.html"
         run([profiler, "report", profile, "--html", html], trial / "report.log")
         html.replace(trial / "profile.html")
-    refs = symbols(elf)
+    refs = symbols(trial / "rpg_qa.elf")
     measurements = {}
     device = build / ("rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests")
     for mode, suffix in [("normal", ""), ("fxc", ".fxc")]:
         result = run(
-            [device, trial / f"rpg{suffix}.arduboy",
+            [device, trial / f"rpg_qa{suffix}.arduboy",
              *[refs[key]["address"] for key in ["game", "frame_marker", "frame_serial"]],
              trial / mode, mode, refs["dialogue_prompt"]["address"], refs["world_phase"]["address"]],
             trial / f"{mode}.log",

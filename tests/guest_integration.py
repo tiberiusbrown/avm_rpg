@@ -136,8 +136,8 @@ def main():
     if device.exists():
         for name, mode, variant in [
             ("m0_proof", "proof", ""),
-            ("rpg", "normal", ""),
-            ("rpg", "fxc", ".fxc"),
+            ("rpg_qa", "normal", ""),
+            ("rpg_qa", "fxc", ".fxc"),
         ]:
             refs = symbols(artifacts / f"{name}.elf")
             addresses = (

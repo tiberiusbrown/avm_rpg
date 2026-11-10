@@ -1,9 +1,10 @@
 # Essential NPC mechanics
 
 One eight-slot pool and the 11x7 effective terrain cache bound NPC RAM/work.
-Each NPC ID owns at most one slot, so no slot is ever evicted. IDs are independent of
-object order, slot and coordinates. `Npc` is 18 bytes and `NpcPool` is 156 bytes on both
-host and AVM. Definitions, routes, character sprites and dialogue remain in PROGMEM.
+Each NPC ID owns at most one slot, so no slot is ever evicted, and occupied slots form a
+prefix: scans stop at the first empty slot. IDs are independent of object order, slot and
+coordinates. `Npc` is 18 bytes. `NpcPool` is 157 bytes on AVM, and 158 on the host, whose
+alignment pads it. Definitions, routes, character sprites and dialogue remain in PROGMEM.
 
 The replacement sample defines NPC_VILLAGER (standing, actor row 1) and NPC_WANDERER
 (bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The

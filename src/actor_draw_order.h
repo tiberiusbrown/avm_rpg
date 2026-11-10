@@ -14,7 +14,9 @@ inline uint8_t actor_draw_order(uint8_t (&order)[NPC_CAPACITY + 1]) {
     for(uint8_t slot = 0; slot < NPC_CAPACITY; ++slot) {
         Npc const& npc = game.npcs.actors[slot];
         Actor const& actor = npc.actor;
-        if(!npc.id || !npc_visible(actor.x, actor.y))
+        if(!npc.id)
+            break;
+        if(!npc_visible(actor.x, actor.y))
             continue;
 
         // All sprites have the same height, so origin Y also orders their feet.

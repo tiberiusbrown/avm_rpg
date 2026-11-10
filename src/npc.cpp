@@ -6,9 +6,12 @@
 
 Npc* npc_find(NPC_ID id) {
     if(id)
-        for(auto& n : game.npcs.actors)
+        for(auto& n : game.npcs.actors) {
+            if(!n.id)
+                break;
             if(n.id == id)
                 return &n;
+        }
     return nullptr;
 }
 
@@ -26,9 +29,10 @@ bool npc_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
 
 void npc_begin_frame() {
     for(auto& n : game.npcs.actors) {
+        // Occupied slots come first, so the first empty slot ends the scan.
         // Activation clears the entire slot before reuse.
         if(!n.id)
-            continue;
+            break;
         if(!(n.state & NPC_PUSHED)) {
             n.push = 0;
             n.state &= ~NPC_CAN_DETOUR;
@@ -65,9 +69,12 @@ static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
     if((!self || !(self->state & NPC_PASS_PLAYER)) &&
        npc_overlap(x, y, game.player.x, game.player.y))
         return false;
-    for(auto const& other : game.npcs.actors)
-        if(other.id && &other != self && npc_overlap(x, y, other.actor.x, other.actor.y))
+    for(auto const& other : game.npcs.actors) {
+        if(!other.id)
+            break;
+        if(&other != self && npc_overlap(x, y, other.actor.x, other.actor.y))
             return false;
+    }
     return true;
 }
 
@@ -102,9 +109,12 @@ static bool cast_npc(NPC_ID id, TilePos home, bool entering) {
                  !tile_portal(cached_tile({game.area, home.x, home.y}));
     if(clear) {
         clear = !npc_overlap(x, y, game.player.x, game.player.y);
-        for(auto const& other : pool.actors)
-            if(other.id && npc_overlap(x, y, other.actor.x, other.actor.y))
+        for(auto const& other : pool.actors) {
+            if(!other.id)
+                break;
+            if(npc_overlap(x, y, other.actor.x, other.actor.y))
                 clear = false;
+        }
     }
     if(clear && !entering) {
         Camera camera = game_camera();
@@ -142,10 +152,13 @@ __attribute__((noinline)) static bool escape_step(Npc& n) {
             if(!(n.state & NPC_PASS_PLAYER) &&
                npc_overlap((uint16_t)nx, (uint16_t)ny, game.player.x, game.player.y))
                 return false;
-            for(auto const& other : game.npcs.actors)
-                if(other.id && &other != &n &&
+            for(auto const& other : game.npcs.actors) {
+                if(!other.id)
+                    break;
+                if(&other != &n &&
                    npc_overlap((uint16_t)nx, (uint16_t)ny, other.actor.x, other.actor.y))
                     return false;
+            }
             n.actor.x = (uint16_t)nx;
             n.actor.y = (uint16_t)ny;
             n.actor.facing = dir;
@@ -159,6 +172,9 @@ __attribute__((noinline)) void npc_reconcile() {
     auto& pool = game.npcs;
     bool entering = pool.entering != 0;
     pool.entering = 0;
+    // Once every defined NPC holds a slot, no cast can follow until npc_reset, so skip the order.
+    if(pool.settled)
+        return;
     NPC_ID order[NPC_ID_LIMIT];
     uint8_t count = 0;
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
@@ -171,20 +187,24 @@ __attribute__((noinline)) void npc_reconcile() {
         }
         order[at] = (NPC_ID)id;
     }
+    bool settled = true;
     for(uint8_t i = 0; i < count; ++i) {
         NPC_ID id = order[i];
         if(npc_find(id))
             continue;
         TilePos home = npc_is_dynamic(id) ? pool.residence[id] : npc_home(id);
-        if(home.area == game.area)
-            cast_npc(id, home, entering);
+        if(home.area != game.area || !cast_npc(id, home, entering))
+            settled = false;
     }
+    pool.settled = settled;
 }
 
 void npc_reset() {
-    for(auto const& n : game.npcs.actors)
-        if(n.id)
-            npc_on_retire(n, NPC_RETIRED_RESET);
+    for(auto const& n : game.npcs.actors) {
+        if(!n.id)
+            break;
+        npc_on_retire(n, NPC_RETIRED_RESET);
+    }
     TilePos residence[NPC_ID_LIMIT];
     memcpy(residence, game.npcs.residence, sizeof(residence));
     memset(&game.npcs, 0, sizeof(game.npcs));
@@ -441,7 +461,7 @@ void npc_update() {
     // Called once after the complete effective cache, never from a chunk handler.
     for(auto& n : game.npcs.actors) {
         if(!n.id)
-            continue;
+            break;
         // A clipped sprite may still be visible after its feet leave the cache.
         // Freeze that sliver until cached again or fully offscreen; never eject it
         // against the outside sentinel or simulate uncached terrain.
@@ -557,7 +577,7 @@ void npc_player_begin(DIRECTION dir) {
     if(dir != game.npcs.push_direction || dir == STILL) {
         for(auto& n : game.npcs.actors) {
             if(!n.id)
-                continue;
+                break;
             n.push = 0;
             n.state &= ~NPC_CAN_DETOUR;
         }
@@ -568,9 +588,12 @@ void npc_player_begin(DIRECTION dir) {
 static bool player_position_clear(uint16_t x, uint16_t y) {
     if(!terrain_clear(x, y))
         return false;
-    for(auto const& n : game.npcs.actors)
-        if(n.id && !(n.state & NPC_PASS_PLAYER) && npc_overlap(x, y, n.actor.x, n.actor.y))
+    for(auto const& n : game.npcs.actors) {
+        if(!n.id)
+            break;
+        if(!(n.state & NPC_PASS_PLAYER) && npc_overlap(x, y, n.actor.x, n.actor.y))
             return false;
+    }
     return true;
 }
 
@@ -651,7 +674,9 @@ __attribute__((noinline)) static bool plan_yield(Npc& n, uint16_t px, uint16_t p
 bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir) {
     bool clear = true;
     for(auto& n : game.npcs.actors) {
-        if(!n.id || (n.state & NPC_PASS_PLAYER) || !npc_overlap(x, y, n.actor.x, n.actor.y))
+        if(!n.id)
+            break;
+        if((n.state & NPC_PASS_PLAYER) || !npc_overlap(x, y, n.actor.x, n.actor.y))
             continue;
         if(!(n.state & NPC_PUSHED)) {
             n.state |= NPC_PUSHED;
@@ -681,7 +706,9 @@ void npc_interact() {
     Npc* best = nullptr;
     uint16_t nearest = 65535;
     for(auto& n : game.npcs.actors) {
-        if(!n.id || !npc_definition(n.id)->talkable)
+        if(!n.id)
+            break;
+        if(!npc_definition(n.id)->talkable)
             continue;
         int16_t dx = (int16_t)n.actor.x - (int16_t)game.player.x;
         int16_t dy = (int16_t)n.actor.y - (int16_t)game.player.y;

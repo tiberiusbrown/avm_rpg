@@ -14,6 +14,7 @@ char const PROGMEM* music_next() {
 
 uint8_t saved_record[SAVE_BYTES] __attribute__((section(".saved"))) = {0};
 
+#ifdef RPG_DEVICE_QA
 volatile uint16_t frame_serial;
 volatile uint8_t frame_marker;
 volatile uint8_t world_phase;
@@ -34,6 +35,7 @@ extern "C" __attribute__((noinline)) void rpg_render_begin() {
 extern "C" __attribute__((noinline)) void rpg_render_end() {
     frame_marker = 3;
 }
+#endif
 
 bool game_load() {
     return avm_load() && save_decode(saved_record);
