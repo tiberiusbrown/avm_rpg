@@ -102,8 +102,12 @@ int main() {
     for(unsigned i = 0; i < NPC_STUCK_FRAMES; ++i)
         npc_update();
     CHECK(events[NPC_EVENT_TARGET_FAILED] == 1);
-    npc_repair();
-    CHECK(!npc_find(NPC_VILLAGER) && last_retirement == NPC_RETIRED_TERRAIN);
+    // Every tile is solid now, so the villager has no clear spot to walk out to. It keeps its
+    // slot and holds still.
+    Npc* stuck = npc_find(NPC_VILLAGER);
+    uint16_t sx = stuck->actor.x, sy = stuck->actor.y;
+    npc_update();
+    CHECK(npc_find(NPC_VILLAGER) == stuck && stuck->actor.x == sx && stuck->actor.y == sy);
     world_enter(AREA_OUTDOOR, 112, 80, NORTH);
     CHECK(npc_find(NPC_VILLAGER));
     CHECK(npc_move_to(NPC_VILLAGER, 80, 81));
@@ -111,9 +115,12 @@ int main() {
     npc_update();
     CHECK(events[NPC_EVENT_TARGET_REACHED] == 1);
     world_enter(AREA_OUTDOOR, 15 * TILE, 9 * TILE, SOUTH);
+    // Scene exit retires the NPCs that were present, and only them. The villager's home is
+    // outside the cache from here, so it is not cast until the cache covers it.
     CHECK(!npc_find(NPC_VILLAGER) && last_retirement == NPC_RETIRED_RESET);
+    unsigned present = (npc_find(NPC_VILLAGER) ? 1u : 0u) + (npc_find(NPC_WANDERER) ? 1u : 0u);
     unsigned count = retired;
     npc_reset();
-    CHECK(retired == count);
+    CHECK(retired == count + present);
     printf("PASS independent NPC lifecycle policy: %u checks\n", checks);
 }

@@ -481,7 +481,7 @@ int main(int argc, char** argv) try {
     require(d.prompt() == DIALOGUE_CLOSED, "villager dialogue did not close");
 
     // Each conversation sends the villager to the other end of the clearing. It walks while
-    // visible and teleports to its residence once it leaves view.
+    // visible, and leaving view never teleports it: it waits in its slot until seen again.
     auto villager_in = [](Game const& g) -> Npc const* {
         for(auto const& n : g.npcs.actors)
             if(n.id == NPC_VILLAGER)
@@ -506,56 +506,109 @@ int main(int argc, char** argv) try {
     };
     TilePos const west = positions::VillagerWest, east = positions::VillagerEast;
 
-    // Leg one: the first talk sent it east. The player stands still; the villager walks out
-    // of view on its own and teleports to its residence.
+    // A device slice must keep the villager in its slot and move it at most a couple of
+    // pixels. A teleport jumps by a tile or more, and a pop-in creates a new slot.
+    uint16_t vx = 0, vy = 0;
+    auto track_villager = [&]() {
+        Game g = d.state();
+        auto const* v = villager_in(g);
+        require(v, "villager missing before its walk");
+        vx = v->actor.x;
+        vy = v->actor.y;
+    };
+    auto step_villager = [&]() {
+        d.advance(0, 533334);
+        Game g = d.state();
+        auto const* v = villager_in(g);
+        require(v, "villager lost its slot instead of walking");
+        int dx = (int)v->actor.x - (int)vx, dy = (int)v->actor.y - (int)vy;
+        dx = dx < 0 ? -dx : dx;
+        dy = dy < 0 ? -dy : dy;
+        require(dx + dy <= 2, "villager jumped instead of walking");
+        vx = v->actor.x;
+        vy = v->actor.y;
+    };
+    auto near_stop = [&](uint16_t x, uint16_t y) {
+        int dx = (int)vx - (int)x, dy = (int)vy - (int)y;
+        dx = dx < 0 ? -dx : dx;
+        dy = dy < 0 ? -dy : dy;
+        return dx + dy <= 4;
+    };
+    auto villager_visible = [&](Game const& g) {
+        auto const* v = villager_in(g);
+        return v && v->actor.x < g.camera.x + 128 && v->actor.x + TILE > g.camera.x &&
+               v->actor.y < g.camera.y + 64 && v->actor.y + TILE > g.camera.y;
+    };
+
+    // Pixel placement for talks, which need the player directly beside the villager.
+    auto place_at = [&](uint16_t x, uint16_t y, DIRECTION facing) {
+        Game g = d.state();
+        g.player.x = x;
+        g.player.y = y;
+        g.player.facing = facing;
+        g.player.walking = 0;
+        d.set_state(g);
+        d.advance(0, 800000);
+    };
+
+    // Leg one: the first talk sent it east. With the player standing still, the villager walks
+    // out of view and stays in its slot, where it can walk no farther. It never teleports home.
     {
         Game g = d.state();
         require(g.npcs.residence[NPC_VILLAGER] == east, "talk did not send the villager east");
         auto const* v = villager_in(g);
         require(v && v->behavior == NPC_TRAVEL, "villager did not walk toward the east corner");
     }
+    track_villager();
     unsigned walked = 0;
-    while(villager_in(d.state()) && walked < 900) {
-        d.advance(0, 533334);
+    while(villager_visible(d.state()) && walked < 900) {
+        step_villager();
         ++walked;
     }
-    require(!villager_in(d.state()), "villager never left view with the player standing still");
     require(walked > 30, "villager left view without walking");
+    for(unsigned i = 0; i < 60; ++i)
+        step_villager();
+    require(villager_in(d.state()), "villager vanished after leaving view");
     require(d.state().npcs.residence[NPC_VILLAGER] == east, "villager lost its east residence");
 
-    // It appears at the east corner once the player can see it.
+    // The player walks back east. The villager resumes from where it stopped, not from home.
+    uint16_t stopped_x = vx, stopped_y = vy;
     place_player(east.x - 1, east.y, EAST);
-    {
-        Game g = d.state();
-        auto const* v = villager_in(g);
-        require(v && v->actor.x == 16 * TILE && v->actor.y == 7 * TILE,
-                "villager did not appear at the east corner");
-    }
+    track_villager();
+    require(near_stop(stopped_x, stopped_y), "villager was not where it stopped");
+    for(unsigned i = 0; i < 120; ++i)
+        step_villager();
     d.capture(out / "npc-east.pgm");
 
-    // Leg two: talking at the east corner sends it west, where it walks while visible.
-    place_player(east.x - 1, east.y, EAST);
+    // Leg two: a talk where it stopped sends it west. It walks out of view on its own, stays in
+    // its slot, and resumes from the same place when the player brings it back into view.
+    {
+        Game g = d.state();
+        require(villager_in(g), "villager missing before the second talk");
+    }
+    place_at(vx, vy - TILE, SOUTH);
     d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_TYPING, "talking at the east corner did not open dialogue");
+    require(d.prompt() == DIALOGUE_TYPING, "talking to the villager did not open dialogue");
     close_villager_dialogue();
     require(d.state().npcs.residence[NPC_VILLAGER] == west,
             "second talk did not send the villager west");
-    // Row six keeps the clearing's row seven inside the camera's vertical range.
-    place_player(east.x - 4, east.y - 1, NORTH);
+    track_villager();
     walked = 0;
-    while(villager_in(d.state()) && walked < 900) {
-        d.advance(0, 533334);
+    while(villager_visible(d.state()) && walked < 900) {
+        step_villager();
         ++walked;
     }
-    require(!villager_in(d.state()), "villager never left view on the way west");
     require(walked > 30, "villager left view without walking west");
+    for(unsigned i = 0; i < 60; ++i)
+        step_villager();
+    require(villager_in(d.state()), "villager vanished after leaving view on the way west");
+    stopped_x = vx;
+    stopped_y = vy;
     place_player(west.x + 2, west.y, EAST);
-    {
-        Game g = d.state();
-        auto const* v = villager_in(g);
-        require(v && v->actor.x == 1 * TILE && v->actor.y == 5 * TILE,
-                "villager did not appear at the west corner");
-    }
+    track_villager();
+    require(near_stop(stopped_x, stopped_y), "villager was not where it stopped");
+    for(unsigned i = 0; i < 120; ++i)
+        step_villager();
     d.capture(out / "npc-west.pgm");
 
     d.tap(BTN_B);

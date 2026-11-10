@@ -50,8 +50,13 @@ constexpr NPC_STATE& operator^=(NPC_STATE& left, NPC_STATE right) {
 }
 
 inline constexpr uint8_t NPC_CAPACITY = 8;
-// Doubled from the 30 Hz counts of 8 and 24 frames. Real-time durations rise about 20 percent.
+// Frame counts at 50 Hz. Stuck counts frames: each blocked step attempt adds the NPC's period.
 inline constexpr uint8_t NPC_PUSH_FRAMES = 16, NPC_STUCK_FRAMES = 48;
+// A blocked NPC waits NPC_DETOUR_FRAMES, then walks around the obstacle. Each detour sidesteps up
+// to NPC_DETOUR_MAX pixels, and a leg (route segment or target) allows NPC_DETOURS_PER_LEG.
+inline constexpr uint8_t NPC_DETOUR_FRAMES = 12, NPC_DETOUR_MAX = 15, NPC_DETOURS_PER_LEG = 3;
+static_assert(NPC_DETOUR_MAX <= 15 && NPC_DETOURS_PER_LEG <= 3,
+              "detour state packs into one byte");
 static_assert((NPC_PUSH_FRAMES & (NPC_PUSH_FRAMES - 1)) == 0,
               "push detour mask needs a power of two");
 
@@ -68,35 +73,22 @@ struct Npc {
     uint8_t timer, waypoint;
     NPC_STATE state;
     uint8_t stuck, push;
-    uint8_t reserved; // Keeps the record even-sized, so host and AVM layouts match.
+    uint8_t detour;   // Sidestep state of a detour around an obstacle (npc.cpp). Keeps the record even-sized.
 };
 
-// Inclusive visible tile rectangle. Area 0 means no view has been admitted yet.
-struct NpcView {
-    uint8_t area, left, right, top, bottom;
-    bool operator==(NpcView const&) const = default;
-};
 
 struct NpcPool {
     Npc actors[NPC_CAPACITY];
-    // Where each dynamic NPC_ID lives while not in a slot. Saved; survives area changes.
+    // Each NPC_ID's residence: a dynamic NPC's destination, or a static NPC's fixed home. Saved.
     TilePos residence[NPC_ID_LIMIT];
-    // Static NPCs requested by chunk handlers this frame, highest priority first.
-    NPC_ID requests[NPC_CAPACITY];
-    uint8_t request_count;
-    // Admissible NPCs without a slot, sorted by residence area, chunk row, and chunk column.
-    NPC_ID dormant[NPC_ID_LIMIT];
-    uint8_t dormant_count;
-    // One bit per NPC_ID: visible but blocked, retried each frame while still in view.
-    uint8_t pending;
-    NpcView view;
-    uint8_t capacity_faults, activation_deferrals;
+    // Set by scene entry until the next reconcile casts the scene's NPCs.
+    uint8_t entering;
+    uint8_t activation_deferrals;
     DIRECTION push_direction;
-    uint8_t reserved; // Keeps the pool even-sized, so host and AVM layouts match.
 };
 
-static_assert(NPC_ID_LIMIT <= 8, "pending admissions use one bit per NPC ID");
+static_assert(NPC_ID_LIMIT <= NPC_CAPACITY, "every NPC ID can own a slot, so none is evicted");
 static_assert(sizeof(Npc) == 18, "compact live NPC record");
-static_assert(sizeof(NpcPool) == 176, "fixed NPC storage, independent of authored count");
+static_assert(sizeof(NpcPool) == 156, "fixed NPC storage, independent of authored count");
 
 #endif

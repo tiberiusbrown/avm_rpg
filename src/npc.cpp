@@ -25,7 +25,6 @@ bool npc_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
 
 
 void npc_begin_frame() {
-    game.npcs.request_count = 0;
     for(auto& n : game.npcs.actors) {
         // Activation clears the entire slot before reuse.
         if(!n.id)
@@ -50,101 +49,6 @@ static bool higher_priority(NPC_ID a, NPC_ID b) {
     return pa > pb || (pa == pb && a < b);
 }
 
-// Residence index: dormant NPCs sorted by residence area, chunk row, and chunk column.
-// Map limits keep the fields below 32, 64, and 32, so each key fits in 16 bits.
-static_assert(MAX_MAP_WIDTH / CHUNK_WIDTH <= 32 && MAX_MAP_HEIGHT / CHUNK_HEIGHT <= 64,
-              "chunk key fields fit their bit ranges");
-
-static uint16_t residence_key(TilePos p) {
-    return (uint16_t)((p.area << 11) | ((p.y / CHUNK_HEIGHT) << 5) | (p.x / CHUNK_WIDTH));
-}
-
-static uint16_t residence_key_of(NPC_ID id) {
-    return residence_key(game.npcs.residence[id]);
-}
-
-static bool is_dormant(NPC_ID id) {
-    auto& pool = game.npcs;
-    for(uint8_t i = 0; i < pool.dormant_count; ++i)
-        if(pool.dormant[i] == id)
-            return true;
-    return false;
-}
-
-// First dormant entry whose key is at least key.
-static uint8_t dormant_lower_bound(uint16_t key) {
-    auto& pool = game.npcs;
-    uint8_t low = 0, high = pool.dormant_count;
-    while(low < high) {
-        uint8_t mid = (uint8_t)((low + high) / 2);
-        if(residence_key_of(pool.dormant[mid]) < key)
-            low = (uint8_t)(mid + 1);
-        else
-            high = mid;
-    }
-    return low;
-}
-
-static void dormant_insert(NPC_ID id) {
-    auto& pool = game.npcs;
-    if(is_dormant(id))
-        return;
-    uint8_t at = dormant_lower_bound((uint16_t)(residence_key_of(id) + 1));
-    for(uint8_t i = pool.dormant_count; i > at; --i)
-        pool.dormant[i] = pool.dormant[i - 1];
-    pool.dormant[at] = id;
-    ++pool.dormant_count;
-}
-
-static void dormant_remove(NPC_ID id) {
-    auto& pool = game.npcs;
-    uint8_t i = 0;
-    while(i < pool.dormant_count && pool.dormant[i] != id)
-        ++i;
-    if(i == pool.dormant_count)
-        return;
-    for(++i; i < pool.dormant_count; ++i)
-        pool.dormant[i - 1] = pool.dormant[i];
-    --pool.dormant_count;
-}
-
-static bool in_view(TilePos p, NpcView const& view) {
-    return p.area == view.area && p.x >= view.left && p.x <= view.right && p.y >= view.top &&
-           p.y <= view.bottom;
-}
-
-// Chunk handlers request static NPCs. Requests are admitted by npc_reconcile.
-void npc_request(NPC_ID id, TilePos anchor) {
-    // Visible incumbents already own their slot and retain behavior/position.
-    if(npc_find(id) || !npc_definition(id) || npc_is_dynamic(id))
-        return;
-    TilePos home = npc_home(id);
-    if(home.area != game.area || home.area != anchor.area || home.x != anchor.x ||
-       home.y != anchor.y)
-        return;
-    Camera camera = game_camera();
-    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
-    if(x >= camera.x + 128 || x + TILE <= camera.x || y >= camera.y + 64 || y + TILE <= camera.y)
-        return;
-    auto& pool = game.npcs;
-    for(uint8_t i = 0; i < pool.request_count; ++i)
-        if(pool.requests[i] == id)
-            return;
-    uint8_t index = 0;
-    while(index < pool.request_count && !higher_priority(id, pool.requests[index]))
-        ++index;
-    if(pool.request_count == NPC_CAPACITY) {
-        saturate(pool.capacity_faults);
-        if(index == NPC_CAPACITY)
-            return;
-    } else {
-        ++pool.request_count;
-    }
-    for(uint8_t i = pool.request_count - 1; i > index; --i)
-        pool.requests[i] = pool.requests[i - 1];
-    pool.requests[index] = id;
-}
-
 bool npc_destination_valid(TilePos destination) {
     Area const PROGMEM* area = world_area(destination.area);
     return area && destination.x < area->width && destination.y < area->height;
@@ -167,64 +71,52 @@ static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
     return true;
 }
 
-static bool foot_cached(Npc const& n) {
+static bool foot_cached_at(uint16_t x, uint16_t y) {
     uint16_t left = (uint16_t)game.cache.origin_tx * TILE;
     uint16_t top = (uint16_t)game.cache.origin_ty * TILE;
-    return n.actor.x + FOOT_LEFT >= left && n.actor.y + FOOT_TOP >= top &&
-           n.actor.x + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
-           n.actor.y + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
+    return x + FOOT_LEFT >= left && y + FOOT_TOP >= top &&
+           x + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
+           y + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
 }
 
-static bool spawn_clear(Npc const* self, uint16_t x, uint16_t y) {
-    return npc_visible(x, y) && position_clear(self, x, y) &&
-           !tile_portal(cached_tile({game.area, (uint8_t)((x + FOOT_CENTER_X) >> TILE_SHIFT),
-                                     (uint8_t)((y + FOOT_CENTER_Y) >> TILE_SHIFT)}));
+static bool foot_cached(Npc const& n) {
+    return foot_cached_at(n.actor.x, n.actor.y);
 }
 
-
-
-static void retire(Npc& n, NPC_RETIRE_REASON reason) {
-    npc_on_retire(n, reason);
-    NPC_ID id = n.id;
-    n.id = NPC_NONE;
-    // Static NPCs return only when their chunk requests them again.
-    if(!npc_is_dynamic(id))
-        return;
-    // A dynamic NPC now lives at its residence; a visible residence is admitted this frame.
-    dormant_insert(id);
-    if(in_view(game.npcs.residence[id], game.npcs.view))
-        game.npcs.pending |= (uint8_t)(1u << id);
-}
-
-static NpcView view_now() {
-    Camera camera = game_camera();
-    return {game.area,
-            (uint8_t)(camera.x >> TILE_SHIFT),
-            (uint8_t)((camera.x + 127) >> TILE_SHIFT),
-            (uint8_t)(camera.y >> TILE_SHIFT),
-            (uint8_t)((camera.y + 63) >> TILE_SHIFT)};
-}
-
-// Places a dormant NPC at its residence if the tile is clear and a slot is free.
-// Places an NPC at home if the tile is clear and a slot is free.
-static bool spawn_at(NPC_ID id, TilePos home) {
-    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
-    if(!spawn_clear(nullptr, x, y)) {
-        saturate(game.npcs.activation_deferrals);
-        return false;
-    }
+// A scene casts its NPCs when it is entered. Afterwards a cast may happen only out of view, so an
+// NPC is never seen appearing. Only the one-pixel steps below move an NPC; no NPC is removed while
+// its scene lasts.
+// Casts id at its home. A home that is blocked, or in view after entry, waits until it is clear
+// and out of view. The lifecycle functions stay out of line so their frames do not grow the frame
+// of update_visible_world, which the stack budget counts on every path.
+static bool cast_npc(NPC_ID id, TilePos home, bool entering) {
+    auto& pool = game.npcs;
     Npc* slot = nullptr;
-    for(auto& n : game.npcs.actors)
+    for(auto& n : pool.actors)
         if(!n.id) {
             slot = &n;
             break;
         }
-    if(!slot) {
-        saturate(game.npcs.capacity_faults);
+    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
+    bool clear = slot && terrain_clear(x, y) &&
+                 !tile_portal(cached_tile({game.area, home.x, home.y}));
+    if(clear) {
+        clear = !npc_overlap(x, y, game.player.x, game.player.y);
+        for(auto const& other : pool.actors)
+            if(other.id && npc_overlap(x, y, other.actor.x, other.actor.y))
+                clear = false;
+    }
+    if(clear && !entering) {
+        Camera camera = game_camera();
+        clear = !(x < camera.x + 128 + TILE && x + 2 * TILE > camera.x &&
+                  y < camera.y + 64 + TILE && y + 2 * TILE > camera.y);
+    }
+    if(!clear) {
+        saturate(pool.activation_deferrals);
         return false;
     }
-    *slot = {};
     auto def = npc_definition(id);
+    *slot = {};
     slot->id = id;
     slot->actor = {x, y, def->facing, 0};
     slot->behavior = def->behavior;
@@ -235,74 +127,58 @@ static bool spawn_at(NPC_ID id, TilePos home) {
     return true;
 }
 
-// A dynamic NPC is placed at its residence and leaves the residence index.
-static bool admit(NPC_ID id) {
-    if(!spawn_at(id, game.npcs.residence[id]))
-        return false;
-    dormant_remove(id);
-    return true;
+// Walks an NPC that overlaps solid terrain one pixel toward the nearest clear spot along a
+// cardinal ray. The distance to that spot drops by one per step, so the NPC walks out without a
+// jump. Other NPCs and the player still block the step.
+__attribute__((noinline)) static bool escape_step(Npc& n) {
+    int16_t x = (int16_t)n.actor.x, y = (int16_t)n.actor.y;
+    for(int16_t radius = 1; radius <= TILE; ++radius)
+        for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
+            int16_t dx = dir == EAST ? 1 : dir == WEST ? -1 : 0;
+            int16_t dy = dir == SOUTH ? 1 : dir == NORTH ? -1 : 0;
+            if(!terrain_clear((uint16_t)(x + dx * radius), (uint16_t)(y + dy * radius)))
+                continue;
+            int16_t nx = x + dx, ny = y + dy;
+            if(!(n.state & NPC_PASS_PLAYER) &&
+               npc_overlap((uint16_t)nx, (uint16_t)ny, game.player.x, game.player.y))
+                return false;
+            for(auto const& other : game.npcs.actors)
+                if(other.id && &other != &n &&
+                   npc_overlap((uint16_t)nx, (uint16_t)ny, other.actor.x, other.actor.y))
+                    return false;
+            n.actor.x = (uint16_t)nx;
+            n.actor.y = (uint16_t)ny;
+            n.actor.facing = dir;
+            return true;
+        }
+    return false;
 }
 
-// Only dormant NPCs whose residence lies in the new visible rectangle are touched.
-static void admit_view() {
-    NpcView const view = game.npcs.view;
-    NPC_ID candidates[NPC_ID_LIMIT];
+// Each NPC ID owns at most one slot, so none is ever evicted. Priority, then ID, orders casts.
+__attribute__((noinline)) void npc_reconcile() {
+    auto& pool = game.npcs;
+    bool entering = pool.entering != 0;
+    pool.entering = 0;
+    NPC_ID order[NPC_ID_LIMIT];
     uint8_t count = 0;
-    for(uint8_t row = view.top / CHUNK_HEIGHT; row <= view.bottom / CHUNK_HEIGHT; ++row) {
-        uint16_t low = residence_key(TilePos{view.area, view.left, (uint8_t)(row * CHUNK_HEIGHT)});
-        uint16_t high =
-            residence_key(TilePos{view.area, view.right, (uint8_t)(row * CHUNK_HEIGHT)});
-        for(uint8_t i = dormant_lower_bound(low);
-            i < game.npcs.dormant_count && residence_key_of(game.npcs.dormant[i]) <= high; ++i)
-            if(in_view(game.npcs.residence[game.npcs.dormant[i]], view))
-                candidates[count++] = game.npcs.dormant[i];
-    }
-    for(uint8_t i = 1; i < count; ++i)
-        for(uint8_t j = i; j > 0 && higher_priority(candidates[j], candidates[j - 1]); --j) {
-            NPC_ID swap = candidates[j];
-            candidates[j] = candidates[j - 1];
-            candidates[j - 1] = swap;
-        }
-    for(uint8_t i = 0; i < count; ++i)
-        if(!admit(candidates[i]))
-            game.npcs.pending |= (uint8_t)(1u << candidates[i]);
-}
-
-// Visible but blocked admissions are retried until placed or out of view.
-static void admit_pending() {
-    auto& pool = game.npcs;
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
-        uint8_t bit = (uint8_t)(1u << id);
-        if(!(pool.pending & bit))
+        if(!npc_definition((NPC_ID)id))
             continue;
-        if(!is_dormant((NPC_ID)id) || !in_view(game.npcs.residence[id], pool.view)) {
-            pool.pending &= (uint8_t)~bit;
-            continue;
+        uint8_t at = count++;
+        while(at > 0 && higher_priority((NPC_ID)id, order[at - 1])) {
+            order[at] = order[at - 1];
+            --at;
         }
-        if(admit((NPC_ID)id))
-            pool.pending &= (uint8_t)~bit;
+        order[at] = (NPC_ID)id;
     }
-}
-
-void npc_reconcile() {
-    auto& pool = game.npcs;
-    NpcView view = view_now();
-    bool moved = !(view == pool.view);
-    pool.view = view;
-    // Visible actors keep their slots. Dynamic NPCs leaving view teleport to their residence.
-    for(auto& n : pool.actors)
-        if(n.id && !npc_visible(n.actor.x, n.actor.y))
-            retire(n, NPC_RETIRED_OFFSCREEN);
-    // Static NPCs requested by chunk handlers this frame spawn at home.
-    for(uint8_t i = 0; i < pool.request_count; ++i) {
-        NPC_ID id = pool.requests[i];
-        TilePos home = npc_home(id);
-        if(!npc_find(id) && home.area == game.area)
-            spawn_at(id, home);
+    for(uint8_t i = 0; i < count; ++i) {
+        NPC_ID id = order[i];
+        if(npc_find(id))
+            continue;
+        TilePos home = npc_is_dynamic(id) ? pool.residence[id] : npc_home(id);
+        if(home.area == game.area)
+            cast_npc(id, home, entering);
     }
-    if(moved)
-        admit_view();
-    admit_pending();
 }
 
 void npc_reset() {
@@ -314,9 +190,7 @@ void npc_reset() {
     memset(&game.npcs, 0, sizeof(game.npcs));
     memcpy(game.npcs.residence, residence, sizeof(residence));
     game.npcs.push_direction = STILL;
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
-        if(npc_definition((NPC_ID)id) && npc_is_dynamic((NPC_ID)id))
-            dormant_insert((NPC_ID)id);
+    game.npcs.entering = 1;
     npc_logic_restore();
 }
 
@@ -366,6 +240,136 @@ static bool steer(Npc& n, PixelPos target) {
     return target.y != n.actor.y && step(n, dy);
 }
 
+// A detour packs into Npc::detour: sidestep pixels left (bits 0-3), detours begun on this leg
+// (bits 4-5), and the side (bits 6-7). Sidesteps left above zero means a detour is under way.
+static uint8_t detour_left(Npc const& n) {
+    return n.detour & 15;
+}
+
+static uint8_t detour_used(Npc const& n) {
+    return (n.detour >> 4) & 3;
+}
+
+static DIRECTION detour_side(Npc const& n) {
+    return (DIRECTION)(n.detour >> 6);
+}
+
+static void detour_pack(Npc& n, uint8_t left, uint8_t used, DIRECTION side) {
+    n.detour = (uint8_t)(left | used << 4 | side << 6);
+}
+
+static DIRECTION opposite(DIRECTION dir) {
+    return (DIRECTION)((dir + 2) & 3);
+}
+
+// Starts a detour around the obstacle ahead. The first sidestep goes toward preferred when that
+// is clear, and away from it otherwise.
+__attribute__((noinline)) static bool detour_begin(Npc& n, DIRECTION ahead, DIRECTION preferred) {
+    uint8_t used = detour_used(n);
+    if(used >= NPC_DETOURS_PER_LEG)
+        return false;
+    DIRECTION side = preferred;
+    if(!step(n, side)) {
+        side = opposite(preferred);
+        if(!step(n, side))
+            return false;
+    }
+    n.actor.facing = ahead;
+    detour_pack(n, NPC_DETOUR_MAX - 1, used + 1, side);
+    return true;
+}
+
+// Continues a detour. The NPC rejoins its way ahead as soon as that is clear; until then it
+// sidesteps, while its budget lasts.
+__attribute__((noinline)) static bool detour_continue(Npc& n) {
+    DIRECTION ahead = n.actor.facing, side = detour_side(n);
+    uint8_t left = detour_left(n), used = detour_used(n);
+    if(step(n, ahead)) {
+        detour_pack(n, 0, used, side);
+        return true;
+    }
+    if(left && step(n, side)) {
+        n.actor.facing = ahead;
+        detour_pack(n, left - 1, used, side);
+        return true;
+    }
+    n.actor.facing = ahead;
+    detour_pack(n, 0, used, side);
+    return false;
+}
+
+// The way a steering NPC is heading: along its longer axis toward the target.
+static DIRECTION toward_ahead(Npc const& n, PixelPos target) {
+    int dx = (int)target.x - (int)n.actor.x, dy = (int)target.y - (int)n.actor.y;
+    int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+    if(ax >= ay)
+        return dx < 0 ? WEST : EAST;
+    return dy < 0 ? NORTH : SOUTH;
+}
+
+// The side to sidestep to: toward the target across the way ahead, positive when level with it.
+static DIRECTION toward_side(Npc const& n, PixelPos target, DIRECTION ahead) {
+    if(ahead == EAST || ahead == WEST)
+        return target.y < n.actor.y ? NORTH : SOUTH;
+    return target.x < n.actor.x ? WEST : EAST;
+}
+
+// Whether the pixel one step ahead lies inside the NPC's limits: its leash, and the terrain cache
+// that its feet need. Past either one, the limit is not an obstacle, so an NPC waits or stops
+// instead of detouring.
+static bool ahead_within_limits(Npc const& n, DIRECTION dir) {
+    int16_t x = (int16_t)n.actor.x, y = (int16_t)n.actor.y;
+    if(dir == NORTH)
+        --y;
+    if(dir == EAST)
+        ++x;
+    if(dir == SOUTH)
+        ++y;
+    if(dir == WEST)
+        --x;
+    return x >= 0 && y >= 0 && leashed(n, (uint16_t)x, (uint16_t)y) &&
+           foot_cached_at((uint16_t)x, (uint16_t)y);
+}
+
+// A steering NPC walks straight at its target. Blocked for a brief pause, it detours around the
+// obstacle instead of standing until the target fails.
+__attribute__((noinline)) static bool steer_or_detour(Npc& n, PixelPos target, uint8_t period) {
+    if(detour_left(n))
+        return detour_continue(n);
+    if(steer(n, target))
+        return true;
+    if(n.stuck + period < NPC_DETOUR_FRAMES)
+        return false;
+    DIRECTION ahead = toward_ahead(n, target);
+    if(!ahead_within_limits(n, ahead))
+        return false; // Waiting for the cache to cover the way ahead is not a detour.
+    return detour_begin(n, ahead, toward_side(n, target, ahead));
+}
+
+// A wanderer keeps its heading. Blocked, it pauses briefly, then walks around the obstacle toward
+// its home. It stops walking only when no detour is possible.
+__attribute__((noinline)) static bool wander_walk(Npc& n, uint8_t period) {
+    if(detour_left(n))
+        return detour_continue(n);
+    if(step(n, n.actor.facing)) {
+        n.stuck = 0;
+        return true;
+    }
+    if(!ahead_within_limits(n, n.actor.facing))
+        return false;
+    if(n.stuck + period < NPC_DETOUR_FRAMES) {
+        n.stuck += period;
+        return true;
+    }
+    TilePos home = game.npcs.residence[n.id];
+    PixelPos anchor = {(uint16_t)home.x * TILE, (uint16_t)home.y * TILE};
+    DIRECTION ahead = n.actor.facing;
+    if(!detour_begin(n, ahead, toward_side(n, anchor, ahead)))
+        return false;
+    n.stuck = 0;
+    return true;
+}
+
 bool npc_move_to(NPC_ID id, uint16_t x, uint16_t y) {
     Npc* n = npc_find(id);
     if(!n || !game.dimensions.pixel_bounds(x, y))
@@ -373,6 +377,7 @@ bool npc_move_to(NPC_ID id, uint16_t x, uint16_t y) {
     n->target = {x, y};
     n->behavior = NPC_TARGET;
     n->timer = n->stuck = 0;
+    n->detour = 0;
     n->state &= ~(NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR | NPC_ROUTE_PENDING);
     n->push = 0;
     return true;
@@ -386,6 +391,7 @@ bool npc_follow_route(NPC_ID id, uint8_t route) {
     n->route = route;
     n->behavior = NPC_ROUTE;
     n->waypoint = n->timer = n->stuck = 0;
+    n->detour = 0;
     n->state &= ~(NPC_BACKWARD | NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR);
     n->state |= NPC_ROUTE_PENDING;
     n->push = 0;
@@ -395,24 +401,15 @@ bool npc_follow_route(NPC_ID id, uint8_t route) {
 bool npc_set_destination(NPC_ID id, TilePos destination) {
     if(!npc_definition(id) || !npc_is_dynamic(id) || !npc_destination_valid(destination))
         return false;
-    Npc* n = npc_find(id);
-    if(!n) {
-        // Dormant: only its position in the residence index changes.
-        dormant_remove(id);
-        game.npcs.residence[id] = destination;
-        dormant_insert(id);
-        if(in_view(destination, game.npcs.view))
-            game.npcs.pending |= (uint8_t)(1u << id);
-        return true;
-    }
     game.npcs.residence[id] = destination;
-    if(destination.area != game.area) {
-        // An active NPC cannot walk to another area, so it leaves now and waits there.
-        retire(*n, NPC_RETIRED_OFFSCREEN);
-        return true;
-    }
-    n->behavior = NPC_TRAVEL;
+    Npc* n = npc_find(id);
+    if(!n)
+        return true; // Cast at the new residence when a spot for it is clear and out of view.
+    // An NPC cannot walk to another area, and removing it would make it vanish. It keeps its
+    // place until the scene ends, and then casts at its residence in the new area.
+    n->behavior = destination.area == game.area ? NPC_TRAVEL : NPC_STAND;
     n->timer = n->stuck = 0;
+    n->detour = 0;
     n->state &= ~(NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR | NPC_ROUTE_PENDING);
     n->push = 0;
     return true;
@@ -445,13 +442,28 @@ void npc_update() {
     for(auto& n : game.npcs.actors) {
         if(!n.id)
             continue;
-        n.actor.walking = 0;
         // A clipped sprite may still be visible after its feet leave the cache.
         // Freeze that sliver until cached again or fully offscreen; never eject it
         // against the outside sentinel or simulate uncached terrain.
-        if(!foot_cached(n))
+        if(!foot_cached(n)) {
+            n.actor.walking = 0;
             continue;
+        }
+        auto def = npc_definition(n.id);
+        // An NPC steps once every def->period frames. Its walk pose holds between steps.
+        bool step_frame = !(game.ticks & (def->period - 1));
+        if(step_frame)
+            n.actor.walking = 0;
+        // A tile change can leave an NPC overlapping solid terrain. It walks out one pixel at a
+        // time, never in a jump. If it cannot move, its ordinary logic still runs, so a blocked
+        // target can still fail.
+        if(step_frame && !terrain_clear(n.actor.x, n.actor.y) && escape_step(n)) {
+            n.actor.walking = 1;
+            continue;
+        }
         if(n.state & NPC_YIELDING) {
+            if(!step_frame)
+                continue;
             // A compact interruption: high nibble is direction, low is distance.
             // Preserve the ordinary behavior, route/target and pause timer.
             uint8_t remaining = n.stuck & 15;
@@ -467,13 +479,12 @@ void npc_update() {
             n.stuck = 0;
             continue;
         }
-        auto def = npc_definition(n.id);
         if(n.timer) {
             --n.timer;
             if(n.behavior != NPC_WANDER || !(n.state & NPC_WALK_PHASE))
                 continue;
         }
-        if(game.ticks & (def->period - 1))
+        if(!step_frame)
             continue;
         if(n.behavior == NPC_WANDER) {
             if(!n.timer) {
@@ -482,10 +493,13 @@ void npc_update() {
                 n.actor.facing = (DIRECTION)(random & 3);
                 // Jitter doubles from 0 to 7 ticks to 0 to 15 frames.
                 n.timer = (n.state & NPC_WALK_PHASE ? def->walk : def->pause) + (random & 15);
+                n.stuck = 0;
+                n.detour = 0;
             }
-            if((n.state & NPC_WALK_PHASE) && !step(n, n.actor.facing)) {
+            if((n.state & NPC_WALK_PHASE) && !wander_walk(n, def->period)) {
                 n.state &= ~NPC_WALK_PHASE;
                 n.timer = def->pause;
+                n.stuck = 0;
             }
         } else if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE || n.behavior == NPC_TRAVEL) {
             PixelPos target;
@@ -515,16 +529,18 @@ void npc_update() {
             }
             if(n.actor.x == target.x && n.actor.y == target.y) {
                 n.stuck = 0;
+                n.detour = 0;
                 if(path)
                     waypoint_reached(n, path);
                 else {
                     n.behavior = NPC_STAND;
                     npc_on_event(n, NPC_EVENT_TARGET_REACHED);
                 }
-            } else if(steer(n, target)) {
+            } else if(steer_or_detour(n, target, def->period)) {
                 n.stuck = 0;
-            } else if(++n.stuck >= NPC_STUCK_FRAMES) {
+            } else if((n.stuck += def->period) >= NPC_STUCK_FRAMES) {
                 n.stuck = 0;
+                n.detour = 0;
                 if(path)
                     n.timer = def->pause; // Bounded wait, retry this authored segment.
                 else if(n.behavior != NPC_TRAVEL) {
@@ -533,39 +549,6 @@ void npc_update() {
                     npc_on_event(n, NPC_EVENT_TARGET_FAILED);
                 }
             }
-        }
-    }
-}
-
-void npc_repair() {
-    for(auto& n : game.npcs.actors) {
-        if(!n.id || !foot_cached(n) || terrain_clear(n.actor.x, n.actor.y))
-            continue;
-        bool repaired = false;
-        for(uint8_t radius = 1; radius <= TILE && !repaired; ++radius) {
-            for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
-                int16_t x = (int16_t)n.actor.x, y = (int16_t)n.actor.y;
-                if(dir == NORTH)
-                    y -= radius;
-                if(dir == EAST)
-                    x += radius;
-                if(dir == SOUTH)
-                    y += radius;
-                if(dir == WEST)
-                    x -= radius;
-                if(x >= 0 && y >= 0 && leashed(n, (uint16_t)x, (uint16_t)y) &&
-                   spawn_clear(&n, (uint16_t)x, (uint16_t)y)) {
-                    n.actor.x = (uint16_t)x;
-                    n.actor.y = (uint16_t)y;
-                    n.actor.walking = 0;
-                    repaired = true;
-                    break;
-                }
-            }
-        }
-        if(!repaired) {
-            saturate(game.npcs.activation_deferrals);
-            retire(n, NPC_RETIRED_TERRAIN); // No safe cache position: defer reconstruction.
         }
     }
 }
@@ -607,7 +590,7 @@ static bool player_segment(int16_t& x, int16_t& y, DIRECTION dir, uint8_t pixels
     return true;
 }
 
-static bool player_can_detour(Npc const& n, DIRECTION dir) {
+__attribute__((noinline)) static bool player_can_detour(Npc const& n, DIRECTION dir) {
     // Two fixed three-segment lanes around this foot box; no path search/grid.
     bool horizontal = dir == EAST || dir == WEST;
     int16_t forward = (int16_t)(horizontal ? n.actor.x : n.actor.y);
@@ -632,7 +615,7 @@ static bool player_can_detour(Npc const& n, DIRECTION dir) {
     return false;
 }
 
-static bool plan_yield(Npc& n, uint16_t px, uint16_t py, DIRECTION dir) {
+__attribute__((noinline)) static bool plan_yield(Npc& n, uint16_t px, uint16_t py, DIRECTION dir) {
     // Offset contacts can need almost two foot widths to separate. Keep the
     // complete 1..15 range available, including off-center 8x8 encounters.
     uint8_t max_distance = 2 * (dir == EAST || dir == WEST ? FOOT_HEIGHT : FOOT_WIDTH) - 1;
@@ -656,6 +639,7 @@ static bool plan_yield(Npc& n, uint16_t px, uint16_t py, DIRECTION dir) {
                 break;
             if(!npc_overlap(px, py, (uint16_t)x, (uint16_t)y)) {
                 n.stuck = (uint8_t)((escape << 4) | distance);
+                n.detour = 0;
                 n.state |= NPC_YIELDING;
                 return true;
             }

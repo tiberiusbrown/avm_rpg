@@ -362,7 +362,6 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
     RPG_PHASE(6);
     repair_player_overlap();
     npc_reconcile();
-    npc_repair();
     if(!teleported) {
         if(simulate && !(pressed & BTN_A))
             npc_update();

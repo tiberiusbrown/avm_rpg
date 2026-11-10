@@ -25,14 +25,15 @@ width and destination stride equal to CACHE_WIDTH. All consumers read through
 
 ## Frame order
 
-1. Reset fresh input, teleport state, interaction hint and NPC requests. Expose
-   the previous movement's tile-entry information.
+1. Reset fresh input, teleport state and interaction hint. Expose the previous
+   movement's tile-entry information.
 2. Enumerate live chunks in row-major order and finish STAGE_GAMEPLAY. Native
-   handlers request NPCs and perform nonblocking changes.
+   handlers perform nonblocking changes.
 3. Recompute the camera and reload all 45 baseline cache entries.
 4. Finish STAGE_TILES over all live chunks, clipping overrides to the cache.
-5. Repair blocked player terrain; reconcile/repair NPCs and update each active
-   NPC once. Fresh A freezes ordinary simulation. NPC targeting can consume A.
+5. Repair blocked player terrain; cast NPCs of the area that lack a slot, then
+   update each active NPC once. Fresh A freezes ordinary simulation. NPC targeting
+   can consume A.
 6. Finish STAGE_DIALOGUE after the complete cache exists. Blocking dialogue
    uses local screen loops. Flag changes affect the next tile pass unless a
    handler explicitly refreshes the cache.

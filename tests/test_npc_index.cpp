@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "npc.h"
+#include "tile_ids.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,8 +15,8 @@ static unsigned checks;
         }                                                                                          \
     } while(0)
 
-// Two dynamic NPCs with their own logic, so the residence index can be exercised
-// without the content NPCs. This file replaces the logic library entirely.
+// Two dynamic NPCs with their own logic, so casting is exercised without the content NPCs.
+// This file replaces the logic library entirely.
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition PROGMEM ONE{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
     static constexpr NpcDefinition PROGMEM TWO{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 2, 0};
@@ -46,70 +47,41 @@ bool dialogue_show(char const PROGMEM*) {
     return true;
 }
 
-static uint16_t index_key(TilePos p) {
-    return (uint16_t)((p.area << 11) | ((p.y / CHUNK_HEIGHT) << 5) | (p.x / CHUNK_WIDTH));
-}
-
-static void check_index_sorted() {
-    for(uint8_t i = 1; i < game.npcs.dormant_count; ++i)
-        CHECK(index_key(game.npcs.residence[game.npcs.dormant[i - 1]]) <=
-              index_key(game.npcs.residence[game.npcs.dormant[i]]));
-}
-
 static void place_player(uint8_t tx, uint8_t ty) {
     game.player.x = (uint16_t)tx * TILE;
     game.player.y = (uint16_t)ty * TILE;
     game.player.walking = 0;
 }
 
-static void test_order_follows_chunk_position() {
-    // The player far to the east leaves both residences out of view.
+// Entry casts a resident at its home when the home is cached. The villager's home lies outside
+// the start cache, so it is not cast until the cache covers it.
+static void test_entry_casts_residents() {
     game_new();
-    place_player(15, 7);
-    update_visible_world(0, false);
-    CHECK(game.npcs.dormant_count == 2);
-    check_index_sorted();
-    CHECK(game.npcs.dormant[0] == NPC_VILLAGER); // Row 0, column 0 sorts first.
-
-    npc_set_destination(NPC_VILLAGER, TilePos{AREA_OUTDOOR, 9, 9}); // Row 2: after row 1.
-    check_index_sorted();
-    CHECK(game.npcs.dormant[0] == NPC_WANDERER && game.npcs.dormant[1] == NPC_VILLAGER);
-
-    npc_set_destination(NPC_WANDERER, TilePos{AREA_OUTDOOR, 3, 0}); // Row 0, column 0.
-    check_index_sorted();
-    CHECK(game.npcs.dormant[0] == NPC_WANDERER);
+    Npc* wanderer = npc_find(NPC_WANDERER);
+    CHECK(wanderer);
+    CHECK(wanderer->actor.x == 9 * TILE && wanderer->actor.y == 5 * TILE);
+    CHECK(!npc_find(NPC_VILLAGER));
 }
 
-static void test_range_admission_filters_by_visibility() {
-    // The villager's residence is in the view; the wanderer's chunk is also inside the
-    // view's chunk range, but its tile is not visible, so it stays dormant.
-    npc_set_destination(NPC_VILLAGER, TilePos{AREA_OUTDOOR, 3, 2});
-    npc_set_destination(NPC_WANDERER, TilePos{AREA_OUTDOOR, 9, 5});
+// After entry, a spot in view is never cast into. A spot that is cached and out of view casts
+// once it is clear.
+static void test_casts_wait_for_spots_out_of_view() {
+    game_new();
     place_player(2, 2);
-    update_visible_world(0, false);
-    CHECK(npc_find(NPC_VILLAGER));
-    CHECK(!npc_find(NPC_WANDERER));
-    CHECK(game.npcs.dormant_count == 1 && game.npcs.dormant[0] == NPC_WANDERER);
-
-    // Moving the view over the wanderer admits it at its residence.
-    place_player(10, 4);
-    update_visible_world(0, false);
-    Npc* wanderer = npc_find(NPC_WANDERER);
-    CHECK(wanderer && wanderer->actor.x == 9 * TILE && wanderer->actor.y == 5 * TILE);
-    // The villager's residence is now out of view, so it teleported into the index.
-    CHECK(game.npcs.dormant_count == 1 && game.npcs.dormant[0] == NPC_VILLAGER);
-
-    // Leaving view teleports it back to the index, at its residence.
-    place_player(2, 2);
-    update_visible_world(0, false);
-    CHECK(!npc_find(NPC_WANDERER));
-    CHECK(game.npcs.dormant_count == 1 && game.npcs.dormant[0] == NPC_WANDERER);
-    check_index_sorted();
+    update_visible_world(0, false); // Refreshes the cache for this view before the edits below.
+    npc_reset();
+    memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    npc_reconcile(); // Entry finds no clear spot.
+    CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
+    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    npc_reconcile(); // The villager's home is in view, so it waits. The wanderer's is not.
+    CHECK(!npc_find(NPC_VILLAGER));
+    CHECK(npc_find(NPC_WANDERER));
 }
 
 int main() {
-    test_order_follows_chunk_position();
-    test_range_admission_filters_by_visibility();
+    test_entry_casts_residents();
+    test_casts_wait_for_spots_out_of_view();
     printf("npc index checks passed: %u\n", checks);
     return 0;
 }
