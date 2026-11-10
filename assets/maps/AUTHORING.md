@@ -4,8 +4,8 @@ This guide tells agents what each tile means and how to build maps that play and
 look right. The file format itself (TMX/TSX rules, CSV layout, exporter errors) is
 specified in `docs/tiled_pipeline.md`. Read that first when you need an exact rule.
 
-This guide covers the outdoor tileset. House interiors use a separate tileset, described in
-[AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
+This guide covers the outdoor tileset. Houses, caves and dungeons use a separate interior
+tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
 
 ## Files
 

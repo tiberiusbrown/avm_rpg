@@ -237,9 +237,16 @@ INTERIOR_WALKABLE = {
     "FLOOR_WOOD_A", "FLOOR_WOOD_B", "FLOOR_WOOD_C", "FLOOR_TILE_A",
     "FLOOR_TILE_B", "FLOOR_CHECKER", "FLOOR_STONE_A", "FLOOR_STONE_B",
     "FLOOR_PLAIN_A", "FLOOR_PLAIN_B", "STAIRS_DOWN", "TRAPDOOR",
-    "DOORMAT", "RUG_SMALL", "RUG_TOP_LEFT", "RUG_TOP",
-    "RUG_TOP_RIGHT", "RUG_CENTER_PLAIN", "RUG_LEFT", "RUG_CENTER",
-    "RUG_RIGHT", "RUG_BOTTOM_LEFT", "RUG_BOTTOM", "RUG_BOTTOM_RIGHT",
+    "DOORMAT", "RUG_SMALL", "FLOOR_WOOD_D", "RUG_TOP_LEFT",
+    "RUG_TOP", "RUG_TOP_RIGHT", "RUG_CENTER_PLAIN", "RUG_LEFT",
+    "RUG_CENTER", "RUG_RIGHT", "RUG_BOTTOM_LEFT", "RUG_BOTTOM",
+    "RUG_BOTTOM_RIGHT", "CAVE_EDGE_TOP_EXIT", "CAVE_EDGE_LEFT_EXIT", "CAVE_EDGE_RIGHT_EXIT",
+    "CAVE_TUNNEL", "CAVE_LADDER_UP", "CAVE_EDGE_LEFT_RIGHT_EXIT", "FLOOR_CAVE_A",
+    "FLOOR_CAVE_B", "FLOOR_CAVE_C", "RAIL_HORIZONTAL", "RAIL_VERTICAL",
+    "RAIL_WEST_SOUTH", "RAIL_EAST_SOUTH", "RAIL_WEST_NORTH", "RAIL_EAST_NORTH",
+    "PUDDLE", "BONES", "LADDER_DOWN", "BARS_DOOR_OPEN",
+    "PRESSURE_PLATE", "SPIKES_DOWN", "FLOOR_GRATE", "FLOOR_STONE_CRACKED",
+    "DUNGEON_DOOR_OPEN",
 }
 INTERIOR_SOLID = {
     "EDGE_TOP", "EDGE_LEFT", "EDGE_RIGHT", "EDGE_TOP_LEFT",
@@ -261,18 +268,38 @@ INTERIOR_SOLID = {
     "BARREL", "CRATE", "SACK", "BED_FOOT",
     "PLANT", "VASE", "CANDELABRA", "POT",
     "CHEST_CLOSED", "CHEST_OPEN", "BUCKET", "CAULDRON",
+    "CAVE_EDGE_TOP", "CAVE_EDGE_LEFT", "CAVE_EDGE_RIGHT", "CAVE_EDGE_TOP_LEFT",
+    "CAVE_EDGE_TOP_RIGHT", "CAVE_EDGE_LEFT_RIGHT", "CAVE_EDGE_TOP_LEFT_RIGHT", "CAVE_EDGE_DOT_LEFT",
+    "CAVE_EDGE_DOT_RIGHT", "CAVE_EDGE_DOT_BOTH", "CAVE_EDGE_LEFT_DOT_RIGHT", "CAVE_EDGE_RIGHT_DOT_LEFT",
+    "CAVE_WALL", "CAVE_WALL_END_LEFT", "CAVE_WALL_END_RIGHT", "CAVE_WALL_PILLAR",
+    "CAVE_WALL_ALT", "CAVE_WALL_ORE", "CAVE_WALL_CRYSTAL", "CAVE_WALL_CRACKED",
+    "CAVE_WALL_TIMBER", "CAVE_WALL_TORCH", "MINECART", "BOULDER",
+    "RUBBLE", "STALAGMITE", "STALAGMITES", "CRYSTALS",
+    "MUSHROOMS", "POOL_TOP_LEFT", "POOL_TOP", "POOL_TOP_RIGHT",
+    "CAMPFIRE", "PIT", "TORCH", "BARS",
+    "BARS_DOOR", "DUNGEON_DOOR", "DUNGEON_DOOR_LOCKED", "CHAINS",
+    "WALL_STONE_CRACKED", "POOL_LEFT", "POOL_CENTER", "POOL_RIGHT",
+    "SPIKES", "COLUMN", "STATUE", "BRAZIER",
+    "ALTAR", "TOMB_HEAD", "GRATE_WINDOW", "POOL_BOTTOM_LEFT",
+    "POOL_BOTTOM", "POOL_BOTTOM_RIGHT", "TOMB_FOOT",
 }
+INTERIOR_BOTTOM_HALF = {"POT_BROKEN", "SWITCH_LEFT", "SWITCH_RIGHT"}
 interior_masks = {tile["symbol"]: tile["collision"] for tile in interior.values()}
 assert all(interior_masks[symbol] == 0 for symbol in INTERIOR_WALKABLE)
 assert all(interior_masks[symbol] == 0xFFFF for symbol in INTERIOR_SOLID)
-assert interior_masks["POT_BROKEN"] == 0xFF00
+assert all(interior_masks[symbol] == 0xFF00 for symbol in INTERIOR_BOTTOM_HALF)
 # Every other cell is unnamed and solid, and no interior tile is a portal.
 assert all(
-    mask == 0xFFFF or symbol in INTERIOR_WALKABLE | {"POT_BROKEN"}
+    mask == 0xFFFF or symbol in INTERIOR_WALKABLE | INTERIOR_BOTTOM_HALF
     for symbol, mask in interior_masks.items()
 )
 assert not any(tile["portal"] for tile in interior.values())
-assert len(INTERIOR_WALKABLE) == 32 and len(INTERIOR_SOLID) == 76
+# Cave edges mirror the house edges, piece for piece, 0x80 cells further on.
+interior_symbols = {tile["symbol"]: index for index, tile in interior.items()}
+for symbol, index in interior_symbols.items():
+    if symbol.startswith("EDGE_") and not symbol.endswith("DOOR"):
+        assert interior_symbols["CAVE_" + symbol] == index + 0x80
+assert len(INTERIOR_WALKABLE) == 57 and len(INTERIOR_SOLID) == 131
 for name in ("VillagerHome", "WandererHome", "VillagerWest", "VillagerEast"):
     assert (names[name]["tx"], names[name]["ty"]) in seen
 for path in (ROOT / "assets/maps").glob("*.tmx"):

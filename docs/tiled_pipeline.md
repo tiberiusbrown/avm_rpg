@@ -28,8 +28,8 @@ remain valid indexed frames and are not deduplicated or removed. Unused cells
 default to full collision (65535) in this sample; mark new terrain deliberately when
 authoring.
 
-`assets/tilesets/interior.tsx` and `tiles16_interior.png` hold a second atlas for house
-interiors, described in `assets/maps/AUTHORING_INTERIOR.md`. No map uses it yet. Sprite
+`assets/tilesets/interior.tsx` and `tiles16_interior.png` hold a second atlas for house,
+cave and dungeon interiors, described in `assets/maps/AUTHORING_INTERIOR.md`. No map uses it yet. Sprite
 frames come from the tilesets that maps reference, and all tilesets share the runtime IDs
 0..254, so a map cannot reference `interior.tsx` until areas select their own tileset. The
 generator still parses every TSX in `assets/tilesets` and writes
