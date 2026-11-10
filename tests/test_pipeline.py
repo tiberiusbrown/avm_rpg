@@ -25,6 +25,7 @@ from generate_assets import (
     generate,
     load_world,
     map_previews,
+    tileset_overlays,
 )
 
 
@@ -378,6 +379,12 @@ class CollisionOverlay(unittest.TestCase):
         with image_path.open("rb") as handle:
             self.assertEqual(handle.read(8), b"\x89PNG\r\n\x1a\n")
         self.assertEqual(image_path.read_bytes(), collision_overlay(ROOT))
+
+    def test_overlays_of_other_tilesets_are_current(self):
+        overlays = tileset_overlays(ROOT)
+        self.assertIn("assets/images/tiles16_interior_collision.png", overlays)
+        for name, data in overlays.items():
+            self.assertEqual((ROOT / name).read_bytes(), data, name)
 
 
 class MapPreviews(unittest.TestCase):

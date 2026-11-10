@@ -598,7 +598,27 @@ def collision_pixel_solid(mask, x, y):
 def collision_overlay(root=ROOT, scale=3):
     """PNG of the atlas with solid collision pixels tinted red, for inspection."""
     _, metadata, _ = load_world(root)
-    atlas = Image.open(root / "assets/images/tiles16.png").convert("RGB")
+    return overlay_png(root / "assets/images/tiles16.png", metadata, scale)
+
+
+def tileset_overlays(root=ROOT):
+    """Collision overlay PNG for each tileset that no map uses yet, keyed by its path.
+
+    The exporter reads tile art and collision from the tilesets that maps reference.
+    Parsing the others here keeps their metadata and atlases valid until maps use them.
+    """
+    overlays = {}
+    for path in sorted((root / "assets/tilesets").glob("*.tsx")):
+        records = tileset(path)
+        image = next(iter(records.values()))["image"]
+        name = f"assets/images/{image.stem}_collision.png"
+        if name != COLLISION_OVERLAY:
+            overlays[name] = overlay_png(image, {t["frame"]: t for t in records.values()})
+    return overlays
+
+
+def overlay_png(atlas_path, metadata, scale=3):
+    atlas = Image.open(atlas_path).convert("RGB")
     margin, cell = 14, 16 * scale + 1
     image = Image.new("RGB", (margin + 16 * cell, margin + 16 * cell), (40, 40, 40))
     draw = ImageDraw.Draw(image)
@@ -1045,6 +1065,7 @@ def main():
             if not path.exists() or path.read_bytes() != text.encode("utf-8"):
                 path.write_text(text, encoding="utf-8", newline="\n")
     images = {ROOT / COLLISION_OVERLAY: collision_overlay(ROOT)}
+    images.update({ROOT / name: data for name, data in tileset_overlays(ROOT).items()})
     images.update({ROOT / name: data for name, data in map_previews(ROOT).items()})
     for path, data in images.items():
         if args.check:

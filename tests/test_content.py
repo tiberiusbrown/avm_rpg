@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from generate_assets import load_world
+from generate_assets import load_world, tileset
 
 maps, tiles, names = load_world(ROOT)
 assert len(maps) == 1 and len(tiles) == 255 and 255 not in tiles
@@ -20,20 +20,36 @@ def clear(x, y):
     return tiles[m.data[y * m.width + x]]["collision"] == 0
 
 
-seen, queue = {start}, deque([start])
-while queue:
-    x, y = queue.popleft()
-    for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-        if (
-            0 <= nx < m.width
-            and 0 <= ny < m.height
-            and clear(nx, ny)
-            and (nx, ny) not in seen
-        ):
-            seen.add((nx, ny))
-            queue.append((nx, ny))
+def flood(passable):
+    found, queue = {start}, deque([start])
+    while queue:
+        x, y = queue.popleft()
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if (
+                0 <= nx < m.width
+                and 0 <= ny < m.height
+                and passable(nx, ny)
+                and (nx, ny) not in found
+            ):
+                found.add((nx, ny))
+                queue.append((nx, ny))
+    return found
+
+
+seen = flood(clear)
+# Cliff pieces seal ground off on purpose: a raised area with no ramp is scenery. Ground
+# behind an unbroken outline of cliff pieces is exempt; all other floor must be reachable.
+cliff_outline = {
+    index
+    for index, tile in tiles.items()
+    if tile["symbol"].startswith("CLIFF_") and tile["collision"]
+}
+unsealed = flood(lambda x, y: m.data[y * m.width + x] not in cliff_outline)
 assert all(
-    (x, y) in seen for y in range(m.height) for x in range(m.width) if clear(x, y)
+    (x, y) in seen
+    for y in range(m.height)
+    for x in range(m.width)
+    if clear(x, y) and (x, y) in unsealed
 )
 sign = names["GroveSign"]
 assert m.data[sign["ty"] * m.width + sign["tx"]] == 0x41
@@ -148,7 +164,115 @@ for index, symbol in (
     (0x76, "ATLAS_76"),
 ):
     assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == 0
+# Sparse grass, water, raised areas, fences and entrances. The four names are halves.
+TOP, BOTTOM, LEFT, RIGHT = 0x00FF, 0xFF00, 0x0F0F, 0xF0F0
+for index, symbol, mask in (
+    (0x08, "GRASS_08", 0),
+    (0x09, "GRASS_09", 0),
+    (0x0A, "GRASS_0A", 0),
+    (0x59, "GRASS_59", 0),
+    (0x0B, "HOLE_LADDER", 0),
+    (0x18, "WATER_TOP_LEFT", 0xFFFF),
+    (0x19, "WATER_TOP", 0xFFFF),
+    (0x1A, "WATER_TOP_RIGHT", 0xFFFF),
+    (0x28, "WATER_LEFT", 0xFFFF),
+    (0x29, "WATER", 0xFFFF),
+    (0x2A, "WATER_RIGHT", 0xFFFF),
+    (0x38, "WATER_BOTTOM_LEFT", 0xFFFF),
+    (0x39, "WATER_BOTTOM", 0xFFFF),
+    (0x3A, "WATER_BOTTOM_RIGHT", 0xFFFF),
+    (0x1B, "WATER_INNER_BOTTOM_RIGHT", 0xFFFF),
+    (0x1C, "WATER_INNER_BOTTOM_LEFT", 0xFFFF),
+    (0x2B, "WATER_INNER_TOP_RIGHT", 0xFFFF),
+    (0x2C, "WATER_INNER_TOP_LEFT", 0xFFFF),
+    (0x1D, "WATER_TOP_INNER_BOTTOM_LEFT", 0xFFFF),
+    (0x1E, "WATER_TOP_INNER_BOTTOM_RIGHT", 0xFFFF),
+    (0x2D, "WATER_BOTTOM_INNER_TOP_LEFT", 0xFFFF),
+    (0x2E, "WATER_BOTTOM_INNER_TOP_RIGHT", 0xFFFF),
+    (0x3B, "WATER_LEFT_INNER_TOP_RIGHT", 0xFFFF),
+    (0x3C, "WATER_LEFT_INNER_BOTTOM_RIGHT", 0xFFFF),
+    (0x3D, "WATER_RIGHT_INNER_TOP_LEFT", 0xFFFF),
+    (0x3E, "WATER_RIGHT_INNER_BOTTOM_LEFT", 0xFFFF),
+    (0x1F, "WATER_INNER_TOP_RIGHT_BOTTOM_LEFT", 0xFFFF),
+    (0x2F, "WATER_INNER_TOP_LEFT_BOTTOM_RIGHT", 0xFFFF),
+    (0x3F, "WATER_CALM", 0xFFFF),
+    (0x48, "CLIFF_TOP_LEFT", TOP | LEFT),
+    (0x49, "CLIFF_TOP", TOP),
+    (0x4A, "CLIFF_TOP_RIGHT", TOP | RIGHT),
+    (0x58, "CLIFF_LEFT", LEFT),
+    (0x5A, "CLIFF_RIGHT", RIGHT),
+    (0x68, "CLIFF_WALL_LEFT", 0xFFFF),
+    (0x69, "CLIFF_WALL", 0xFFFF),
+    (0x6A, "CLIFF_WALL_RIGHT", 0xFFFF),
+    (0x6B, "CLIFF_WALL_ALT", 0xFFFF),
+    (0x4B, "CLIFF_INNER_TOP_LEFT", 0x000F),
+    (0x4C, "CLIFF_INNER_TOP_RIGHT", 0x00F0),
+    (0x4D, "CLIFF_LEFT_RIGHT", 0xFFFF),
+    (0x5B, "CLIFF_LEFT_INNER_TOP_RIGHT", LEFT | 0x00F0),
+    (0x5C, "CLIFF_RIGHT_INNER_TOP_LEFT", RIGHT | 0x000F),
+    (0x78, "CLIFF_RAMP", 0),
+    (0x79, "CLIFF_CAVE", 0),
+    (0x7A, "CLIFF_MINE", 0),
+    (0x88, "FENCE_HORIZONTAL", BOTTOM),
+    (0x89, "FENCE_VERTICAL", LEFT),
+    (0x8A, "FENCE_END_WEST", 0xF000),
+    (0x8B, "FENCE_END_EAST", BOTTOM),
+    (0x8C, "FENCE_END_NORTH", 0x0F00),
+    (0x8D, "FENCE_END_SOUTH", LEFT),
+    (0x98, "FENCE_TOP_LEFT", BOTTOM),
+    (0x99, "FENCE_TOP_RIGHT", 0x0F00),
+    (0xA8, "FENCE_BOTTOM_LEFT", BOTTOM | LEFT),
+    (0xA9, "FENCE_BOTTOM_RIGHT", LEFT),
+):
+    assert tiles[index]["symbol"] == symbol and tiles[index]["collision"] == mask
+    assert not tiles[index]["portal"]
 assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
+# Interior tileset semantics from assets/maps/AUTHORING_INTERIOR.md. No map uses it yet.
+interior = tileset(ROOT / "assets/tilesets/interior.tsx")
+assert len(interior) == 255 and all(index == tile["runtime"] for index, tile in interior.items())
+assert interior[0]["symbol"] == "EMPTY" and interior[0]["collision"] == 0xFFFF
+INTERIOR_WALKABLE = {
+    "EDGE_TOP_DOOR", "EDGE_LEFT_DOOR", "EDGE_RIGHT_DOOR", "EDGE_LEFT_RIGHT_DOOR",
+    "DOOR_OPEN", "ARCHWAY", "STAIRS_UP", "LADDER_UP",
+    "FLOOR_WOOD_A", "FLOOR_WOOD_B", "FLOOR_WOOD_C", "FLOOR_TILE_A",
+    "FLOOR_TILE_B", "FLOOR_CHECKER", "FLOOR_STONE_A", "FLOOR_STONE_B",
+    "FLOOR_PLAIN_A", "FLOOR_PLAIN_B", "STAIRS_DOWN", "TRAPDOOR",
+    "DOORMAT", "RUG_SMALL", "RUG_TOP_LEFT", "RUG_TOP",
+    "RUG_TOP_RIGHT", "RUG_CENTER_PLAIN", "RUG_LEFT", "RUG_CENTER",
+    "RUG_RIGHT", "RUG_BOTTOM_LEFT", "RUG_BOTTOM", "RUG_BOTTOM_RIGHT",
+}
+INTERIOR_SOLID = {
+    "EDGE_TOP", "EDGE_LEFT", "EDGE_RIGHT", "EDGE_TOP_LEFT",
+    "EDGE_TOP_RIGHT", "EDGE_LEFT_RIGHT", "EDGE_TOP_LEFT_RIGHT", "EDGE_DOT_LEFT",
+    "EDGE_DOT_RIGHT", "EDGE_DOT_BOTH", "EDGE_LEFT_DOT_RIGHT", "EDGE_RIGHT_DOT_LEFT",
+    "WALL", "WALL_END_LEFT", "WALL_END_RIGHT", "WALL_PILLAR",
+    "WALL_WOOD", "WALL_WOOD_END_LEFT", "WALL_WOOD_END_RIGHT", "WALL_WOOD_PILLAR",
+    "WALL_STONE", "WALL_STONE_END_LEFT", "WALL_STONE_END_RIGHT", "WALL_STONE_PILLAR",
+    "WINDOW", "WINDOW_CURTAINS", "PAINTING_LANDSCAPE", "PAINTING_PORTRAIT",
+    "SCONCE", "MIRROR", "CLOCK", "BANNER",
+    "SHELF_BOTTLES", "WEAPONS", "TROPHY", "HANGING_PANS",
+    "DOOR_CLOSED", "FIREPLACE", "FIREPLACE_LIT", "BOOKCASE",
+    "BOOKCASE_SPARSE", "CUPBOARD", "WARDROBE", "TABLE",
+    "TABLE_LEFT", "TABLE_MIDDLE", "TABLE_RIGHT", "TABLE_SET",
+    "TABLE_CANDLE", "CHAIR_SOUTH", "CHAIR_NORTH", "CHAIR_WEST",
+    "CHAIR_EAST", "STOOL", "BENCH", "BED_HEAD",
+    "DRESSER", "CABINET", "SHELF_LOW", "STOVE",
+    "COUNTER_LEFT", "COUNTER_MIDDLE", "COUNTER_RIGHT", "COUNTER_SINK",
+    "BARREL", "CRATE", "SACK", "BED_FOOT",
+    "PLANT", "VASE", "CANDELABRA", "POT",
+    "CHEST_CLOSED", "CHEST_OPEN", "BUCKET", "CAULDRON",
+}
+interior_masks = {tile["symbol"]: tile["collision"] for tile in interior.values()}
+assert all(interior_masks[symbol] == 0 for symbol in INTERIOR_WALKABLE)
+assert all(interior_masks[symbol] == 0xFFFF for symbol in INTERIOR_SOLID)
+assert interior_masks["POT_BROKEN"] == 0xFF00
+# Every other cell is unnamed and solid, and no interior tile is a portal.
+assert all(
+    mask == 0xFFFF or symbol in INTERIOR_WALKABLE | {"POT_BROKEN"}
+    for symbol, mask in interior_masks.items()
+)
+assert not any(tile["portal"] for tile in interior.values())
+assert len(INTERIOR_WALKABLE) == 32 and len(INTERIOR_SOLID) == 76
 for name in ("VillagerHome", "WandererHome", "VillagerWest", "VillagerEast"):
     assert (names[name]["tx"], names[name]["ty"]) in seen
 for path in (ROOT / "assets/maps").glob("*.tmx"):

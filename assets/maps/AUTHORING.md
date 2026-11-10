@@ -4,6 +4,9 @@ This guide tells agents what each tile means and how to build maps that play and
 look right. The file format itself (TMX/TSX rules, CSV layout, exporter errors) is
 specified in `docs/tiled_pipeline.md`. Read that first when you need an exact rule.
 
+This guide covers the outdoor tileset. House interiors use a separate tileset, described in
+[AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
+
 ## Files
 
 - `assets/maps/*.tmx`: one finite orthogonal Tiled map per area.
@@ -41,6 +44,10 @@ specified in `docs/tiled_pipeline.md`. Read that first when you need an exact ru
 | `0x04` | 4 | `TREE_CLUMP_TOP_RIGHT` | partly | Clump piece. The tree continues left and down. The top-right quadrant is open. |
 | `0x06` | 6 | `GRASS_06` | yes | Grass floor. Mix it with the other grass cells. |
 | `0x07` | 7 | `GRASS_07` | yes | Grass floor. Mix it with the other grass cells. |
+| `0x08` | 8 | `GRASS_08` | yes | Sparse grass floor with three tufts. |
+| `0x09` | 9 | `GRASS_09` | yes | Sparse grass floor with two tufts. |
+| `0x0A` | 10 | `GRASS_0A` | yes | Sparse grass floor with one tuft. |
+| `0x0B` | 11 | `HOLE_LADDER` | yes | Hole in the ground with the top of a ladder. See [Entrances](#entrances). |
 | `0x10` | 16 | `TREE_PLUS_WEST` | partly | Left arm of the round-tree plus. Solid on the right half. |
 | `0x11` | 17 | `TREE_PLUS_CENTER` | no | Center of the round-tree plus. |
 | `0x12` | 18 | `TREE_PLUS_EAST` | partly | Right arm of the round-tree plus. Solid on the left half. |
@@ -61,18 +68,33 @@ specified in `docs/tiled_pipeline.md`. Read that first when you need an exact ru
 | `0x41` | 65 | `SIGN` | no | Signpost. The `read_sign` handler belongs on it. |
 | `0x42` | 66 | `CHEST_CLOSED` | no | Closed chest. Collectible. |
 | `0x43` | 67 | `CHEST_OPEN` | no | Opened chest. The collected state of `CHEST_CLOSED`. |
+| `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
 
-Nineteen cells are fully walkable: `GRASS_06`, `GRASS_07`, `GRASS_16`, `GRASS_17`,
-`FLOWERS_26`, `FLOWERS_27`, `0x34` to `0x36`, `0x44` to `0x46`, `0x54` to `0x56`, and
-`0x65`, `0x66`, `0x75` and `0x76`.
+The water, raised-area and fence cells are named too. Their tables are in [Water](#water),
+[Raised areas](#raised-areas), [Entrances](#entrances) and [Fences](#fences).
+
+Twenty-seven cells are fully walkable: the eight grass cells (`GRASS_06`, `GRASS_07`,
+`GRASS_16`, `GRASS_17`, `GRASS_08`, `GRASS_09`, `GRASS_0A` and `GRASS_59`), `FLOWERS_26`,
+`FLOWERS_27`, `0x34` to `0x36`, `0x44` to `0x46`, `0x54` to `0x56`, `0x65`, `0x66`, `0x75`,
+`0x76`, `HOLE_LADDER` (`0x0B`), `CLIFF_RAMP` (`0x78`), `CLIFF_CAVE` (`0x79`) and `CLIFF_MINE`
+(`0x7A`).
 Shaped cells are partly walkable, and the shapes are listed in
 [What solidity means](#what-solidity-means). Every other cell is solid by default,
 including `EMPTY` and the unnamed cells listed below. Check the atlas cell before you
 paint it.
 
-The four grass cells are interchangeable floor. Paint them in a mix. Choose among them
-when you paint, because the game does not randomize at runtime and the exported map
-looks the same every time.
+The eight grass cells are interchangeable floor, and each one tiles cleanly against every
+other. `GRASS_06`, `GRASS_07`, `GRASS_16` and `GRASS_17` are dense. `GRASS_08`, `GRASS_09`,
+`GRASS_0A` and `GRASS_59` are sparse, with one to three tufts each. Use the two kinds to
+vary how busy the ground looks:
+
+- Open meadow, plateau floors and the ground beside water, cliffs and fences are mostly
+  sparse, with a dense cell here and there.
+- Overgrown ground, such as forest edges and the gaps between trees, is mostly dense.
+- Every area mixes several cells, because a run of one cell repeats visibly.
+
+Choose among them when you paint, because the game does not randomize at runtime and the
+exported map looks the same every time.
 
 ## Round trees
 
@@ -158,6 +180,218 @@ tiles on that side take 3x3 pieces. A road that runs from the top-left to the bo
 (`\`) has only one matching piece, `0x66`, so its other side becomes a staircase. Avoid `\`
 diagonals.
 
+## Water
+
+Water is solid. It uses the 24 cells `0x18` to `0x3F` in columns `8` to `F` of the atlas.
+The bank is drawn inside the water cell, four pixels in from each side that faces land. The
+land cells around water stay ordinary tiles, so water tiles cleanly against every grass cell.
+
+**Every water cell must be part of a 2x2 block of water cells.** Water is never one tile
+wide. Every shape that follows this rule has a piece for each of its cells. Lakes can take
+any outline, and a river can bend or step sideways one tile at a time.
+
+Choose the piece for each water cell from its eight neighbors:
+
+1. **Sides.** Note which of its four sides touch land. Land is any cell that is not water.
+   The 2x2 rule leaves no side, one side, or two sides that meet at a corner.
+2. **Inner corners.** Look at the four diagonal neighbors. A diagonal is an inner corner
+   when it is land and both sides next to it are water.
+
+| Sides facing land | Inner corners | Piece | Symbol |
+| --- | --- | --- | --- |
+| top, left | none | `0x18` | `WATER_TOP_LEFT` |
+| top | none | `0x19` | `WATER_TOP` |
+| top, right | none | `0x1A` | `WATER_TOP_RIGHT` |
+| left | none | `0x28` | `WATER_LEFT` |
+| none | none | `0x29` or `0x3F` | `WATER` or `WATER_CALM` |
+| right | none | `0x2A` | `WATER_RIGHT` |
+| bottom, left | none | `0x38` | `WATER_BOTTOM_LEFT` |
+| bottom | none | `0x39` | `WATER_BOTTOM` |
+| bottom, right | none | `0x3A` | `WATER_BOTTOM_RIGHT` |
+| none | bottom-right | `0x1B` | `WATER_INNER_BOTTOM_RIGHT` |
+| none | bottom-left | `0x1C` | `WATER_INNER_BOTTOM_LEFT` |
+| none | top-right | `0x2B` | `WATER_INNER_TOP_RIGHT` |
+| none | top-left | `0x2C` | `WATER_INNER_TOP_LEFT` |
+| none | top-right and bottom-left | `0x1F` | `WATER_INNER_TOP_RIGHT_BOTTOM_LEFT` |
+| none | top-left and bottom-right | `0x2F` | `WATER_INNER_TOP_LEFT_BOTTOM_RIGHT` |
+| top | bottom-left | `0x1D` | `WATER_TOP_INNER_BOTTOM_LEFT` |
+| top | bottom-right | `0x1E` | `WATER_TOP_INNER_BOTTOM_RIGHT` |
+| bottom | top-left | `0x2D` | `WATER_BOTTOM_INNER_TOP_LEFT` |
+| bottom | top-right | `0x2E` | `WATER_BOTTOM_INNER_TOP_RIGHT` |
+| left | top-right | `0x3B` | `WATER_LEFT_INNER_TOP_RIGHT` |
+| left | bottom-right | `0x3C` | `WATER_LEFT_INNER_BOTTOM_RIGHT` |
+| right | top-left | `0x3D` | `WATER_RIGHT_INNER_TOP_LEFT` |
+| right | bottom-left | `0x3E` | `WATER_RIGHT_INNER_BOTTOM_LEFT` |
+
+A combination that is not in the table means a water cell near it breaks the 2x2 rule. Widen
+the water there.
+
+Three layouts, as runtime IDs. The first is a 4x3 lake. The second is a river two tiles wide
+that comes from the west and turns south. The third is a river two tiles wide that runs east
+and steps down one tile.
+
+```text
+18 19 19 1A      19 19 19 1A      19 19 1A
+28 29 3F 2A      39 39 1C 2A      39 39 1F 19 19
+38 39 39 3A            28 2A            38 39 39
+                       28 2A
+```
+
+Rules for water:
+
+- Interior cells take `WATER` or `WATER_CALM`. Paint about one interior cell in three as
+  `WATER_CALM`, so wide water does not repeat.
+- The edge of the map counts as water, so a river can run off the map without a bank.
+- Rivers are two or three tiles wide. They wind as roads do.
+- Water blocks the player and NPCs, and there is no bridge piece. Water must not cut
+  walkable ground off from the spawn. An island or a far bank that holds fully walkable
+  cells fails the content test.
+
+## Raised areas
+
+A raised area is a plateau seen from the front and slightly above. Its floor is ordinary
+grass. Its outline is drawn on the outermost raised cells: a thin wavering rim along the
+back and the sides, and a wall one tile tall along the front. Walls face south only. The
+pieces are `0x48` to `0x4D`, `0x58` to `0x5C`, `0x68` to `0x6B` and `0x78` to `0x7A`. Outer
+corners are rounded, and the ground outside each rim is drawn as bare grass. Put grass
+cells next to the outline, on the lower ground and on the floor.
+
+**Every raised cell must be part of a 2x2 block of raised cells.** Every shape that follows
+this rule has a piece for each of its cells. The edge of the map counts as raised.
+
+Decide which cells are raised. Then choose the piece for each raised cell:
+
+1. **Walls.** A raised cell with lower ground directly below it is a wall. It takes
+   `CLIFF_WALL` (`0x69`). It takes `CLIFF_WALL_LEFT` (`0x68`) when lower ground is also on
+   its left, and `CLIFF_WALL_RIGHT` (`0x6A`) when lower ground is also on its right. In a
+   run of walls, paint about one `CLIFF_WALL` in three as `CLIFF_WALL_ALT` (`0x6B`).
+2. **Floor.** Every other raised cell is floor. Work out its rims:
+   - Top rim: the cell above is lower ground.
+   - Left rim: the cell on the left is lower ground or a wall.
+   - Right rim: the cell on the right is lower ground or a wall.
+   - Top-left notch: the cell has no top rim and no left rim, and the cell diagonally
+     above it on the left is lower ground. The top-right notch mirrors it.
+
+| Rims | Piece | Symbol | Walkable part |
+| --- | --- | --- | --- |
+| none | any grass cell | | all |
+| top | `0x49` | `CLIFF_TOP` | bottom half |
+| top, left | `0x48` | `CLIFF_TOP_LEFT` | bottom-right quadrant |
+| top, right | `0x4A` | `CLIFF_TOP_RIGHT` | bottom-left quadrant |
+| left | `0x58` | `CLIFF_LEFT` | right half |
+| right | `0x5A` | `CLIFF_RIGHT` | left half |
+| top-left notch | `0x4B` | `CLIFF_INNER_TOP_LEFT` | all but the top-left quadrant |
+| top-right notch | `0x4C` | `CLIFF_INNER_TOP_RIGHT` | all but the top-right quadrant |
+| left, right | `0x4D` | `CLIFF_LEFT_RIGHT` | none |
+| left, top-right notch | `0x5B` | `CLIFF_LEFT_INNER_TOP_RIGHT` | bottom-right quadrant |
+| right, top-left notch | `0x5C` | `CLIFF_RIGHT_INNER_TOP_LEFT` | bottom-left quadrant |
+
+The last three pieces appear only where a raised area narrows to a diagonal neck. They keep
+the outline whole, but they leave little or no room to walk. Widen the area where the player
+must cross.
+
+Two layouts, as runtime IDs. The first is a 5x4 area with a ramp. The second is an L-shaped
+area, where `4C` is the top-right notch.
+
+```text
+48 49 49 49 4A      48 4A
+58 59 08 0A 5A      58 4C 49 4A
+58 09 59 08 5A      68 69 6B 6A
+68 69 78 6B 6A
+```
+
+Rules for raised areas:
+
+- **Walls are solid, and rims block their own half of the cell.** The player on the floor
+  stops half a tile short of a rim. NPCs treat every wall and rim piece as solid.
+- **A ramp gives access.** `CLIFF_RAMP` (`0x78`) is fully walkable. It replaces a
+  `CLIFF_WALL` or `CLIFF_WALL_ALT`, never `CLIFF_WALL_LEFT` or `CLIFF_WALL_RIGHT`. The
+  cells on both of its sides stay raised. The cell above it is fully walkable floor, and
+  the cell below it is walkable lower ground. Ramps exist on the south side only.
+- **An area with no ramp is scenery.** Use it to close ground off without a wall of
+  trees. The content test accepts unreachable floor only behind an unbroken outline of
+  cliff pieces and map edges. A tree, a building or any other tile in place of an outline
+  piece breaks the seal, and the test fails.
+- **Borders.** Because the map edge counts as raised, one line of pieces closes a map
+  edge: `CLIFF_WALL` along the top row, `CLIFF_TOP` along the bottom row, `CLIFF_RIGHT`
+  down the left column and `CLIFF_LEFT` down the right column.
+- **Terraces.** A raised area can stand on the floor of another. Treat the inner area the
+  same way, and keep at least one floor cell between the two outlines.
+- Use sparse grass for most of the floor. `GRASS_59` sits in the center of the cliff block
+  for this purpose, but any grass cell works.
+
+## Entrances
+
+Three cells mark a way in or down. All three are fully walkable.
+
+| Piece | Symbol | Meaning |
+| --- | --- | --- |
+| `0x79` | `CLIFF_CAVE` | Cave mouth in a cliff wall. |
+| `0x7A` | `CLIFF_MINE` | Timber-framed mine or dungeon doorway in a cliff wall, with rails. |
+| `0x0B` | `HOLE_LADDER` | Hole in the ground with the top of a ladder. |
+
+- `CLIFF_CAVE` and `CLIFF_MINE` follow the ramp's placement rule. Each replaces a
+  `CLIFF_WALL` or `CLIFF_WALL_ALT`, with raised cells on both sides and walkable lower
+  ground below. They exist on the south side only.
+- `HOLE_LADDER` goes on open ground, with at least one walkable cell beside it.
+- Entering is content code. Put a handler point on the cell. The handler calls
+  `player_is_walking_onto<POS>()` and then `teleport_player<TARGET>()`. No tile sets
+  `portal`.
+- **Give every entrance a handler that teleports.** The cells have no collision. A cave
+  or mine with no handler acts as a ramp, and the player walks through it onto the floor
+  above. A hole with no handler is walked over like grass. NPCs can also step onto an
+  entrance, so keep routes and roaming areas away from them.
+- A trip back out lands on a walkable cell next to the entrance, not on the entrance, so
+  the handler does not fire again. For a cave or mine, that is the cell below it.
+
+## Fences
+
+Fences are drawn on grass in ten pieces. Posts are outlined and about half a tile tall,
+with two posts per tile in each direction. A horizontal run stands on the bottom half of
+its cell, and that half is solid. A vertical run stands on the left half of its cell, and
+that half is solid. In a vertical run each post overlaps the post behind it.
+
+| Piece | Symbol | Arms | Solid part |
+| --- | --- | --- | --- |
+| `0x88` | `FENCE_HORIZONTAL` | west, east | bottom half |
+| `0x89` | `FENCE_VERTICAL` | north, south | left half |
+| `0x8A` | `FENCE_END_WEST` | east | bottom-right quadrant |
+| `0x8B` | `FENCE_END_EAST` | west | bottom half |
+| `0x8C` | `FENCE_END_NORTH` | south | bottom-left quadrant |
+| `0x8D` | `FENCE_END_SOUTH` | north | left half |
+| `0x98` | `FENCE_TOP_LEFT` | east, south | bottom half |
+| `0x99` | `FENCE_TOP_RIGHT` | west, south | bottom-left quadrant |
+| `0xA8` | `FENCE_BOTTOM_LEFT` | north, east | left half and bottom half |
+| `0xA9` | `FENCE_BOTTOM_RIGHT` | north, west | left half |
+
+Rules for fences:
+
+- **Arms match.** An east arm needs a west arm in the cell to its east, and a south arm
+  needs a north arm in the cell below. An arm that points at a cell with no matching arm
+  shows as a cut rail or a cut post.
+- **Runs end in an end piece.** A horizontal run goes `FENCE_END_WEST`, `FENCE_HORIZONTAL`
+  cells, `FENCE_END_EAST`. A vertical run goes `FENCE_END_NORTH`, `FENCE_VERTICAL` cells,
+  `FENCE_END_SOUTH`. `FENCE_END_WEST` and `FENCE_END_NORTH` hold one post, so those ends
+  start half a tile into the cell.
+- **Corners turn a run.** The four corner pieces are named for their place in a
+  rectangular pen. There are no pieces for three-way or four-way junctions.
+- **Fences are half a cell deep.** The top half of a horizontal piece and the right half
+  of a vertical piece are walkable grass. The right-hand column of a pen holds its fence on
+  the left half, so the right half of those cells lies outside the pen. The player's head
+  overlaps a horizontal fence from behind, as it should in this view.
+- **Leave a gap.** A fence has no gate piece. End the run on both sides of the opening.
+  A pen with fully walkable cells inside needs an opening, because the content test
+  requires those cells to be reachable from the spawn.
+
+A 5x4 pen with an opening in its bottom side, as runtime IDs. `06` stands for any grass cell.
+
+```text
+98 88 88 88 99
+89 06 06 06 89
+89 06 06 06 89
+A8 8B 06 8A A9
+```
+
 ## Buildings
 
 A building is base walls with roofs above them. Base wall sections can join at the same
@@ -222,20 +456,26 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   pieces. Solid, except where a shape in [What solidity means](#what-solidity-means)
   opens part of the cell. The named cells are in the table. `0x05`, `0x15` and `0x22` are
   unnamed pieces of the same family.
-- `0x08` to `0x0F`: blank black cells. Solid, so check them before you use them.
+- `0x08` to `0x0A`: sparse grass, walkable. `0x0B`: the hole with a ladder, walkable. See
+  [Entrances](#entrances).
+- `0x0C` to `0x0F`: blank black cells. Solid, so check them before you use them.
+- `0x18` to `0x1F`, `0x28` to `0x2F` and `0x38` to `0x3F`: water. Solid. See [Water](#water).
 - `0x25`: a blank black cell that is solid. It looks like floor but is not.
 - `0x34` to `0x36`: road pieces, walkable. See [Roads](#roads).
   `0x37`: boulders, sacks and speckles. Solid.
 - `0x44` to `0x46`: road pieces, walkable. `0x47`: crates and boxes, plus vertical bar
   patterns. Solid.
+- `0x48` to `0x4D`, `0x58` to `0x5C`, `0x68` to `0x6B` and `0x78` to `0x7A`: raised areas
+  and their entrances. `0x59` is sparse grass. See [Raised areas](#raised-areas).
 - `0x54` to `0x56`: road pieces, walkable.
 - `0x65`, `0x66`, `0x75` and `0x76`: road pieces, walkable.
-- `0x80` to `0x8F`: building fronts, doors and windows. Solid, except `0x81`, which is a
+- `0x80` to `0x87`: building fronts, doors and windows. Solid, except `0x81`, which is a
   triangle. See the shapes list and [Buildings](#buildings).
-- `0x90` to `0x9F`: wall and window panels, and signboards. Solid, except the ramps `0x90`
+- `0x88` to `0x8D`, `0x98`, `0x99`, `0xA8` and `0xA9`: fences. See [Fences](#fences).
+- `0x90` to `0x97`: wall and window panels, and signboards. Solid, except the ramps `0x90`
   and `0x92`. Decorated base walls and roof edges: see [Buildings](#buildings).
-- `0xA0` to `0xC7`: roofs, hatching, paving and framed pavers. Solid. Roofs and base
-  walls: see [Buildings](#buildings).
+- `0xA0` to `0xA7`, `0xB0` to `0xB7` and `0xC0` to `0xC7`: roofs, hatching, paving and
+  framed pavers. Solid. Roofs and base walls: see [Buildings](#buildings).
 
 ## What solidity means
 
@@ -275,6 +515,17 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   - `0x81`: solid triangle with vertices at the two bottom corners and the center (`0xC600`).
   - `0x90`: ramp, solid below the diagonal from bottom-left to top-right (`0xF660`).
   - `0x92`: ramp, solid below the diagonal from top-left to bottom-right (`0xCF0C`).
+  - `0x49`: solid on the top half (`0x00FF`).
+  - `0x88`, `0x8B` and `0x98`: solid on the bottom half (`0xFF00`).
+  - `0x58`, `0x89`, `0x8D` and `0xA9`: solid on the left half (`0x0F0F`).
+  - `0x8C` and `0x99`: solid on the bottom-left quadrant (`0x0F00`).
+  - `0x8A`: solid on the bottom-right quadrant (`0xF000`).
+  - `0xA8`: top-right quadrant open (`0xFF0F`).
+  - `0x5A`: solid on the right half (`0xF0F0`).
+  - `0x48` and `0x5B`: bottom-right quadrant open (`0x0FFF`).
+  - `0x4A` and `0x5C`: bottom-left quadrant open (`0xF0FF`).
+  - `0x4B`: solid on the top-left quadrant (`0x000F`).
+  - `0x4C`: solid on the top-right quadrant (`0x00F0`).
 - **Pixel rule.** A pixel is solid when its center lies in a solid triangle. A center on a
   quadrant diagonal lies on the edge of two triangles, and it is solid when either one is.
 - **Corners slide.** When terrain blocks the player's next pixel, the player takes one pixel
@@ -323,6 +574,14 @@ author a map by hand.
 - **Soft forest edges.** Forest edges are not hard lines. Density falls off over a few
   tiles, with loose trees marking the transition. The map's border is solid at its core and
   fades gradually inward.
+- **Calm and busy ground.** Vary the grass density from place to place. Open ground is
+  mostly sparse grass, and overgrown ground is mostly dense grass.
+- **Water with room.** Lakes and rivers are at least two tiles wide everywhere. Rivers wind
+  as roads do, and they never divide the walkable ground.
+- **Cliffs close ground off.** A raised area with no ramp is a natural barrier. Use it in
+  place of a wall of trees. Give an area a ramp only where the player should climb it.
+- **Fences mark places.** Use fences for pens, gardens and yard edges near buildings, with
+  an opening where the player should enter.
 
 ## Building a map
 
@@ -335,12 +594,13 @@ author a map by hand.
 - Map properties: `area_id` must be unique in 1..255. `symbol` must be unique. `spawn`
   names a single named point in the same area. That tile must be passable and must not
   carry a handler.
-- Floors use the four grass cells in a mix. Add flowers sparingly, about one floor cell
-  in eight, and never fill a room with them.
+- Floors use the eight grass cells in a mix of sparse and dense. Add flowers sparingly,
+  about one floor cell in eight, and never fill a room with them.
 - Lay roads with the road pieces in [Roads](#roads), not with grass cells.
 - The map's border is solid. Build it from round trees: the split and clump pieces along
   the edges, with isolated `TREE_ROUND` singles for variety. Keep the playable interior
-  inside it.
+  inside it. A line of cliff pieces can close a map edge instead. See
+  [Raised areas](#raised-areas).
 
 ## Objects
 
@@ -378,8 +638,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - **Tile round trees.** Do not place large clumps of `TREE_ROUND` next to each other.
   Tile groups of trees with the plus, split and clump pieces instead. `TREE_ROUND` is
   for isolated single trees.
-- **Vary the floor.** Mix the four grass cells, and add flowers only as occasional
-  accents. Do not use a solid cell that looks like floor (`0x25`) as floor.
+- **Vary the floor.** Mix the eight grass cells, sparse and dense, and add flowers only as
+  occasional accents. Do not use a solid cell that looks like floor (`0x25`) as floor.
 - **Show state on interactive tiles.** Levers point the way they act. Collectibles show
   their state clearly: whole or broken, closed or open.
 - **Plan paths for bodies.** A single 16-pixel tile is wide enough for the player and
@@ -408,9 +668,18 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - Diagonal road edges that border grass use `0x65`, `0x66` and `0x76`, with no staircases.
   Roads are about two tiles wide and wind gently.
 - Single trees never touch another tree, and loose trees sit near roads.
-- No `EMPTY` (`0x00`) cell is painted, and the floor mixes the four grass cells.
+- No `EMPTY` (`0x00`) cell is painted, and the floor mixes sparse and dense grass cells.
 - The spawn is passable, and every named point and route is reachable from the spawn
   over passable tiles.
+- Every fully walkable cell is reachable from the spawn, except floor that an unbroken
+  outline of cliff pieces seals off.
+- Every water cell is part of a 2x2 block of water and uses the piece that its sides and
+  inner corners select in [Water](#water).
+- Every raised cell is part of a 2x2 block of raised cells and uses the piece that
+  [Raised areas](#raised-areas) selects. Ramps, caves and mines replace a `CLIFF_WALL`.
+- Every fence arm meets a matching arm, every run ends in an end piece or a corner, and
+  every pen has an opening.
+- Every cave, mine and hole has a handler point on its cell, and its handler teleports.
 - No unpainted cell lies inside the playable area.
 - Every handler point sits on the tile it describes, and it does not share a cell with
   the spawn.
