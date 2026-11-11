@@ -4,14 +4,18 @@ This guide tells agents what each tile means and how to build maps that play and
 look right. The file format itself (TMX/TSX rules, CSV layout, exporter errors) is
 specified in `docs/tiled_pipeline.md`. Read that first when you need an exact rule.
 
-This guide covers the outdoor tileset. Houses, caves and dungeons use a separate interior
-tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
+This guide covers the world tileset and outdoor maps. Houses, caves and dungeons each
+have their own tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
 
 ## Files
 
-- `assets/maps/*.tmx`: one finite orthogonal Tiled map per area.
+- `assets/maps/*.tmx`: one finite orthogonal Tiled map per area. `outdoor.tmx` is the
+  overworld. `interiors.tmx` holds the inside of every house.
+- **Each map uses exactly one tileset**, and the game draws and collides each area with
+  the tileset of its map. Outdoor maps use `world.tsx`. Tile IDs belong to a tileset, so
+  the same ID is a different tile in another tileset.
 - `assets/tilesets/world.tsx`: metadata for every atlas cell (symbol, collision, portal).
-- `assets/images/tiles16.png`: the 256x256 monochrome atlas. `tiles16.xcf` is its editable source.
+- `assets/images/tiles16.png`: the 256x256 monochrome atlas.
 - `assets/images/tiles16_collision.png`: the atlas with solid collision pixels tinted red, for
   checking shapes. The generator writes it on every run, so open it after changing a mask.
 - `assets/images/<SYMBOL>_preview.png`: a 1x preview of each map, drawn from the atlas. Open
@@ -48,6 +52,9 @@ tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
 | `0x09` | 9 | `GRASS_09` | yes | Sparse grass floor with two tufts. |
 | `0x0A` | 10 | `GRASS_0A` | yes | Sparse grass floor with one tuft. |
 | `0x0B` | 11 | `HOLE_LADDER` | yes | Hole in the ground with the top of a ladder. See [Entrances](#entrances). |
+| `0x0C` | 12 | `ROCK_FLAT` | partly | Low flat rock. Solid on the bottom half. See [Rocks](#rocks). |
+| `0x0D` | 13 | `BOULDER_TALL` | no | Tall pointed boulder. |
+| `0x0E` | 14 | `ROCK_PILE` | no | Pile of rocks. |
 | `0x10` | 16 | `TREE_PLUS_WEST` | partly | Left arm of the round-tree plus. Solid on the right half. |
 | `0x11` | 17 | `TREE_PLUS_CENTER` | no | Center of the round-tree plus. |
 | `0x12` | 18 | `TREE_PLUS_EAST` | partly | Right arm of the round-tree plus. Solid on the left half. |
@@ -65,19 +72,23 @@ tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
 | `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Solid on the bottom half. |
 | `0x32` | 50 | `POT` | no | Unbroken pot. Collectible. |
 | `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Solid on the bottom half. |
+| `0x34` | 52 | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
+| `0x35` | 53 | `ROCKS` | no | Two rocks. |
+| `0x36` | 54 | `BOULDER` | no | Round boulder. |
+| `0x37` | 55 | `BOULDER_CRACKED` | no | Split boulder. |
 | `0x41` | 65 | `SIGN` | no | Signpost. The `read_sign` handler belongs on it. |
-| `0x42` | 66 | `CHEST_CLOSED` | no | Closed chest. Collectible. |
-| `0x43` | 67 | `CHEST_OPEN` | no | Opened chest. The collected state of `CHEST_CLOSED`. |
+| `0x42` | 66 | `CHEST_CLOSED` | no | Closed chest with a rounded lid and a lock. Collectible. |
+| `0x43` | 67 | `CHEST_OPEN` | no | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 | `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
 
-The water, raised-area and fence cells are named too. Their tables are in [Water](#water),
+The road, bridge, large boulder, water, raised-area and fence cells are named too. Their
+tables are in [Roads](#roads), [Bridges](#bridges), [Rocks](#rocks), [Water](#water),
 [Raised areas](#raised-areas), [Entrances](#entrances) and [Fences](#fences).
 
-Twenty-seven cells are fully walkable: the eight grass cells (`GRASS_06`, `GRASS_07`,
+Forty-one cells are fully walkable: the eight grass cells (`GRASS_06`, `GRASS_07`,
 `GRASS_16`, `GRASS_17`, `GRASS_08`, `GRASS_09`, `GRASS_0A` and `GRASS_59`), `FLOWERS_26`,
-`FLOWERS_27`, `0x34` to `0x36`, `0x44` to `0x46`, `0x54` to `0x56`, `0x65`, `0x66`, `0x75`,
-`0x76`, `HOLE_LADDER` (`0x0B`), `CLIFF_RAMP` (`0x78`), `CLIFF_CAVE` (`0x79`) and `CLIFF_MINE`
-(`0x7A`).
+`FLOWERS_27`, the twenty-one road cells, the six bridge cells, `HOLE_LADDER` (`0x0B`),
+`CLIFF_RAMP` (`0x78`), `CLIFF_CAVE` (`0x79`) and `CLIFF_MINE` (`0x7A`).
 Shaped cells are partly walkable, and the shapes are listed in
 [What solidity means](#what-solidity-means). Every other cell is solid by default,
 including `EMPTY` and the unnamed cells listed below. Check the atlas cell before you
@@ -127,58 +138,74 @@ Rules for tiled trees:
 - A horizontal run starts with `0x10`, continues with `0x23`, and ends with `0x12`. A
   vertical run starts with `0x01`, continues with `0x24`, and ends with `0x21`. A 2x2
   clump is `0x03` and `0x04` over `0x13` and `0x14`.
-- No seam may face outside the map, because the tree would be cut off. Map edges count as
-  empty sides.
+- **The map edge matches any seam.** The forest continues beyond the map, so a piece on
+  the edge may have a seam that faces outside. Half a tree at the edge is correct.
+- **A dense forest is `0x11` everywhere.** Around it, each cell beside one or two `0x11`
+  cells takes the piece whose seams face those cells: `0x21` below the forest, `0x01`
+  above it, `0x12` to its right, `0x10` to its left, and the clump pieces at its corners.
+  A cell beside three `0x11` cells has no piece. Make it `0x11` too.
 - Never place `TREE_ROUND` next to a piece whose side facing it is a seam. Two
   `TREE_ROUND` tiles never touch orthogonally.
 
 ## Roads
 
-Road pieces are walkable and sit on grass. There are two sets:
+Roads are paved with flagstones. They are fully walkable and one tile wide, and their
+edges waver so they sit on grass without a hard line. A road cell takes its piece from the
+sides on which the road continues. Bridge cells count as road.
 
-- The 3x3 block, `0x34` to `0x36`, `0x44` to `0x46` and `0x54` to `0x56`, holds the
-  convex edges and corners of the road. Its center, `0x45`, is entirely road.
-- The 2x2 block, `0x65`, `0x66`, `0x75` and `0x76`, holds the concave (inside) corners,
-  where the road turns inward around grass.
+The sixteen pieces fill the 4x4 block from `0x44` to `0x77`. A piece's ID is `0x44` plus
+its side bits, where north is 1, east is 2, south is 4 and west is 8: the low two bits give
+the column and the high two bits give the row.
 
-Use the tiling pieces when authoring roads when feasible. For footpaths and other narrow
-roads, you may use `0x45` without edge tiling.
+| Hex | Symbol | Road continues | Use for |
+| --- | --- | --- | --- |
+| `0x44` | `ROAD_PATCH` | nowhere | One paved cell on its own |
+| `0x45` | `ROAD_N` | north | Dead end, such as a door front |
+| `0x46` | `ROAD_E` | east | Dead end |
+| `0x47` | `ROAD_NE` | north, east | Corner |
+| `0x54` | `ROAD_S` | south | Dead end |
+| `0x55` | `ROAD_NS` | north, south | Straight road, north to south |
+| `0x56` | `ROAD_ES` | east, south | Corner |
+| `0x57` | `ROAD_NES` | north, east, south | T junction |
+| `0x64` | `ROAD_W` | west | Dead end |
+| `0x65` | `ROAD_NW` | north, west | Corner |
+| `0x66` | `ROAD_EW` | east, west | Straight road, east to west |
+| `0x67` | `ROAD_NEW` | north, east, west | T junction |
+| `0x74` | `ROAD_SW` | south, west | Corner |
+| `0x75` | `ROAD_NSW` | north, south, west | T junction |
+| `0x76` | `ROAD_ESW` | east, south, west | T junction |
+| `0x77` | `ROAD_NESW` | all four | Crossing, and the inside of a paved square |
 
-Each road tile in the 3x3 set takes the piece that matches the sides facing grass:
+Five more pieces are for paved areas two or more cells wide:
 
-| Piece | Sides facing grass | Use for |
+| Hex | Symbol | Use for |
 | --- | --- | --- |
-| `0x34` | top, left | Top-left corner |
-| `0x35` | top | Top edge |
-| `0x36` | top, right | Top-right corner |
-| `0x44` | left | Left edge |
-| `0x45` | none | Road interior |
-| `0x46` | right | Right edge |
-| `0x54` | bottom, left | Bottom-left corner |
-| `0x55` | bottom | Bottom edge |
-| `0x56` | bottom, right | Bottom-right corner |
+| `0x40` | `ROAD_NESW_ALT` | Second pattern for `ROAD_NESW`. Mix it into paved squares. |
+| `0x50` | `ROAD_INNER_NW` | Road on all four sides, grass at the top-left diagonal |
+| `0x51` | `ROAD_INNER_NE` | Road on all four sides, grass at the top-right diagonal |
+| `0x52` | `ROAD_INNER_SW` | Road on all four sides, grass at the bottom-left diagonal |
+| `0x53` | `ROAD_INNER_SE` | Road on all four sides, grass at the bottom-right diagonal |
 
-A road tile with grass on opposite sides, or on three or four sides, has no matching
-piece. Use `0x45` for it.
+Rules for roads:
 
-The 2x2 block holds the diagonal edges. Each piece is a 45-degree edge through the tile:
+- **One piece per cell, from its four neighbors.** A wide road or a square needs no edge
+  set: its outer cells are corners and T junctions, and its inner cells are `ROAD_NESW`.
+- **Roads are one tile wide.** Use a paved square of 2x2 or 3x3 where streets meet.
+- **Roads turn at right angles.** There are no diagonal pieces. Bend a road by stepping
+  it sideways one cell every few cells.
+- **A road may end.** A dead-end piece closes it with a rounded end. Use that at a door
+  front and where a road leaves the settled area.
+- **A road meets a bridge end on.** The road cell next to a bridge counts the bridge as
+  road, so the paving runs up to the deck.
 
-- `0x65`: road to the north and west, grass to the southeast.
-- `0x76`: grass to the northwest, road to the southeast.
-- `0x66`: road to the northeast, grass to the southwest.
-- `0x75`: not a diagonal piece. Do not use it for roads.
+A street that ends at both sides, with a path up to a door and a 2x2 square, as runtime
+IDs. `06` is any grass cell and `DD` is the door.
 
-Use them at concave corners. A grass cell with road on two orthogonal sides takes the piece
-that faces that road: road north and east gives `0x66`, road east and south gives `0x76`,
-and road west and north gives `0x65`. Road west and south has no piece, so leave that cell
-as grass.
-
-A diagonal road that runs from the bottom-left to the top-right (`/`) takes the diagonal
-pieces on both sides automatically: `0x76` on the northwest side and `0x65` on the southeast
-side. The 2x2 pieces sit on grass, so where trees line one side of the road instead, the road
-tiles on that side take 3x3 pieces. A road that runs from the top-left to the bottom-right
-(`\`) has only one matching piece, `0x66`, so its other side becomes a staircase. Avoid `\`
-diagonals.
+```text
+06 DD 06 06 06 06
+06 54 06 56 74 06
+46 67 66 67 67 64
+```
 
 ## Water
 
@@ -243,9 +270,70 @@ Rules for water:
   `WATER_CALM`, so wide water does not repeat.
 - The edge of the map counts as water, so a river can run off the map without a bank.
 - Rivers are two or three tiles wide. They wind as roads do.
-- Water blocks the player and NPCs, and there is no bridge piece. Water must not cut
-  walkable ground off from the spawn. An island or a far bank that holds fully walkable
-  cells fails the content test.
+- Water blocks the player and NPCs. A [bridge](#bridges) is the only way across. Water
+  must not cut walkable ground off from the spawn: an island or a far bank with fully
+  walkable cells and no bridge fails the content test.
+
+## Bridges
+
+A bridge carries a road across water. Bridge cells are fully walkable. Each one is all
+deck, with railings along both sides, and it replaces a water cell.
+
+| Hex | Symbol | Place |
+| --- | --- | --- |
+| `0x60` | `BRIDGE_WEST` | West end of a bridge that runs east to west |
+| `0x61` | `BRIDGE_HORIZONTAL` | Middle of a bridge that runs east to west |
+| `0x62` | `BRIDGE_EAST` | East end of a bridge that runs east to west |
+| `0x70` | `BRIDGE_NORTH` | North end of a bridge that runs north to south |
+| `0x71` | `BRIDGE_VERTICAL` | Middle of a bridge that runs north to south |
+| `0x72` | `BRIDGE_SOUTH` | South end of a bridge that runs north to south |
+
+Rules for bridges:
+
+- **Bridges cross straight water only.** An east-to-west bridge crosses a river that runs
+  north to south, and the river is straight for the bridge row and one row on each side.
+  A north-to-south bridge crosses a river that runs east to west in the same way.
+- **A bridge spans the whole river.** Replace every water cell in the row or column,
+  bank to bank: the two end pieces, with middle pieces between them on a river three or
+  more cells wide. A river two cells wide takes the two end pieces alone.
+- **Bridges count as water for the water around them.** Choose the pieces of the
+  neighboring water cells as if the bridge cells were water, so no bank is drawn against
+  the deck.
+- **Bridges count as road for the roads at their ends.** A road cell meets each end.
+- Water blocks movement, so a bridge is the only way across. Every river that divides the
+  walkable ground needs at least one.
+
+A bridge over a river three cells wide, as runtime IDs, with the road on both sides:
+
+```text
+06 28 29 2A 06
+66 60 61 62 66
+06 28 29 2A 06
+```
+
+## Rocks
+
+Rocks and boulders stand on grass. Use them as obstacles, as scenery beside roads and
+water, and as barriers along the map border.
+
+| Hex | Symbol | Passable | Meaning |
+| --- | --- | --- | --- |
+| `0x34` | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
+| `0x0C` | `ROCK_FLAT` | partly | Low flat rock. Solid on the bottom half. |
+| `0x35` | `ROCKS` | no | Two rocks. |
+| `0x36` | `BOULDER` | no | Round boulder. |
+| `0x37` | `BOULDER_CRACKED` | no | Split boulder. |
+| `0x0D` | `BOULDER_TALL` | no | Tall pointed boulder. |
+| `0x0E` | `ROCK_PILE` | no | Pile of rocks. |
+| `0x5E`, `0x5F` | `BOULDER_WIDE_LEFT`, `BOULDER_WIDE_RIGHT` | no | A wide boulder, two cells across. |
+| `0x6E`, `0x6F`, `0x7E`, `0x7F` | `BOULDER_BIG_TOP_LEFT`, `BOULDER_BIG_TOP_RIGHT`, `BOULDER_BIG_BOTTOM_LEFT`, `BOULDER_BIG_BOTTOM_RIGHT` | no | A large boulder, 2x2 cells. |
+
+- Rocks need no neighbors and may touch each other and anything else.
+- The wide and large boulders must be complete: both cells of the wide one, and all four
+  of the large one.
+- Mix several kinds. A field of one rock repeats visibly.
+- `ROCK_SMALL` and `ROCK_FLAT` block only their bottom half. Do not rely on them alone to
+  close a gap.
 
 ## Raised areas
 
@@ -422,6 +510,9 @@ Slanted roofs are only for 3-wide base walls, `0xc0` to `0xc2`.
   the bottom roof and the top edge: `0xa0` above `0xb0`, `0x91` above `0xa1`, and `0xa2`
   above `0xb2`. Then place the top edge above them: `0x90` above `0xa0`, `0x81` above
   `0x91`, and `0x92` above `0xa2`.
+- Three pieces have a decorative alternative that fits the same place. `0x80` replaces
+  `0xb1` and adds a window to the gable. `0x82` replaces `0xa0`, and `0x83` replaces
+  `0xa2`; each adds a window to that side of the roof. Use them on some houses for variety.
 
 ### Flat roofs
 
@@ -443,9 +534,21 @@ A one-wide base wall, `0xc3`, takes `0xb3` directly above it, `0xa3` above `0xb3
 ### Solidity
 
 Walls, doors and roofs are solid, except the shaped top-edge pieces `0x81`, `0x90` and
-`0x92`. See [What solidity means](#what-solidity-means). A door does not open by itself.
-Entering a building is handled by content code, not by the tile (see **Portals** in
-that section).
+`0x92`. See [What solidity means](#what-solidity-means).
+
+### Doors and interiors
+
+The player enters a house by standing in front of its door, facing it, and pressing A. The
+inside of every house is a room in `interiors.tmx`. Walking onto the room's exit returns
+the player to the cell in front of the door. See
+[AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md#the-house-map).
+
+- Put a point named `<House>Door` on the door tile, with the handler `enter_house`.
+- Put a point named `<House>Exit` on the room's exit cell in `interiors.tmx`, with the
+  handler `leave_house`.
+- Add the pair to `HOUSE_LINKS` in `src/logic/handlers.h`. A door or exit that is missing
+  from the table fails to compile.
+- The cell below the door is where the player returns. Keep it fully walkable.
 
 ## Atlas layout
 
@@ -458,19 +561,20 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   unnamed pieces of the same family.
 - `0x08` to `0x0A`: sparse grass, walkable. `0x0B`: the hole with a ladder, walkable. See
   [Entrances](#entrances).
-- `0x0C` to `0x0F`: blank black cells. Solid, so check them before you use them.
+- `0x0C` to `0x0E`: rocks. See [Rocks](#rocks). `0x0F`: a blank black cell. Solid.
 - `0x18` to `0x1F`, `0x28` to `0x2F` and `0x38` to `0x3F`: water. Solid. See [Water](#water).
 - `0x25`: a blank black cell that is solid. It looks like floor but is not.
-- `0x34` to `0x36`: road pieces, walkable. See [Roads](#roads).
-  `0x37`: boulders, sacks and speckles. Solid.
-- `0x44` to `0x46`: road pieces, walkable. `0x47`: crates and boxes, plus vertical bar
-  patterns. Solid.
+- `0x34` to `0x37`: rocks and boulders. See [Rocks](#rocks).
+- `0x40` and `0x50` to `0x53`: the extra road pieces for paved squares. Walkable.
+- `0x44` to `0x47`, `0x54` to `0x57`, `0x64` to `0x67` and `0x74` to `0x77`: the sixteen
+  road pieces. Walkable. See [Roads](#roads).
+- `0x60` to `0x62` and `0x70` to `0x72`: bridges. Walkable. See [Bridges](#bridges).
+- `0x5E`, `0x5F`, `0x6E`, `0x6F`, `0x7E` and `0x7F`: the wide and large boulders.
 - `0x48` to `0x4D`, `0x58` to `0x5C`, `0x68` to `0x6B` and `0x78` to `0x7A`: raised areas
   and their entrances. `0x59` is sparse grass. See [Raised areas](#raised-areas).
-- `0x54` to `0x56`: road pieces, walkable.
-- `0x65`, `0x66`, `0x75` and `0x76`: road pieces, walkable.
 - `0x80` to `0x87`: building fronts, doors and windows. Solid, except `0x81`, which is a
-  triangle. See the shapes list and [Buildings](#buildings).
+  triangle. `0x80`, `0x82` and `0x83` are decorative roof alternatives. See the shapes list
+  and [Buildings](#buildings).
 - `0x88` to `0x8D`, `0x98`, `0x99`, `0xA8` and `0xA9`: fences. See [Fences](#fences).
 - `0x90` to `0x97`: wall and window panels, and signboards. Solid, except the ramps `0x90`
   and `0x92`. Decorated base walls and roof edges: see [Buildings](#buildings).
@@ -500,6 +604,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
 - **Shapes assigned so far.** Each mask is written in decimal in `world.tsx`, and the hex
   values here show the quadrant bits.
   - `0x01`: solid on the bottom half (`0xFF00`).
+  - `0x0C` and `0x34`: solid on the bottom half (`0xFF00`).
   - `0x03`: top-left quadrant open (`0xFFF0`).
   - `0x04`: top-right quadrant open (`0xFF0F`).
   - `0x13`: bottom-left quadrant open (`0xF0FF`).
@@ -539,14 +644,16 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   solid on its bottom half, like `SWITCH_RIGHT` and `POT_BROKEN`. The player
   interacts by standing next to one and facing it, so its handler point goes on the
   tile itself, as `read_sign` does on `SIGN`. No handler uses these tiles yet.
+- **Each area has its own tileset.** Collision comes from the tileset of the active area,
+  so the masks here apply on maps that use `world.tsx`.
 - **Collectibles change state.** A collected `POT` becomes `POT_BROKEN`, and a collected
   `CHEST_CLOSED` becomes `CHEST_OPEN`. The map shows the initial state. Content code must
   record the collected state in a world flag, because the cache is rebuilt from the map
   when it reloads.
 - **Portals.** No tile sets `portal=true` yet. The flag stops an NPC from spawning
   when its foot centre lies on that cell. Doorways are not driven by tile flags.
-  Content code triggers them from a handler with `teleport_player<POS>()`, and no
-  content does this yet.
+  Content code triggers them from a handler with `teleport_player<POS>()`, as the house
+  doors do. See [Doors and interiors](#doors-and-interiors).
 
 ## Layout principles
 
@@ -559,29 +666,31 @@ author a map by hand.
   the wall.
 - **Organic villages.** Do not line houses up on one row. Space them at irregular
   intervals and distances from the street. Each door's footpath can be a different length.
-- **Roads about two tiles wide.** Main roads are two tiles wide, and footpaths are one
-  tile wide. A diagonal road is one diagonal line of road tiles, which has about the same
-  width as a two-tile road.
-- **Winding, not straight.** Roads bend gently, changing direction every four to nine tiles.
-  Avoid straight runs longer than about fourteen tiles, and sharp zigzags with runs of one or
+- **Roads one tile wide.** Streets and footpaths are one tile wide. A paved square of 2x2
+  or 3x3 marks the place where streets meet.
+- **Winding, not straight.** Roads step sideways one cell every four to twelve cells.
+  Avoid straight runs longer than about fourteen tiles, and zigzags with runs of one or
   two tiles.
-- **No dead ends.** Every road ends at a junction, a door footpath, a village exit or the
-  map's edge. A road that stops anywhere else is a bug.
-- **Diagonal edges, not staircases.** Diagonal roads use the 2x2 diagonal pieces along their
-  grass edges. See the rules for `/` and `\` diagonals under Roads.
+- **Roads lead somewhere.** A road ends at a junction, a door, a bridge or the edge of the
+  settled area. Not every house needs a road: leave some doors on open grass.
+- **Rivers shape a village.** Run a river past or through a settlement, cross it with a
+  bridge where a street meets it, and let it continue to the sea or the map edge.
 - **Trees around roads.** Scatter single trees and small clumps near roads, two to four
   tiles away, thinning with distance. A single tree never touches another tree.
-- **Soft forest edges.** Forest edges are not hard lines. Density falls off over a few
-  tiles, with loose trees marking the transition. The map's border is solid at its core and
-  fades gradually inward.
+- **Soft forest edges.** Forest edges are not hard lines. Vary the depth of a forest from
+  cell to cell, and put loose trees near it.
+- **A varied border.** The map border changes its barrier every few dozen cells: forest,
+  cliffs, water and rocks. See [Building a map](#building-a-map).
 - **Calm and busy ground.** Vary the grass density from place to place. Open ground is
   mostly sparse grass, and overgrown ground is mostly dense grass.
 - **Water with room.** Lakes and rivers are at least two tiles wide everywhere. Rivers wind
-  as roads do, and they never divide the walkable ground.
+  as roads do. Where a river divides the walkable ground, a bridge joins the two sides.
 - **Cliffs close ground off.** A raised area with no ramp is a natural barrier. Use it in
   place of a wall of trees. Give an area a ramp only where the player should climb it.
 - **Fences mark places.** Use fences for pens, gardens and yard edges near buildings, with
   an opening where the player should enter.
+- **Rocks break up open ground.** Scatter rocks of several kinds near water, cliffs and
+  roads, and a boulder or two in a meadow.
 
 ## Building a map
 
@@ -597,10 +706,22 @@ author a map by hand.
 - Floors use the eight grass cells in a mix of sparse and dense. Add flowers sparingly,
   about one floor cell in eight, and never fill a room with them.
 - Lay roads with the road pieces in [Roads](#roads), not with grass cells.
-- The map's border is solid. Build it from round trees: the split and clump pieces along
-  the edges, with isolated `TREE_ROUND` singles for variety. Keep the playable interior
-  inside it. A line of cliff pieces can close a map edge instead. See
-  [Raised areas](#raised-areas).
+- **The border keeps the player off the map edge.** Close every cell of the perimeter
+  with a barrier, and use several kinds around one map:
+  - Forest: `0x11` cells two or more deep, with the fringe pieces of
+    [Round trees](#round-trees) on the inside.
+  - Cliffs: a raised area that runs off the map. See [Raised areas](#raised-areas).
+  - Water: a sea or lake two or more cells deep, or a river that runs off the map.
+  - Rocks: a band of fully solid rocks and boulders two or more cells deep.
+- **Tiling terrain continues beyond the map.** Forest, water and raised ground behave as
+  if there were more of the same outside. The map edge counts as water for water pieces,
+  as raised for cliff pieces, and as a matching seam for tree pieces. Place half a tree at
+  the edge, run a river off it, and leave a plateau open toward it.
+- **Change barriers with an overlap.** Where one kind of barrier ends and the next begins,
+  put fully solid rocks between them, so no walkable gap reaches the edge. The content
+  test floods from the spawn and fails if any edge cell can be reached.
+- Outside the settled area the map may stay open grass. Mix sparse and dense grass in
+  drifts so large meadows do not look uniform.
 
 ## Objects
 
@@ -663,10 +784,14 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 ## Before committing a map
 
 - The generator, `test_pipeline.py` and `test_content.py` all pass.
-- Roads touch a building only at its door front, and every road ends at a junction, a
-  door footpath, a village exit or the map's edge.
-- Diagonal road edges that border grass use `0x65`, `0x66` and `0x76`, with no staircases.
-  Roads are about two tiles wide and wind gently.
+- Roads touch a building only at its door front. Every road cell uses the piece that its
+  four neighbors select in [Roads](#roads), and roads wind gently.
+- Every bridge spans its river from bank to bank, over straight water, with a road at
+  each end.
+- No cell on the map edge can be reached from the spawn, and the border uses several kinds
+  of barrier.
+- Every house door has a `<House>Door` point with `enter_house`, a matching `<House>Exit`
+  in `interiors.tmx`, an entry in `HOUSE_LINKS`, and a walkable cell below it.
 - Single trees never touch another tree, and loose trees sit near roads.
 - No `EMPTY` (`0x00`) cell is painted, and the floor mixes sparse and dense grass cells.
 - The spawn is passable, and every named point and route is reachable from the spawn
@@ -685,11 +810,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   the spawn.
 - Route waypoints are on passable tiles and clear of edges and corners.
 - No large clumps of `TREE_ROUND` sit next to each other. Groups use the tiling pieces.
-- Roads use the road pieces in [Roads](#roads), except narrow roads and roads next to
-  buildings, which use `0x45` alone.
 - Each building has exactly one door, on an interior base wall tile (`0x84` or `0x85`).
 - Every base wall run starts and ends with a side piece (`0xc0` or `0xc2`, or `0x93` or
   `0x96`), or is a single `0xc3`.
-- Every tree seam matches its neighbor, and no seam faces outside the map (see Round
-  trees).
+- Every tree seam matches its neighbor. Seams may face outside the map (see Round trees).
 - Device QA passes when a change touches NPCs, collisions or sightlines.

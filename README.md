@@ -2,7 +2,8 @@
 
 C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. D-pad moves, A reads the sign immediately north of the
-starting position, and B opens the status/save menu. Two sample villagers show
+starting position and enters a house when the player faces its door, and B opens the
+status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
 The build automatically discovers every `assets/music/*.avms` score and adds it
@@ -57,15 +58,20 @@ AVMS playback against recorded tracker and MIDI-arrangement fingerprints and che
 two repeatable loops, channel resets, and headroom at reference master 64.
 Physical Arduboy piezo listening and balance checks remain necessary.
 
-The old outdoor/interior/hall maps and their quests have been replaced by one
-18x12-tile forest clearing. **This development build rejects saves from versions
-1–3.** Its save format is version 4; new saves still use 24 bytes.
+The overworld is one 240x248-tile map with a village in its north-west corner, beside
+a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
+ten houses has its own interior: face a door and press A to enter, and walk out through
+the exit at the bottom of the room to leave. **This development build rejects saves from
+versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.
 - `assets/images/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
-- `assets/tilesets/interior.tsx` and `assets/images/tiles16_interior.png`: atlas for house,
-  cave and dungeon interiors. No map uses it yet; see `assets/maps/AUTHORING_INTERIOR.md`.
+- `assets/maps/interiors.tmx`: the inside of every house, entered through the house doors.
+- `assets/tilesets/house.tsx`, `cave.tsx` and `dungeon.tsx`, with `tiles16_house.png`,
+  `tiles16_cave.png` and `tiles16_dungeon.png`: the interior tilesets. Each map uses one
+  tileset, and the game draws each area with its own. See
+  `assets/maps/AUTHORING_INTERIOR.md`.
 - `assets/images/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
 - `assets/music/*.avms`: all editable soundtrack scores.

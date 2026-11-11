@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from elf import symbols
+from generate_assets import load_world
 
 
 def run(argv, log):
@@ -74,8 +75,14 @@ def main():
     ]
     output = lldb(sdk, artifacts / "rpg.elf", commands, work / "sdk-input.log")
     values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
+    # The player starts on the map's spawn marker and walks down from it.
+    maps, _, names = load_world(ROOT)
+    spawn = names[next(m for m in maps if m.symbol == "OUTDOOR").spawn]
     assert (
-        values[0] > 0 and values[1] == 112 and values[2] > 80 and values[3] == values[4]
+        values[0] > 0
+        and values[1] == spawn["tx"] * 16
+        and values[2] > spawn["ty"] * 16
+        and values[3] == values[4]
     ), f"AVM shared rules/input diverged: {values}"
     assert "menu_screen" in output and "status_screen" in output and "explore" in output
     proof = [

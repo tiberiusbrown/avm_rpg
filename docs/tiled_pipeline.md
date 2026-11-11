@@ -10,33 +10,48 @@ For tile meanings and map design rules, see `assets/maps/AUTHORING.md`.
 ## Terrain and indices
 
 Use finite orthogonal right-down TMX maps, 16x16 tiles, uncompressed CSV layers,
-and external `assets/tilesets/world.tsx`. The maximum logical area remains
+and one external tileset from `assets/tilesets`. The maximum logical area remains
 240x248 tiles. Map data stores exactly width * height tile IDs in row-major order,
 without chunk padding. The 8x4 chunks organize handler dispatch only.
 Layers flatten in document order; zero GIDs leave underlying tiles untouched.
 Empty cells become the outside sentinel, 255. No flipping, rotation, infinite/compressed maps, offsets,
 hidden/translucent layers or per-tile animation is supported.
 
-`tiles16.png` is opaque monochrome, 256x256, with 16 columns and 16 rows. Runtime
-ID equals `row * 16 + column`: the top-right cell is 0x0F, and the sign is 0x41.
-The TSX declares all 256 cells, with `reserved=true` as the only property on cell
-255. The exporter excludes that cell from runtime tiles and sprite frames; TMX
-GID 256 with firstgid=1 is rejected. Usable cells have explicit `runtime_id`
-0..254, unique `symbol`, an int `collision` mask from 0 to 65535, and a bool `portal`
-property. `assets/maps/AUTHORING.md` describes the mask. Blank black cells
-remain valid indexed frames and are not deduplicated or removed. Unused cells
-default to full collision (65535) in this sample; mark new terrain deliberately when
-authoring.
+**Each map uses exactly one tileset, and the game selects the tileset by area.** A map
+with two tileset references is rejected. Outdoor maps use `world.tsx` with
+`tiles16.png`. `interiors.tmx` uses `house.tsx` with `tiles16_house.png`. `cave.tsx` and
+`dungeon.tsx` have no map yet. The TSX `name` attribute names the tileset in generated
+code and must be a lower-case identifier.
 
-`assets/tilesets/interior.tsx` and `tiles16_interior.png` hold a second atlas for house,
-cave and dungeon interiors, described in `assets/maps/AUTHORING_INTERIOR.md`. No map uses it yet. Sprite
-frames come from the tilesets that maps reference, and all tilesets share the runtime IDs
-0..254, so a map cannot reference `interior.tsx` until areas select their own tileset. The
-generator still parses every TSX in `assets/tilesets` and writes
-`assets/images/<atlas>_collision.png` for each one.
+Every atlas is opaque monochrome, 256x256, with 16 columns and 16 rows. Runtime
+ID equals `row * 16 + column` within its tileset: in the world tileset the top-right
+cell is 0x0F and the sign is 0x41. A TSX declares all 256 cells, with `reserved=true` as
+the only property on cell 255. The exporter excludes that cell from runtime tiles and
+sprite frames; TMX GID 256 with firstgid=1 is rejected. Usable cells have explicit
+`runtime_id` 0..254, unique `symbol`, an int `collision` mask from 0 to 65535, and a bool
+`portal` property. `assets/maps/AUTHORING.md` describes the mask. Blank black cells
+remain valid indexed frames and are not deduplicated or removed. Unused cells
+default to full collision (65535); mark new terrain deliberately when authoring.
+
+Tilesets in use get runtime indices: `world` is 0, and the others follow by name. The
+generator emits:
+
+- `area_ids.h`: `TILESET_<NAME>` indices, `TILESET_COUNT` and
+  `constexpr uint8_t area_tileset(uint8_t area)`, a switch over the areas.
+- `tile_ids.h`: `TILE_<symbol>` for the world tileset and `<NAME>_TILE_<symbol>` for each
+  other tileset, such as `HOUSE_TILE_FLOOR_WOOD_A`.
+- `map_assets.cpp`: `TILE_COLLISION`, one 256-entry block per tileset, read at
+  `(area_tileset(game.area) << 8) | tile`. Entry 255 of each block is the solid sentinel.
+- `sprites.cpp`: `TILE_SPRITES` and one `<NAME>_TILE_SPRITES` sheet per other tileset,
+  with `tileset_sprites(tileset)` to select one. `rpg_render_world` draws with the sheet
+  of the active area.
+
+Only tilesets that a map references are emitted. The generator still parses every TSX in
+`assets/tilesets` and writes `assets/images/<atlas>_collision.png` for each one, so an
+unused tileset stays valid.
 
 Each 16x16 tile occupies 32 bytes: 16 top-page columns, then 16 bottom-page columns.
-Within a byte, bit zero is the uppermost pixel. The sprite array begins with
+Within a byte, bit zero is the uppermost pixel. Each tileset's sprite array begins with
 width=16, height=16, followed by all 255 frames in runtime-ID order.
 
 ## Actors

@@ -19,7 +19,7 @@ void rpg_render_world() {
     uint8_t view_x = (uint8_t)((game.camera.x >> TILE_SHIFT) - game.cache.origin_tx);
     uint8_t view_y = (uint8_t)((game.camera.y >> TILE_SHIFT) - game.cache.origin_ty);
     uint8_t const* tiles = game.cache.tiles + view_y * CACHE_WIDTH + view_x;
-    avm_set_sprite(TILE_SPRITES);
+    avm_set_sprite(tileset_sprites(area_tileset(game.area)));
     for(int16_t y = top; y < DISPLAY_TILE_HEIGHT * TILE; y += TILE) {
         // A fixed row span preserves unrolling. Native drawing clips the
         // extra column when the camera is tile-aligned.

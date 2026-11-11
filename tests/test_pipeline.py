@@ -102,9 +102,10 @@ class Pipeline(unittest.TestCase):
         source = generate(self.root)["sprites.cpp"]
         for name, file, frames, masked in [
             ("TILE_SPRITES", "tiles16.png", 255, False),
+            ("HOUSE_TILE_SPRITES", "tiles16_house.png", 255, False),
             ("ACTOR_SPRITES", "actors16.png", 192, True),
         ]:
-            body = source.split(name + "[] = {", 1)[1].split("};", 1)[0]
+            body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
             data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
             self.assertEqual(data[:2], [16, 16])
@@ -129,8 +130,47 @@ class Pipeline(unittest.TestCase):
                             transparent |= a == 0
             if masked:
                 self.assertTrue(opaque_black and transparent)
-            else:
+            elif name == "TILE_SPRITES":
+                # Cell 0x0F of the world atlas is blank.
                 self.assertEqual(data[2 + 0x0F * 32 : 2 + 0x10 * 32], [0] * 32)
+
+    def test_each_area_selects_its_tileset(self):
+        maps, world, _ = load_world(self.root)
+        by_symbol = {m.symbol: m for m in maps}
+        self.assertEqual(by_symbol["OUTDOOR"].tileset, "world")
+        self.assertEqual(by_symbol["INTERIORS"].tileset, "house")
+        self.assertIs(by_symbol["OUTDOOR"].tiles, world)
+        # Tile IDs are per tileset: the same ID names different tiles.
+        self.assertEqual(world[0x41]["symbol"], "SIGN")
+        self.assertNotEqual(by_symbol["INTERIORS"].tiles[0x41]["symbol"], "SIGN")
+        out = generate(self.root)
+        areas, ids = out["area_ids.h"], out["tile_ids.h"]
+        self.assertIn("TILESET_WORLD = 0;", areas)
+        self.assertIn("TILESET_HOUSE = 1;", areas)
+        self.assertIn("TILESET_COUNT = 2;", areas)
+        interiors = by_symbol["INTERIORS"].area
+        self.assertIn(f"case {interiors}: return TILESET_HOUSE;", areas)
+        self.assertIn("default: return TILESET_WORLD;", areas)
+        self.assertIn("inline constexpr uint8_t TILE_SIGN = 65;", ids)
+        self.assertIn("inline constexpr uint8_t HOUSE_TILE_FLOOR_WOOD_A = 64;", ids)
+        self.assertIn("HOUSE_TILE_COUNT = 255", ids)
+        # One 256-entry collision block per tileset, each ending in the solid sentinel.
+        body = out["map_assets.cpp"].split("TILE_COLLISION[] = {", 1)[1].split("};", 1)[0]
+        masks = [int(v) for v in re.findall(r"\d+", body)]
+        self.assertEqual(len(masks), 512)
+        self.assertEqual((masks[255], masks[511]), (0xFFFF, 0xFFFF))
+        self.assertEqual(masks[0x41], 0xFFFF)  # the world's sign is solid
+        self.assertEqual(masks[256 + 0x40], 0)  # the house's wood floor is not
+        sprites = out["sprites.cpp"]
+        self.assertIn("HOUSE_TILE_SPRITES[] = {", sprites)
+        self.assertIn("case TILESET_HOUSE: return HOUSE_TILE_SPRITES;", sprites)
+        self.assertIn("default: return TILE_SPRITES;", sprites)
+
+    def test_a_map_uses_exactly_one_tileset(self):
+        root = self.tree.getroot()
+        extra = ET.Element("tileset", firstgid="257", source="../tilesets/house.tsx")
+        root.insert(list(root).index(root.find("tileset")) + 1, extra)
+        self.fails("exactly one tileset")
 
     def test_reserved_gid_is_not_a_tile(self):
         payload = self.tree.find("layer/data")
@@ -382,7 +422,7 @@ class CollisionOverlay(unittest.TestCase):
 
     def test_overlays_of_other_tilesets_are_current(self):
         overlays = tileset_overlays(ROOT)
-        self.assertIn("assets/images/tiles16_interior_collision.png", overlays)
+        self.assertIn("assets/images/tiles16_house_collision.png", overlays)
         for name, data in overlays.items():
             self.assertEqual((ROOT / name).read_bytes(), data, name)
 
@@ -395,9 +435,10 @@ class MapPreviews(unittest.TestCase):
 
     def test_each_tile_is_its_atlas_cell_at_native_size(self):
         maps, _, _ = load_world(ROOT)
-        atlas = Image.open(ROOT / "assets/images/tiles16.png").convert("L")
         previews = map_previews(ROOT)
         for m in maps:
+            # Each map is drawn from the atlas of its own tileset.
+            atlas = Image.open(next(iter(m.tiles.values()))["image"]).convert("L")
             name = map_preview_path(m.symbol)
             image = Image.open(io.BytesIO(previews[name])).convert("L")
             self.assertEqual(image.size, (m.width * 16, m.height * 16), name)

@@ -57,7 +57,9 @@ void save_encode(uint8_t out[SAVE_BYTES]) {
     put16(out + SAVE_CRC_OFFSET, save_checksum(out));
 }
 
-bool save_decode(uint8_t const* in, uint16_t length) {
+// Kept out of line: inlined into game_load with world_enter, this function made the AVM
+// register allocator run out of registers.
+RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     if(length < 4 || in[0] != 'R' || in[1] != 'P')
         return false;
     uint16_t size = in[3];

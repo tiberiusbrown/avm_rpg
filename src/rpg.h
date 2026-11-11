@@ -206,6 +206,8 @@ bool game_load();
 char const PROGMEM* music_next();
 
 extern uint8_t const PROGMEM TILE_SPRITES[];
+// The sprite sheet of a tileset. Each area draws with the tileset from area_tileset().
+uint8_t const PROGMEM* tileset_sprites(uint8_t tileset);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
 
 #endif

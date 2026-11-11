@@ -9,9 +9,21 @@ template <TilePos POS> using Gameplay = Tag<POS, STAGE_GAMEPLAY>;
 template <TilePos POS> using Tiles = Tag<POS, STAGE_TILES>;
 template <TilePos POS> using Dialogue = Tag<POS, STAGE_DIALOGUE>;
 template <TilePos POS, HandlerStage STAGE>
+void enter_house(Tag<POS, STAGE>) {}
+template <TilePos POS, HandlerStage STAGE>
+void leave_house(Tag<POS, STAGE>) {}
+template <TilePos POS, HandlerStage STAGE>
 void read_sign(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
 void update_wanderer(Tag<POS, STAGE>) {}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_enter_house() {
+    enter_house(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_leave_house() {
+    leave_house(Tag<POS, STAGE>{});
+}
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_read_sign() {
     read_sign(Tag<POS, STAGE>{});
@@ -23,6 +35,12 @@ void dispatch_update_wanderer() {
 }
 template <TilePos POS, HandlerStage STAGE>
 struct Handler {
+    void enter_house() {
+        handler_impl::dispatch_enter_house<POS, STAGE>();
+    }
+    void leave_house() {
+        handler_impl::dispatch_leave_house<POS, STAGE>();
+    }
     void read_sign() {
         handler_impl::dispatch_read_sign<POS, STAGE>();
     }

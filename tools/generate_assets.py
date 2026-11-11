@@ -86,6 +86,12 @@ def tileset(path):
         path,
         "tile offsets, transformations and wangsets are unsupported",
     )
+    name = node.get("name") or ""
+    require(
+        bool(re.fullmatch(r"[a-z][a-z0-9_]*", name)),
+        path,
+        f"tileset name {name!r} must be a lower-case identifier",
+    )
     count, columns = integer(node, "tilecount", path), integer(node, "columns", path)
     require(
         0 < count <= 256 and columns > 0,
@@ -156,6 +162,7 @@ def tileset(path):
             image=image_path,
             frame=local,
             columns=columns,
+            tileset=name,
         )
     require(
         len(local_ids) == count and len(records) == min(count, 255),
@@ -177,10 +184,26 @@ class Map:
     objects: list
     spawn: str
     routes: list
+    tileset: str = "world"
+    tiles: dict = None
+
+
+def tileset_prefix(name):
+    """C++ prefix of a tileset's tile constants and tables. The world tileset has none."""
+    return "" if name == "world" else name.upper() + "_"
+
+
+def tileset_order(maps):
+    """Tilesets that maps use, in runtime index order: world first, then by name."""
+    names = {m.tileset for m in maps}
+    return sorted(names, key=lambda name: (name != "world", name))
 
 
 def load_world(root):
-    maps, metadata, names, route_names = [], {}, {}, set()
+    """Maps, the world tileset's tile records, and the named locations. Each map uses one
+    tileset and carries that tileset's records as its `tiles`. When no map uses the world
+    tileset, the first tileset in use stands in for it."""
+    maps, tilesets, names, route_names = [], {}, {}, set()
     for path in sorted((root / "assets/maps").glob("*.tmx")):
         node = ET.parse(path).getroot()
         require(
@@ -212,24 +235,30 @@ def load_world(root):
             "unique explicit area_id 1..255 and symbol required",
         )
         gids = {}
-        for reference in node.findall("tileset"):
-            require(
-                reference.get("source") is not None, path, "use external TSX tilesets"
-            )
-            first = integer(reference, "firstgid", path)
-            require(first > 0, path, "firstgid must be positive")
-            for local, tile in tileset(path.parent / reference.get("source")).items():
-                require(
-                    first + local not in gids, path, "overlapping tileset GID ranges"
-                )
-                gids[first + local] = tile["runtime"]
-                old = metadata.get(tile["runtime"])
-                require(
-                    old is None or old == tile,
-                    path,
-                    "conflicting runtime tile IDs across tilesets",
-                )
-                metadata[tile["runtime"]] = tile
+        references = node.findall("tileset")
+        require(
+            len(references) == 1,
+            path,
+            "a map uses exactly one tileset; the game selects one tileset per area",
+        )
+        reference = references[0]
+        require(reference.get("source") is not None, path, "use external TSX tilesets")
+        first = integer(reference, "firstgid", path)
+        require(first > 0, path, "firstgid must be positive")
+        source = (path.parent / reference.get("source")).resolve()
+        records = tileset(source)
+        metadata = {tile["runtime"]: tile for tile in records.values()}
+        require(len(metadata) == len(records), path, "duplicate runtime tile IDs")
+        tileset_name = next(iter(records.values()))["tileset"]
+        known = tilesets.setdefault(tileset_name, (source, metadata))
+        require(
+            known[0] == source,
+            path,
+            f"two tilesets are named {tileset_name!r}",
+        )
+        metadata = known[1]
+        for local, tile in records.items():
+            gids[first + local] = tile["runtime"]
         data, objects, routes, layers = [255] * (w * h), [], [], 0
         for child in node:
             require(
@@ -522,6 +551,8 @@ def load_world(root):
                 ),
                 p.get("spawn"),
                 sorted(routes, key=lambda r: r["name"]),
+                tileset_name,
+                metadata,
             )
         )
     require(maps, root, "no maps found in assets/maps")
@@ -531,12 +562,13 @@ def load_world(root):
     require(len(all_routes) <= 255, root, "at most 255 routes are supported")
     for route_id, route in enumerate(all_routes, 1):
         route["id"] = route_id
-    require(
-        set(metadata) == set(range(len(metadata)))
-        and len({t["symbol"] for t in metadata.values()}) == len(metadata),
-        root,
-        "runtime tile IDs must be dense from zero; tile symbols must be unique",
-    )
+    for tileset_name, (source, metadata) in tilesets.items():
+        require(
+            set(metadata) == set(range(len(metadata)))
+            and len({t["symbol"] for t in metadata.values()}) == len(metadata),
+            source,
+            "runtime tile IDs must be dense from zero; tile symbols must be unique",
+        )
     symbols = set()
     for o in names.values():
         emitted = [point["name"] for point in o["points"]]
@@ -566,7 +598,7 @@ def load_world(root):
         cell = spawn["tx"], spawn["ty"]
         tile = m.data[cell[1] * m.width + cell[0]]
         require(
-            tile in metadata and metadata[tile]["collision"] == 0,
+            tile in m.tiles and m.tiles[tile]["collision"] == 0,
             m.symbol,
             "spawn must be on tiles without collision",
         )
@@ -575,7 +607,8 @@ def load_world(root):
             m.symbol,
             "safe spawn must not overlap a native handler",
         )
-    return sorted(maps, key=lambda m: m.area), metadata, names
+    maps.sort(key=lambda m: m.area)
+    return maps, tilesets[tileset_order(maps)[0]][1], names
 
 
 COLLISION_OVERLAY = "assets/images/tiles16_collision.png"
@@ -597,15 +630,15 @@ def collision_pixel_solid(mask, x, y):
 
 def collision_overlay(root=ROOT, scale=3):
     """PNG of the atlas with solid collision pixels tinted red, for inspection."""
-    _, metadata, _ = load_world(root)
-    return overlay_png(root / "assets/images/tiles16.png", metadata, scale)
+    records = tileset(root / "assets/tilesets/world.tsx")
+    return overlay_png(root / "assets/images/tiles16.png", {t["frame"]: t for t in records.values()}, scale)
 
 
 def tileset_overlays(root=ROOT):
-    """Collision overlay PNG for each tileset that no map uses yet, keyed by its path.
+    """Collision overlay PNG for each tileset other than the world's, keyed by its path.
 
     The exporter reads tile art and collision from the tilesets that maps reference.
-    Parsing the others here keeps their metadata and atlases valid until maps use them.
+    Parsing every tileset here keeps the unused ones valid until maps use them.
     """
     overlays = {}
     for path in sorted((root / "assets/tilesets").glob("*.tsx")):
@@ -658,9 +691,12 @@ def map_previews(root=ROOT):
     native 16x16 pixels. Unpainted outside cells (runtime ID 255) are flat gray, so
     they stand out from the black EMPTY and blank atlas cells."""
     maps, _, _ = load_world(root)
-    atlas = Image.open(root / "assets/images/tiles16.png").convert("L")
-    cells, previews = {}, {}
+    atlases, previews = {}, {}
     for m in maps:
+        image_path = next(iter(m.tiles.values()))["image"]
+        if image_path not in atlases:
+            atlases[image_path] = (Image.open(image_path).convert("L"), {})
+        atlas, cells = atlases[image_path]
         image = Image.new(
             "L", (m.width * TILE_SIZE, m.height * TILE_SIZE), OUTSIDE_PREVIEW_GRAY
         )
@@ -680,7 +716,13 @@ def map_previews(root=ROOT):
 
 
 def read_tileset_frames(root):
-    _, metadata, _ = load_world(root)
+    """Sprite frames of each tileset in use, in runtime index order, keyed by name."""
+    maps, _, _ = load_world(root)
+    by_name = {m.tileset: m.tiles for m in maps}
+    return {name: tile_frames(by_name[name]) for name in tileset_order(maps)}
+
+
+def tile_frames(metadata):
     frames = []
     for _, t in sorted(metadata.items()):
         with Image.open(t["image"]) as im:
@@ -704,8 +746,32 @@ def read_tileset_frames(root):
 def export_world(root=ROOT):
     maps, metadata, names = load_world(root)
     prologue = "/* Generated from TMX/TSX; do not edit. */\n"
+    order = tileset_order(maps)
+    by_name = {m.tileset: m.tiles for m in maps}
     areas = [prologue, "#pragma once", "#include <stdint.h>"]
     areas += [f"inline constexpr uint8_t AREA_{m.symbol} = {m.area};" for m in maps]
+    areas += [
+        f"inline constexpr uint8_t TILESET_{name.upper()} = {index};"
+        for index, name in enumerate(order)
+    ]
+    areas += [
+        f"inline constexpr uint8_t TILESET_COUNT = {len(order)};",
+        "// Each area draws and collides with one tileset. Tile IDs are per tileset.",
+        "constexpr uint8_t area_tileset(uint8_t area) {",
+    ]
+    other = [m for m in maps if m.tileset != order[0]]
+    if other:
+        areas.append("    switch(area) {")
+        areas += [
+            f"        case {m.area}: return TILESET_{m.tileset.upper()};" for m in other
+        ]
+        areas += [
+            f"        default: return TILESET_{order[0].upper()};",
+            "    }",
+            "}",
+        ]
+    else:
+        areas += ["    (void)area;", f"    return TILESET_{order[0].upper()};", "}"]
     positions = [
         prologue,
         "#pragma once",
@@ -757,11 +823,15 @@ def export_world(root=ROOT):
     else:
         route_source += ["    (void)id;", "    return nullptr;", "}"]
     ids = [prologue, "#pragma once", "#include <stdint.h>"]
-    ids += [
-        f"inline constexpr uint8_t TILE_{t['symbol']} = {i};"
-        for i, t in sorted(metadata.items())
-    ]
-    ids.append(f"inline constexpr uint8_t TILE_COUNT = {len(metadata)};")
+    for name in order:
+        prefix = tileset_prefix(name)
+        ids += [
+            f"inline constexpr uint8_t {prefix}TILE_{t['symbol']} = {i};"
+            for i, t in sorted(by_name[name].items())
+        ]
+        ids.append(
+            f"inline constexpr uint8_t {prefix}TILE_COUNT = {len(by_name[name])};"
+        )
     header = [
         prologue,
         "#pragma once",
@@ -794,21 +864,28 @@ def export_world(root=ROOT):
             + f"{spawn['tx'] * TILE_SIZE}, {spawn['ty'] * TILE_SIZE}"
             + "}};"
         )
-    assets += array_lines(
-        "constexpr uint16_t PROGMEM TILE_COLLISION[]",
-        [t["collision"] for _, t in sorted(metadata.items())] + [0xFFFF],
-    )
-    assets += array_lines(
-        "constexpr uint8_t PROGMEM TILE_PORTALS[]",
-        [t["portal"] for _, t in sorted(metadata.items())],
-    )
-    if not any(t["portal"] for t in metadata.values()):
+    # One 256-entry block per tileset, indexed by (tileset << 8) | tile. Entry 255 of each
+    # block is the outside sentinel.
+    collision, portals = [], []
+    for name in order:
+        tiles = sorted(by_name[name].items())
+        require(len(tiles) == 255, root, f"tileset {name} must declare 255 usable tiles")
+        collision += [t["collision"] for _, t in tiles] + [0xFFFF]
+        portals += [t["portal"] for _, t in tiles] + [0]
+    assets += array_lines("constexpr uint16_t PROGMEM TILE_COLLISION[]", collision)
+    assets += array_lines("constexpr uint8_t PROGMEM TILE_PORTALS[]", portals)
+    if not any(portals):
         assets += ["bool tile_portal(uint8_t tile) {", "    (void)tile;", "    return false;", "}"]
     else:
-        assets += ["bool tile_portal(uint8_t tile) {", "    switch(tile) {"]
-        for i, t in sorted(metadata.items()):
-            if t["portal"]:
-                assets.append(f"        case {i}: return true;")
+        assets += [
+            "bool tile_portal(uint8_t tile) {",
+            "    switch((uint16_t)((uint16_t)area_tileset(game.area) << 8 | tile)) {",
+        ]
+        assets += [
+            f"        case {index}: return true;"
+            for index, portal in enumerate(portals)
+            if portal
+        ]
         assets += ["        default: return false;", "    }", "}"]
     assets += ["Area const PROGMEM* world_area(uint8_t id) {", "    switch(id) {"]
     assets += [f"        case {m.area}: return &{m.symbol}_AREA;" for m in maps]
@@ -1031,7 +1108,7 @@ def sprite_lines(name, frames, masks=None):
 
 def generate(root=ROOT):
     world = export_world(root)
-    tile_frames = read_tileset_frames(root)
+    sheets = read_tileset_frames(root)
     actor_frames, actor_masks = read_sprite_sheet("actors16.png", 12, 16, root)
     art = [
         "/* Generated; 16x16 tiles and alpha-derived actor plus masks. */",
@@ -1039,10 +1116,22 @@ def generate(root=ROOT):
         "",
         "// clang-format off: preserve frame byte groups.",
     ]
-    art += sprite_lines("TILE_SPRITES", tile_frames)
-    art.append("")
+    for name, frames in sheets.items():
+        art += sprite_lines(tileset_prefix(name) + "TILE_SPRITES", frames)
+        art.append("")
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
     art.append("// clang-format on")
+    names = list(sheets)
+    art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]
+    if len(names) > 1:
+        art.append("    switch(tileset) {")
+        art += [
+            f"        case TILESET_{name.upper()}: return {tileset_prefix(name)}TILE_SPRITES;"
+            for name in names[1:]
+        ]
+        art += [f"        default: return {tileset_prefix(names[0])}TILE_SPRITES;", "    }", "}"]
+    else:
+        art += ["    (void)tileset;", f"    return {tileset_prefix(names[0])}TILE_SPRITES;", "}"]
     return {**world, "sprites.cpp": "\n".join(art) + "\n"}
 
 

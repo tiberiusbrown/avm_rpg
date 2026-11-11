@@ -47,7 +47,8 @@ uint16_t tile_collision(uint8_t tile) {
     if(collision_overridden[tile])
         return collision_override[tile];
 #endif
-    return TILE_COLLISION[tile];
+    // One 256-entry block per tileset. The active area selects the block.
+    return TILE_COLLISION[(uint16_t)((uint16_t)area_tileset(game.area) << 8 | tile)];
 }
 
 bool tile_solid(uint8_t tile) {

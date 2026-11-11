@@ -345,8 +345,49 @@ static void tile_edits_reset_each_frame() {
     CHECK(cached_tile(pos) == authored);
 }
 
+// Activating a door enters its house, and walking onto the exit returns to the door. Each
+// area collides with its own tileset, so one tile ID means different tiles in each.
+static void house_doors() {
+    game_new();
+    TilePos door = positions::ElderDoor, way_out = positions::ElderExit;
+    CHECK(area_tileset(AREA_OUTDOOR) == TILESET_WORLD && area_tileset(AREA_INTERIORS) == TILESET_HOUSE);
+    static_assert(TILE_BOULDER_TALL == HOUSE_TILE_EDGE_TOP_EXIT, "one ID, two tiles");
+
+    // Stand in front of the door, facing it.
+    world_enter(AREA_OUTDOOR, (uint16_t)(door.x * TILE), (uint16_t)((door.y + 1) * TILE), NORTH);
+    CHECK(tile_solid(cached_tile(door)) && tile_collision(TILE_BOULDER_TALL) == 0xFFFF);
+    game_update(0, 0);
+    CHECK(game.area == AREA_OUTDOOR && game.can_interact);
+
+    game_update(0, BTN_A);
+    CHECK(game.area == AREA_INTERIORS);
+    CHECK(game.dimensions.width_tiles == INTERIORS_WIDTH &&
+          game.dimensions.height_tiles == INTERIORS_HEIGHT);
+    CHECK(game.player.x == way_out.x * TILE && game.player.y == (way_out.y - 1) * TILE &&
+          game.player.facing == NORTH);
+    // The same ID is now the walkable exit, and house walls are solid.
+    CHECK(cached_tile(way_out) == HOUSE_TILE_EDGE_TOP_EXIT);
+    CHECK(tile_collision(HOUSE_TILE_EDGE_TOP_EXIT) == 0 && tile_solid(HOUSE_TILE_WALL) &&
+          tile_solid(HOUSE_TILE_EMPTY) && !tile_solid(HOUSE_TILE_FLOOR_WOOD_A));
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+
+    // Standing still inside does nothing. Walking down onto the exit leaves, with no button.
+    game_update(0, 0);
+    CHECK(game.area == AREA_INTERIORS);
+    for(unsigned i = 0; i < 2 * TILE && game.area == AREA_INTERIORS; ++i)
+        game_update(BTN_DOWN, 0);
+    CHECK(game.area == AREA_OUTDOOR);
+    CHECK(game.player.x == door.x * TILE && game.player.y == (door.y + 1) * TILE &&
+          game.player.facing == SOUTH);
+    CHECK(tile_collision(TILE_BOULDER_TALL) == 0xFFFF);
+    // The player arrives off the door, so nothing fires again.
+    game_update(0, 0);
+    CHECK(game.area == AREA_OUTDOOR);
+}
+
 int main() {
     run_world_scenarios();
+    house_doors();
     window_edges();
     terrain_footprints();
     collision_triangles();
