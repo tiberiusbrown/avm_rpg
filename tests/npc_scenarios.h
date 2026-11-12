@@ -84,8 +84,9 @@ static void npc_test_valid() {
         if(!n.id)
             continue;
         CHECK(npc_definition(n.id));
-        CHECK(npc_definition(n.id)->sprite_row < 16);
-        CHECK(actor_frame(n.actor, npc_definition(n.id)->sprite_row, game.ticks) < 192);
+        CHECK(npc_definition(n.id)->sprite_row < ACTOR_ROW_COUNT);
+        CHECK(actor_frame(n.actor, npc_definition(n.id)->sprite_row, game.ticks) <
+              ACTOR_ROW_COUNT * 12);
     }
 }
 

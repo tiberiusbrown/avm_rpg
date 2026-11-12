@@ -103,7 +103,7 @@ class Pipeline(unittest.TestCase):
         for name, file, frames, masked in [
             ("TILE_SPRITES", "tiles16.png", 255, False),
             ("HOUSE_TILE_SPRITES", "tiles16_house.png", 255, False),
-            ("ACTOR_SPRITES", "actors16.png", 192, True),
+            ("ACTOR_SPRITES", "actors16.png", 384, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
@@ -198,6 +198,18 @@ class Pipeline(unittest.TestCase):
         image.save(path)
         with self.assertRaisesRegex(ValueError, "opaque monochrome"):
             export_world(self.root)
+
+    def test_actor_rows_follow_sheet_height(self):
+        path = self.root / "assets/images/actors16.png"
+        image = Image.open(path).convert("RGBA")
+        rows = image.height // 16
+        self.assertGreater(rows, 16)
+        self.assertIn(
+            f"static_assert(ACTOR_ROW_COUNT == {rows},", generate(self.root)["sprites.cpp"]
+        )
+        image.crop((0, 0, image.width, image.height - 8)).save(path)
+        with self.assertRaisesRegex(ValueError, "rows of 16"):
+            generate(self.root)
 
     def test_sign_relocation_crosses_chunk(self):
         tx, ty = self.tile_of("GroveSign")

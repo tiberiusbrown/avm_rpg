@@ -72,7 +72,8 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
   `tiles16_cave.png` and `tiles16_dungeon.png`: the interior tilesets. Each map uses one
   tileset, and the game draws each area with its own. See
   `assets/maps/AUTHORING_INTERIOR.md`.
-- `assets/images/actors16.png`: 16 character rows, 12 frames per row, binary alpha.
+- `assets/images/actors16.png`: 32 character rows (16 people, then 16 creatures and
+  enemies), 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild

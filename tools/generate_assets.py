@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 TILE_SIZE = 16
+ACTOR_COLUMNS = 12  # Three north, east, south and west frames per character row.
 CHUNK_WIDTH, CHUNK_HEIGHT = 8, 4
 
 
@@ -1029,14 +1030,17 @@ def export_world(root=ROOT):
     }
 
 
-def read_sprite_sheet(name, columns, rows, root=ROOT):
+def read_sprite_sheet(name, columns, root=ROOT):
+    """Read a sheet of whole rows; its height selects the row count (1..256)."""
     path = root / "assets" / "images" / name
     with Image.open(path) as image:
+        rows = image.height // TILE_SIZE
         require(
             image.format == "PNG"
-            and image.size == (columns * TILE_SIZE, rows * TILE_SIZE),
+            and image.size == (columns * TILE_SIZE, rows * TILE_SIZE)
+            and 1 <= rows <= 256,
             path,
-            f"expected a {columns * TILE_SIZE}x{rows * TILE_SIZE} PNG",
+            f"expected a PNG {columns * TILE_SIZE} pixels wide holding 1..256 rows of {TILE_SIZE}",
         )
         pixels = image.convert("RGBA")
         require(
@@ -1109,7 +1113,8 @@ def sprite_lines(name, frames, masks=None):
 def generate(root=ROOT):
     world = export_world(root)
     sheets = read_tileset_frames(root)
-    actor_frames, actor_masks = read_sprite_sheet("actors16.png", 12, 16, root)
+    actor_frames, actor_masks = read_sprite_sheet("actors16.png", ACTOR_COLUMNS, root)
+    actor_rows = len(actor_frames) // ACTOR_COLUMNS
     art = [
         "/* Generated; 16x16 tiles and alpha-derived actor plus masks. */",
         '#include "rpg.h"',
@@ -1121,6 +1126,11 @@ def generate(root=ROOT):
         art.append("")
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
     art.append("// clang-format on")
+    art += [
+        "",
+        f"static_assert(ACTOR_ROW_COUNT == {actor_rows}, "
+        '"ACTOR_ROW_COUNT must match the rows in actors16.png");',
+    ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]
     if len(names) > 1:

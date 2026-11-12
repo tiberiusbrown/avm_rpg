@@ -33,7 +33,7 @@ bool dialogue_ask(char const PROGMEM*) {
 }
 
 static void animate() {
-    for(uint8_t row = 0; row < 16; ++row) {
+    for(uint8_t row = 0; row < ACTOR_ROW_COUNT; ++row) {
         for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
             Actor actor{0, 0, dir, 0};
             for(uint16_t ticks = 0; ticks < 64; ++ticks) {

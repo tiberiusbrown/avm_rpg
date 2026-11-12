@@ -78,6 +78,9 @@ struct Actor {
 // Each walking pose lasts this many simulation ticks, which is 160 ms at 50 Hz.
 inline constexpr uint16_t WALK_POSE_TICKS = 8;
 
+// Character rows in actors16.png; the generated sprite sheet asserts this count.
+inline constexpr uint8_t ACTOR_ROW_COUNT = 32;
+
 constexpr uint16_t actor_frame(Actor const& actor, uint8_t sprite_row, uint16_t ticks) {
     uint8_t phase = (ticks / WALK_POSE_TICKS) & 3;
     uint8_t step = actor.walking && (phase & 1) ? (phase == 1 ? 1 : 2) : 0;

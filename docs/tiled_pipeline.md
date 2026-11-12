@@ -56,11 +56,33 @@ width=16, height=16, followed by all 255 frames in runtime-ID order.
 
 ## Actors
 
-`actors16.png` is 192x256 RGBA: 12 columns and 16 character rows. Every row has
+`actors16.png` is 192x512 RGBA: 12 columns and 32 character rows. Every row has
 three north, three east, three south and three west frames. Zero-based pose 0
 is standing; walking uses offsets 0,1,0,2. Each pose lasts eight simulation ticks.
 `actor_frame()` shares this selection between player and NPC rendering. The
-player uses row 0; `NpcDefinition::sprite_row` selects an NPC's row (0..15).
+player uses row 0; `NpcDefinition::sprite_row` selects an NPC's row (0..31).
+
+Rows 0-15 are people. Rows 16-31 are creatures and enemies:
+
+| Row | Character | Row | Character |
+| --- | --- | --- | --- |
+| 16 | Giant rat | 24 | Zombie |
+| 17 | Wolf | 25 | Ogre |
+| 18 | Giant bat | 26 | Goblin |
+| 19 | Giant spider | 27 | Ghost |
+| 20 | Giant beetle | 28 | Mushroom creature |
+| 21 | Snake | 29 | Floating eye |
+| 22 | Slime | 30 | Golem |
+| 23 | Skeleton | 31 | Hooded cultist |
+
+Creatures follow the same frame layout. West frames mirror the east frames, and a
+character keeps the same head and body proportions in all four directions. Creatures
+that do not step animate their two walking poses another way: the slime squashes and
+stretches, the bat flaps, and the ghost and floating eye bob.
+
+The sheet's height sets the row count: append whole 16-pixel rows to add characters,
+then update `ACTOR_ROW_COUNT` in `src/rpg.h`. The generated `sprites.cpp` asserts that
+the two agree.
 
 Opaque pixels must be black/white and alpha must be 0 or 255. Each actor frame
 occupies 64 bytes: bitmap and mask bytes interleaved in page-major order. Alpha
