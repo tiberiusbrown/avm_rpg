@@ -108,8 +108,9 @@ overworld cache and from the current area.
   A selects a hero, then A confirms an adjacent empty cell to move or an adjacent creature
   to attack. B cancels a selection. An invalid confirmation does nothing, and it does not
   use up the turn.
-- Each activation is one move or one attack. Each attack deals 2 HP. The unit that is
-  attacked is removed when its HP reaches 0.
+- Each activation is one move or one attack. A move walks the unit one cell at the
+  exploration walking speed and pose. Each attack deals 2 HP. The unit that is attacked
+  is removed when its HP reaches 0.
 - Each side moves in turn, and the creatures choose greedily: kills first, then attacks,
   then steps toward the nearest hero.
 - From the 21st completed activation onward, the acting unit loses 1 HP after its action.

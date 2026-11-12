@@ -425,8 +425,9 @@ constexpr GroveAction GROVE_VICTORY_PLAN[] = {
     {{3, 2}, {4, 2}}, // Hero A defeats creature B.
 };
 
-// The enemy's turn shows two half-second results, plus a little margin.
-constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 28800000;
+// The enemy's turn shows two half-second results and a one-cell walk for each side that moves,
+// plus margin. A worst case is about 1.7 seconds, so 2.4 seconds leaves room.
+constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 38400000;
 
 // The cursor moves one tile per press, so moving it takes one press per tile.
 static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
