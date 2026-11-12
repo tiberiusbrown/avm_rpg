@@ -15,7 +15,7 @@ __attribute__((noinline)) void title_screen() {
             selection ^= 1;
         if(pressed & BTN_A) {
             if(!selection) {
-                game_new();
+                game_start();
                 return;
             }
             if(can_continue && game_load())

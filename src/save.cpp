@@ -96,8 +96,9 @@ RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     if(!dimensions.pixel_bounds(x, y))
         return false;
 
-    // Nothing mutates until every field is valid. No struct bytes are saved. The caller enters
-    // the restored world, which repairs the saved position against the loaded cache.
+    // Nothing mutates until every field is valid. No struct bytes are saved. The caller places
+    // the restored player and refreshes the world, which repairs the saved position against the
+    // loaded cache.
     memset(&game, 0, sizeof(game));
     game.area = in[4];
     game.player = {x, y, (DIRECTION)in[5], 0};

@@ -23,7 +23,7 @@ frames through `actor_frame`: north/east/south/west groups of three, idle 0, gai
 
 ## Presence: NPCs are cast when a scene starts
 
-A scene is an area entry (`world_enter`, which calls `npc_reset`). Presence is decided per
+A scene is an area entry (`world_place`, which calls `npc_reset`). Presence is decided per
 scene, and only two things can change it:
 
 - **Casting.** A reconcile casts each NPC whose home (static) or residence (dynamic) lies

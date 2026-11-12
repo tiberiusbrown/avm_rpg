@@ -17,7 +17,7 @@ uint16_t rng_next() {
     return x;
 }
 
-void game_new() {
+void game_start() {
     memset(&game, 0, sizeof(game));
 
     game.rng = 0xbabe;
@@ -27,7 +27,12 @@ void game_new() {
     npc_residence_defaults();
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);
-    world_enter(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);
+    world_place(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);
+}
+
+void game_new() {
+    game_start();
+    update_visible_world(0, false);
 }
 
 static DIRECTION direction(uint8_t held) {

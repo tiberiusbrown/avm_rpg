@@ -170,8 +170,16 @@ bool player_terrain_clear(uint16_t x, uint16_t y);
 uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir);
 void reload_tile_cache();
 bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
+// Places the player in an area and resets its NPCs. The visible world is stale until
+// update_visible_world runs. Returns false, placing nothing, for an unknown area.
+bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);
+// world_place followed by update_visible_world.
 void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);
 uint16_t rng_next();
+// Starts a new game at the outdoor spawn. The visible world is stale until
+// update_visible_world runs.
+void game_start();
+// game_start followed by update_visible_world.
 void game_new();
 void game_update(uint8_t held, uint8_t pressed = 0);
 bool actor_move(Actor* actor, DIRECTION dir, uint8_t pixels);
@@ -185,8 +193,9 @@ bool dialogue_show(char const PROGMEM* words);
 // Wrap/page the question, then return A = yes or B = no.
 bool dialogue_ask(char const PROGMEM* question);
 void save_encode(uint8_t out[SAVE_BYTES]);
-// Restores a valid record into game without entering its world. A caller that resumes play must
-// then call world_enter(game.area, game.player.x, game.player.y, game.player.facing).
+// Restores a valid record into game without placing the player in its world. A caller that resumes
+// play must then call world_place(game.area, game.player.x, game.player.y, game.player.facing) and
+// update_visible_world.
 bool save_decode(uint8_t const* in, uint16_t length = SAVE_BYTES);
 uint16_t save_checksum(uint8_t const* in, uint16_t length = SAVE_CRC_OFFSET);
 void rpg_render_world();

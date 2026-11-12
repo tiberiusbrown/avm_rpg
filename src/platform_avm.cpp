@@ -40,7 +40,7 @@ extern "C" __attribute__((noinline)) void rpg_render_end() {
 bool game_load() {
     if(!avm_load() || !save_decode(saved_record))
         return false;
-    world_enter(game.area, game.player.x, game.player.y, game.player.facing);
+    world_place(game.area, game.player.x, game.player.y, game.player.facing);
     return true;
 }
 
@@ -59,13 +59,15 @@ extern "C" void setup() {
     avm_set_frame_rate(50);
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
-    game_new();
-
+    game_start();
 }
 
 extern "C" void loop() {
     title_screen();
-    
+    // The title screen only places the player. Refreshing the world here keeps the refresh
+    // out of the title screen's frame.
+    update_visible_world(0, false);
+
     //avm_audio_lowpass(AVM_AUDIO_LOWPASS_MILD);
     avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
     avm_audio_music_volume(MUSIC_MASTER_VOLUME);

@@ -192,7 +192,8 @@ static void saves() {
     bad[9] = 0;
     checksum(bad);
     CHECK(save_decode(bad));
-    world_enter(game.area, game.player.x, game.player.y, game.player.facing);
+    world_place(game.area, game.player.x, game.player.y, game.player.facing);
+    update_visible_world(0, false);
     CHECK(player_terrain_clear(game.player.x, game.player.y));
     CHECK(game.player.x != positions::GroveSign.x * TILE ||
           game.player.y != positions::GroveSign.y * TILE);

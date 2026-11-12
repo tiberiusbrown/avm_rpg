@@ -416,10 +416,10 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
     return teleported;
 }
 
-void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
+bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     Area const PROGMEM* a = world_area(area);
     if(!a)
-        return;
+        return false;
     foot_clear_known = false;
     game.area = area;
     npc_reset();
@@ -427,7 +427,12 @@ void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     game.player = {x, y, facing, 0};
     game.previous_player_tile = {area, (uint8_t)((x + FOOT_CENTER_X) >> TILE_SHIFT),
                                  (uint8_t)((y + FOOT_CENTER_Y) >> TILE_SHIFT)};
-    update_visible_world(0, false);
+    return true;
+}
+
+void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
+    if(world_place(area, x, y, facing))
+        update_visible_world(0, false);
 }
 
 template void process_all_chunks<STAGE_GAMEPLAY>();
