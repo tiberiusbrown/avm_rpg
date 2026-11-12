@@ -29,7 +29,7 @@ static int16_t action_score(BattleState const& state, BattleAction action) {
     return (int16_t)(SCORE_MOVE - distance_to_party(state, action.destination));
 }
 
-BattleAction battle_enemy_action(BattleState const& state) {
+RPG_NOINLINE BattleAction battle_enemy_action(BattleState const& state) {
     BattleAction best{BATTLE_NO_UNIT, 0};
     int16_t best_score = -1;
     for(uint8_t i = 0; i < state.unit_count; ++i) {

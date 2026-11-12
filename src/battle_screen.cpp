@@ -49,8 +49,6 @@ struct Cursor {
 struct BattleScreen {
     BattleState state;
     Cursor cursor;
-    // Facing persists across actions, as it does in exploration.
-    DIRECTION facing[BATTLE_UNIT_CAPACITY];
     // The unit drawn walking, or BATTLE_NO_UNIT. Only one unit walks at a time.
     uint8_t walker;
     // The walker's drawn offset from its logical cell, in pixels. It starts at the old cell and
@@ -127,8 +125,10 @@ static DIRECTION pressed_direction(uint8_t pressed) {
 // cells come before the actors: `lit` is the selected or acting unit, and the selected unit's
 // attack targets are blacked out. Empty destinations get their marks in the same layer. Dashed
 // attack borders come last, over the actors. The cursor is drawn separately, after the board.
-// A walker is drawn even once defeated, so a unit that dies on its move is seen walking first.
-static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit) {
+// A walker is drawn even once defeated, so a unit that dies on its move is seen walking first. A
+// walker faces `walk_facing`, the way it is stepping. Every other actor stands facing south.
+static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit,
+                       DIRECTION walk_facing) {
     BattleState const& state = screen.state;
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
     // to enter or an enemy to attack. Both masks use bit positions rather than cells, which keeps
@@ -181,7 +181,7 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit
         // A walker is drawn at its cell plus the offset it still has to walk.
         int16_t x = (int16_t)(cell_x(unit.cell) + (walking ? screen.walk_dx : 0));
         int16_t y = (int16_t)(cell_y(unit.cell) + (walking ? screen.walk_dy : 0));
-        Actor const pose{(uint16_t)x, (uint16_t)y, screen.facing[i], (uint8_t)walking};
+        Actor const pose{(uint16_t)x, (uint16_t)y, walking ? walk_facing : SOUTH, (uint8_t)walking};
         avm_draw_plus_mask(x, y, actor_frame(pose, unit.sprite_row, screen.ticks));
         draw_pips(unit, x, y);
     }
@@ -194,22 +194,23 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit
     }
 }
 
-// Walks the walker one pixel per frame to its logical cell, as the player walks in exploration.
-// Facing follows each step, and the walking pose cycles while the unit moves. The logical state has
-// already changed, so only the drawn offset is left to walk.
-static void walk_unit(BattleScreen& screen, uint8_t unit) {
+// Walks the walker one pixel per frame to its logical cell, as the player walks in exploration. It
+// faces the way it steps, and the walking pose cycles while it moves. The logical state has already
+// changed, so only the drawn offset is left to walk.
+static void walk_unit(BattleScreen& screen) {
     while(screen.walk_dx != 0 || screen.walk_dy != 0) {
         // The offset moves toward zero, so the walker moves the opposite way.
+        DIRECTION facing;
         if(screen.walk_dx != 0) {
-            screen.facing[unit] = screen.walk_dx < 0 ? EAST : WEST;
+            facing = screen.walk_dx < 0 ? EAST : WEST;
             screen.walk_dx = (int8_t)(screen.walk_dx + (screen.walk_dx < 0 ? 1 : -1));
         } else {
-            screen.facing[unit] = screen.walk_dy < 0 ? SOUTH : NORTH;
+            facing = screen.walk_dy < 0 ? SOUTH : NORTH;
             screen.walk_dy = (int8_t)(screen.walk_dy + (screen.walk_dy < 0 ? 1 : -1));
         }
         ++screen.ticks;
         // The walker is drawn over the terrain with no highlight, so only the moving actor changes.
-        draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+        draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, facing);
         avm_display(false);
         input_wait_frame();
     }
@@ -230,7 +231,7 @@ static void act(BattleScreen& screen, BattleAction action) {
     }
     battle_apply(state, action);
     if(moving)
-        walk_unit(screen, action.unit_index);
+        walk_unit(screen);
 }
 
 static void draw_result(BATTLE_RESULT result) {
@@ -248,14 +249,14 @@ static void draw_result(BATTLE_RESULT result) {
 // between presses. D-pad moves the logical cursor, A selects a friendly unit or confirms a
 // destination, and B cancels the selection. Illegal confirmations do nothing and do not consume the
 // turn.
-static void party_turn(BattleScreen& screen) {
+RPG_NOINLINE static void party_turn(BattleScreen& screen) {
     BattleState& state = screen.state;
     Cursor& cursor = screen.cursor;
     uint8_t selected = BATTLE_NO_UNIT;
     // Presses made while the enemy acted do not count.
     input_sync();
     for(;;) {
-        draw_board(screen, selected, selected);
+        draw_board(screen, selected, selected, SOUTH);
         draw_cursor(cursor);
         avm_display(false);
         uint8_t pressed =
@@ -285,14 +286,14 @@ static void party_turn(BattleScreen& screen) {
 }
 
 // Shows the player's result, then the enemy's choice and its result. No input is read here.
-static void enemy_turn(BattleScreen& screen) {
-    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+RPG_NOINLINE static void enemy_turn(BattleScreen& screen) {
+    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, SOUTH);
     avm_display(false);
     pause(RESULT_FRAMES);
 
     BattleAction action = battle_enemy_action(screen.state);
     act(screen, action);
-    draw_board(screen, BATTLE_NO_UNIT, action.unit_index);
+    draw_board(screen, BATTLE_NO_UNIT, action.unit_index, SOUTH);
     avm_display(false);
     pause(RESULT_FRAMES);
 }
@@ -313,8 +314,6 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     uint8_t first = state.units[0].cell;
     screen.cursor =
         Cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
-    for(uint8_t i = 0; i < state.unit_count; ++i)
-        screen.facing[i] = state.units[i].team() == BATTLE_PARTY ? EAST : WEST;
     screen.walker = BATTLE_NO_UNIT;
 
     while(!state.ended) {
@@ -327,7 +326,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
             enemy_turn(screen);
     }
 
-    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, SOUTH);
     draw_result(state.result);
     avm_display(false);
     input_wait_press(BTN_A);
