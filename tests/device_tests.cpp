@@ -425,9 +425,10 @@ constexpr GroveAction GROVE_VICTORY_PLAN[] = {
     {{3, 2}, {4, 2}}, // Hero A defeats creature B.
 };
 
-// The enemy's turn shows two half-second results and a one-cell walk for each side that moves,
-// plus margin. A worst case is about 1.7 seconds, so 2.4 seconds leaves room.
-constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 38400000;
+// After each hero action the test advances past both sides' reactions. A hero attack flashes for
+// about a second, then the enemy pauses, lunges, flashes, and pauses again, about 146 frames in all.
+// 160 frames of 320,000 cycles each (3.2 seconds) leaves room.
+constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 51200000;
 
 // The cursor moves one tile per press, so moving it takes one press per tile.
 static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {

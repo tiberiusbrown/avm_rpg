@@ -1,6 +1,7 @@
 #include "battle.h"
 #include "battle_ai.h"
 #include "battle_cursor.h"
+#include "battle_motion.h"
 #include "tile_ids.h"
 #include "world_assets.h"
 #include <stdio.h>
@@ -376,6 +377,32 @@ static void cursor_easing() {
     CHECK(cursor_pixel(cursor_subpixel(5) + 7) == 5 && cursor_pixel(cursor_subpixel(5) + 8) == 6);
 }
 
+// The attacker lunges out in two steps, holds for a quarter second, and returns in two steps.
+static void lunge_timing() {
+    CHECK(battle_lunge_pixels(0) == 2 && battle_lunge_pixels(1) == BATTLE_LUNGE_PIXELS);
+    for(uint8_t frame = 2; frame < 14; ++frame)
+        CHECK(battle_lunge_pixels(frame) == BATTLE_LUNGE_PIXELS);
+    CHECK(battle_lunge_pixels(14) == 2 && battle_lunge_pixels(15) == 0);
+    CHECK(battle_lunge_pixels(16) == 0 && battle_lunge_pixels(255) == 0);
+}
+
+// A flash starts hidden, alternates every four frames, and ends visible after about a second.
+static void flash_timing() {
+    unsigned hidden = 0, changes = 0;
+    bool previous = battle_flash_hidden(0);
+    CHECK(previous);
+    for(uint8_t frame = 0; frame < BATTLE_FLASH_FRAMES; ++frame) {
+        bool now = battle_flash_hidden(frame);
+        hidden += now ? 1 : 0;
+        changes += now != previous ? 1 : 0;
+        previous = now;
+    }
+    // Six hidden phases of four frames, with a change at each phase boundary.
+    CHECK(hidden == 24);
+    CHECK(changes == 11);
+    CHECK(!battle_flash_hidden(BATTLE_FLASH_FRAMES - 1));
+}
+
 // A unit's team follows its sprite row: people rows are the party, and creature rows are the enemy.
 static void teams_from_sprite_rows() {
     BattleUnit unit{0, 5, 0};
@@ -402,6 +429,8 @@ int main() {
     enemy_choices();
     copies_are_independent();
     cursor_easing();
+    lunge_timing();
+    flash_timing();
     printf("PASS battle rules: %u checks\n", checks);
     return 0;
 }

@@ -111,6 +111,9 @@ overworld cache and from the current area.
 - Each activation is one move or one attack. A move walks the unit one cell at the
   exploration walking speed and pose. Each attack deals 2 HP. The unit that is attacked
   is removed when its HP reaches 0.
+- An attacker lunges four pixels toward its target, holds for about a quarter second, and
+  returns. Every unit that loses HP flashes on and off for about a second. The next turn
+  waits for the flashing to end, and a defeated unit flashes before it disappears.
 - Each side moves in turn, and the creatures choose greedily: kills first, then attacks,
   then steps toward the nearest hero.
 - From the 21st completed activation onward, the acting unit loses 1 HP after its action.

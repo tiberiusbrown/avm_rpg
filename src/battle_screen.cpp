@@ -1,6 +1,7 @@
 #include "battle.h"
 #include "battle_ai.h"
 #include "battle_cursor.h"
+#include "battle_motion.h"
 
 #include <avm.h>
 
@@ -28,6 +29,22 @@ static uint8_t step(uint8_t from, uint8_t d) {
     return cell;
 }
 
+// Unit steps for a lunge in direction d.
+static int8_t direction_dx(DIRECTION d) {
+    return (int8_t)(d == EAST ? 1 : d == WEST ? -1 : 0);
+}
+
+static int8_t direction_dy(DIRECTION d) {
+    return (int8_t)(d == SOUTH ? 1 : d == NORTH ? -1 : 0);
+}
+
+// The direction from a cell to one of its orthogonal neighbors.
+static DIRECTION direction_toward(uint8_t from, uint8_t to) {
+    if(battle_column(to) != battle_column(from))
+        return battle_column(to) > battle_column(from) ? EAST : WEST;
+    return battle_row(to) > battle_row(from) ? SOUTH : NORTH;
+}
+
 // The cursor is the 22x22 plus-mask sprite CURSOR_SPRITES, centered on the 16x16 cell. Its frames
 // carry the black borders, the dashed ring, and the black frame, and the cell's interior is
 // transparent. Frame n is dash phase n, so animating the cursor means cycling its frames.
@@ -49,12 +66,19 @@ struct Cursor {
 struct BattleScreen {
     BattleState state;
     Cursor cursor;
-    // The unit drawn walking, or BATTLE_NO_UNIT. Only one unit walks at a time.
-    uint8_t walker;
-    // The walker's drawn offset from its logical cell, in pixels. It starts at the old cell and
-    // shrinks to zero as the walk ends.
-    int8_t walk_dx, walk_dy;
-    // Walking pose clock. It wraps at 256, which keeps the pose cycle whole.
+    // The unit drawn at an offset from its cell: a walker, or an attacker lunging at its victim.
+    // BATTLE_NO_UNIT when none. Only one unit is offset at a time.
+    uint8_t mover;
+    // The mover's drawn offset from its logical cell, in pixels. A walker's offset shrinks to zero
+    // as it walks. A lunging attacker's offset follows battle_lunge_pixels.
+    int8_t mover_dx, mover_dy;
+    // Whether the mover draws its walking pose. An attacker stands still while it lunges.
+    bool walking;
+    // Bit i is set for each unit flashing after damage.
+    uint8_t flashing;
+    // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
+    // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
+    // 256, which keeps the pose cycle whole.
     uint8_t ticks;
 };
 
@@ -125,10 +149,12 @@ static DIRECTION pressed_direction(uint8_t pressed) {
 // cells come before the actors: `lit` is the selected or acting unit, and the selected unit's
 // attack targets are blacked out. Empty destinations get their marks in the same layer. Dashed
 // attack borders come last, over the actors. The cursor is drawn separately, after the board.
-// A walker is drawn even once defeated, so a unit that dies on its move is seen walking first. A
-// walker faces `walk_facing`, the way it is stepping. Every other actor stands facing south.
+// The mover is drawn even once defeated, so a unit that dies on its move is seen walking first. A
+// flashing unit is drawn only on the visible phases of its flash, and it too is drawn once
+// defeated. The mover faces `mover_facing`, the way it steps or the victim it lunges at. Every
+// other actor stands facing south.
 static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit,
-                       DIRECTION walk_facing) {
+                       DIRECTION mover_facing) {
     BattleState const& state = screen.state;
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
     // to enter or an enemy to attack. Both masks use bit positions rather than cells, which keeps
@@ -175,13 +201,17 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit
     avm_set_sprite(ACTOR_SPRITES);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        bool walking = i == screen.walker;
-        if(!unit.hp && !walking)
+        bool moving = i == screen.mover;
+        bool flashing = ((screen.flashing >> i) & 1) != 0;
+        if(!unit.hp && !moving && !flashing)
             continue;
-        // A walker is drawn at its cell plus the offset it still has to walk.
-        int16_t x = (int16_t)(cell_x(unit.cell) + (walking ? screen.walk_dx : 0));
-        int16_t y = (int16_t)(cell_y(unit.cell) + (walking ? screen.walk_dy : 0));
-        Actor const pose{(uint16_t)x, (uint16_t)y, walking ? walk_facing : SOUTH, (uint8_t)walking};
+        if(flashing && battle_flash_hidden(screen.ticks))
+            continue;
+        // The mover is drawn at its cell plus the offset it still has to cover.
+        int16_t x = (int16_t)(cell_x(unit.cell) + (moving ? screen.mover_dx : 0));
+        int16_t y = (int16_t)(cell_y(unit.cell) + (moving ? screen.mover_dy : 0));
+        Actor const pose{(uint16_t)x, (uint16_t)y, moving ? mover_facing : SOUTH,
+                         (uint8_t)(moving && screen.walking)};
         avm_draw_plus_mask(x, y, actor_frame(pose, unit.sprite_row, screen.ticks));
         draw_pips(unit, x, y);
     }
@@ -194,19 +224,20 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit
     }
 }
 
-// Walks the walker one pixel per frame to its logical cell, as the player walks in exploration. It
+// Walks the mover one pixel per frame to its logical cell, as the player walks in exploration. It
 // faces the way it steps, and the walking pose cycles while it moves. The logical state has already
-// changed, so only the drawn offset is left to walk.
-static void walk_unit(BattleScreen& screen) {
-    while(screen.walk_dx != 0 || screen.walk_dy != 0) {
+// changed, so only the drawn offset is left to walk. With no offset, it does nothing.
+static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen) {
+    screen.walking = true;
+    while(screen.mover_dx != 0 || screen.mover_dy != 0) {
         // The offset moves toward zero, so the walker moves the opposite way.
         DIRECTION facing;
-        if(screen.walk_dx != 0) {
-            facing = screen.walk_dx < 0 ? EAST : WEST;
-            screen.walk_dx = (int8_t)(screen.walk_dx + (screen.walk_dx < 0 ? 1 : -1));
+        if(screen.mover_dx != 0) {
+            facing = screen.mover_dx < 0 ? EAST : WEST;
+            screen.mover_dx = (int8_t)(screen.mover_dx + (screen.mover_dx < 0 ? 1 : -1));
         } else {
-            facing = screen.walk_dy < 0 ? SOUTH : NORTH;
-            screen.walk_dy = (int8_t)(screen.walk_dy + (screen.walk_dy < 0 ? 1 : -1));
+            facing = screen.mover_dy < 0 ? SOUTH : NORTH;
+            screen.mover_dy = (int8_t)(screen.mover_dy + (screen.mover_dy < 0 ? 1 : -1));
         }
         ++screen.ticks;
         // The walker is drawn over the terrain with no highlight, so only the moving actor changes.
@@ -214,24 +245,71 @@ static void walk_unit(BattleScreen& screen) {
         avm_display(false);
         input_wait_frame();
     }
-    screen.walker = BATTLE_NO_UNIT;
+    screen.mover = BATTLE_NO_UNIT;
+    screen.walking = false;
 }
 
-// Resolves a legal action. A move walks the unit from its old cell to its new one. An attack stays
-// in place.
-static void act(BattleScreen& screen, BattleAction action) {
+// Plays the flash of every flashing unit, and the lunge of `lunger` toward `toward` when it is not
+// BATTLE_NO_UNIT. The lunge moves out, holds, and returns, while the flashes run over the same
+// frames, so the next turn waits for the last flash.
+static inline __attribute__((always_inline)) void
+animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward) {
+    screen.mover = lunger;
+    screen.walking = false;
+    for(screen.ticks = 0; screen.ticks < BATTLE_FLASH_FRAMES; ++screen.ticks) {
+        uint8_t reach = lunger == BATTLE_NO_UNIT ? 0 : battle_lunge_pixels(screen.ticks);
+        screen.mover_dx = (int8_t)(direction_dx(toward) * reach);
+        screen.mover_dy = (int8_t)(direction_dy(toward) * reach);
+        // The attacker faces its victim while it is out of place, and stands south once it returns.
+        draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, reach ? toward : SOUTH);
+        avm_display(false);
+        input_wait_frame();
+    }
+    screen.mover = BATTLE_NO_UNIT;
+    screen.flashing = 0;
+    screen.mover_dx = 0;
+    screen.mover_dy = 0;
+}
+
+// Applies a legal action to the rules and records its motion on the screen. The actor becomes the
+// mover. A move sets up its walk from the old cell. Every unit the action damages is marked to
+// flash: an attack always damages its victim, and an actor can also lose HP to exhaustion. Returns
+// the direction of an attack's lunge, which means nothing for a move. Kept out of line so the rule
+// updates stay out of resolve's frame, which is live while the motion plays.
+RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action) {
     BattleState& state = screen.state;
-    BattleUnit const& actor = state.units[action.unit_index];
-    bool moving = battle_unit_at(state, action.destination) == BATTLE_NO_UNIT;
+    uint8_t actor = action.unit_index;
+    uint8_t victim = battle_unit_at(state, action.destination);
+    bool moving = victim == BATTLE_NO_UNIT;
+    uint8_t actor_hp = state.units[actor].hp;
+    DIRECTION toward = direction_toward(state.units[actor].cell, action.destination);
+    screen.mover = actor;
     if(moving) {
         // The walk starts at the old cell, which is offset from the new one by a single step.
-        screen.walker = action.unit_index;
-        screen.walk_dx = (int8_t)(cell_x(actor.cell) - cell_x(action.destination));
-        screen.walk_dy = (int8_t)(cell_y(actor.cell) - cell_y(action.destination));
+        screen.mover_dx = (int8_t)(cell_x(state.units[actor].cell) - cell_x(action.destination));
+        screen.mover_dy = (int8_t)(cell_y(state.units[actor].cell) - cell_y(action.destination));
     }
     battle_apply(state, action);
-    if(moving)
+
+    screen.flashing = 0;
+    if(!moving)
+        screen.flashing = (uint8_t)(screen.flashing | (1 << victim));
+    if(state.units[actor].hp < actor_hp)
+        screen.flashing = (uint8_t)(screen.flashing | (1 << actor));
+    return toward;
+}
+
+// Resolves a legal action and plays its motion. A move walks the unit to its new cell. An attack
+// lunges the attacker at its victim. Every unit the action damages flashes, and the caller waits
+// for the flashes to end.
+RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
+    DIRECTION toward = act(screen, action);
+    // Only a move leaves an offset to walk, and a walk clears the mover. An attack leaves the
+    // attacker as the mover, which lunges toward its victim.
+    if(screen.mover_dx != 0 || screen.mover_dy != 0)
         walk_unit(screen);
+    if(screen.flashing)
+        animate_reaction(screen, screen.mover, toward);
 }
 
 static void draw_result(BATTLE_RESULT result) {
@@ -248,8 +326,8 @@ static void draw_result(BATTLE_RESULT result) {
 // Runs the party's turn one frame at a time, so the cursor keeps easing and its dashes keep moving
 // between presses. D-pad moves the logical cursor, A selects a friendly unit or confirms a
 // destination, and B cancels the selection. Illegal confirmations do nothing and do not consume the
-// turn.
-RPG_NOINLINE static void party_turn(BattleScreen& screen) {
+// turn. Returns the legal action the player confirms.
+RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
     BattleState& state = screen.state;
     Cursor& cursor = screen.cursor;
     uint8_t selected = BATTLE_NO_UNIT;
@@ -275,25 +353,25 @@ RPG_NOINLINE static void party_turn(BattleScreen& screen) {
                     selected = unit;
             } else {
                 BattleAction action{selected, cursor.cell};
-                if(battle_legal(state, action)) {
-                    act(screen, action);
-                    return;
-                }
+                if(battle_legal(state, action))
+                    return action;
             }
         }
         animate_cursor(cursor);
     }
 }
 
-// Shows the player's result, then the enemy's choice and its result. No input is read here.
-RPG_NOINLINE static void enemy_turn(BattleScreen& screen) {
+// Shows the player's result, then chooses the enemy's action. No input is read here.
+RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
     draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, SOUTH);
     avm_display(false);
     pause(RESULT_FRAMES);
+    return battle_enemy_action(screen.state);
+}
 
-    BattleAction action = battle_enemy_action(screen.state);
-    act(screen, action);
-    draw_board(screen, BATTLE_NO_UNIT, action.unit_index, SOUTH);
+// Shows the enemy's unit that has just acted, with its result.
+RPG_NOINLINE static void enemy_result(BattleScreen const& screen, uint8_t unit) {
+    draw_board(screen, BATTLE_NO_UNIT, unit, SOUTH);
     avm_display(false);
     pause(RESULT_FRAMES);
 }
@@ -314,16 +392,19 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     uint8_t first = state.units[0].cell;
     screen.cursor =
         Cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
-    screen.walker = BATTLE_NO_UNIT;
+    screen.mover = BATTLE_NO_UNIT;
 
     while(!state.ended) {
         battle_settle(state);
         if(state.ended)
             break;
-        if(state.turn == BATTLE_PARTY)
-            party_turn(screen);
-        else
-            enemy_turn(screen);
+        if(state.turn == BATTLE_PARTY) {
+            resolve(screen, party_turn(screen));
+        } else {
+            BattleAction action = enemy_turn(screen);
+            resolve(screen, action);
+            enemy_result(screen, action.unit_index);
+        }
     }
 
     draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, SOUTH);
