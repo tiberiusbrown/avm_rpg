@@ -57,8 +57,8 @@ void save_encode(uint8_t out[SAVE_BYTES]) {
     put16(out + SAVE_CRC_OFFSET, save_checksum(out));
 }
 
-// Kept out of line: inlined into game_load with world_enter, this function made the AVM
-// register allocator run out of registers.
+// Kept out of line so its locals stay out of the caller's frame. The caller's frame is still
+// live when it enters the restored world, so inlining would put these locals on that path.
 RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     if(length < 4 || in[0] != 'R' || in[1] != 'P')
         return false;
@@ -96,8 +96,11 @@ RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     if(!dimensions.pixel_bounds(x, y))
         return false;
 
-    // Nothing mutates until every field is valid. No struct bytes are saved.
+    // Nothing mutates until every field is valid. No struct bytes are saved. The caller enters
+    // the restored world, which repairs the saved position against the loaded cache.
     memset(&game, 0, sizeof(game));
+    game.area = in[4];
+    game.player = {x, y, (DIRECTION)in[5], 0};
     game.hp = in[10];
     game.max_hp = in[11];
     game.level = in[12];
@@ -106,6 +109,5 @@ RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     game.rng = rng;
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
         game.npcs.residence[id] = residence[id];
-    world_enter(in[4], x, y, (DIRECTION)in[5]);
     return true;
 }

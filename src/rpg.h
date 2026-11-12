@@ -185,6 +185,8 @@ bool dialogue_show(char const PROGMEM* words);
 // Wrap/page the question, then return A = yes or B = no.
 bool dialogue_ask(char const PROGMEM* question);
 void save_encode(uint8_t out[SAVE_BYTES]);
+// Restores a valid record into game without entering its world. A caller that resumes play must
+// then call world_enter(game.area, game.player.x, game.player.y, game.player.facing).
 bool save_decode(uint8_t const* in, uint16_t length = SAVE_BYTES);
 uint16_t save_checksum(uint8_t const* in, uint16_t length = SAVE_CRC_OFFSET);
 void rpg_render_world();

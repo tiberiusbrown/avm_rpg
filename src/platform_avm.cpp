@@ -38,7 +38,10 @@ extern "C" __attribute__((noinline)) void rpg_render_end() {
 #endif
 
 bool game_load() {
-    return avm_load() && save_decode(saved_record);
+    if(!avm_load() || !save_decode(saved_record))
+        return false;
+    world_enter(game.area, game.player.x, game.player.y, game.player.facing);
+    return true;
 }
 
 bool game_save() {
