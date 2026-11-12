@@ -27,23 +27,49 @@ struct Battlefield {
     uint8_t const PROGMEM* tiles; // BATTLE_CELLS row-major tile IDs.
 };
 
-// Position, health, team, and the actor sheet row used to draw the unit.
+// Cells are row-major, so one index gives both the column and the row.
+constexpr uint8_t battle_column(uint8_t cell) {
+    return cell % BATTLE_COLUMNS;
+}
+
+constexpr uint8_t battle_row(uint8_t cell) {
+    return cell / BATTLE_COLUMNS;
+}
+
+constexpr uint8_t battle_cell(uint8_t column, uint8_t row) {
+    return (uint8_t)(row * BATTLE_COLUMNS + column);
+}
+
+// Battlefields that encounters can name. Encounters and battles refer to one by its index.
+enum BATTLEFIELD_ID : uint8_t { BATTLEFIELD_GROVE, BATTLEFIELD_COUNT };
+
+extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
+
+// The actor atlas holds 16 people rows, and creatures follow them from this row on.
+inline constexpr uint8_t BATTLE_FIRST_CREATURE_ROW = 16;
+
+// The board cell, health, and the actor sheet row used to draw the unit. The sprite row also says
+// which team the unit is on.
 struct BattleUnit {
-    uint8_t x, y, hp;
-    BATTLE_TEAM team;
+    uint8_t cell, hp;
     uint8_t sprite_row;
+
+    // People rows are the party, and creature rows are the enemy.
+    BATTLE_TEAM team() const {
+        return sprite_row < BATTLE_FIRST_CREATURE_ROW ? BATTLE_PARTY : BATTLE_ENEMY;
+    }
 };
 
 // A fixed starting arrangement. Story code names one of these and passes it to battle_show.
 struct BattleEncounter {
-    Battlefield field;
+    uint8_t field; // BATTLEFIELD_ID
     uint8_t unit_count;
     BattleUnit units[BATTLE_UNIT_CAPACITY];
 };
 
 // Live combat state. It is plain data and copies cheaply, so a search can branch from it.
 struct BattleState {
-    Battlefield const PROGMEM* field;
+    uint8_t field; // BATTLEFIELD_ID
     BattleUnit units[BATTLE_UNIT_CAPACITY];
     uint8_t unit_count;
     BATTLE_TEAM turn;

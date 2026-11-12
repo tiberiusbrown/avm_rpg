@@ -9,9 +9,9 @@ static int16_t distance_to_party(BattleState const& state, uint8_t cell) {
     int16_t nearest = 255;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(!unit.hp || unit.team != BATTLE_PARTY)
+        if(!unit.hp || unit.team() != BATTLE_PARTY)
             continue;
-        int16_t dx = x - unit.x, dy = y - unit.y;
+        int16_t dx = x - battle_column(unit.cell), dy = y - battle_row(unit.cell);
         if(dx < 0)
             dx = -dx;
         if(dy < 0)
@@ -34,9 +34,9 @@ BattleAction battle_enemy_action(BattleState const& state) {
     int16_t best_score = -1;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(!unit.hp || unit.team != BATTLE_ENEMY)
+        if(!unit.hp || unit.team() != BATTLE_ENEMY)
             continue;
-        uint8_t cell = (uint8_t)(unit.y * BATTLE_COLUMNS + unit.x);
+        uint8_t cell = unit.cell;
         for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
             uint8_t neighbor = 0;
             if(!battle_neighbor(cell, dir, neighbor))

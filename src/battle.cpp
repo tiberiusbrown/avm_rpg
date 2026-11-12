@@ -12,26 +12,29 @@ constexpr uint8_t PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS] = {
     TILE_FLOWERS_27, TILE_GRASS_06,
 };
 
+// The grove clearing, in the world tileset.
+constexpr Battlefield PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT] = {
+    {TILESET_WORLD, BATTLE_GROVE_TILES},
+};
+
 // Sprite rows: heroes use rows 0 and 1, and the two creatures use rows 16 and 20.
 constexpr BattleEncounter PROGMEM BATTLE_GROVE{
-    {TILESET_WORLD, BATTLE_GROVE_TILES},
+    BATTLEFIELD_GROVE,
     4,
     {
-        {2, 1, 5, BATTLE_PARTY, 0},
-        {2, 2, 5, BATTLE_PARTY, 1},
-        {5, 1, 4, BATTLE_ENEMY, 16},
-        {5, 2, 4, BATTLE_ENEMY, 20},
+        {battle_cell(2, 1), 5, 0},
+        {battle_cell(2, 2), 5, 1},
+        {battle_cell(5, 1), 4, 16},
+        {battle_cell(5, 2), 4, 20},
     },
 };
 
 void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) {
-    state.field = &encounter->field;
+    state.field = encounter->field;
     state.unit_count = encounter->unit_count;
     for(uint8_t i = 0; i < BATTLE_UNIT_CAPACITY; ++i) {
-        state.units[i].x = encounter->units[i].x;
-        state.units[i].y = encounter->units[i].y;
+        state.units[i].cell = encounter->units[i].cell;
         state.units[i].hp = encounter->units[i].hp;
-        state.units[i].team = encounter->units[i].team;
         state.units[i].sprite_row = encounter->units[i].sprite_row;
     }
     state.turn = BATTLE_PARTY;
@@ -43,7 +46,7 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) 
 uint8_t battle_unit_at(BattleState const& state, uint8_t cell) {
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(unit.hp && unit.y * BATTLE_COLUMNS + unit.x == cell)
+        if(unit.hp && unit.cell == cell)
             return i;
     }
     return BATTLE_NO_UNIT;
@@ -81,12 +84,12 @@ bool battle_legal(BattleState const& state, BattleAction action) {
     if(state.ended || action.unit_index >= state.unit_count || action.destination >= BATTLE_CELLS)
         return false;
     BattleUnit const& actor = state.units[action.unit_index];
-    if(!actor.hp || actor.team != state.turn)
+    if(!actor.hp || actor.team() != state.turn)
         return false;
 
     // Compare coordinates rather than cells, so a row wrap cannot look adjacent.
-    int dx = (int)(action.destination % BATTLE_COLUMNS) - actor.x;
-    int dy = (int)(action.destination / BATTLE_COLUMNS) - actor.y;
+    int dx = (int)battle_column(action.destination) - battle_column(actor.cell);
+    int dy = (int)battle_row(action.destination) - battle_row(actor.cell);
     if(dx < 0)
         dx = -dx;
     if(dy < 0)
@@ -95,15 +98,15 @@ bool battle_legal(BattleState const& state, BattleAction action) {
         return false;
 
     uint8_t occupant = battle_unit_at(state, action.destination);
-    return occupant == BATTLE_NO_UNIT || state.units[occupant].team != actor.team;
+    return occupant == BATTLE_NO_UNIT || state.units[occupant].team() != actor.team();
 }
 
 bool battle_can_act(BattleState const& state) {
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(!unit.hp || unit.team != state.turn)
+        if(!unit.hp || unit.team() != state.turn)
             continue;
-        uint8_t cell = (uint8_t)(unit.y * BATTLE_COLUMNS + unit.x);
+        uint8_t cell = unit.cell;
         for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
             uint8_t neighbor = 0;
             if(battle_neighbor(cell, dir, neighbor) && battle_legal(state, {i, neighbor}))
@@ -116,7 +119,7 @@ bool battle_can_act(BattleState const& state) {
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team) {
     uint8_t count = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i)
-        if(state.units[i].hp && state.units[i].team == team)
+        if(state.units[i].hp && state.units[i].team() == team)
             ++count;
     return count;
 }
@@ -148,8 +151,7 @@ void battle_apply(BattleState& state, BattleAction action) {
     BattleUnit& actor = state.units[action.unit_index];
     uint8_t occupant = battle_unit_at(state, action.destination);
     if(occupant == BATTLE_NO_UNIT) {
-        actor.x = (uint8_t)(action.destination % BATTLE_COLUMNS);
-        actor.y = (uint8_t)(action.destination / BATTLE_COLUMNS);
+        actor.cell = action.destination;
     } else {
         BattleUnit& target = state.units[occupant];
         target.hp =
@@ -172,7 +174,7 @@ void battle_pass(BattleState& state) {
         // The first living unit on the side pays, so the choice is deterministic.
         for(uint8_t i = 0; i < state.unit_count; ++i) {
             BattleUnit& unit = state.units[i];
-            if(unit.hp && unit.team == state.turn) {
+            if(unit.hp && unit.team() == state.turn) {
                 battle_exhaust(unit);
                 break;
             }

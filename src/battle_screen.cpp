@@ -7,10 +7,6 @@
 static constexpr uint16_t DISPLAY_WIDTH = 128;
 // Frames at 50 Hz. Each side's result stays on screen for this long.
 static constexpr uint8_t RESULT_FRAMES = 25;
-// Each unit is drawn at its own pixel position. The position trails the unit's logical cell while
-// the unit walks, and the walking pose advances with battle_ticks, as it does in exploration.
-static Actor poses[BATTLE_UNIT_CAPACITY];
-static uint16_t battle_ticks;
 
 static void pause(uint8_t frames) {
     while(frames--)
@@ -46,6 +42,22 @@ struct Cursor {
     int16_t x, y;
     uint8_t phase;
     uint8_t frames;
+};
+
+// Everything one battle's screen needs. battle_show allocates it on its own frame and passes it to
+// each helper, so no battle data is static.
+struct BattleScreen {
+    BattleState state;
+    Cursor cursor;
+    // Facing persists across actions, as it does in exploration.
+    DIRECTION facing[BATTLE_UNIT_CAPACITY];
+    // The unit drawn walking, or BATTLE_NO_UNIT. Only one unit walks at a time.
+    uint8_t walker;
+    // The walker's drawn offset from its logical cell, in pixels. It starts at the old cell and
+    // shrinks to zero as the walk ends.
+    int8_t walk_dx, walk_dy;
+    // Walking pose clock. It wraps at 256, which keeps the pose cycle whole.
+    uint8_t ticks;
 };
 
 // The sprite is drawn at the cell's origin minus the margin, so its interior lands on the cell.
@@ -115,15 +127,16 @@ static DIRECTION pressed_direction(uint8_t pressed) {
 // cells come before the actors: `lit` is the selected or acting unit, and the selected unit's
 // attack targets are blacked out. Empty destinations get their marks in the same layer. Dashed
 // attack borders come last, over the actors. The cursor is drawn separately, after the board.
-// `walker` is drawn even once defeated, so a unit that dies on its move is seen walking first.
-static void draw_board(BattleState const& state, uint8_t selected, uint8_t lit, uint8_t walker) {
+// A walker is drawn even once defeated, so a unit that dies on its move is seen walking first.
+static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit) {
+    BattleState const& state = screen.state;
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
     // to enter or an enemy to attack. Both masks use bit positions rather than cells, which keeps
     // the frame small on the guest stack.
     uint8_t moves = 0, attacks = 0, from = 0;
     if(selected != BATTLE_NO_UNIT) {
         BattleUnit const& unit = state.units[selected];
-        from = (uint8_t)(unit.y * BATTLE_COLUMNS + unit.x);
+        from = unit.cell;
         for(uint8_t d = 0; d < 4; ++d) {
             uint8_t cell = 0;
             if(!battle_neighbor(from, (DIRECTION)d, cell) ||
@@ -137,16 +150,17 @@ static void draw_board(BattleState const& state, uint8_t selected, uint8_t lit, 
         }
     }
 
-    avm_set_sprite(tileset_sprites(state.field->tileset));
+    avm_set_sprite(tileset_sprites(BATTLEFIELDS[state.field].tileset));
     for(uint8_t row = 0; row < BATTLE_ROWS; ++row) {
         for(uint8_t column = 0; column < BATTLE_COLUMNS; ++column) {
             uint8_t cell = (uint8_t)(row * BATTLE_COLUMNS + column);
-            avm_draw_overwrite(cell_x(cell), cell_y(cell), state.field->tiles[cell]);
+            avm_draw_overwrite(cell_x(cell), cell_y(cell), BATTLEFIELDS[state.field].tiles[cell]);
         }
     }
 
     if(lit != BATTLE_NO_UNIT && state.units[lit].hp)
-        avm_draw_filled_rect_black((int16_t)poses[lit].x, (int16_t)poses[lit].y, TILE, TILE);
+        avm_draw_filled_rect_black(cell_x(state.units[lit].cell), cell_y(state.units[lit].cell),
+                                   TILE, TILE);
     for(uint8_t d = 0; d < 4; ++d) {
         uint8_t bit = (uint8_t)(1 << d);
         if(!((moves | attacks) & bit))
@@ -161,11 +175,14 @@ static void draw_board(BattleState const& state, uint8_t selected, uint8_t lit, 
     avm_set_sprite(ACTOR_SPRITES);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(!unit.hp && i != walker)
+        bool walking = i == screen.walker;
+        if(!unit.hp && !walking)
             continue;
-        Actor const& pose = poses[i];
-        int16_t x = (int16_t)pose.x, y = (int16_t)pose.y;
-        avm_draw_plus_mask(x, y, actor_frame(pose, unit.sprite_row, battle_ticks));
+        // A walker is drawn at its cell plus the offset it still has to walk.
+        int16_t x = (int16_t)(cell_x(unit.cell) + (walking ? screen.walk_dx : 0));
+        int16_t y = (int16_t)(cell_y(unit.cell) + (walking ? screen.walk_dy : 0));
+        Actor const pose{(uint16_t)x, (uint16_t)y, screen.facing[i], (uint8_t)walking};
+        avm_draw_plus_mask(x, y, actor_frame(pose, unit.sprite_row, screen.ticks));
         draw_pips(unit, x, y);
     }
 
@@ -177,43 +194,43 @@ static void draw_board(BattleState const& state, uint8_t selected, uint8_t lit, 
     }
 }
 
-// Walks the unit's pose one pixel per frame to its logical cell, as the player walks in
-// exploration. Facing follows each step, and the walking pose cycles while the unit moves. The
-// logical state has already changed, so the pose only catches up to it.
-static void walk_unit(BattleState const& state, uint8_t unit) {
-    BattleUnit const& logical = state.units[unit];
-    Actor& pose = poses[unit];
-    int16_t target_x = (int16_t)(logical.x * TILE), target_y = (int16_t)(logical.y * TILE);
-    pose.walking = 1;
-    while((int16_t)pose.x != target_x || (int16_t)pose.y != target_y) {
-        if((int16_t)pose.x < target_x) {
-            ++pose.x;
-            pose.facing = EAST;
-        } else if((int16_t)pose.x > target_x) {
-            --pose.x;
-            pose.facing = WEST;
-        } else if((int16_t)pose.y < target_y) {
-            ++pose.y;
-            pose.facing = SOUTH;
+// Walks the walker one pixel per frame to its logical cell, as the player walks in exploration.
+// Facing follows each step, and the walking pose cycles while the unit moves. The logical state has
+// already changed, so only the drawn offset is left to walk.
+static void walk_unit(BattleScreen& screen, uint8_t unit) {
+    while(screen.walk_dx != 0 || screen.walk_dy != 0) {
+        // The offset moves toward zero, so the walker moves the opposite way.
+        if(screen.walk_dx != 0) {
+            screen.facing[unit] = screen.walk_dx < 0 ? EAST : WEST;
+            screen.walk_dx = (int8_t)(screen.walk_dx + (screen.walk_dx < 0 ? 1 : -1));
         } else {
-            --pose.y;
-            pose.facing = NORTH;
+            screen.facing[unit] = screen.walk_dy < 0 ? SOUTH : NORTH;
+            screen.walk_dy = (int8_t)(screen.walk_dy + (screen.walk_dy < 0 ? 1 : -1));
         }
-        ++battle_ticks;
+        ++screen.ticks;
         // The walker is drawn over the terrain with no highlight, so only the moving actor changes.
-        draw_board(state, BATTLE_NO_UNIT, BATTLE_NO_UNIT, unit);
+        draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
         avm_display(false);
         input_wait_frame();
     }
-    pose.walking = 0;
+    screen.walker = BATTLE_NO_UNIT;
 }
 
-// Resolves a legal action. A move walks the unit's pose to its new cell. An attack stays in place.
-static void act(BattleState& state, BattleAction action) {
+// Resolves a legal action. A move walks the unit from its old cell to its new one. An attack stays
+// in place.
+static void act(BattleScreen& screen, BattleAction action) {
+    BattleState& state = screen.state;
+    BattleUnit const& actor = state.units[action.unit_index];
     bool moving = battle_unit_at(state, action.destination) == BATTLE_NO_UNIT;
+    if(moving) {
+        // The walk starts at the old cell, which is offset from the new one by a single step.
+        screen.walker = action.unit_index;
+        screen.walk_dx = (int8_t)(cell_x(actor.cell) - cell_x(action.destination));
+        screen.walk_dy = (int8_t)(cell_y(actor.cell) - cell_y(action.destination));
+    }
     battle_apply(state, action);
     if(moving)
-        walk_unit(state, action.unit_index);
+        walk_unit(screen, action.unit_index);
 }
 
 static void draw_result(BATTLE_RESULT result) {
@@ -231,12 +248,14 @@ static void draw_result(BATTLE_RESULT result) {
 // between presses. D-pad moves the logical cursor, A selects a friendly unit or confirms a
 // destination, and B cancels the selection. Illegal confirmations do nothing and do not consume the
 // turn.
-static void party_turn(BattleState& state, Cursor& cursor) {
+static void party_turn(BattleScreen& screen) {
+    BattleState& state = screen.state;
+    Cursor& cursor = screen.cursor;
     uint8_t selected = BATTLE_NO_UNIT;
     // Presses made while the enemy acted do not count.
     input_sync();
     for(;;) {
-        draw_board(state, selected, selected, BATTLE_NO_UNIT);
+        draw_board(screen, selected, selected);
         draw_cursor(cursor);
         avm_display(false);
         uint8_t pressed =
@@ -251,12 +270,12 @@ static void party_turn(BattleState& state, Cursor& cursor) {
         if(pressed & BTN_A) {
             if(selected == BATTLE_NO_UNIT) {
                 uint8_t unit = battle_unit_at(state, cursor.cell);
-                if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY)
+                if(unit != BATTLE_NO_UNIT && state.units[unit].team() == BATTLE_PARTY)
                     selected = unit;
             } else {
                 BattleAction action{selected, cursor.cell};
                 if(battle_legal(state, action)) {
-                    act(state, action);
+                    act(screen, action);
                     return;
                 }
             }
@@ -266,22 +285,22 @@ static void party_turn(BattleState& state, Cursor& cursor) {
 }
 
 // Shows the player's result, then the enemy's choice and its result. No input is read here.
-static void enemy_turn(BattleState& state) {
-    draw_board(state, BATTLE_NO_UNIT, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+static void enemy_turn(BattleScreen& screen) {
+    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
     avm_display(false);
     pause(RESULT_FRAMES);
 
-    BattleAction action = battle_enemy_action(state);
-    act(state, action);
-    draw_board(state, BATTLE_NO_UNIT, action.unit_index, BATTLE_NO_UNIT);
+    BattleAction action = battle_enemy_action(screen.state);
+    act(screen, action);
+    draw_board(screen, BATTLE_NO_UNIT, action.unit_index);
     avm_display(false);
     pause(RESULT_FRAMES);
 }
 
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
-    // Battles never nest, so the state lives in static storage. That keeps its bytes off the
-    // 256-byte guest stack, which the dialogue chain already uses. battle_begin resets every field.
-    static BattleState state;
+    // Everything this battle needs lives in one local, and each helper receives it.
+    BattleScreen screen{};
+    BattleState& state = screen.state;
     battle_begin(state, encounter);
     // The platform sets these at startup, and dialogue sets them to the same values.
     avm_set_text_font(AVM_FONT_BR5D);
@@ -291,25 +310,24 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
 
     // The cursor starts on the first hero, already settled there, so the battle does not open with
     // a sweep across the board.
-    uint8_t first = (uint8_t)(state.units[0].y * BATTLE_COLUMNS + state.units[0].x);
-    Cursor cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
-    for(uint8_t i = 0; i < state.unit_count; ++i) {
-        BattleUnit const& unit = state.units[i];
-        poses[i] = Actor{(uint16_t)(unit.x * TILE), (uint16_t)(unit.y * TILE),
-                         unit.team == BATTLE_PARTY ? EAST : WEST, 0};
-    }
-    battle_ticks = 0;
+    uint8_t first = state.units[0].cell;
+    screen.cursor =
+        Cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
+    for(uint8_t i = 0; i < state.unit_count; ++i)
+        screen.facing[i] = state.units[i].team() == BATTLE_PARTY ? EAST : WEST;
+    screen.walker = BATTLE_NO_UNIT;
+
     while(!state.ended) {
         battle_settle(state);
         if(state.ended)
             break;
         if(state.turn == BATTLE_PARTY)
-            party_turn(state, cursor);
+            party_turn(screen);
         else
-            enemy_turn(state);
+            enemy_turn(screen);
     }
 
-    draw_board(state, BATTLE_NO_UNIT, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
     draw_result(state.result);
     avm_display(false);
     input_wait_press(BTN_A);

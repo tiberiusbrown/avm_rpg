@@ -31,13 +31,13 @@ static BattleState fresh() {
 
 // Moves a unit directly, so a test can build the position it needs.
 static void place(BattleState& state, uint8_t unit, unsigned x, unsigned y) {
-    state.units[unit].x = (uint8_t)x;
-    state.units[unit].y = (uint8_t)y;
+    state.units[unit].cell = cell(x, y);
 }
 
 static void initial_layout() {
     BattleState s = fresh();
-    CHECK(s.field == &BATTLE_GROVE.field && s.unit_count == 4);
+    CHECK(s.field == BATTLEFIELD_GROVE && BATTLE_GROVE.field == BATTLEFIELD_GROVE);
+    CHECK(s.unit_count == 4);
     CHECK(s.turn == BATTLE_PARTY && !s.ended && s.activations == 0);
 
     struct Expected {
@@ -51,17 +51,18 @@ static void initial_layout() {
     };
 
     for(uint8_t i = 0; i < 4; ++i) {
-        CHECK(s.units[i].x == expected[i].x && s.units[i].y == expected[i].y);
-        CHECK(s.units[i].hp == expected[i].hp && s.units[i].team == expected[i].team);
+        CHECK(battle_column(s.units[i].cell) == expected[i].x &&
+              battle_row(s.units[i].cell) == expected[i].y);
+        CHECK(s.units[i].hp == expected[i].hp && s.units[i].team() == expected[i].team);
     }
     CHECK(s.units[HERO_A].sprite_row == 0 && s.units[HERO_B].sprite_row == 1);
     CHECK(s.units[FOE_A].sprite_row == 16 && s.units[FOE_B].sprite_row == 20);
 
     // Placement never overlaps, and each living unit is found on its own cell.
     for(uint8_t i = 0; i < 4; ++i) {
-        CHECK(battle_unit_at(s, cell(s.units[i].x, s.units[i].y)) == i);
+        CHECK(battle_unit_at(s, s.units[i].cell) == i);
         for(uint8_t j = (uint8_t)(i + 1); j < 4; ++j)
-            CHECK(cell(s.units[i].x, s.units[i].y) != cell(s.units[j].x, s.units[j].y));
+            CHECK(s.units[i].cell != s.units[j].cell);
     }
     CHECK(battle_unit_at(s, cell(0, 0)) == BATTLE_NO_UNIT);
     CHECK(battle_living(s, BATTLE_PARTY) == 2 && battle_living(s, BATTLE_ENEMY) == 2);
@@ -89,17 +90,19 @@ static void battlefield_data() {
         TILE_FLOWERS_27, TILE_GRASS_06,
     };
     BattleState s = fresh();
-    CHECK(BATTLE_GROVE.field.tileset == TILESET_WORLD && s.field->tileset == TILESET_WORLD);
-    CHECK(s.field->tiles == BATTLE_GROVE_TILES);
+    CHECK(s.field < BATTLEFIELD_COUNT);
+    Battlefield const& field = BATTLEFIELDS[s.field];
+    CHECK(field.tileset == TILESET_WORLD &&
+          BATTLEFIELDS[BATTLE_GROVE.field].tileset == TILESET_WORLD);
+    CHECK(field.tiles == BATTLE_GROVE_TILES);
     for(uint8_t i = 0; i < BATTLE_CELLS; ++i) {
-        uint8_t tile = s.field->tiles[i];
+        uint8_t tile = field.tiles[i];
         CHECK(tile == expected[i]);
         CHECK(tile < TILE_COUNT);
         // Every terrain tile is in the world tileset and has no collision.
         CHECK(TILE_COLLISION[(uint16_t)((uint16_t)TILESET_WORLD << 8 | tile)] == 0);
     }
-    CHECK(s.field->tiles[cell(3, 0)] == TILE_FLOWERS_26 &&
-          s.field->tiles[cell(5, 1)] == TILE_FLOWERS_27);
+    CHECK(field.tiles[cell(3, 0)] == TILE_FLOWERS_26 && field.tiles[cell(5, 1)] == TILE_FLOWERS_27);
 }
 
 static void board_edges() {
@@ -152,7 +155,7 @@ static void move_and_attack() {
     // A move into an empty cell.
     BattleState m = fresh();
     battle_apply(m, {HERO_A, cell(3, 1)});
-    CHECK(m.units[HERO_A].x == 3 && m.units[HERO_A].y == 1 && m.units[HERO_A].hp == 5);
+    CHECK(m.units[HERO_A].cell == cell(3, 1) && m.units[HERO_A].hp == 5);
     CHECK(m.turn == BATTLE_ENEMY && m.activations == 1 && !m.ended);
 
     // An attack on an adjacent creature deals two damage, and the attacker stays where it is.
@@ -160,8 +163,8 @@ static void move_and_attack() {
     place(a, HERO_A, 4, 1);
     CHECK(battle_legal(a, {HERO_A, cell(5, 1)}));
     battle_apply(a, {HERO_A, cell(5, 1)});
-    CHECK(a.units[FOE_A].hp == 2 && a.units[FOE_A].x == 5 && a.units[FOE_A].y == 1);
-    CHECK(a.units[HERO_A].x == 4 && a.units[HERO_A].y == 1 && a.units[HERO_A].hp == 5);
+    CHECK(a.units[FOE_A].hp == 2 && a.units[FOE_A].cell == cell(5, 1));
+    CHECK(a.units[HERO_A].cell == cell(4, 1) && a.units[HERO_A].hp == 5);
     CHECK(a.turn == BATTLE_ENEMY && a.activations == 1);
 
     // A creature on the next attack is removed from the board. The attacker does not move in.
@@ -171,7 +174,7 @@ static void move_and_attack() {
     battle_apply(a, {HERO_A, cell(5, 1)});
     CHECK(a.units[FOE_A].hp == 0);
     CHECK(battle_unit_at(a, cell(5, 1)) == BATTLE_NO_UNIT);
-    CHECK(a.units[HERO_A].x == 4 && a.units[HERO_A].y == 1);
+    CHECK(a.units[HERO_A].cell == cell(4, 1));
     CHECK(battle_living(a, BATTLE_ENEMY) == 1 && !a.ended);
 
     // The vacated cell is an ordinary empty destination again.
@@ -199,7 +202,7 @@ static void alternation() {
     // The same hero acts again on consecutive party turns.
     CHECK(battle_legal(s, {HERO_A, cell(2, 1)}));
     battle_apply(s, {HERO_A, cell(2, 1)});
-    CHECK(s.units[HERO_A].x == 2 && s.units[HERO_A].y == 1 && s.turn == BATTLE_ENEMY);
+    CHECK(s.units[HERO_A].cell == cell(2, 1) && s.turn == BATTLE_ENEMY);
     CHECK(s.activations == 3);
 }
 
@@ -324,16 +327,16 @@ static void enemy_choices() {
     // The choice does not depend on the state's history beyond its position.
     BattleState copy = approach;
     battle_apply(copy, step);
-    CHECK(approach.units[FOE_A].x == 5 && approach.activations == 0);
-    CHECK(copy.units[FOE_A].x == 4 && copy.activations == 1);
+    CHECK(approach.units[FOE_A].cell == cell(5, 1) && approach.activations == 0);
+    CHECK(copy.units[FOE_A].cell == cell(4, 1) && copy.activations == 1);
 }
 
 static void copies_are_independent() {
     BattleState original = fresh();
     BattleState copy = original;
     battle_apply(copy, {HERO_A, cell(3, 1)});
-    CHECK(original.units[HERO_A].x == 2 && original.turn == BATTLE_PARTY);
-    CHECK(copy.units[HERO_A].x == 3 && copy.turn == BATTLE_ENEMY);
+    CHECK(original.units[HERO_A].cell == cell(2, 1) && original.turn == BATTLE_PARTY);
+    CHECK(copy.units[HERO_A].cell == cell(3, 1) && copy.turn == BATTLE_ENEMY);
 }
 
 // Eases one coordinate from `start` to `target`. Every frame must move, the position must never
@@ -373,8 +376,21 @@ static void cursor_easing() {
     CHECK(cursor_pixel(cursor_subpixel(5) + 7) == 5 && cursor_pixel(cursor_subpixel(5) + 8) == 6);
 }
 
+// A unit's team follows its sprite row: people rows are the party, and creature rows are the enemy.
+static void teams_from_sprite_rows() {
+    BattleUnit unit{0, 5, 0};
+    CHECK(unit.team() == BATTLE_PARTY);
+    unit.sprite_row = BATTLE_FIRST_CREATURE_ROW - 1;
+    CHECK(unit.team() == BATTLE_PARTY);
+    unit.sprite_row = BATTLE_FIRST_CREATURE_ROW;
+    CHECK(unit.team() == BATTLE_ENEMY);
+    unit.sprite_row = 31;
+    CHECK(unit.team() == BATTLE_ENEMY);
+}
+
 int main() {
     initial_layout();
+    teams_from_sprite_rows();
     battlefield_data();
     board_edges();
     movement_rules();
