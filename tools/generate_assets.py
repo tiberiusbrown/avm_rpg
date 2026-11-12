@@ -1070,11 +1070,52 @@ def read_sprite_sheet(name, columns, root=ROOT):
     return frames, masks
 
 
-def frame_bytes(rows):
+CURSOR_SIZE = 22
+CURSOR_FRAMES = 4  # One frame per dash phase, side by side in cursor22.png.
+
+
+def read_cursor_frames(root=ROOT):
+    """Read the battle cursor's plus-mask frames, one 22x22 frame per dash phase."""
+    path = root / "assets" / "images" / "cursor22.png"
+    with Image.open(path) as image:
+        require(
+            image.format == "PNG"
+            and image.size == (CURSOR_FRAMES * CURSOR_SIZE, CURSOR_SIZE),
+            path,
+            f"expected a PNG {CURSOR_FRAMES * CURSOR_SIZE} pixels wide holding "
+            f"{CURSOR_FRAMES} frames of {CURSOR_SIZE}",
+        )
+        pixels = image.convert("RGBA")
+        require(
+            all(
+                (r, g, b) in ((0, 0, 0), (255, 255, 255)) and a in (0, 255)
+                for r, g, b, a in pixel_values(pixels)
+            ),
+            path,
+            "use binary monochrome and alpha pixels",
+        )
+    frames, masks = [], []
+    for frame in range(CURSOR_FRAMES):
+        bitmap, mask = [], []
+        for y in range(CURSOR_SIZE):
+            colors, opacity = "", ""
+            for x in range(CURSOR_SIZE):
+                r, _, _, a = pixels.getpixel((frame * CURSOR_SIZE + x, y))
+                colors += "#" if r and a else "."
+                opacity += "#" if a else "."
+            bitmap.append(colors)
+            mask.append(opacity)
+        frames.append(bitmap)
+        masks.append(mask)
+    return frames, masks
+
+
+def frame_bytes(rows, size=TILE_SIZE):
+    # Page-major bytes. Bits below the frame's last row are padding and stay zero.
     return [
-        sum(1 << bit for bit in range(8) if rows[page + bit][x] == "#")
-        for page in range(0, TILE_SIZE, 8)
-        for x in range(TILE_SIZE)
+        sum(1 << bit for bit in range(8) if page + bit < size and rows[page + bit][x] == "#")
+        for page in range(0, size, 8)
+        for x in range(size)
     ]
 
 
@@ -1088,15 +1129,15 @@ def array_lines(declaration, values, row_width=16):
     return lines
 
 
-def sprite_lines(name, frames, masks=None):
-    lines = [f"constexpr uint8_t PROGMEM {name}[] = {{", "    16, 16, // width, height"]
+def sprite_lines(name, frames, masks=None, size=TILE_SIZE):
+    lines = [f"constexpr uint8_t PROGMEM {name}[] = {{", f"    {size}, {size}, // width, height"]
     for frame_index, rows in enumerate(frames):
-        assert len(rows) == TILE_SIZE and all(len(row) == TILE_SIZE for row in rows)
-        pixels = frame_bytes(rows)
+        assert len(rows) == size and all(len(row) == size for row in rows)
+        pixels = frame_bytes(rows, size)
         if masks is not None:
             pixels = [
                 byte
-                for pair in zip(pixels, frame_bytes(masks[frame_index]))
+                for pair in zip(pixels, frame_bytes(masks[frame_index], size))
                 for byte in pair
             ]
         lines.extend(["", f"    // Frame {frame_index}"])
@@ -1115,8 +1156,9 @@ def generate(root=ROOT):
     sheets = read_tileset_frames(root)
     actor_frames, actor_masks = read_sprite_sheet("actors16.png", ACTOR_COLUMNS, root)
     actor_rows = len(actor_frames) // ACTOR_COLUMNS
+    cursor_frames, cursor_masks = read_cursor_frames(root)
     art = [
-        "/* Generated; 16x16 tiles and alpha-derived actor plus masks. */",
+        "/* Generated; 16x16 tiles, alpha-derived actor plus masks, and the 22x22 cursor plus masks. */",
         '#include "rpg.h"',
         "",
         "// clang-format off: preserve frame byte groups.",
@@ -1125,11 +1167,15 @@ def generate(root=ROOT):
         art += sprite_lines(tileset_prefix(name) + "TILE_SPRITES", frames)
         art.append("")
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
+    art.append("")
+    art += sprite_lines("CURSOR_SPRITES", cursor_frames, cursor_masks, CURSOR_SIZE)
     art.append("// clang-format on")
     art += [
         "",
         f"static_assert(ACTOR_ROW_COUNT == {actor_rows}, "
         '"ACTOR_ROW_COUNT must match the rows in actors16.png");',
+        f"static_assert(CURSOR_FRAME_COUNT == {CURSOR_FRAMES}, "
+        '"CURSOR_FRAME_COUNT must match the frames in cursor22.png");',
     ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]

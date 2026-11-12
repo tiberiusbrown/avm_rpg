@@ -1,5 +1,6 @@
 #include "battle.h"
 #include "battle_ai.h"
+#include "battle_cursor.h"
 #include "tile_ids.h"
 #include "world_assets.h"
 #include <stdio.h>
@@ -335,6 +336,43 @@ static void copies_are_independent() {
     CHECK(copy.units[HERO_A].x == 3 && copy.turn == BATTLE_ENEMY);
 }
 
+// Eases one coordinate from `start` to `target`. Every frame must move, the position must never
+// pass the target, and the walk must end exactly on the target within a few halvings.
+static unsigned ease_to(int16_t start, int16_t target) {
+    int16_t rendered = start;
+    unsigned frames = 0;
+    while(rendered != target) {
+        int16_t before = rendered;
+        rendered = cursor_ease(rendered, target);
+        CHECK(rendered != before);
+        CHECK((int)(target - rendered) * (int)(target - before) >= 0);
+        CHECK(++frames <= 16);
+    }
+    CHECK(cursor_pixel(rendered) == target / CURSOR_SUBPIXELS);
+    return frames;
+}
+
+// The cursor eases from every sub-pixel start on the board to every cell origin. Starts on either
+// side of the target are both covered, so overshoot and stalls would both show up here.
+static void cursor_easing() {
+    constexpr int16_t span = (int16_t)(BATTLE_COLUMNS * TILE * CURSOR_SUBPIXELS);
+    for(int16_t start = 0; start <= span; ++start) {
+        for(uint8_t column = 0; column < BATTLE_COLUMNS; ++column)
+            ease_to(start, cursor_subpixel((int16_t)(column * TILE)));
+        for(uint8_t row = 0; row < BATTLE_ROWS; ++row)
+            ease_to(start, cursor_subpixel((int16_t)(row * TILE)));
+    }
+
+    // A one-cell move settles in nine frames, and the endpoint is exact.
+    CHECK(ease_to(0, cursor_subpixel(TILE)) == 9);
+    CHECK(cursor_ease(255, 256) == 256 && cursor_ease(257, 256) == 256);
+    CHECK(cursor_ease(0, 1) == 1 && cursor_ease(1, 0) == 0);
+
+    // Rendering rounds to the nearest pixel: a half-pixel offset rounds up.
+    CHECK(cursor_pixel(cursor_subpixel(5)) == 5);
+    CHECK(cursor_pixel(cursor_subpixel(5) + 7) == 5 && cursor_pixel(cursor_subpixel(5) + 8) == 6);
+}
+
 int main() {
     initial_layout();
     battlefield_data();
@@ -347,6 +385,7 @@ int main() {
     outcomes();
     enemy_choices();
     copies_are_independent();
+    cursor_easing();
     printf("PASS battle rules: %u checks\n", checks);
     return 0;
 }

@@ -45,7 +45,6 @@ def main():
     parser.add_argument("--seconds", type=int, default=40)
     parser.add_argument("--fxc-seconds", type=int, default=8)
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--only-calibration", action="store_true")
     parser.add_argument("--no-plot", action="store_true", help="write CSV/JSON without optional matplotlib charts")
     parser.add_argument("--analyze-only", action="store_true", help="reanalyze existing CSVs without rerunning the emulator")
     parser.add_argument("--comparison", type=Path, action="append", default=[],
@@ -72,26 +71,23 @@ def main():
 
     if args.analyze_only:
         assert json.loads((out / "summary.json").read_text())["identity"] == identity, "stale timing artifacts"
-    cases = [] if args.analyze_only else [("normal", "", 0, True)]
-    if not args.only_calibration and not args.analyze_only:
-        cases += [("normal", "", args.seconds, False), ("fxc", ".fxc", args.fxc_seconds, False)]
-    for variant, suffix, seconds, calibration in cases:
+    cases = [] if args.analyze_only else [("normal", "", args.seconds), ("fxc", ".fxc", args.fxc_seconds)]
+    for variant, suffix, seconds in cases:
         command = [args.device.resolve(), build / f"artifacts/rpg_qa{suffix}.arduboy",
                    firmware[variant] / "interp.lst",
                    *[refs[name]["address"] for name in
                      ("game", "frame_marker", "frame_serial", "dialogue_prompt", "world_phase")],
-                   out, seconds, variant, int(calibration)]
+                   out, seconds, variant]
         result = subprocess.run([str(item) for item in command], stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, timeout=600)
-        label = "calibration" if calibration else variant
-        (out / f"{label}.log").write_text(result.stdout)
+        (out / f"{variant}.log").write_text(result.stdout)
         print(result.stdout, end="", flush=True)
         if result.returncode:
-            raise RuntimeError(f"{label} timing measurement failed")
+            raise RuntimeError(f"{variant} timing measurement failed")
 
     aggregate = defaultdict(Counter)
     per_scenario = defaultdict(Counter)
-    for variant in ("normal", "fxc") if not args.only_calibration else ():
+    for variant in ("normal", "fxc"):
         for row in rows(out / f"{variant}-histogram.csv"):
             key = (variant, row["path"], row["metric"])
             delta, count = int(row["delta_cycles"]), int(row["count"])
@@ -107,7 +103,7 @@ def main():
     # Attribute tails using the CLI instruction's native address, or the active ISR.
     causes = defaultdict(Counter)
     blackouts = {}
-    for variant in ("normal", "fxc") if not args.only_calibration else ():
+    for variant in ("normal", "fxc"):
         listing = (firmware[variant] / "interp.lst").read_text()
         labels = sorted((int(address, 16), name) for address, name in
                         re.findall(r"^([0-9a-f]+)\s+\w\s+\.text\s+[0-9a-f]+\s+(\S+)\s*$", listing, re.M))

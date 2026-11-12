@@ -1,11 +1,10 @@
 #include "battle.h"
 #include "battle_ai.h"
+#include "battle_cursor.h"
 
 #include <avm.h>
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
-// Stands in for a cell when no cursor is shown.
-static constexpr uint8_t NO_CELL = BATTLE_CELLS;
 // Frames at 50 Hz. Each side's result stays on screen for this long.
 static constexpr uint8_t RESULT_FRAMES = 25;
 
@@ -29,12 +28,48 @@ static uint8_t step(uint8_t from, uint8_t d) {
     return cell;
 }
 
-// One-pixel box around the cursor cell.
-static void draw_cursor(int16_t x, int16_t y) {
-    avm_draw_filled_rect_white(x, y, TILE, 1);
-    avm_draw_filled_rect_white(x, y + TILE - 1, TILE, 1);
-    avm_draw_filled_rect_white(x, y, 1, TILE);
-    avm_draw_filled_rect_white(x + TILE - 1, y, 1, TILE);
+// The cursor is the 22x22 plus-mask sprite CURSOR_SPRITES, centered on the 16x16 cell. Its frames
+// carry the black borders, the dashed ring, and the black frame, and the cell's interior is
+// transparent. Frame n is dash phase n, so animating the cursor means cycling its frames.
+static constexpr uint8_t CURSOR_MARGIN = 3;
+// Frames per dash-phase step.
+static constexpr uint8_t CURSOR_DASH_FRAMES = 6;
+
+// The logical cell is what input moves. The rendered origin eases toward that cell, so the two are
+// tracked independently. Rendered coordinates are in CURSOR_SUBPIXELS units.
+struct Cursor {
+    uint8_t cell;
+    int16_t x, y;
+    uint8_t phase;
+    uint8_t frames;
+};
+
+// The sprite is drawn at the cell's origin minus the margin, so its interior lands on the cell.
+static void draw_cursor(Cursor const& cursor) {
+    avm_set_sprite(CURSOR_SPRITES);
+    avm_draw_plus_mask((int16_t)(cursor_pixel(cursor.x) - CURSOR_MARGIN),
+                       (int16_t)(cursor_pixel(cursor.y) - CURSOR_MARGIN), cursor.phase);
+}
+
+// Moves the rendered cursor halfway toward its logical cell and advances the dash pattern.
+static void animate_cursor(Cursor& cursor) {
+    cursor.x = cursor_ease(cursor.x, cursor_subpixel(cell_x(cursor.cell)));
+    cursor.y = cursor_ease(cursor.y, cursor_subpixel(cell_y(cursor.cell)));
+    if(++cursor.frames == CURSOR_DASH_FRAMES) {
+        cursor.frames = 0;
+        cursor.phase = (uint8_t)((cursor.phase + 1) % CURSOR_FRAME_COUNT);
+    }
+}
+
+// Waits one frame and returns every button press seen during that wait. Polling throughout the
+// frame, rather than once, keeps a short tap from being lost.
+static uint8_t wait_frame_presses() {
+    uint8_t pressed = 0;
+    while(!avm_next_frame()) {
+        pressed = (uint8_t)(pressed | input_pressed());
+        avm_idle();
+    }
+    return pressed;
 }
 
 // Dashed box on an enemy the selected unit can attack.
@@ -75,12 +110,12 @@ static DIRECTION pressed_direction(uint8_t pressed) {
 // Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. Black
 // cells come before the actors: `lit` is the selected or acting unit, and the selected unit's
 // attack targets are blacked out. Empty destinations get their marks in the same layer. Dashed
-// attack borders and the cursor come last, over the actors.
-static void draw_board(BattleState const& state, uint8_t cursor, uint8_t selected, uint8_t lit) {
+// attack borders come last, over the actors. The cursor is drawn separately, after the board.
+static void draw_board(BattleState const& state, uint8_t selected, uint8_t lit) {
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
     // to enter or an enemy to attack. Both masks use bit positions rather than cells, which keeps
     // the frame small on the guest stack.
-    uint8_t moves = 0, attacks = 0, from = NO_CELL;
+    uint8_t moves = 0, attacks = 0, from = 0;
     if(selected != BATTLE_NO_UNIT) {
         BattleUnit const& unit = state.units[selected];
         from = (uint8_t)(unit.y * BATTLE_COLUMNS + unit.x);
@@ -138,8 +173,6 @@ static void draw_board(BattleState const& state, uint8_t cursor, uint8_t selecte
             draw_attack_mark(cell_x(cell), cell_y(cell));
         }
     }
-    if(cursor != NO_CELL)
-        draw_cursor(cell_x(cursor), cell_y(cursor));
 }
 
 static void draw_result(BATTLE_RESULT result) {
@@ -153,49 +186,53 @@ static void draw_result(BATTLE_RESULT result) {
     avm_draw_text((int16_t)((DISPLAY_WIDTH - avm_text_width(hint)) / 2), 41, hint);
 }
 
-// Runs the party's input until one legal action is applied. D-pad moves the cursor, A selects a
-// friendly unit or confirms a destination, and B cancels the selection. Illegal confirmations do
-// nothing and do not consume the turn.
-static void party_turn(BattleState& state, uint8_t& cursor) {
+// Runs the party's turn one frame at a time, so the cursor keeps easing and its dashes keep moving
+// between presses. D-pad moves the logical cursor, A selects a friendly unit or confirms a
+// destination, and B cancels the selection. Illegal confirmations do nothing and do not consume the
+// turn.
+static void party_turn(BattleState& state, Cursor& cursor) {
     uint8_t selected = BATTLE_NO_UNIT;
+    // Presses made while the enemy acted do not count.
+    input_sync();
     for(;;) {
-        draw_board(state, cursor, selected, selected);
+        draw_board(state, selected, selected);
+        draw_cursor(cursor);
         avm_display(false);
         uint8_t pressed =
-            input_wait_press(BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT | BTN_A | BTN_B);
+            wait_frame_presses() & (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT | BTN_A | BTN_B);
 
-        uint8_t next = cursor;
+        uint8_t next = cursor.cell;
         DIRECTION dir = pressed_direction(pressed);
-        if(dir != STILL && battle_neighbor(cursor, dir, next))
-            cursor = next;
+        if(dir != STILL && battle_neighbor(cursor.cell, dir, next))
+            cursor.cell = next;
         if(pressed & BTN_B)
             selected = BATTLE_NO_UNIT;
-        if(!(pressed & BTN_A))
-            continue;
-
-        if(selected == BATTLE_NO_UNIT) {
-            uint8_t unit = battle_unit_at(state, cursor);
-            if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY)
-                selected = unit;
-            continue;
+        if(pressed & BTN_A) {
+            if(selected == BATTLE_NO_UNIT) {
+                uint8_t unit = battle_unit_at(state, cursor.cell);
+                if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY)
+                    selected = unit;
+            } else {
+                BattleAction action{selected, cursor.cell};
+                if(battle_legal(state, action)) {
+                    battle_apply(state, action);
+                    return;
+                }
+            }
         }
-        BattleAction action{selected, cursor};
-        if(battle_legal(state, action)) {
-            battle_apply(state, action);
-            return;
-        }
+        animate_cursor(cursor);
     }
 }
 
 // Shows the player's result, then the enemy's choice and its result. No input is read here.
 static void enemy_turn(BattleState& state) {
-    draw_board(state, NO_CELL, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+    draw_board(state, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
     avm_display(false);
     pause(RESULT_FRAMES);
 
     BattleAction action = battle_enemy_action(state);
     battle_apply(state, action);
-    draw_board(state, NO_CELL, BATTLE_NO_UNIT, action.unit_index);
+    draw_board(state, BATTLE_NO_UNIT, action.unit_index);
     avm_display(false);
     pause(RESULT_FRAMES);
 }
@@ -211,7 +248,10 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     // A press that led here, such as the one that closed dialogue, must not act in the battle.
     input_wait_release(BTN_ALL);
 
-    uint8_t cursor = (uint8_t)(state.units[0].y * BATTLE_COLUMNS + state.units[0].x);
+    // The cursor starts on the first hero, already settled there, so the battle does not open with
+    // a sweep across the board.
+    uint8_t first = (uint8_t)(state.units[0].y * BATTLE_COLUMNS + state.units[0].x);
+    Cursor cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
     while(!state.ended) {
         battle_settle(state);
         if(state.ended)
@@ -222,7 +262,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
             enemy_turn(state);
     }
 
-    draw_board(state, NO_CELL, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
+    draw_board(state, BATTLE_NO_UNIT, BATTLE_NO_UNIT);
     draw_result(state.result);
     avm_display(false);
     input_wait_press(BTN_A);

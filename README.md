@@ -102,9 +102,12 @@ dialogue, so story code can alternate dialogue and battles in ordinary sequence.
 8x4 battlefield is a PROGMEM tile array in the world tileset. It is separate from the
 overworld cache and from the current area.
 
-- D-pad moves the cursor. A selects a hero, then A confirms an adjacent empty cell to
-  move or an adjacent creature to attack. B cancels a selection. An invalid confirmation
-  does nothing, and it does not use up the turn.
+- D-pad moves the cursor. It is a 22x22 plus-mask sprite with black borders around a dashed
+  outline. The dashes are two white pixels with two black pixels between them, and they turn
+  clockwise around the outline. The cursor glides to each cell it moves to.
+  A selects a hero, then A confirms an adjacent empty cell to move or an adjacent creature
+  to attack. B cancels a selection. An invalid confirmation does nothing, and it does not
+  use up the turn.
 - Each activation is one move or one attack. Each attack deals 2 HP. The unit that is
   attacked is removed when its HP reaches 0.
 - Each side moves in turn, and the creatures choose greedily: kills first, then attacks,
@@ -141,7 +144,7 @@ with the separate 1 kHz Timer0 clock. The optional full-device build also provid
 Timer1 entry lateness, PWM write intervals, synthesis cadence, ISR execution
 time, and foreground interrupt-disabled spans in the packaged game. The full
 run covers a complete song plus dialogue, menus, saving, walking, and collision;
-it also checks FXC and calibrates against known NOP/CLI workloads. CSV and JSON
+it also checks FXC. CSV and JSON
 distributions are written to `build/audio-timing`; matplotlib adds PNG/SVG plots.
 Audio timing is a manual measurement tool and is excluded from CTest. See
 [the timing investigation](docs/audio_timing.md) for measured results and definitions.

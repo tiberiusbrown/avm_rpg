@@ -1,7 +1,7 @@
 # RPG synthesis interrupt timing experiments
 
 Measured 2026-10-19 using Ardens, unmerged AVR instructions, a 16 MHz CPU,
-and RelWithDebInfo builds. These are calibrated emulator measurements; they
+and RelWithDebInfo builds. These are emulator measurements; they
 exclude physical PLL/carrier jitter, pin transitions and analog speaker behavior.
 
 The detailed comparisons below are archived experiments made with the former
@@ -26,7 +26,7 @@ normal and 62500 FX-C output interrupts, with extra delay **0..7 cycles** and
 **zero delays of 10 or more cycles**. PWM interval error is -6..+7 cycles.
 The PWM store completes at compare + 21 cycles plus interrupt acceptance delay.
 The normal run includes 40 seconds of music, dialogue, menus, saving, walking,
-and collision work; FX-C includes eight seconds. NOP and CLI calibration pass.
+and collision work; FX-C includes eight seconds.
 Native tests cover startup and live rate changes at all 32000 combinations of
 rate, Timer0 count and sub-tick phase. See the [implementation and resource
 measurements](../../../docs/audio-benchmarks.md) for details. The programmable-duty
@@ -136,7 +136,7 @@ with interrupts enabled before reusing an occupied packet. Stopped output and
 IRQ-disabled callers apply directly; disable drains packets after stopping the
 reader. The formatter/text workspace cannot overwrite a pending packet.
 
-This removes the foreground `audio_commit` CLI span. The same calibrated 40-second
+This removes the foreground `audio_commit` CLI span. The same 40-second
 normal / 8-second FX-C exercise gives:
 
 | Implementation | Hardware | PWM updates | p99 extra cycles | Maximum extra cycles | Updates delayed 10+ cycles |
@@ -219,11 +219,6 @@ The fixed seven cycles are AVR response plus the vector JMP; see
 [Microchip's interrupt documentation](https://developerhelp.microchip.com/xwiki/bin/view/products/mcu-mpu/8-bit-avr/structure/interrupts/).
 One cycle is 62.5 ns. Every observed PWM store completes exactly **19 cycles**
 after body entry on both output paths, before synthesis or clock bookkeeping.
-
-Calibration substitutes known foreground loops in host memory. Timer1 records
-3,907 interrupts per calibration: a NOP loop gives 0..1 extra cycles; CLI plus
-20 NOPs gives 0..22. Unified Timer0 records 4,000 per calibration with the same
-bounds. No gameplay compares are lost, coalesced or paired with the wrong output.
 
 ## Distribution and outliers
 
@@ -322,11 +317,11 @@ cmake --build projects/avm_rpg/build --config RelWithDebInfo --target rpg_integr
 ctest --test-dir projects/avm_rpg/build -C RelWithDebInfo --output-on-failure
 ```
 
-`rpg_audio_timing` writes calibration logs, per-scenario histograms, CLI blackout
+`rpg_audio_timing` writes per-scenario histograms, CLI blackout
 counts, symbolized outliers, JSON and optional matplotlib plots under
 `build/audio-timing`. The driver checks that packaged HEX matches the supplied
 listing and, for the Timer3 comparison, that guest bytes and score match.
-CTest's timing case uses shorter two-second normal/FXC windows plus calibration.
+CTest's timing case uses shorter two-second normal/FXC windows.
 The final full selected capture is in `build/audio-timing-selected-timer1`;
 original Timer3, initial Timer1 and unified runs remain in sibling folders.
 

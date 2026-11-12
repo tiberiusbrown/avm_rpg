@@ -74,7 +74,6 @@ struct Actor {
 
 #include "npc_types.h"
 
-
 // Each walking pose lasts this many simulation ticks, which is 160 ms at 50 Hz.
 inline constexpr uint16_t WALK_POSE_TICKS = 8;
 
@@ -212,5 +211,9 @@ extern uint8_t const PROGMEM TILE_SPRITES[];
 // The sprite sheet of a tileset. Each area draws with the tileset from area_tileset().
 uint8_t const PROGMEM* tileset_sprites(uint8_t tileset);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
+// The battle cursor: 22x22 plus-mask frames, one per dash phase. The generated sheet asserts the
+// count.
+inline constexpr uint8_t CURSOR_FRAME_COUNT = 4;
+extern uint8_t const PROGMEM CURSOR_SPRITES[];
 
 #endif

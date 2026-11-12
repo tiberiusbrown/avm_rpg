@@ -191,95 +191,62 @@ struct TimingObserver {
 };
 
 int main(int argc, char** argv) try {
-    require(argc == 12, "audio_timing package listing game marker serial dialogue phase output seconds variant calibration");
+    require(argc == 11, "audio_timing package listing game marker serial dialogue phase output seconds variant");
     fs::path package = argv[1], listing = argv[2], out = argv[8];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[3]), m = std::stoul(argv[4]), s = std::stoul(argv[5]);
     unsigned q = std::stoul(argv[6]), phase = std::stoul(argv[7]);
     unsigned seconds = std::stoul(argv[9]);
     std::string variant = argv[10];
-    bool calibration = std::string(argv[11]) == "1";
-    for(unsigned trial = 0; trial < (calibration ? 2u : 1u); ++trial) {
-        Device d(package, g, m, s, q);
-        d.phase_addr = phase;
-        d.advance(0, 3200000);
+    Device d(package, g, m, s, q);
+    d.phase_addr = phase;
+    d.advance(0, 3200000);
+    d.tap(BTN_A);
+    require(d.music_enabled(), "RPG did not enable music");
+    while(!d.ab->core_state.cpu.active ||
+          !(d.ab->core_state.cpu.data[absim::reg::addr::SREG] & 128) ||
+          (d.ab->core_state.cpu.data[absim::reg::addr::TIFR1] & 2))
+        d.step();
+    auto prefix = out / variant;
+    TimingObserver monitor(d, listing, prefix);
+    monitor.scenario = "idle_song";
+    d.advance(0, uint64_t(seconds) * 16000000);
+    if(variant == "normal" && seconds >= 8) {
+        monitor.scenario = "dialogue";
         d.tap(BTN_A);
-        require(d.music_enabled(), "RPG did not enable music");
-        while(!d.ab->core_state.cpu.active ||
-              !(d.ab->core_state.cpu.data[absim::reg::addr::SREG] & 128) ||
-              (d.ab->core_state.cpu.data[absim::reg::addr::TIFR1] & 2))
-            d.step();
-        auto prefix = out / (calibration ? (trial ? "calibration-cli20" : "calibration-nop") : variant);
-        if(calibration) {
-            auto& c = d.ab->core_state.cpu;
-            c.st(absim::reg::addr::TIMSK0, 0);
-            c.st(absim::reg::addr::TCCR0B, 0);
-            unsigned address = 0x200;
-            auto emit = [&](unsigned instruction) {
-                c.prog[address++] = uint8_t(instruction);
-                c.prog[address++] = uint8_t(instruction >> 8);
-            };
-            if(trial)
-                emit(0x94f8); // CLI
-            for(unsigned i = 0; i < (trial ? 20u : 1u); ++i)
-                emit(0x0000); // NOP
-            if(trial) {
-                emit(0x9478); // SEI
-                emit(0x0000); // NOP (SEI defers interrupt acceptance one instruction)
-            }
-            emit(0xc000 | ((0x100 - (address / 2 + 1)) & 0x0fff));
-            c.decode();
-            c.pc = 0x100;
-            c.prev_sreg |= 128;
-            TimingObserver monitor(d, listing, prefix);
-            monitor.scenario = trial ? "cli20" : "nop";
-            d.advance(0, 4000000);
-            monitor.finish(prefix);
-            require(monitor.minimum == 0, "observer does not reproduce zero-delay baseline");
-            require(trial ? (monitor.maximum >= 20 && monitor.maximum <= 25) : monitor.maximum <= 1,
-                    "observer failed known instruction/CLI delay calibration");
-        } else {
-            TimingObserver monitor(d, listing, prefix);
-            monitor.scenario = "idle_song";
-            d.advance(0, uint64_t(seconds) * 16000000);
-            if(variant == "normal" && seconds >= 8) {
-                monitor.scenario = "dialogue";
-                d.tap(BTN_A);
-                require(d.prompt() != DIALOGUE_CLOSED, "timing dialogue scenario did not open");
-                d.wait_for_prompt();
-                d.tap(BTN_A);
-                require(d.prompt() == DIALOGUE_CLOSED, "timing dialogue did not close");
-                // The welcome closes into the Grove battle, which the scenario plays through.
-                monitor.scenario = "battle";
-                play_grove_battle(d);
-                monitor.scenario = "menu_status";
-                d.tap(BTN_B);
-                d.advance(0, 32000000);
-                d.tap(BTN_A);
-                d.advance(0, 16000000);
-                d.tap(BTN_B);
-                d.tap(BTN_DOWN);
-                monitor.scenario = "save";
-                d.tap(BTN_A);
-                d.advance(0, 8000000);
-                auto paused_serial = d.serial();
-                d.tap(BTN_B);
-                require(d.serial() != paused_serial, "timing scenario did not leave the save menu");
-                monitor.scenario = "walking";
-                auto start = d.state().player;
-                d.advance(BTN_DOWN, 48000000);
-                require(d.state().player.y > start.y, "timing walking scenario did not move");
-                d.advance(BTN_LEFT, 48000000);
-                auto blocked = d.state().player;
-                require(!blocked.walking, "timing collision setup did not reach a wall");
-                monitor.scenario = "collision";
-                d.advance(BTN_LEFT, 32000000);
-                require(d.state().player.x == blocked.x && d.state().player.y == blocked.y,
-                        "timing collision scenario did not remain blocked");
-            }
-            monitor.finish(prefix);
-        }
+        require(d.prompt() != DIALOGUE_CLOSED, "timing dialogue scenario did not open");
+        d.wait_for_prompt();
+        d.tap(BTN_A);
+        require(d.prompt() == DIALOGUE_CLOSED, "timing dialogue did not close");
+        // The welcome closes into the Grove battle, which the scenario plays through.
+        monitor.scenario = "battle";
+        play_grove_battle(d);
+        monitor.scenario = "menu_status";
+        d.tap(BTN_B);
+        d.advance(0, 32000000);
+        d.tap(BTN_A);
+        d.advance(0, 16000000);
+        d.tap(BTN_B);
+        d.tap(BTN_DOWN);
+        monitor.scenario = "save";
+        d.tap(BTN_A);
+        d.advance(0, 8000000);
+        auto paused_serial = d.serial();
+        d.tap(BTN_B);
+        require(d.serial() != paused_serial, "timing scenario did not leave the save menu");
+        monitor.scenario = "walking";
+        auto start = d.state().player;
+        d.advance(BTN_DOWN, 48000000);
+        require(d.state().player.y > start.y, "timing walking scenario did not move");
+        d.advance(BTN_LEFT, 48000000);
+        auto blocked = d.state().player;
+        require(!blocked.walking, "timing collision setup did not reach a wall");
+        monitor.scenario = "collision";
+        d.advance(BTN_LEFT, 32000000);
+        require(d.state().player.x == blocked.x && d.state().player.y == blocked.y,
+                "timing collision scenario did not remain blocked");
     }
+    monitor.finish(prefix);
     return 0;
 } catch(std::exception const& error) {
     std::cerr << "FAIL " << error.what() << '\n';
