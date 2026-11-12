@@ -404,31 +404,44 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
               << ",\"budget_cycles\":320000}\n";
 }
 
-// The Grove battle always plays the same way, because the greedy enemy chooses deterministically.
-// Each entry is one party action: the hero's cell and the cell it targets, in battlefield tiles.
+// The Grove battle always plays the same way, because the enemy chooses deterministically. Each
+// entry is one party action: the hero's cell, the cell it targets, in battlefield tiles, and
+// whether that cell holds an enemy. After a strike the cursor returns to the hero, as it does in
+// the battle.
 struct GroveCell {
     uint8_t x, y;
 };
 
 struct GroveAction {
     GroveCell hero, target;
+    bool strike;
 };
 
-// The heroes begin at (2,1) and (2,2), and the creatures at (5,1) and (5,2). Hero A steps east
-// and south and strikes creature A, then creature B. Hero A ends the battle with one HP left.
+// The shortest plan that wins against the enemy's search, found by a breadth-first search over
+// party actions with the enemy's replies applied. The heroes begin at (2,1) and (2,2), and the
+// creatures at (5,1) and (5,2). The last creature falls on its own activation, so the battle ends
+// by exhaustion.
 constexpr GroveAction GROVE_VICTORY_PLAN[] = {
-    {{2, 1}, {3, 1}}, // Hero A steps east, and creature A closes to (4,1).
-    {{3, 1}, {4, 1}}, // Hero A strikes creature A, which strikes back.
-    {{3, 1}, {3, 2}}, // Hero A steps south, and creature A moves to (4,2).
-    {{3, 2}, {4, 2}}, // Hero A defeats creature A, and creature B moves to (4,2).
-    {{3, 2}, {4, 2}}, // Hero A strikes creature B.
-    {{3, 2}, {4, 2}}, // Hero A defeats creature B.
+    {{2, 1}, {2, 0}, false}, // Hero A steps north. Creature A steps to (5,0).
+    {{2, 0}, {3, 0}, false}, // Hero A steps east. Creature B steps to (4,2).
+    {{3, 0}, {4, 0}, false}, // Hero A steps east. Creature A steps to (6,0).
+    {{4, 0}, {3, 0}, false}, // Hero A steps back west. Creature A steps to (5,0).
+    {{2, 2}, {3, 2}, false}, // Hero B steps east. Creature B steps to (5,2).
+    {{3, 2}, {4, 2}, false}, // Hero B steps east. Creature B steps to (5,1).
+    {{3, 0}, {4, 0}, false}, // Hero A steps east. Creature A strikes Hero A from (5,0).
+    {{4, 0}, {5, 0}, true},  // Hero A strikes creature A, which steps back to (6,0).
+    {{4, 2}, {4, 1}, false}, // Hero B steps north. Creature B strikes Hero B from (5,1).
+    {{4, 1}, {5, 1}, true},  // Hero B strikes creature B. Creature B strikes Hero B back.
+    {{4, 1}, {5, 1}, true},  // Hero B strikes creature B again, and creature B falls.
+    {{4, 0}, {5, 0}, false}, // Hero A steps into the vacated cell. Exhaustion ends the battle.
 };
 
-// After each hero action the test advances past both sides' reactions. A hero attack flashes for
-// about a second, then the enemy pauses, lunges, flashes, and pauses again, about 146 frames in all.
-// 160 frames of 320,000 cycles each (3.2 seconds) leaves room.
-constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 51200000;
+// After each hero action the test advances past both sides' reactions: the hero's own animation,
+// the enemy pause, the enemy's search, the enemy's animation, and the enemy's result pause. The
+// search runs on the guest for about 36 million cycles at the first enemy turn, which freezes the
+// display for about 2.2 seconds. The reactions take about 290 frames in all, and the search cost
+// varies with the position. 120 million cycles (375 frames of 320,000 cycles each) leaves a margin.
+constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 120000000;
 
 // The cursor moves one tile per press, so moving it takes one press per tile.
 static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
@@ -460,6 +473,8 @@ static void play_grove_battle(Device& d) {
         d.tap(BTN_A); // Select the hero.
         grove_move_cursor(d, cursor, action.target);
         d.tap(BTN_A); // Confirm the destination.
+        // A move leaves the cursor on the hero's new cell, and a strike returns it to the hero.
+        cursor = action.strike ? action.hero : action.target;
         d.advance(0, GROVE_ENEMY_TURN_CYCLES);
     }
     // The victory overlay waits for a fresh A. Its outcome line then opens over exploration.

@@ -17,15 +17,23 @@ constexpr Battlefield PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT] = {
     {TILESET_WORLD, BATTLE_GROVE_TILES},
 };
 
-// Sprite rows: heroes use rows 0 and 1, and the two creatures use rows 16 and 20.
+// Heroes use people rows 0 and 1, and the creatures use rows 16 and 20. Every type takes one
+// orthogonal step and strikes an adjacent enemy for 2 HP.
+constexpr BattleUnitType PROGMEM BATTLE_UNIT_TYPES[BATTLE_UNIT_TYPE_COUNT] = {
+    {0, BATTLE_MOVEMENT_ORTHOGONAL_ONE, BATTLE_ATTACK_ADJACENT, 2},
+    {1, BATTLE_MOVEMENT_ORTHOGONAL_ONE, BATTLE_ATTACK_ADJACENT, 2},
+    {16, BATTLE_MOVEMENT_ORTHOGONAL_ONE, BATTLE_ATTACK_ADJACENT, 2},
+    {20, BATTLE_MOVEMENT_ORTHOGONAL_ONE, BATTLE_ATTACK_ADJACENT, 2},
+};
+
 constexpr BattleEncounter PROGMEM BATTLE_GROVE{
     BATTLEFIELD_GROVE,
     4,
     {
-        {battle_cell(2, 1), 5, 0},
-        {battle_cell(2, 2), 5, 1},
-        {battle_cell(5, 1), 4, 16},
-        {battle_cell(5, 2), 4, 20},
+        {battle_cell(2, 1), 5, BATTLE_TYPE_HERO_A, BATTLE_PARTY},
+        {battle_cell(2, 2), 5, BATTLE_TYPE_HERO_B, BATTLE_PARTY},
+        {battle_cell(5, 1), 4, BATTLE_TYPE_CREATURE_A, BATTLE_ENEMY},
+        {battle_cell(5, 2), 4, BATTLE_TYPE_CREATURE_B, BATTLE_ENEMY},
     },
 };
 
@@ -35,7 +43,8 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) 
     for(uint8_t i = 0; i < BATTLE_UNIT_CAPACITY; ++i) {
         state.units[i].cell = encounter->units[i].cell;
         state.units[i].hp = encounter->units[i].hp;
-        state.units[i].sprite_row = encounter->units[i].sprite_row;
+        state.units[i].type = encounter->units[i].type;
+        state.units[i].team = encounter->units[i].team;
     }
     state.turn = BATTLE_PARTY;
     state.activations = 0;
@@ -80,46 +89,134 @@ bool battle_neighbor(uint8_t cell, DIRECTION dir, uint8_t& neighbor) {
     }
 }
 
-bool battle_legal(BattleState const& state, BattleAction action) {
-    if(state.ended || action.unit_index >= state.unit_count || action.destination >= BATTLE_CELLS)
-        return false;
-    BattleUnit const& actor = state.units[action.unit_index];
-    if(!actor.hp || actor.team() != state.turn)
-        return false;
+DIRECTION battle_direction(uint8_t from, uint8_t to) {
+    if(battle_column(to) != battle_column(from))
+        return battle_column(to) > battle_column(from) ? EAST : WEST;
+    return battle_row(to) > battle_row(from) ? SOUTH : NORTH;
+}
 
-    // Compare coordinates rather than cells, so a row wrap cannot look adjacent.
-    int dx = (int)battle_column(action.destination) - battle_column(actor.cell);
-    int dy = (int)battle_row(action.destination) - battle_row(actor.cell);
+uint8_t battle_attack_damage(BattleUnit const& unit) {
+    return BATTLE_UNIT_TYPES[unit.type].damage;
+}
+
+uint8_t battle_sprite_row(BattleUnit const& unit) {
+    return BATTLE_UNIT_TYPES[unit.type].sprite_row;
+}
+
+// Whether two cells share an edge. Coordinates are compared, so a row wrap cannot look adjacent.
+static bool battle_adjacent(uint8_t a, uint8_t b) {
+    int dx = (int)battle_column(a) - battle_column(b);
+    int dy = (int)battle_row(a) - battle_row(b);
     if(dx < 0)
         dx = -dx;
     if(dy < 0)
         dy = -dy;
-    if(dx + dy != 1)
+    return dx + dy == 1;
+}
+
+// Whether the unit's movement pattern reaches a cell from where it stands.
+static bool battle_reaches(BattleUnit const& actor, uint8_t destination) {
+    switch(BATTLE_UNIT_TYPES[actor.type].movement_type) {
+        case BATTLE_MOVEMENT_ORTHOGONAL_ONE:
+            return battle_adjacent(actor.cell, destination);
+    }
+    return false;
+}
+
+// Whether the unit's attack pattern lets it strike another unit it has reached.
+static bool battle_strikes(BattleUnit const& actor, BattleUnit const& victim) {
+    switch(BATTLE_UNIT_TYPES[actor.type].attack_type) {
+        case BATTLE_ATTACK_ADJACENT:
+            return victim.team != actor.team;
+    }
+    return false;
+}
+
+bool battle_can_strike(BattleState const& state, uint8_t attacker, uint8_t victim) {
+    BattleUnit const& actor = state.units[attacker];
+    BattleUnit const& target = state.units[victim];
+    return actor.hp && target.hp && battle_reaches(actor, target.cell) &&
+           battle_strikes(actor, target);
+}
+
+bool battle_legal(BattleState const& state, BattleAction action) {
+    if(state.ended || action.unit_index >= state.unit_count || action.destination >= BATTLE_CELLS)
+        return false;
+    BattleUnit const& actor = state.units[action.unit_index];
+    if(!actor.hp || actor.team != state.turn || !battle_reaches(actor, action.destination))
         return false;
 
     uint8_t occupant = battle_unit_at(state, action.destination);
-    return occupant == BATTLE_NO_UNIT || state.units[occupant].team() != actor.team();
+    return occupant == BATTLE_NO_UNIT || battle_strikes(actor, state.units[occupant]);
+}
+
+BattleActionCursor battle_actions(BattleState const& state) {
+    return BattleActionCursor{0, 0, state.unit_count};
+}
+
+BattleActionCursor battle_unit_actions(BattleState const& state, uint8_t unit_index) {
+    if(unit_index >= state.unit_count)
+        return BattleActionCursor{0, 0, 0};
+    return BattleActionCursor{unit_index, 0, (uint8_t)(unit_index + 1)};
+}
+
+bool battle_next_action(BattleState const& state, BattleActionCursor& cursor,
+                        BattleAction& action) {
+    while(cursor.unit < cursor.end) {
+        BattleUnit const& unit = state.units[cursor.unit];
+        while(cursor.direction < 4) {
+            DIRECTION dir = (DIRECTION)cursor.direction;
+            ++cursor.direction;
+            uint8_t destination = 0;
+            if(!battle_neighbor(unit.cell, dir, destination))
+                continue;
+            BattleAction candidate{cursor.unit, destination};
+            if(battle_legal(state, candidate)) {
+                action = candidate;
+                return true;
+            }
+        }
+        ++cursor.unit;
+        cursor.direction = 0;
+    }
+    return false;
 }
 
 bool battle_can_act(BattleState const& state) {
-    for(uint8_t i = 0; i < state.unit_count; ++i) {
-        BattleUnit const& unit = state.units[i];
-        if(!unit.hp || unit.team() != state.turn)
-            continue;
-        uint8_t cell = unit.cell;
-        for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
-            uint8_t neighbor = 0;
-            if(battle_neighbor(cell, dir, neighbor) && battle_legal(state, {i, neighbor}))
-                return true;
-        }
+    BattleActionCursor cursor = battle_actions(state);
+    BattleAction action{};
+    return battle_next_action(state, cursor, action);
+}
+
+BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction action) {
+    uint8_t occupant = battle_unit_at(state, action.destination);
+    if(occupant == BATTLE_NO_UNIT)
+        return BATTLE_ACTION_MOVE;
+    BattleUnit const& victim = state.units[occupant];
+    if(victim.hp > battle_attack_damage(state.units[action.unit_index]))
+        return BATTLE_ACTION_ATTACK;
+    return battle_living(state, victim.team) == 1 ? BATTLE_ACTION_WIN : BATTLE_ACTION_KILL;
+}
+
+BattleDestinations battle_destinations(BattleState const& state, uint8_t unit_index) {
+    BattleDestinations result{0, 0};
+    BattleActionCursor cursor = battle_unit_actions(state, unit_index);
+    BattleAction action{};
+    while(battle_next_action(state, cursor, action)) {
+        uint8_t bit =
+            (uint8_t)(1 << battle_direction(state.units[unit_index].cell, action.destination));
+        if(battle_unit_at(state, action.destination) == BATTLE_NO_UNIT)
+            result.moves = (uint8_t)(result.moves | bit);
+        else
+            result.attacks = (uint8_t)(result.attacks | bit);
     }
-    return false;
+    return result;
 }
 
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team) {
     uint8_t count = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i)
-        if(state.units[i].hp && state.units[i].team() == team)
+        if(state.units[i].hp && state.units[i].team == team)
             ++count;
     return count;
 }
@@ -154,8 +251,8 @@ void battle_apply(BattleState& state, BattleAction action) {
         actor.cell = action.destination;
     } else {
         BattleUnit& target = state.units[occupant];
-        target.hp =
-            target.hp > BATTLE_ATTACK_DAMAGE ? (uint8_t)(target.hp - BATTLE_ATTACK_DAMAGE) : 0;
+        uint8_t damage = battle_attack_damage(actor);
+        target.hp = target.hp > damage ? (uint8_t)(target.hp - damage) : 0;
     }
     ++state.activations;
 
@@ -174,7 +271,7 @@ void battle_pass(BattleState& state) {
         // The first living unit on the side pays, so the choice is deterministic.
         for(uint8_t i = 0; i < state.unit_count; ++i) {
             BattleUnit& unit = state.units[i];
-            if(unit.hp && unit.team() == state.turn) {
+            if(unit.hp && unit.team == state.turn) {
                 battle_exhaust(unit);
                 break;
             }

@@ -103,6 +103,40 @@ The 12-NPC test remains within budget with pixel motion intact. Further detail,
 audio or battle rendering requires new profiles; current timings are not reserved
 capacity for those additions.
 
+## Battle search
+
+The Grove enemy uses a four-activation negamax search with alpha-beta pruning
+(`src/battle_ai.cpp`). It keeps an explicit stack of five frames and never recurses. The
+guest link reports a complete stack bound for every image.
+
+On the AVM emulator, the first enemy turn of the Grove battle (the initial encounter) spends
+36,062,515 emulated cycles in the search, about 2.25 seconds at 16 MHz. The display freezes
+for that time, which is accepted. It was measured with `avm-lldb`: breakpoints at
+`battle_enemy_action` and at the next `act` call, with `avm time` read at each stop, after
+the first party action of the battle.
+
+| Measure | Before | After |
+|---|---:|---:|
+| Guest static RAM, `rpg` (`.saved` + `.data`) | 313 bytes | 498 bytes |
+| Guest code, `rpg` | 23,823 bytes | 24,492 bytes |
+| Guest read-only data, `rpg` | 120,915 bytes | 120,935 bytes |
+| Guest provable stack, `rpg` | 178 bytes | 205 bytes |
+
+The search frames are 185 bytes of static RAM: five frames of 37 bytes each, holding the
+position, the window, the legal-action mask, and the resume position. The search counters
+are not in the guest image, because nothing in the guest reads them.
+
+Host measurements from `rpg_battle_bench`, with the enemy to act at depth four:
+
+| Position | Nodes | Leaves | Unpruned | Host time |
+|---|---:|---:|---:|---:|
+| Initial encounter | 570 | 421 | 2,434 | 52 µs |
+| Adjacent combat | 405 | 284 | 3,134 | 38 µs |
+| One survivor per side | 88 | 54 | 265 | 7 µs |
+
+Over 300 random legal positions with the enemy to act, the mean is 569 nodes and the largest is
+1,035. The unpruned reference visits 2,677 nodes on average.
+
 ## Reproduce
 
 From the RPG root with SDK on PATH and a matching MSVC developer environment:

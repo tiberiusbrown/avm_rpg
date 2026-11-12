@@ -78,9 +78,12 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 - `assets/images/actors16.png`: 32 character rows (16 people, then 16 creatures and
   enemies), 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
-- `src/battle.h`, `src/battle.cpp` and `src/battle_ai.*`: the portable battle rules, the
-  Grove battlefield and encounter, and the greedy enemy. `src/battle_screen.cpp` is the AVM
-  screen behind `battle_show()`. `tests/test_battle.cpp` covers the rules, and
+- `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
+  encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
+  `src/battle_ai.*` holds the enemy's negamax search, its static evaluation, and the greedy
+  choice it falls back on. `src/battle_screen.cpp` is the AVM screen behind `battle_show()`.
+  `tests/test_battle.cpp` covers the rules and checks the search against an unpruned reference
+  in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
   `tests/story_stub.*` records story calls on the host.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
@@ -116,8 +119,11 @@ overworld cache and from the current area.
 - An attacker lunges four pixels toward its target, holds for about a quarter second, and
   returns. Every unit that loses HP flashes on and off for about a second. The next turn
   waits for the flashing to end, and a defeated unit flashes before it disappears.
-- Each side moves in turn, and the creatures choose greedily: kills first, then attacks,
-  then steps toward the nearest hero.
+- Each side moves in turn. The creatures search four activations ahead with negamax and
+  alpha-beta pruning, assuming the heroes reply with their best action. Wins come first, then
+  kills, attacks, and moves, and among equal scores the creatures prefer the move the greedy
+  preference would pick. The search runs synchronously, so the display freezes while it thinks.
+  On the first enemy turn of the Grove battle that is about 2.25 seconds on the AVM.
 - From the 21st completed activation onward, the acting unit loses 1 HP after its action.
 - A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
   position, flags, or any other overworld state.

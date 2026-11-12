@@ -38,13 +38,6 @@ static int8_t direction_dy(DIRECTION d) {
     return (int8_t)(d == SOUTH ? 1 : d == NORTH ? -1 : 0);
 }
 
-// The direction from a cell to one of its orthogonal neighbors.
-static DIRECTION direction_toward(uint8_t from, uint8_t to) {
-    if(battle_column(to) != battle_column(from))
-        return battle_column(to) > battle_column(from) ? EAST : WEST;
-    return battle_row(to) > battle_row(from) ? SOUTH : NORTH;
-}
-
 // The cursor is the 22x22 plus-mask sprite CURSOR_SPRITES, centered on the 16x16 cell. Its frames
 // carry the black borders, the dashed ring, and the black frame, and the cell's interior is
 // transparent. Frame n is dash phase n, so animating the cursor means cycling its frames.
@@ -165,24 +158,13 @@ static DIRECTION pressed_direction(uint8_t pressed) {
 static void draw_board(BattleScreen const& screen, uint8_t selected, DIRECTION mover_facing) {
     BattleState const& state = screen.state;
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
-    // to enter or an enemy to attack. Both masks use bit positions rather than cells, which keeps
-    // the frame small on the guest stack.
-    uint8_t moves = 0, attacks = 0, from = 0;
-    if(selected != BATTLE_NO_UNIT) {
-        BattleUnit const& unit = state.units[selected];
-        from = unit.cell;
-        for(uint8_t d = 0; d < 4; ++d) {
-            uint8_t cell = 0;
-            if(!battle_neighbor(from, (DIRECTION)d, cell) ||
-               !battle_legal(state, BattleAction{selected, cell}))
-                continue;
-            uint8_t bit = (uint8_t)(1 << d);
-            if(battle_unit_at(state, cell) == BATTLE_NO_UNIT)
-                moves = (uint8_t)(moves | bit);
-            else
-                attacks = (uint8_t)(attacks | bit);
-        }
-    }
+    // to enter or an enemy to attack. The masks come from the same enumeration the rules use, and
+    // they use bit positions rather than cells, which keeps the frame small on the guest stack.
+    BattleDestinations targets = battle_destinations(state, selected);
+    uint8_t moves = targets.moves, attacks = targets.attacks;
+    uint8_t from = 0;
+    if(selected != BATTLE_NO_UNIT)
+        from = state.units[selected].cell;
 
     avm_set_sprite(tileset_sprites(BATTLEFIELDS[state.field].tileset));
     for(uint8_t row = 0; row < BATTLE_ROWS; ++row) {
@@ -219,7 +201,7 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, DIRECTION m
         int16_t y = (int16_t)(cell_y(unit.cell) + (moving ? screen.mover_dy : 0));
         Actor const pose{(uint16_t)x, (uint16_t)y, moving ? mover_facing : SOUTH,
                          (uint8_t)(moving && screen.walking)};
-        avm_draw_plus_mask(x, y, actor_frame(pose, unit.sprite_row, screen.ticks));
+        avm_draw_plus_mask(x, y, actor_frame(pose, battle_sprite_row(unit), screen.ticks));
     }
 
     for(uint8_t d = 0; d < 4; ++d) {
@@ -288,7 +270,7 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action) {
     uint8_t victim = battle_unit_at(state, action.destination);
     bool moving = victim == BATTLE_NO_UNIT;
     uint8_t actor_hp = state.units[actor].hp;
-    DIRECTION toward = direction_toward(state.units[actor].cell, action.destination);
+    DIRECTION toward = battle_direction(state.units[actor].cell, action.destination);
     screen.mover = actor;
     if(moving) {
         // The walk starts at the old cell, which is offset from the new one by a single step.
@@ -335,7 +317,7 @@ static void draw_result(BATTLE_RESULT result) {
 RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& selected,
                                          uint8_t cell) {
     uint8_t unit = battle_unit_at(state, cell);
-    if(unit != BATTLE_NO_UNIT && state.units[unit].team() == BATTLE_PARTY) {
+    if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY) {
         selected = unit;
     } else if(selected != BATTLE_NO_UNIT) {
         BattleAction action{selected, cell};

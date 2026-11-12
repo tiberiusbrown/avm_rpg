@@ -12,7 +12,6 @@ inline constexpr uint8_t BATTLE_CELLS = BATTLE_COLUMNS * BATTLE_ROWS;
 inline constexpr uint8_t BATTLE_UNIT_CAPACITY = 4;
 inline constexpr uint8_t BATTLE_NO_UNIT = BATTLE_UNIT_CAPACITY;
 
-inline constexpr uint8_t BATTLE_ATTACK_DAMAGE = 2;
 // Completed activations after this many lose one HP from the acting unit.
 inline constexpr uint8_t BATTLE_EXHAUSTION_START = 20;
 
@@ -45,19 +44,37 @@ enum BATTLEFIELD_ID : uint8_t { BATTLEFIELD_GROVE, BATTLEFIELD_COUNT };
 
 extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
 
-// The actor atlas holds 16 people rows, and creatures follow them from this row on.
-inline constexpr uint8_t BATTLE_FIRST_CREATURE_ROW = 16;
+// How a unit reaches the cells it can act on. One orthogonal step is the only pattern so far.
+enum BATTLE_MOVEMENT_TYPE : uint8_t { BATTLE_MOVEMENT_ORTHOGONAL_ONE };
 
-// The board cell, health, and the actor sheet row used to draw the unit. The sprite row also says
-// which team the unit is on.
+// Which reached units a unit may strike. Adjacent enemies are the only targets so far.
+enum BATTLE_ATTACK_TYPE : uint8_t { BATTLE_ATTACK_ADJACENT };
+
+// The immutable definition shared by every unit of one type. Live units store an index into the
+// table in PROGMEM, so the battle state carries only compact identifiers.
+struct BattleUnitType {
+    uint8_t sprite_row; // Actor sheet row. The row picks artwork and nothing else.
+    BATTLE_MOVEMENT_TYPE movement_type;
+    BATTLE_ATTACK_TYPE attack_type;
+    uint8_t damage; // HP removed from a struck unit.
+};
+
+// The unit types of the Grove encounter.
+enum BATTLE_UNIT_TYPE : uint8_t {
+    BATTLE_TYPE_HERO_A,
+    BATTLE_TYPE_HERO_B,
+    BATTLE_TYPE_CREATURE_A,
+    BATTLE_TYPE_CREATURE_B,
+    BATTLE_UNIT_TYPE_COUNT,
+};
+
+extern BattleUnitType const PROGMEM BATTLE_UNIT_TYPES[BATTLE_UNIT_TYPE_COUNT];
+
+// A unit's board cell, health, type, and team. The team is stored, so artwork never decides it.
 struct BattleUnit {
     uint8_t cell, hp;
-    uint8_t sprite_row;
-
-    // People rows are the party, and creature rows are the enemy.
-    BATTLE_TEAM team() const {
-        return sprite_row < BATTLE_FIRST_CREATURE_ROW ? BATTLE_PARTY : BATTLE_ENEMY;
-    }
+    BATTLE_UNIT_TYPE type;
+    BATTLE_TEAM team;
 };
 
 // A fixed starting arrangement. Story code names one of these and passes it to battle_show.
@@ -97,16 +114,66 @@ uint8_t battle_unit_at(BattleState const& state, uint8_t cell);
 // The cell one step from `cell` in `dir`. False when that step leaves the board.
 bool battle_neighbor(uint8_t cell, DIRECTION dir, uint8_t& neighbor);
 
+// The direction of an adjacent cell from `from`. Only adjacent cells have a meaningful answer.
+DIRECTION battle_direction(uint8_t from, uint8_t to);
+
+// The HP one attack by this unit removes, and the sprite row it is drawn with.
+uint8_t battle_attack_damage(BattleUnit const& unit);
+uint8_t battle_sprite_row(BattleUnit const& unit);
+
+// True when the attacker is alive, can reach the victim's cell, and may strike the victim. Ignores
+// whose turn it is, so the evaluation can ask about either side.
+bool battle_can_strike(BattleState const& state, uint8_t attacker, uint8_t victim);
+
 // An action is legal when the battle is running, the unit is alive and belongs to the side to
-// act, the destination is orthogonally adjacent, and the destination is empty or holds an enemy.
-// Player input and enemy AI both use this check.
+// act, the destination is one its movement reaches, and the destination is empty or holds a unit
+// the attacker may strike. Player input and enemy AI both use this check.
 bool battle_legal(BattleState const& state, BattleAction action);
+
+// Legal-action enumeration. A cursor walks candidate actions in a fixed order: unit index
+// ascending, then north, east, south, west. It is plain data, so a search can keep one per frame.
+struct BattleActionCursor {
+    uint8_t unit;      // Next unit to consider.
+    uint8_t direction; // Next direction to consider for that unit.
+    uint8_t end;       // One past the last unit to consider.
+};
+
+// The cursor over every unit of the side to act.
+BattleActionCursor battle_actions(BattleState const& state);
+
+// The cursor over one unit alone. It is empty when that unit is not in the battle.
+BattleActionCursor battle_unit_actions(BattleState const& state, uint8_t unit_index);
+
+// Sets `action` to the next legal action the cursor reaches and returns true. Returns false once
+// the cursor is exhausted. Each legal action is reached exactly once.
+bool battle_next_action(BattleState const& state, BattleActionCursor& cursor, BattleAction& action);
 
 // True when the side to act has at least one legal action.
 bool battle_can_act(BattleState const& state);
 
-// Resolves a legal action. An empty destination is a move. An enemy destination takes
-// BATTLE_ATTACK_DAMAGE, and the attacker stays where it is. Victory or defeat is checked before
+// What a legal action does, from the most urgent kind to the least. A win is a kill of the last
+// living opponent, which ends the battle at once. Search tries kinds in this order.
+enum BATTLE_ACTION_KIND : uint8_t {
+    BATTLE_ACTION_WIN,
+    BATTLE_ACTION_KILL,
+    BATTLE_ACTION_ATTACK,
+    BATTLE_ACTION_MOVE,
+};
+
+BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction action);
+
+// The legal destinations of one unit as bit masks by direction: bit 0 is north, then east, south,
+// and west. `moves` holds empty cells the unit can enter, and `attacks` holds enemies it can
+// strike.
+struct BattleDestinations {
+    uint8_t moves;
+    uint8_t attacks;
+};
+
+BattleDestinations battle_destinations(BattleState const& state, uint8_t unit_index);
+
+// Resolves a legal action. An empty destination is a move. An enemy destination takes the
+// attacker's damage, and the attacker stays where it is. Victory or defeat is checked before
 // exhaustion, so a battle-ending action carries no exhaustion charge.
 void battle_apply(BattleState& state, BattleAction action);
 
