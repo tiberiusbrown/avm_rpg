@@ -127,10 +127,19 @@ static void draw_move_mark(int16_t x, int16_t y) {
     avm_draw_filled_rect_white(x + 7, y + 7, 2, 2);
 }
 
-// One pip per remaining hit point, along the lower left of the cell.
-static void draw_pips(BattleUnit const& unit, int16_t x, int16_t y) {
-    for(uint8_t i = 0; i < unit.hp; ++i)
-        avm_draw_filled_rect_white(x + 1 + 3 * i, y + 13, 2, 2);
+// A one-pixel white square outline, `size` pixels on each side.
+static inline __attribute__((always_inline)) void draw_outline(int16_t x, int16_t y, uint8_t size) {
+    avm_draw_filled_rect_white(x, y, size, 1);
+    avm_draw_filled_rect_white(x, y + size - 1, size, 1);
+    avm_draw_filled_rect_white(x, y, 1, size);
+    avm_draw_filled_rect_white(x + size - 1, y, 1, size);
+}
+
+// The selected unit's border: a 16x16 outline and a 14x14 outline inside it, both centered on the
+// cell. Together they make a two-pixel white border, which the actor is drawn over.
+static inline __attribute__((always_inline)) void draw_selection(int16_t x, int16_t y) {
+    draw_outline(x, y, TILE);
+    draw_outline((int16_t)(x + 1), (int16_t)(y + 1), TILE - 2);
 }
 
 static DIRECTION pressed_direction(uint8_t pressed) {
@@ -145,16 +154,15 @@ static DIRECTION pressed_direction(uint8_t pressed) {
     return STILL;
 }
 
-// Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. Black
-// cells come before the actors: `lit` is the selected or acting unit, and the selected unit's
-// attack targets are blacked out. Empty destinations get their marks in the same layer. Dashed
-// attack borders come last, over the actors. The cursor is drawn separately, after the board.
-// The mover is drawn even once defeated, so a unit that dies on its move is seen walking first. A
-// flashing unit is drawn only on the visible phases of its flash, and it too is drawn once
-// defeated. The mover faces `mover_facing`, the way it steps or the victim it lunges at. Every
-// other actor stands facing south.
-static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit,
-                       DIRECTION mover_facing) {
+// Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. Highlights
+// come before the actors: the selected unit gets a white border, and its attack targets are
+// blacked out. Empty destinations get their marks in the same layer. Dashed attack borders come
+// last, over the actors. The cursor is drawn separately, after the board. The mover is drawn even
+// once defeated, so a unit that dies on its move is seen walking first. A flashing unit is drawn
+// only on the visible phases of its flash, and it too is drawn once defeated. The mover faces
+// `mover_facing`, the way it steps or the victim it lunges at. Every other actor stands facing
+// south.
+static void draw_board(BattleScreen const& screen, uint8_t selected, DIRECTION mover_facing) {
     BattleState const& state = screen.state;
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
     // to enter or an enemy to attack. Both masks use bit positions rather than cells, which keeps
@@ -184,9 +192,8 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit
         }
     }
 
-    if(lit != BATTLE_NO_UNIT && state.units[lit].hp)
-        avm_draw_filled_rect_black(cell_x(state.units[lit].cell), cell_y(state.units[lit].cell),
-                                   TILE, TILE);
+    if(selected != BATTLE_NO_UNIT && state.units[selected].hp)
+        draw_selection(cell_x(state.units[selected].cell), cell_y(state.units[selected].cell));
     for(uint8_t d = 0; d < 4; ++d) {
         uint8_t bit = (uint8_t)(1 << d);
         if(!((moves | attacks) & bit))
@@ -213,7 +220,6 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, uint8_t lit
         Actor const pose{(uint16_t)x, (uint16_t)y, moving ? mover_facing : SOUTH,
                          (uint8_t)(moving && screen.walking)};
         avm_draw_plus_mask(x, y, actor_frame(pose, unit.sprite_row, screen.ticks));
-        draw_pips(unit, x, y);
     }
 
     for(uint8_t d = 0; d < 4; ++d) {
@@ -241,7 +247,7 @@ static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen
         }
         ++screen.ticks;
         // The walker is drawn over the terrain with no highlight, so only the moving actor changes.
-        draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, facing);
+        draw_board(screen, BATTLE_NO_UNIT, facing);
         avm_display(false);
         input_wait_frame();
     }
@@ -261,7 +267,7 @@ animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward) {
         screen.mover_dx = (int8_t)(direction_dx(toward) * reach);
         screen.mover_dy = (int8_t)(direction_dy(toward) * reach);
         // The attacker faces its victim while it is out of place, and stands south once it returns.
-        draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, reach ? toward : SOUTH);
+        draw_board(screen, BATTLE_NO_UNIT, reach ? toward : SOUTH);
         avm_display(false);
         input_wait_frame();
     }
@@ -323,10 +329,27 @@ static void draw_result(BATTLE_RESULT result) {
     avm_draw_text((int16_t)((DISPLAY_WIDTH - avm_text_width(hint)) / 2), 41, hint);
 }
 
+// Handles an A press on `cell`. A friendly hero becomes the selection, replacing any other.
+// Otherwise the selected hero acts on the cell if that is legal. Returns the action taken, or one
+// with no unit when the press changes nothing. Kept out of line so party_turn's frame stays small.
+RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& selected,
+                                         uint8_t cell) {
+    uint8_t unit = battle_unit_at(state, cell);
+    if(unit != BATTLE_NO_UNIT && state.units[unit].team() == BATTLE_PARTY) {
+        selected = unit;
+    } else if(selected != BATTLE_NO_UNIT) {
+        BattleAction action{selected, cell};
+        if(battle_legal(state, action))
+            return action;
+    }
+    return BattleAction{BATTLE_NO_UNIT, 0};
+}
+
 // Runs the party's turn one frame at a time, so the cursor keeps easing and its dashes keep moving
-// between presses. D-pad moves the logical cursor, A selects a friendly unit or confirms a
-// destination, and B cancels the selection. Illegal confirmations do nothing and do not consume the
-// turn. Returns the legal action the player confirms.
+// between presses. D-pad moves the logical cursor. A selects a friendly hero, which replaces the
+// current selection, or confirms a destination for the selected hero. B cancels the selection.
+// Illegal confirmations do nothing and do not consume the turn. Returns the legal action the player
+// confirms.
 RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
     BattleState& state = screen.state;
     Cursor& cursor = screen.cursor;
@@ -334,7 +357,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
     // Presses made while the enemy acted do not count.
     input_sync();
     for(;;) {
-        draw_board(screen, selected, selected, SOUTH);
+        draw_board(screen, selected, SOUTH);
         draw_cursor(cursor);
         avm_display(false);
         uint8_t pressed =
@@ -347,14 +370,18 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
         if(pressed & BTN_B)
             selected = BATTLE_NO_UNIT;
         if(pressed & BTN_A) {
-            if(selected == BATTLE_NO_UNIT) {
-                uint8_t unit = battle_unit_at(state, cursor.cell);
-                if(unit != BATTLE_NO_UNIT && state.units[unit].team() == BATTLE_PARTY)
-                    selected = unit;
-            } else {
-                BattleAction action{selected, cursor.cell};
-                if(battle_legal(state, action))
-                    return action;
+            BattleAction action = press_a(state, selected, cursor.cell);
+            if(action.unit_index != BATTLE_NO_UNIT) {
+                // The cursor returns to the hero that acted, so that hero can be selected again
+                // without moving the cursor. A move leaves the hero at its destination, and an
+                // attack leaves it in place.
+                bool moved = battle_unit_at(state, action.destination) == BATTLE_NO_UNIT;
+                cursor.cell = moved ? action.destination : state.units[action.unit_index].cell;
+                // The rendered cursor snaps there too. Easing would glide it back from the cell
+                // it was on when the action was confirmed.
+                cursor.x = cursor_subpixel(cell_x(cursor.cell));
+                cursor.y = cursor_subpixel(cell_y(cursor.cell));
+                return action;
             }
         }
         animate_cursor(cursor);
@@ -363,15 +390,15 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
 
 // Shows the player's result, then chooses the enemy's action. No input is read here.
 RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
-    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, SOUTH);
+    draw_board(screen, BATTLE_NO_UNIT, SOUTH);
     avm_display(false);
     pause(RESULT_FRAMES);
     return battle_enemy_action(screen.state);
 }
 
-// Shows the enemy's unit that has just acted, with its result.
-RPG_NOINLINE static void enemy_result(BattleScreen const& screen, uint8_t unit) {
-    draw_board(screen, BATTLE_NO_UNIT, unit, SOUTH);
+// Shows the board after the enemy's action, with no unit highlighted.
+RPG_NOINLINE static void enemy_result(BattleScreen const& screen) {
+    draw_board(screen, BATTLE_NO_UNIT, SOUTH);
     avm_display(false);
     pause(RESULT_FRAMES);
 }
@@ -401,13 +428,12 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         if(state.turn == BATTLE_PARTY) {
             resolve(screen, party_turn(screen));
         } else {
-            BattleAction action = enemy_turn(screen);
-            resolve(screen, action);
-            enemy_result(screen, action.unit_index);
+            resolve(screen, enemy_turn(screen));
+            enemy_result(screen);
         }
     }
 
-    draw_board(screen, BATTLE_NO_UNIT, BATTLE_NO_UNIT, SOUTH);
+    draw_board(screen, BATTLE_NO_UNIT, SOUTH);
     draw_result(state.result);
     avm_display(false);
     input_wait_press(BTN_A);

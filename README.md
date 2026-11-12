@@ -106,8 +106,10 @@ overworld cache and from the current area.
   outline. The dashes are two white pixels with two black pixels between them, and they turn
   clockwise around the outline. The cursor glides to each cell it moves to.
   A selects a hero, then A confirms an adjacent empty cell to move or an adjacent creature
-  to attack. B cancels a selection. An invalid confirmation does nothing, and it does not
-  use up the turn.
+  to attack. A on another hero switches the selection to that hero, and B cancels a
+  selection. The selected hero has a two-pixel white border. An invalid confirmation does
+  nothing, and it does not use up the turn. After a hero acts, the cursor returns to that
+  hero, so it can be selected again without moving the cursor.
 - Each activation is one move or one attack. A move walks the unit one cell at the
   exploration walking speed and pose. Each attack deals 2 HP. The unit that is attacked
   is removed when its HP reaches 0.
