@@ -2,9 +2,12 @@
 
 C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. D-pad moves, A reads the sign immediately north of the
-starting position and enters a house when the player faces its door, and B opens the
-status/save menu. Two sample villagers show
+starting position and then starts a test battle, enters a house when the player faces
+its door, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
+
+The sign's battle is a synchronous prototype. Its controls and rules are described in
+[Battle prototype](#battle-prototype) below.
 
 The build automatically discovers every `assets/music/*.avms` score and adds it
 to the soundtrack. It uses `avm_music.py` through `tools/compile_music.py` to emit
@@ -75,6 +78,10 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 - `assets/images/actors16.png`: 32 character rows (16 people, then 16 creatures and
   enemies), 12 frames per row, binary alpha.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
+- `src/battle.h`, `src/battle.cpp` and `src/battle_ai.*`: the portable battle rules, the
+  Grove battlefield and encounter, and the greedy enemy. `src/battle_screen.cpp` is the AVM
+  screen behind `battle_show()`. `tests/test_battle.cpp` covers the rules, and
+  `tests/story_stub.*` records story calls on the host.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
   each `generated/*_music.h` constexpr header and automatically updates the song list.
@@ -86,6 +93,28 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 - `build/artifacts/rpg_qa.arduboy` and `rpg_qa.fxc.arduboy`: the same game with
   device-QA frame markers. Device tests and QA scripts read these; the root packages
   carry no markers.
+
+## Battle prototype
+
+Reading the Nocturne Grove sign shows its welcome line, runs `battle_show()` on the
+Grove encounter, and then shows an outcome line. The battle blocks in the same way as
+dialogue, so story code can alternate dialogue and battles in ordinary sequence. Its
+8x4 battlefield is a PROGMEM tile array in the world tileset. It is separate from the
+overworld cache and from the current area.
+
+- D-pad moves the cursor. A selects a hero, then A confirms an adjacent empty cell to
+  move or an adjacent creature to attack. B cancels a selection. An invalid confirmation
+  does nothing, and it does not use up the turn.
+- Each activation is one move or one attack. Each attack deals 2 HP. The unit that is
+  attacked is removed when its HP reaches 0.
+- Each side moves in turn, and the creatures choose greedily: kills first, then attacks,
+  then steps toward the nearest hero.
+- From the 21st completed activation onward, the acting unit loses 1 HP after its action.
+- A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
+  position, flags, or any other overworld state.
+
+The battle is the only feature in this prototype. Other encounters, obstacles, and
+terrain collision are not implemented.
 
 The bottom-right atlas cell (0xFF) is reserved for the impassable outside-map
 sentinel. Black cells retain their indices. Characters use direction order

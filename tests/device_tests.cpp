@@ -404,6 +404,71 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
               << ",\"budget_cycles\":320000}\n";
 }
 
+// The Grove battle always plays the same way, because the greedy enemy chooses deterministically.
+// Each entry is one party action: the hero's cell and the cell it targets, in battlefield tiles.
+struct GroveCell {
+    uint8_t x, y;
+};
+
+struct GroveAction {
+    GroveCell hero, target;
+};
+
+// The heroes begin at (2,1) and (2,2), and the creatures at (5,1) and (5,2). Hero A steps east
+// and south and strikes creature A, then creature B. Hero A ends the battle with one HP left.
+constexpr GroveAction GROVE_VICTORY_PLAN[] = {
+    {{2, 1}, {3, 1}}, // Hero A steps east, and creature A closes to (4,1).
+    {{3, 1}, {4, 1}}, // Hero A strikes creature A, which strikes back.
+    {{3, 1}, {3, 2}}, // Hero A steps south, and creature A moves to (4,2).
+    {{3, 2}, {4, 2}}, // Hero A defeats creature A, and creature B moves to (4,2).
+    {{3, 2}, {4, 2}}, // Hero A strikes creature B.
+    {{3, 2}, {4, 2}}, // Hero A defeats creature B.
+};
+
+// The enemy's turn shows two half-second results, plus a little margin.
+constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 28800000;
+
+// The cursor moves one tile per press, so moving it takes one press per tile.
+static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
+    while(cursor.x < target.x) {
+        d.tap(BTN_RIGHT);
+        ++cursor.x;
+    }
+    while(cursor.x > target.x) {
+        d.tap(BTN_LEFT);
+        --cursor.x;
+    }
+    while(cursor.y < target.y) {
+        d.tap(BTN_DOWN);
+        ++cursor.y;
+    }
+    while(cursor.y > target.y) {
+        d.tap(BTN_UP);
+        --cursor.y;
+    }
+}
+
+// Plays the sign's battle from its first board through the victory overlay, then closes the
+// outcome line. The battle starts after the welcome line closes, so the caller resumes with
+// exploration.
+static void play_grove_battle(Device& d) {
+    GroveCell cursor{2, 1};
+    for(auto const& action : GROVE_VICTORY_PLAN) {
+        grove_move_cursor(d, cursor, action.hero);
+        d.tap(BTN_A); // Select the hero.
+        grove_move_cursor(d, cursor, action.target);
+        d.tap(BTN_A); // Confirm the destination.
+        d.advance(0, GROVE_ENEMY_TURN_CYCLES);
+    }
+    // The victory overlay waits for a fresh A. Its outcome line then opens over exploration.
+    d.advance(0, 1600000);
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_TYPING, "grove battle did not return to its outcome line");
+    d.wait_for_prompt();
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_CLOSED, "grove outcome line did not close");
+}
+
 #ifndef RPG_DEVICE_TEST_LIBRARY
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
@@ -465,6 +530,9 @@ int main(int argc, char** argv) try {
     d.capture(out / "sign-dialogue.pgm");
     d.advance(0, 8000000);
     d.tap(BTN_A);
+    // Closing the welcome starts the Grove battle, which returns only after its outcome line.
+    d.capture(out / "grove-battle.pgm");
+    play_grove_battle(d);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
 
     // Stand one tile north of the villager, facing it, and talk with A.

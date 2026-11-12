@@ -249,6 +249,9 @@ int main(int argc, char** argv) try {
                 d.wait_for_prompt();
                 d.tap(BTN_A);
                 require(d.prompt() == DIALOGUE_CLOSED, "timing dialogue did not close");
+                // The welcome closes into the Grove battle, which the scenario plays through.
+                monitor.scenario = "battle";
+                play_grove_battle(d);
                 monitor.scenario = "menu_status";
                 d.tap(BTN_B);
                 d.advance(0, 32000000);

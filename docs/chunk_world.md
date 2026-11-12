@@ -74,7 +74,9 @@ on the next update. Save/load uses the same cache-based terrain repair.
 ## Content reset and save boundary
 
 The former gate/bridge/platform, interior, corridor, courier and relocation quests
-are removed. The sample has one clearing, one sign dialogue and two NPC anchors.
+are removed. The sample has one clearing, one sign dialogue that starts a battle, and two
+NPC anchors. The battle runs in the Dialogue stage like dialogue, and it uses its own
+PROGMEM battlefield rather than the chunk cache.
 The generic flags, staged handlers, movement, route and save mechanisms remain.
 There is one reserved flag bit and no current quest state.
 

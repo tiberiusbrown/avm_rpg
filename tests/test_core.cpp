@@ -3,6 +3,7 @@
 #include "world_assets.h"
 #include "map_positions.h"
 #include "npc.h"
+#include "story_stub.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,7 @@ static char const* last_dialogue;
 bool dialogue_show(char const PROGMEM* text) {
     ++dialogues;
     last_dialogue = text;
+    story_stub_record_dialogue(text);
     CHECK(chunk_trace_count[STAGE_TILES] > 0);
     CHECK(cached_tile(positions::GroveSign) == TILE_SIGN);
     return true;
@@ -85,30 +87,71 @@ static void movement() {
     CHECK(!memcmp(&game, &expected, sizeof(Game)));
 }
 
+// Each valid interaction shows the welcome, runs one battle, and then shows an outcome line.
 static void sign() {
     game_new();
     CHECK(game.can_interact);
+    story_stub_reset(BATTLE_VICTORY);
     unsigned before = dialogues;
     game_update(BTN_A); // Held A is not a fresh interaction.
-    CHECK(dialogues == before);
+    CHECK(dialogues == before && story_stub_count() == 0);
     uint16_t x = game.player.x, y = game.player.y, ticks = game.ticks, rng = game.rng;
     game_update(BTN_RIGHT, BTN_A);
-    CHECK(dialogues == before + 1 && strstr(last_dialogue, "Nocturne Grove"));
+    CHECK(dialogues == before + 2 && story_stub_battles() == 1);
+    CHECK(strstr(story_stub_event(0).text, "Nocturne Grove"));
     CHECK(game.player.x == x && game.player.y == y && game.ticks == ticks && game.rng == rng);
     CHECK(!frame_pressed);
     game_update(BTN_A);
-    CHECK(dialogues == before + 1);
+    CHECK(dialogues == before + 2 && story_stub_battles() == 1);
     game.player.facing = EAST;
     game_update(0, BTN_A);
-    CHECK(dialogues == before + 1);
+    CHECK(dialogues == before + 2 && story_stub_battles() == 1);
     world_enter(AREA_OUTDOOR, (positions::GroveSign.x - 1) * TILE,
                 (positions::GroveSign.y + 1) * TILE, NORTH);
     game_update(0, BTN_A);
-    CHECK(dialogues == before + 1); // Diagonals do not read the sign.
+    CHECK(dialogues == before + 2 && story_stub_battles() == 1); // Diagonals do not read the sign.
     world_enter(AREA_OUTDOOR, (positions::GroveSign.x + 1) * TILE,
                 positions::GroveSign.y * TILE, WEST);
     game_update(0, BTN_A);
-    CHECK(dialogues == before + 2);
+    CHECK(dialogues == before + 4 && story_stub_battles() == 2);
+}
+
+// The welcome, the battle, and the outcome line run in that order. The outcome picks the line,
+// and every valid interaction starts a fresh battle without changing overworld state.
+static void grove_battle() {
+    game_new();
+    story_stub_reset(BATTLE_VICTORY);
+    uint8_t hp = game.hp;
+    uint16_t gold = game.gold, x = game.player.x, y = game.player.y;
+
+    // Neither a held A nor a sign that is not faced starts a battle.
+    game_update(BTN_A);
+    game.player.facing = EAST;
+    game_update(0, BTN_A);
+    CHECK(story_stub_count() == 0 && story_stub_battles() == 0);
+
+    game.player.facing = NORTH;
+    game_update(0, BTN_A);
+    CHECK(story_stub_count() == 3 && story_stub_battles() == 1);
+    StoryEvent const& welcome = story_stub_event(0);
+    StoryEvent const& battle = story_stub_event(1);
+    StoryEvent const& outcome = story_stub_event(2);
+    CHECK(welcome.kind == STORY_EVENT_DIALOGUE && strstr(welcome.text, "Nocturne Grove"));
+    CHECK(battle.kind == STORY_EVENT_BATTLE && battle.encounter == &BATTLE_GROVE);
+    CHECK(outcome.kind == STORY_EVENT_DIALOGUE && strstr(outcome.text, "withdraw"));
+    CHECK(game.player.x == x && game.player.y == y && game.area == AREA_OUTDOOR);
+    CHECK(game.hp == hp && game.gold == gold);
+
+    story_stub_set_result(BATTLE_DEFEAT);
+    game_update(0, BTN_A);
+    CHECK(story_stub_count() == 6 && story_stub_battles() == 2);
+    CHECK(story_stub_event(3).kind == STORY_EVENT_DIALOGUE &&
+          strstr(story_stub_event(3).text, "Nocturne Grove"));
+    CHECK(story_stub_event(4).kind == STORY_EVENT_BATTLE &&
+          story_stub_event(4).encounter == &BATTLE_GROVE);
+    CHECK(story_stub_event(5).kind == STORY_EVENT_DIALOGUE &&
+          strstr(story_stub_event(5).text, "drive you back"));
+    CHECK(game.player.x == x && game.player.y == y && game.hp == hp);
 }
 
 static void checksum(uint8_t* record) {
@@ -159,6 +202,7 @@ int main() {
     animate();
     movement();
     sign();
+    grove_battle();
     saves();
     printf("PASS 16x16 core: %u checks\n", checks);
 }

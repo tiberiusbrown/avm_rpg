@@ -2,12 +2,20 @@
 #define LOGIC_HANDLERS_H
 
 #include "handler_defaults.h"
+#include "battle.h"
 
 namespace handler_impl {
 
+// The guardians fight once the welcome closes. Each interaction starts a fresh battle, and the
+// outcome decides the follow-up line.
 template <TilePos POS> void read_sign(Dialogue<POS>) {
-    if(player_just_interacted<POS>())
+    if(player_just_interacted<POS>()) {
         dialogue_show(F("Welcome to Nocturne Grove. Take a quiet walk among the trees."));
+        if(battle_show(&BATTLE_GROVE) == BATTLE_VICTORY)
+            dialogue_show(F("The guardians bow and withdraw into the trees."));
+        else
+            dialogue_show(F("The guardians drive you back. Rest, then try again."));
+    }
 }
 
 // A house pairs its outdoor door with the exit of its interior. Both are map markers.

@@ -1,3 +1,4 @@
+#include "battle.h"
 #include "rpg.h"
 #include <avm.h>
 
@@ -23,6 +24,11 @@ bool dialogue_show(char const PROGMEM*) {
 bool dialogue_ask(char const PROGMEM*) {
     ++npc_test_choices;
     return true;
+}
+
+// The probes do not run the battle screen. Every battle is a win.
+BATTLE_RESULT battle_show(BattleEncounter const PROGMEM*) {
+    return BATTLE_VICTORY;
 }
 
 extern "C" RPG_NOINLINE void probe_done() {

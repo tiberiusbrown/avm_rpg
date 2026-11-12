@@ -225,8 +225,9 @@ static void run_npc_scenarios() {
 
     game_new();
     unsigned before = npc_test_dialogues;
+    // The sign shows its welcome, runs a battle (stubbed here), and then shows the outcome line.
     game_update(BTN_RIGHT, BTN_A);
-    CHECK(npc_test_dialogues == before + 1 && !frame_pressed);
+    CHECK(npc_test_dialogues == before + 2 && !frame_pressed);
     CHECK(game.player.x == positions::PlayerStart.x * TILE && game.ticks == 0);
     world_enter(AREA_OUTDOOR, positions::VillagerEast.x * TILE, positions::VillagerEast.y * TILE,
                 SOUTH);

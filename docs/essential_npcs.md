@@ -11,7 +11,8 @@ The replacement sample defines NPC_VILLAGER (standing, actor row 1) and NPC_WAND
 villager is dynamic: it roams between two residences at the ends of the clearing, named
 by the map markers `VillagerWest` and `VillagerEast`. The wanderer is static: it stays
 at its generated `WandererHome`. Each has one line of talk dialogue, shown by
-`npc_dialogue` after `npc_talk`; the sign is the only other dialogue.
+`npc_dialogue` after `npc_talk`; the sign is the only other dialogue. Its welcome is
+followed by a battle and an outcome line.
 
 `NpcDefinition` is an 11-byte ROM record: behavior/facing, period, pause/walk, leash,
 priority, route, sprite_row and talkable. `period` is the number of frames per movement

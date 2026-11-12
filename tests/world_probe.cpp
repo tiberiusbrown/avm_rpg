@@ -1,3 +1,4 @@
+#include "battle.h"
 #include "chunk.h"
 #include "map_positions.h"
 #include "tile_ids.h"
@@ -14,6 +15,11 @@ bool dialogue_show(char const PROGMEM*) {
 
 bool dialogue_ask(char const PROGMEM*) {
     return true;
+}
+
+// The probes do not run the battle screen. Every battle is a win.
+BATTLE_RESULT battle_show(BattleEncounter const PROGMEM*) {
+    return BATTLE_VICTORY;
 }
 
 static void check(bool value, uint16_t line) {
@@ -34,7 +40,8 @@ extern "C" void setup() {
     run_world_scenarios();
     game_new();
     game_update(0, BTN_A);
-    CHECK(dialogues == 1 && !frame_pressed);
+    // The sign shows its welcome, runs a battle (stubbed here), and then shows the outcome line.
+    CHECK(dialogues == 2 && !frame_pressed);
     game.gold = 19;
     save_encode(record);
     CHECK(save_decode(record) && game.gold == 19 && game.player.x == positions::PlayerStart.x * TILE);
