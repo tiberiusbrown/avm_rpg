@@ -63,6 +63,10 @@ extern "C" __attribute__((noinline)) void rpg_render_end() {
 }
 #endif
 
+bool game_has_save() {
+    return avm_load() && save_valid(saved_record);
+}
+
 bool game_load() {
     if(!avm_load() || !save_decode(saved_record))
         return false;

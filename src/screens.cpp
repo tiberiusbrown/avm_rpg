@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "battle_cursor.h"
 
 #include <avm.h>
 
@@ -31,34 +32,70 @@ __attribute__((noinline)) void status_screen() {
     input_wait_press(BTN_A | BTN_B);
 }
 
-__attribute__((noinline)) void menu_screen() {
-    static uint8_t audio_rate = AVM_AUDIO_RATE_16KHZ;
-    uint8_t selection = 0;
+bool menu_item_visible(PAUSE_ITEM item, bool can_load) {
+    return (item != PAUSE_MAP || game.area == AREA_OUTDOOR) && (item != PAUSE_LOAD || can_load);
+}
+
+__attribute__((noinline)) bool menu_screen() {
+    bool can_load = game_has_save();
+    PAUSE_ITEM selection = PAUSE_RESUME;
+    uint8_t width = menu_width();
+    int16_t revealed = 0;
+    bool closing = false;
+    bool load_requested = false;
     char const PROGMEM* feedback = nullptr;
+    input_sync();
 
     for(;;) {
-        render_menu(selection, feedback, audio_rate);
+        input_wait_frame();
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(width));
+        render_menu((uint8_t)cursor_pixel(revealed), width, selection, can_load, feedback,
+                    load_requested);
         avm_display(true);
-        uint8_t pressed = input_wait_press();
+        uint8_t pressed = input_pressed();
 
-        if(pressed & BTN_B)
-            return;
-        if(pressed & (BTN_DOWN | BTN_RIGHT))
-            selection = (uint8_t)((selection + 1) % 5);
-        else if(pressed & (BTN_UP | BTN_LEFT))
-            selection = (uint8_t)((selection + 4) % 5);
-        else if(pressed & BTN_A) {
-            if(selection == 0)
-                status_screen();
-            else if(selection == 1)
-                feedback = game_save() ? F("Saved and checked") : F("Save failed");
-            else if(selection == 2)
-                return;
-            else if(selection == 3)
-                feedback = music_next();
-            else {
-                audio_rate ^= 1;
-                avm_audio_rate(audio_rate);
+        if(closing) {
+            if(!revealed)
+                return load_requested;
+            continue;
+        }
+        if(pressed & BTN_B) {
+            closing = true;
+            feedback = nullptr;
+        } else if(pressed & (BTN_DOWN | BTN_UP)) {
+            do {
+                selection =
+                    (PAUSE_ITEM)((selection + (pressed & BTN_DOWN ? 1 : PAUSE_ITEM_COUNT - 1)) %
+                                 PAUSE_ITEM_COUNT);
+            } while(!menu_item_visible(selection, can_load));
+            feedback = nullptr;
+        } else if(pressed & BTN_A) {
+            switch(selection) {
+                case PAUSE_RESUME:
+                    closing = true;
+                    feedback = nullptr;
+                    break;
+                case PAUSE_SAVE:
+                    feedback = game_save() ? F("Saved and checked") : F("Save failed");
+                    can_load = game_has_save();
+                    break;
+                case PAUSE_PARTY:
+                    status_screen();
+                    input_sync();
+                    break;
+                case PAUSE_LOAD:
+                    if(game_has_save()) {
+                        load_requested = true;
+                        closing = true;
+                        feedback = nullptr;
+                    } else {
+                        can_load = false;
+                        selection = PAUSE_RESUME;
+                        feedback = F("Load failed");
+                    }
+                    break;
+                default:
+                    break;
             }
         }
     }
@@ -72,7 +109,12 @@ __attribute__((noinline)) void explore() {
         uint8_t pressed = input_pressed();
 
         if(pressed & BTN_B) {
-            menu_screen();
+            // Refresh after the menu's locals have left the stack: chunk dialogue can enter battle.
+            if(menu_screen()) {
+                if(game_load())
+                    update_visible_world(0, false);
+                fade_world_in();
+            }
             input_sync();
             continue;
         }

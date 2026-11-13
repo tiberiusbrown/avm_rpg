@@ -308,7 +308,8 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
     Game original = d.state();
     Game fixture = original;
     // The fixture stands half a tile left of the spawn and one tile below it.
-    uint16_t const spawn_x = positions::PlayerStart.x * TILE, spawn_y = positions::PlayerStart.y * TILE;
+    uint16_t const spawn_x = positions::PlayerStart.x * TILE,
+                   spawn_y = positions::PlayerStart.y * TILE;
     fixture.player = {(uint16_t)(spawn_x - 8), (uint16_t)(spawn_y + 8), SOUTH, 0};
     fixture.npcs = {};
     // Deliberately reverse the NPC slots relative to depth, with the player between.
@@ -435,8 +436,11 @@ struct FadeTrace {
     Frame pending{};
     unsigned bytes = 0;
     uint64_t previous_transfer = 0;
+    bool synchronized;
 
-    explicit FadeTrace(Device& d) : device(d) {
+    explicit FadeTrace(Device& d)
+        : device(d),
+          synchronized((d.ab->core_state.cpu.data[absim::reg::addr::PORTD] & 0x40) != 0) {
         require(!d.cycle_observer, "another device observer is attached");
         std::copy_n(d.ab->core_state.cpu.data.begin() + 0x500, 1024, pending.pixels.begin());
         pending.cycle = d.ab->core_state.cpu.cycle_count;
@@ -459,6 +463,14 @@ struct FadeTrace {
             return;
         }
         uint8_t port = cpu.data[absim::reg::addr::PORTD];
+        // An observer may attach in the middle of a display transfer. Start at a complete
+        // chip-select transaction so captured frames cannot wrap around the framebuffer.
+        if(port & 0x40) {
+            synchronized = true;
+            bytes = 0;
+        }
+        if(!synchronized)
+            return;
         if(!cpu.spi_busy || cpu.spi_transmit_zero_cycle == previous_transfer ||
            (port & 0x50) != 0x10)
             return;
@@ -506,6 +518,120 @@ struct FadeTrace {
     }
 };
 
+static void verify_pause_animation(FadeTrace const& trace, bool closing, bool loading = false) {
+    constexpr int WIDTH = 39; // BR5D's widest label is 25 pixels, plus cursor and panel padding.
+    constexpr uint8_t BAYER[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+    auto matches = [&](FadeTrace::Frame const& frame, FadeTrace::Frame const& source, int visible) {
+        unsigned fade = visible * 4 / WIDTH;
+        if(loading)
+            fade = 8 - fade;
+        for(unsigned i = WIDTH; i < frame.pixels.size(); ++i) {
+            if(i % 128 < WIDTH)
+                continue;
+            uint8_t expected = source.pixels[i];
+            for(unsigned bit = 0; bit < 8; ++bit)
+                if(BAYER[bit % 4][i % 4] < fade * 2)
+                    expected &= uint8_t(~(1 << bit));
+            if(frame.pixels[i] != expected)
+                return false;
+        }
+        for(int x = 0; x < visible; ++x) {
+            bool white = x >= visible - WIDTH + 1 && x < visible - 1;
+            if((frame.pixels[x] & 3) != (white ? 2 : 0) ||
+               (frame.pixels[7 * 128 + x] & 0xc0) != (white ? 0x40 : 0))
+                return false;
+        }
+        return true;
+    };
+    // The closing trace ends in the restored world. The opening trace begins in the world.
+    auto const& source = closing && !loading ? trace.frames.back() : trace.frames[1];
+    int position = closing ? WIDTH * 16 : 0;
+    size_t at = 1;
+    bool first = true;
+    uint64_t previous = 0;
+    do {
+        int target = closing ? 0 : WIDTH * 16;
+        int distance = target - position;
+        position = distance >= -1 && distance <= 1 ? target : position + distance / 2;
+        int visible = (position + 8) / 16;
+        if(first) {
+            while(at < trace.frames.size() && !matches(trace.frames[at], source, visible))
+                ++at;
+            first = false;
+        }
+        require(at < trace.frames.size() && matches(trace.frames[at], source, visible),
+                "pause panel easing, outline or world fade mismatch");
+        auto cycle = trace.frames[at++].cycle;
+        require(!previous || cycle - previous < 336000, "pause animation missed its 50 Hz budget");
+        previous = cycle;
+    } while(position != (closing ? 0 : WIDTH * 16));
+    if(loading) {
+        auto black = trace.frames.begin() + at - 1;
+        require(
+            std::all_of(black->pixels.begin(), black->pixels.end(), [](uint8_t p) { return !p; }),
+            "Load did not hide the world completely before loading");
+        while(black + 1 != trace.frames.end() && (black + 1)->pixels == black->pixels)
+            ++black;
+        require(trace.frames.end() - black > 8, "Load did not finish fading in the saved world");
+        auto const& destination = (black + 8)->pixels;
+        for(unsigned frame = 1; frame <= 8; ++frame) {
+            for(unsigned i = 0; i < destination.size(); ++i) {
+                uint8_t expected = destination[i];
+                for(unsigned bit = 0; bit < 8; ++bit)
+                    if(BAYER[bit % 4][i % 4] < (8 - frame) * 2)
+                        expected &= uint8_t(~(1 << bit));
+                require((black + frame)->pixels[i] == expected,
+                        "Load did not fade the saved world completely back in");
+            }
+        }
+    }
+}
+
+static FadeTrace::Frame pause_frame(Device& d) {
+    FadeTrace trace(d);
+    d.advance(0, 800000);
+    return trace.frames.back();
+}
+
+static bool pause_row_visible(Device& d, unsigned row) {
+    auto pixels = pause_frame(d).pixels;
+    for(unsigned y = 12 + 7 * row; y < 18 + 7 * row; ++y)
+        for(unsigned x = 4; x < 35; ++x)
+            if(pixels[(y / 8) * 128 + x] & (1 << (y % 8)))
+                return true;
+    return false;
+}
+
+static void verify_pause_party(Device& d) {
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    auto before = pause_frame(d).pixels;
+    Game frozen = d.state();
+    d.tap(BTN_UP);
+    d.tap(BTN_A); // Options
+    d.tap(BTN_UP);
+    d.tap(BTN_A); // Map
+    d.tap(BTN_UP);
+    d.tap(BTN_A); // Journal
+    d.tap(BTN_LEFT);
+    d.tap(BTN_RIGHT);
+    d.tap(BTN_UP); // Party
+    d.tap(BTN_A);
+    d.tap(BTN_B);
+    auto after = pause_frame(d).pixels;
+    Game returned = d.state();
+    require(!memcmp(&frozen, &returned, sizeof(Game)), "Party changed paused game state");
+    for(unsigned i = 0; i < before.size(); ++i) {
+        if(i % 128 >= 39 && before[i] != after[i]) {
+            std::cerr << "Party pixels at " << i << ": " << unsigned(before[i]) << " -> "
+                      << unsigned(after[i]) << '\n';
+            require(false, "Party changed the paused world image");
+        }
+    }
+    d.tap(BTN_B);
+    d.frame();
+}
+
 static void verify_house_fades(Device& d) {
     Game original = d.state();
     Game at_door = original;
@@ -529,6 +655,12 @@ static void verify_house_fades(Device& d) {
                 d.cached_tile(positions::ElderExit.x, positions::ElderExit.y) ==
                     HOUSE_TILE_EDGE_TOP_EXIT,
             "house entry revealed the wrong destination or tile cache");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    require(pause_row_visible(d, 4) && !pause_row_visible(d, 5),
+            "interior pause menu did not hide Map and Load");
+    d.tap(BTN_B);
+    d.frame();
     {
         FadeTrace trace(d);
         for(unsigned frames = 0; d.state().area == inside.area; ++frames) {
@@ -638,6 +770,7 @@ static void press_with_music_fade(Device& d) {
         void (*observer)(void*, bool);
         void* observer_context;
     } trace{d, {}, 255, d.cycle_observer, d.observer_context};
+
     d.observer_context = &trace;
     d.cycle_observer = [](void* context, bool after) {
         auto& trace = *static_cast<Trace*>(context);
@@ -657,10 +790,12 @@ static void press_with_music_fade(Device& d) {
     // A battle entry also has a 320 ms visual transition; wait for its input loop while the
     // longer music fade is still running, so the right/left pair reaches the same screen.
     d.advance(0, 4000000);
-    require(d.ab->core_state.cpu.data[0xa73] != 0, "fade did not return while the song was still fading");
+    require(d.ab->core_state.cpu.data[0xa73] != 0,
+            "fade did not return while the song was still fading");
     auto display = d.ab->peripherals.display.ram;
     d.tap(BTN_RIGHT);
-    require(d.ab->peripherals.display.ram != display, "music fade blocked input or display updates");
+    require(d.ab->peripherals.display.ram != display,
+            "music fade blocked input or display updates");
     d.tap(BTN_LEFT); // Restore the menu selection or battle cursor.
     d.advance(0, 16000000);
     d.cycle_observer = trace.observer;
@@ -674,7 +809,7 @@ static void press_with_music_fade(Device& d) {
 
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
-                       "output_directory normal|fxc|proof dialogue_address phase_address");
+                       "output_directory normal|fxc|proof|pause dialogue_address phase_address");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
@@ -694,6 +829,11 @@ int main(int argc, char** argv) try {
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
+    verify_pause_party(d);
+    if(std::string(argv[6]) == "pause") {
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"pause placeholders and Party redraw\"}\n";
+        return 0;
+    }
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "new game did not default to 16 kHz audio");
     d.verify_music();
     require(d.state().player.x == positions::PlayerStart.x * TILE &&
@@ -896,7 +1036,13 @@ int main(int argc, char** argv) try {
         step_villager();
     d.capture(out / "npc-west.pgm");
 
-    d.tap(BTN_B);
+    {
+        FadeTrace trace(d);
+        d.advance(0, 800000);
+        d.tap(BTN_B);
+        d.advance(0, 3200000);
+        verify_pause_animation(trace, false);
+    }
     auto menu_state = d.state();
     unsigned menu_serial = d.serial();
     d.advance(0, 3200000);
@@ -905,52 +1051,88 @@ int main(int argc, char** argv) try {
             "menu did not pause exploration");
     d.verify_music();
     d.capture(out / "menu.pgm");
-    // Up wraps from Status to Audio. Toggle while music plays, leave/reopen
-    // the menu to check persistence, then restore the default rate.
-    d.tap(BTN_UP);
-    d.tap(BTN_A);
-    require(d.ab->core_state.cpu.timer1.ocrNa == 255, "audio menu did not select 8 kHz");
-    d.verify_music();
-    auto after_rate = d.state();
-    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_rate, sizeof(Game)),
-            "changing audio rate advanced simulation");
-    d.capture(out / "audio-8khz.pgm");
-    d.tap(BTN_B);
-    d.frame();
-    require(d.ab->core_state.cpu.timer1.ocrNa == 255, "leaving the menu lost the audio rate");
-    d.tap(BTN_B);
-    menu_serial = d.serial();
-    d.tap(BTN_UP);
-    d.tap(BTN_A);
-    require(d.ab->core_state.cpu.timer1.ocrNa == 127, "audio menu did not return to 16 kHz");
-    d.verify_music();
-    d.capture(out / "audio-16khz.pgm");
+    auto menu_pixels = pause_frame(d).pixels;
+    require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
+            "overworld menu did not show Map or hid an invalid save incorrectly");
 
-    // Up from Audio selects Switch music. Check every song and wrap back
-    // to the default while the world remains paused.
+    // Up wraps to Options. Placeholder entries and horizontal input leave the world alone.
     d.tap(BTN_UP);
-    for(unsigned song = 0; song < MUSIC_COUNT; ++song) {
-        press_with_music_fade(d);
-        d.verify_music();
-        d.capture(out / ("music-" + std::to_string((song + 1) % MUSIC_COUNT) + ".pgm"));
-    }
-    require(d.serial() == menu_serial, "switching music advanced simulation");
-    d.tap(BTN_B);
-    d.frame();
-    d.verify_music();
-    d.tap(BTN_B);
-    menu_serial = d.serial();
+    d.tap(BTN_A);
+    d.tap(BTN_UP); // Map
+    d.tap(BTN_A);
+    d.tap(BTN_UP); // Journal
+    d.tap(BTN_A);
+    d.tap(BTN_LEFT);
+    d.tap(BTN_RIGHT);
+    auto after_placeholders = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_placeholders, sizeof(Game)),
+            "pause placeholders advanced simulation");
+    require(d.ab->core_state.cpu.timer1.ocrNa == 127, "Options changed the audio rate");
+
+    d.tap(BTN_UP); // Party
     d.tap(BTN_A);
     d.capture(out / "status.pgm");
-    require(d.serial() == menu_serial, "status advanced simulation");
+    require(d.serial() == menu_serial, "Party advanced simulation");
     d.tap(BTN_B);
-    d.tap(BTN_DOWN);
+    auto after_party_pixels = pause_frame(d).pixels;
+    for(unsigned i = 0; i < menu_pixels.size(); ++i)
+        if(i % 128 >= 39)
+            require(menu_pixels[i] == after_party_pixels[i],
+                    "Party changed the paused world image");
+    d.tap(BTN_UP); // Save
     d.tap(BTN_A);
+    require(pause_row_visible(d, 6), "successful Save did not reveal Load immediately");
+    d.capture(out / "menu-saved.pgm");
     auto saved = d.state();
     auto sector = d.sector();
     require(sector[0] == SAVE_BYTES && sector[2] == 'R' && sector[3] == 'P' &&
                 sector[4] == SAVE_VERSION,
-            "no physical version-4 FX save record");
+            "no physical version-5 FX save record");
+    // Closing with B reverses the slide and restores the world. Reopen and resume with A.
+    {
+        FadeTrace trace(d);
+        d.tap(BTN_B);
+        d.frame();
+        verify_pause_animation(trace, true);
+    }
+    require(d.serial() != menu_serial, "B did not resume exploration");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    menu_serial = d.serial();
+    d.tap(BTN_A);
+    d.frame();
+    require(d.serial() != menu_serial, "Resume did not resume exploration");
+
+    // Load restores persistent state and refreshes the cache before exploration resumes.
+    Game changed = d.state();
+    changed.gold = saved.gold + 123;
+    changed.player = {(uint16_t)(positions::ElderDoor.x * TILE),
+                      (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
+    d.set_state(changed);
+    d.advance(0, 1600000);
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    require(d.state().area == AREA_INTERIORS, "load fixture did not enter the house");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
+            "interior menu did not show Load while hiding Map");
+    d.tap(BTN_UP); // Options
+    d.tap(BTN_UP); // Load
+    {
+        FadeTrace trace(d);
+        d.tap(BTN_A);
+        d.frame();
+        verify_pause_animation(trace, true, true);
+    }
+    auto menu_loaded = d.state();
+    require(menu_loaded.gold == saved.gold && menu_loaded.area == saved.area &&
+                menu_loaded.player.x == saved.player.x && menu_loaded.player.y == saved.player.y &&
+                menu_loaded.cache.origin_tx == saved.cache.origin_tx &&
+                menu_loaded.cache.origin_ty == saved.cache.origin_ty,
+            "pause Load did not restore the saved world");
+    d.capture(out / "menu-loaded.pgm");
+
     Device restarted(package, g, m, s, q);
     restarted.phase_addr = d.phase_addr;
     restarted.import_sector(sector);
@@ -980,8 +1162,13 @@ int main(int argc, char** argv) try {
     corrupt.tap(BTN_A);
     require(corrupt.serial() == 0, "corrupt save accepted");
     require(!corrupt.music_enabled(), "failed continue started music");
+    corrupt.tap(BTN_UP);
+    corrupt.tap(BTN_A);
+    corrupt.tap(BTN_B);
+    corrupt.advance(0, 1600000);
+    require(!pause_row_visible(corrupt, 6), "pause menu offered a corrupt save");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
-                   "scrolling with the complete music rotation\"}\n";
+                 "scrolling with the animated pause menu\"}\n";
     return 0;
 } catch(std::exception const& error) {
 

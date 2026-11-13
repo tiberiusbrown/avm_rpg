@@ -69,6 +69,14 @@ def main():
         "thread backtrace",
         "avm button set",
         "avm run-for 100ms",
+        "avm button set DOWN",
+        "avm run-for 100ms",
+        "avm button set",
+        "avm run-for 100ms",
+        "avm button set DOWN",
+        "avm run-for 100ms",
+        "avm button set",
+        "avm run-for 100ms",
         "avm button set A",
         "avm run-for 100ms",
         "thread backtrace",
@@ -86,7 +94,8 @@ def main():
     ), f"AVM shared rules/input diverged: {values}"
     assert "menu_screen" in output and "status_screen" in output and "explore" in output
     proof = [
-        "breakpoint set --name loop",
+        # M0 returns from loop every frame; setup is a one-shot stop during boot.
+        "breakpoint set --name setup",
         "run",
         "breakpoint delete 1",
         "avm button set",

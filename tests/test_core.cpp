@@ -167,11 +167,16 @@ static void saves() {
     game.set_flag(FLAG_RESERVED);
     save_encode(record);
     game.gold = 0;
+    Game running = game;
+    CHECK(save_valid(record));
+    CHECK(!memcmp(&game, &running, sizeof(Game)));
     CHECK(save_decode(record) && game.gold == 37 && game.get_flag(FLAG_RESERVED));
     for(unsigned i = 0; i < SAVE_BYTES; ++i) {
         memcpy(bad, record, sizeof(bad));
         bad[i] ^= 0x40;
         Game before = game;
+        CHECK(!save_valid(bad));
+        CHECK(!memcmp(&game, &before, sizeof(Game)));
         CHECK(!save_decode(bad));
         CHECK(!memcmp(&game, &before, sizeof(Game)));
     }
@@ -179,11 +184,13 @@ static void saves() {
         memcpy(bad, record, sizeof(bad));
         bad[2] = version;
         checksum(bad);
+        CHECK(!save_valid(bad));
         CHECK(!save_decode(bad));
     }
     memcpy(bad, record, sizeof(bad));
     bad[6] = bad[7] = 255;
     checksum(bad);
+    CHECK(!save_valid(bad));
     CHECK(!save_decode(bad));
     memcpy(bad, record, sizeof(bad));
     bad[6] = positions::GroveSign.x * TILE;
@@ -198,6 +205,7 @@ static void saves() {
     CHECK(game.player.x != positions::GroveSign.x * TILE ||
           game.player.y != positions::GroveSign.y * TILE);
     CHECK(!save_decode(record, 3));
+    CHECK(!save_valid(record, 3));
 }
 
 int main() {

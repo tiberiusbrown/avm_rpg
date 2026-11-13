@@ -139,7 +139,14 @@ flags and RNG survive transitions; NPC scratch does not.
 
 `title_screen`, `explore`, `menu_screen`, and `status_screen` own their input,
 rendering, and display loops. Exploration calls the menu, which calls status;
-returning resumes the caller. Selections and feedback are local variables.
+returning resumes the caller. Selections, animation position and feedback are local variables.
+The pause panel eases halfway in from the left each frame while the world fades to 50% black;
+closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Load or Options. Map is
+visible only in the overworld; Load requires a valid physical save. Party calls status;
+Journal, Map and Options are placeholders. A selects and B resumes. Load eases the panel
+out while fading fully to black, then returns to exploration to restore and refresh the
+saved world while hidden, keeping that work off the menu's stack. The restored world fades
+completely back in before simulation resumes.
 `Game` contains no mode, pending command, or input/UI bookkeeping.
 `input_wait_press` requires release before a fresh press; `input_wait_frame`
 uses the SDK frame limiter. Exploration uses `input_pressed` for actions and
@@ -157,7 +164,7 @@ Facing plus proximity identifies an NPC on an A edge; `npc_talk` records the req
 and `npc_dialogue` shows that NPC's line in the Dialogue phase. Iona's ordinary function
 calls show an introduction, ask a question, and apply its result; accepting sets
 the lantern flag and grants five gold once. Menu B opens/closes;
-A selects Status/Save/Return. Startup allows New or Continue only after validating
+A activates the selected pause item. Startup allows New or Continue only after validating
 the physical record. No inventory/quest VM/battle scaffolding is implemented.
 
 Save version 1 is exactly 24 defined bytes with CRC, stable area/flag values and

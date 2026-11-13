@@ -3,12 +3,23 @@
 C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. D-pad moves, A reads the sign immediately north of the
 starting position and then starts a test battle, enters a house when the player faces
-its door, and B opens the status/save menu. Two sample villagers show
+its door, and B opens the pause menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
 Teleports, including entering and leaving buildings, use the same 320 ms dither fade through
 black as battles. The destination's camera, tile cache and actors are prepared while the screen
 is black. The shared fade adds no static RAM.
+
+The pause menu slides in from the left, easing halfway to its target each frame while the
+world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Journal**,
+**Map**, **Load**, or **Options**; A activates the selection, and B resumes with the
+reverse animation. The compact black panel has a white border and black outer edge.
+Map appears only in the overworld, and Load appears only for a valid save, including
+immediately after saving. Party opens the traveler status screen. Journal, Map, and
+Options are placeholders. The world stays frozen while the menu is open; music continues.
+Save writes and verifies the existing single save slot. Selecting Load eases the panel out
+while fading the world completely to black, restores the saved world while hidden, then
+fades it completely back in before play resumes.
 
 The sign's battle is a synchronous prototype. Its controls and rules are described in
 [Battle prototype](#battle-prototype) below.
@@ -17,7 +28,7 @@ The build automatically discovers every `assets/music/*.avms` score and adds it
 to the soundtrack. It uses `avm_music.py` through `tools/compile_music.py` to emit
 C++ constexpr assets and generates the song IDs and playback list. Add or remove
 a score and build normally; no CMake or C++ song-list edits are needed.
-Menu titles come from each score's `title` setting, with the filename as a fallback.
+Track titles come from each score's `title` setting, with the filename as a fallback.
 The FamiTracker reference files remain in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
@@ -30,8 +41,7 @@ an original melody inspired by the gentle three-voice texture of NES Final Fanta
 The A phrases sing over a stepwise descending bass, and A' lifts the tune to a full
 cadence on D. The last eight bars answer higher and end on the dominant, which
 resolves into the first bar of the next loop. It uses channels 0/1/2 and leaves
-noise free. The generated catalog exposes it as `MUSIC_PEACEFUL` and displays
-**Peaceful Village** in the music menu.
+noise free. The generated catalog exposes it as `MUSIC_PEACEFUL` with the title **Peaceful Village**.
 
 Battles have sound effects. Each `assets/sfx/*.avms` score is a one-shot effect, and the
 build compiles them all with `tools/compile_sfx.py` into `generated/sfx_ids.h` and
@@ -52,11 +62,8 @@ Noise carries the impacts.
 | `fall` | A unit is defeated, after the blow that defeated it |
 | `enemy_turn` | The enemy's turn starts |
 
-Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
-to advance through the scores in filename order, wrapping at the end. The selected
-title appears in the menu footer. Playback starts with Peaceful Village. Battles
-switch to Steel at Dawn and return to Peaceful Village when A dismisses the result screen.
-Music continues through dialogue and menus.
+Playback starts with Peaceful Village. Battles switch to Steel at Dawn and return to
+Peaceful Village when A dismisses the result screen. Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
 The runtime starts it immediately when no song is active.
@@ -68,11 +75,7 @@ Input, display animation and gameplay continue during the fade. Requesting the
 current song leaves it playing. The current-song getter avoids extra static RAM
 for selection tracking. Master gain and sound effects are unaffected.
 
-For the synthesis-rate experiment, press **B**, **Up**, **A** to toggle between
-**Audio: 8 kHz** and **Audio: 16 kHz** while the song keeps playing. Repeated
-presses of A compare the two rates; B returns to exploration. The selection
-persists when the menu closes and resets to 16 kHz on restart. It is not saved.
-The exact rates are 7812.5 and 15625 Hz, both without smoothing.
+Playback uses the 16 kHz synthesis setting (15625 Hz, without smoothing).
 
 CMake invokes the SDK's
 `avm_music.py` compiler for each editable AVMS file, without rewriting

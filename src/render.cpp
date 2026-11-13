@@ -31,16 +31,20 @@ static constexpr auto FADE_SPRITE PROGMEM = [] {
     return sprite;
 }();
 
-// Present a frozen scene at a given black coverage, then keep it visible for one frame. This
-// preserves the framebuffer; fade-out accumulates its masks without redrawing the outgoing scene.
-void show_fade(uint8_t step) {
-    if(step == FADE_STEPS) {
+// Apply black coverage without presenting, so an overlay can remain bright above the world.
+static void draw_fade(uint8_t step) {
+    if(step >= FADE_STEPS) {
         avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, 64);
     } else if(step) {
         avm_set_sprite(&FADE_SPRITE);
         for(uint8_t x = 0; x < DISPLAY_WIDTH; x += 16)
             avm_draw_erase(x, 0, step - 1);
     }
+}
+
+// Preserve the framebuffer; fade-out accumulates masks without redrawing the outgoing scene.
+void show_fade(uint8_t step) {
+    draw_fade(step);
     input_wait_frame();
     avm_display(false);
 }
@@ -124,20 +128,47 @@ void render_title(bool can_continue, uint8_t selection) {
     avm_draw_text(14, 60, F("D-pad choose / A"));
 }
 
-void render_menu(uint8_t selection, char const PROGMEM* feedback, uint8_t audio_rate) {
+static char const PROGMEM* menu_label(PAUSE_ITEM item) {
+    static char const PROGMEM* const PROGMEM LABELS[] = {
+        F("Resume"), F("Save"), F("Party"), F("Journal"), F("Map"), F("Load"), F("Options")};
+    return LABELS[item];
+}
+
+uint8_t menu_width() {
+    uint16_t width = avm_text_width(F("Paused")) + 8;
+    for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
+        uint16_t item_width = avm_text_width(menu_label((PAUSE_ITEM)item)) + 14;
+        if(item_width > width)
+            width = item_width;
+    }
+    return (uint8_t)width;
+}
+
+void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
+                 char const PROGMEM* feedback, bool loading) {
     rpg_render_world();
-    panel();
-    avm_draw_text(6, 10, F("TRAVEL MENU"));
+    uint8_t fade = (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / width);
+    draw_fade(loading ? FADE_STEPS - fade : fade);
+    if(!revealed)
+        return;
 
-    avm_draw_text(22, 18, F("Status"));
-    avm_draw_text(22, 26, F("Save game"));
-    avm_draw_text(22, 34, F("Return"));
-    avm_draw_text(22, 42, F("Switch music"));
-    avm_draw_text(22, 50,
-                  audio_rate == AVM_AUDIO_RATE_16KHZ ? F("Audio: 16 kHz") : F("Audio: 8 kHz"));
-    avm_draw_text(8, (int16_t)(18 + selection * 8), F(">"));
+    int16_t x = (int16_t)revealed - width;
+    avm_draw_filled_rect_black(x, 0, width, 64);
+    avm_draw_filled_rect_white(x + 1, 1, width - 2, 62);
+    avm_draw_filled_rect_black(x + 2, 2, width - 4, 60);
+    avm_draw_text(x + 4, 8, F("Paused"));
 
-    avm_draw_text(6, 58, feedback ? feedback : F("A select / B back"));
+    uint8_t y = 17;
+    for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
+        if(!menu_item_visible((PAUSE_ITEM)item, can_load))
+            continue;
+        avm_draw_text(x + 10, y, menu_label((PAUSE_ITEM)item));
+        if(item == selection)
+            avm_draw_text(x + 4, y, F(">"));
+        y += 7;
+    }
+    if(feedback && revealed == width)
+        avm_draw_text(width + 4, 58, feedback);
 }
 
 void render_status() {

@@ -193,6 +193,8 @@ bool dialogue_show(char const PROGMEM* words);
 // Wrap/page the question, then return A = yes or B = no.
 bool dialogue_ask(char const PROGMEM* question);
 void save_encode(uint8_t out[SAVE_BYTES]);
+// Checks the entire record without changing the running game.
+bool save_valid(uint8_t const* in, uint16_t length = SAVE_BYTES);
 // Restores a valid record into game without placing the player in its world. A caller that resumes
 // play must then call world_place(game.area, game.player.x, game.player.y, game.player.facing) and
 // update_visible_world.
@@ -207,7 +209,22 @@ void fade_world_out();
 // Requires the destination cache, tiles and actors to be ready. Consumes transition button presses.
 void fade_world_in();
 void render_title(bool can_continue, uint8_t selection);
-void render_menu(uint8_t selection, char const PROGMEM* feedback, uint8_t audio_rate);
+
+enum PAUSE_ITEM : uint8_t {
+    PAUSE_RESUME,
+    PAUSE_SAVE,
+    PAUSE_PARTY,
+    PAUSE_JOURNAL,
+    PAUSE_MAP,
+    PAUSE_LOAD,
+    PAUSE_OPTIONS,
+    PAUSE_ITEM_COUNT
+};
+
+bool menu_item_visible(PAUSE_ITEM item, bool can_load);
+uint8_t menu_width();
+void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
+                 char const PROGMEM* feedback, bool loading);
 void render_status();
 
 void input_sync();
@@ -219,10 +236,13 @@ void input_wait_frame();
 
 void title_screen();
 void explore();
-void menu_screen();
+// Returns true to load a save after easing out to black; exploration restores and fades in the
+// world.
+bool menu_screen();
 void status_screen();
 bool game_save();
 bool game_load();
+bool game_has_save();
 char const PROGMEM* music_next();
 
 extern uint8_t const PROGMEM TILE_SPRITES[];
@@ -240,9 +260,11 @@ inline constexpr uint8_t BATTLE_TARGET_FRAMES = 4;
 inline constexpr uint8_t BATTLE_TARGET_MOVE = 0;
 inline constexpr uint8_t BATTLE_TARGET_ATTACK = 4;
 static_assert(BATTLE_TARGET_FRAMES == CURSOR_FRAME_COUNT, "markers pulse with the cursor's phases");
+
 constexpr uint8_t battle_target_frame(uint8_t base, uint8_t phase) {
     return (uint8_t)(base + phase % BATTLE_TARGET_FRAMES);
 }
+
 extern uint8_t const PROGMEM BATTLE_TARGET_SPRITES[];
 // The archer's arrow in flight, battle_arrows16.png: one 16x16 plus-mask frame per DIRECTION, so a
 // direction is its own frame index. The generated sheet asserts the count.
@@ -252,9 +274,11 @@ extern uint8_t const PROGMEM BATTLE_ARROW_SPRITES[];
 // HP, a spiky burst with the digit in its black middle. Frame n - 1 shows a loss of n, and a larger
 // loss shows the last frame. The generated sheet asserts the count.
 inline constexpr uint8_t BATTLE_DAMAGE_FRAMES = 9;
+
 constexpr uint8_t battle_damage_frame(uint8_t lost) {
     return (uint8_t)((lost > BATTLE_DAMAGE_FRAMES ? BATTLE_DAMAGE_FRAMES : lost) - 1);
 }
+
 extern uint8_t const PROGMEM BATTLE_DAMAGE_SPRITES[];
 
 #endif

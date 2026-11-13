@@ -57,9 +57,7 @@ void save_encode(uint8_t out[SAVE_BYTES]) {
     put16(out + SAVE_CRC_OFFSET, save_checksum(out));
 }
 
-// Kept out of line so its locals stay out of the caller's frame. The caller's frame is still
-// live when it enters the restored world, so inlining would put these locals on that path.
-RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
+bool save_valid(uint8_t const* in, uint16_t length) {
     if(length < 4 || in[0] != 'R' || in[1] != 'P')
         return false;
     uint16_t size = in[3];
@@ -67,8 +65,6 @@ RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
        get16(in + size - 2) != save_checksum(in, size - 2))
         return false;
 
-    WorldFlags flags{};
-    uint16_t rng;
     uint16_t count = get16(in + 18);
     uint16_t bytes = count / 8 + (count % 8 != 0);
     uint16_t residence_at = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT;
@@ -79,21 +75,24 @@ RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     for(uint16_t i = residence_at + SAVE_NPC_BYTES; i < size - 2; ++i)
         if(in[i])
             return false;
-    memcpy(flags.bytes, in + SAVE_HEADER_BYTES, bytes);
-    TilePos residence[NPC_ID_LIMIT] = {};
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
         uint8_t const* r = in + residence_at + 3 * (id - 1);
-        residence[id] = {r[0], r[1], r[2]};
-        if(!npc_destination_valid(residence[id]))
+        if(!npc_destination_valid({r[0], r[1], r[2]}))
             return false;
     }
-    rng = get16(in + 16);
     uint16_t x = get16(in + 6), y = get16(in + 8);
     Area const PROGMEM* area = world_area(in[4]);
-    if(!area || in[5] > WEST || !in[11] || in[10] > in[11] || !in[12] || in[13] || !rng)
+    if(!area || in[5] > WEST || !in[11] || in[10] > in[11] || !in[12] || in[13] || !get16(in + 16))
         return false;
     MapDimensions dimensions{area->width, area->height};
     if(!dimensions.pixel_bounds(x, y))
+        return false;
+    return true;
+}
+
+// Kept out of line so validation locals stay out of the path into the restored world.
+RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
+    if(!save_valid(in, length))
         return false;
 
     // Nothing mutates until every field is valid. No struct bytes are saved. The caller places
@@ -101,14 +100,16 @@ RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
     // loaded cache.
     memset(&game, 0, sizeof(game));
     game.area = in[4];
-    game.player = {x, y, (DIRECTION)in[5], 0};
+    game.player = {get16(in + 6), get16(in + 8), (DIRECTION)in[5], 0};
     game.hp = in[10];
     game.max_hp = in[11];
     game.level = in[12];
     game.gold = get16(in + 14);
-    game.flags = flags;
-    game.rng = rng;
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
-        game.npcs.residence[id] = residence[id];
+    memcpy(game.flags.bytes, in + SAVE_HEADER_BYTES, WorldFlags::BYTE_COUNT);
+    game.rng = get16(in + 16);
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
+        uint8_t const* r = in + SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + 3 * (id - 1);
+        game.npcs.residence[id] = {r[0], r[1], r[2]};
+    }
     return true;
 }
