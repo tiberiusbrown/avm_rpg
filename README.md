@@ -51,7 +51,7 @@ Noise carries the impacts.
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through the scores in filename order, wrapping at the end. The selected
 title appears in the menu footer. Playback starts with Peaceful Village. Battles
-switch to Steel at Dawn and return to Peaceful Village when the result appears.
+switch to Steel at Dawn and return to Peaceful Village when A dismisses the result screen.
 Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
@@ -132,9 +132,9 @@ overworld cache and from the current area.
   A selects a hero, then A confirms a destination: an empty cell its movement reaches, or an enemy
   its attack reaches. Every legal destination on the board is marked, with a pulsing diamond for a
   move and corner brackets for an attack. A on another hero switches the selection to that hero, and
-  B cancels a selection. The selected hero has a two-pixel white border. An invalid confirmation does
-  nothing, and it does not use up the turn. After a hero acts, the cursor returns to that hero, so it
-  can be selected again without moving the cursor.
+  A on the selected hero or B cancels a selection. The selected hero has a two-pixel white border.
+  An invalid confirmation does nothing, and it does not use up the turn. After a hero acts, the
+  cursor returns to that hero, so it can be selected again without moving the cursor.
 - Each unit is one of six archetypes, with separate movement and attack patterns:
 
   | Archetype | Movement | Attack | Damage | Starting HP |

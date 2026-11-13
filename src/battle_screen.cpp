@@ -417,16 +417,16 @@ static void draw_result(BATTLE_RESULT result) {
     avm_draw_text((int16_t)((DISPLAY_WIDTH - avm_text_width(hint)) / 2), 41, hint);
 }
 
-// Handles an A press on `cell`. A friendly hero becomes the selection, replacing any other.
+// Handles an A press on `cell`. A friendly hero toggles its selection, replacing any other.
 // Otherwise the selected hero acts on the cell if that is legal. Returns the action taken, or one
-// with no unit when the press changes nothing. A selection chirps, and a press that changes nothing
+// with no unit when no action is taken. A selection chirps, deselection cancels, and an invalid press
 // buzzes; a confirmed action is heard through its own motion. Kept out of line so party_turn's frame stays small.
 RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& selected,
                                          uint8_t cell) {
     uint8_t unit = battle_unit_at(state, cell);
     if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY) {
-        selected = unit;
-        sfx_play(SFX_SELECT);
+        selected = selected == unit ? BATTLE_NO_UNIT : unit;
+        sfx_play(selected == BATTLE_NO_UNIT ? SFX_CANCEL : SFX_SELECT);
     } else {
         if(selected != BATTLE_NO_UNIT) {
             BattleAction action{selected, cell};
@@ -439,7 +439,7 @@ RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& sele
 }
 
 // Runs the party's turn one frame at a time, so the cursor keeps easing and its dashes keep moving
-// between presses. D-pad moves the logical cursor. A selects a friendly hero, which replaces the
+// between presses. D-pad moves the logical cursor. A toggles a friendly hero, which replaces the
 // current selection, or confirms a destination for the selected hero. B cancels the selection.
 // Illegal confirmations do nothing and do not consume the turn. Returns the legal action the player
 // confirms.
@@ -541,8 +541,8 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     draw_result(state.result);
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
-    music_play(MUSIC_PEACEFUL);
     input_wait_press(BTN_A);
+    music_play(MUSIC_PEACEFUL);
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();
     // Repaint the overworld as dialogue does when it closes, so no battle pixels remain.
