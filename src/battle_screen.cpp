@@ -212,6 +212,14 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
     }
 }
 
+// Redraw the frozen board under each mask; the cursor appears after the reveal.
+RPG_NOINLINE static void fade_battle_in(BattleScreen const& screen) {
+    for(uint8_t step = FADE_STEPS; step--;) {
+        draw_board(screen, BATTLE_NO_UNIT, SOUTH);
+        show_fade(step);
+    }
+}
+
 // Moves an offset toward zero by up to `amount` pixels.
 static int8_t toward_zero(int8_t offset, int8_t amount) {
     if(offset > 0)
@@ -523,6 +531,8 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     screen.cursor =
         Cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
     screen.mover = BATTLE_NO_UNIT;
+    fade_world_out();
+    fade_battle_in(screen);
     sfx_play(SFX_BATTLE_START);
 
     while(!state.ended) {
@@ -543,9 +553,9 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
     input_wait_press(BTN_A);
     music_play(MUSIC_PEACEFUL);
+    fade_to_black();
+    fade_world_in();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();
-    // Repaint the overworld as dialogue does when it closes, so no battle pixels remain.
-    rpg_render_world();
     return state.result;
 }

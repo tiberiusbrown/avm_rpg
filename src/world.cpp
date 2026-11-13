@@ -413,6 +413,8 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
     game.previous_player_tile = {game.area,
                                  (uint8_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
                                  (uint8_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT)};
+    if(teleported)
+        fade_world_in();
     return teleported;
 }
 

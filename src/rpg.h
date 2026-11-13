@@ -199,6 +199,13 @@ void save_encode(uint8_t out[SAVE_BYTES]);
 bool save_decode(uint8_t const* in, uint16_t length = SAVE_BYTES);
 uint16_t save_checksum(uint8_t const* in, uint16_t length = SAVE_CRC_OFFSET);
 void rpg_render_world();
+// Eight 20 ms steps per half, using flash-resident ordered-dither erase masks.
+inline constexpr uint8_t FADE_STEPS = 8;
+void show_fade(uint8_t step);
+void fade_to_black();
+void fade_world_out();
+// Requires the destination cache, tiles and actors to be ready. Consumes transition button presses.
+void fade_world_in();
 void render_title(bool can_continue, uint8_t selection);
 void render_menu(uint8_t selection, char const PROGMEM* feedback, uint8_t audio_rate);
 void render_status();

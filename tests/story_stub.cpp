@@ -8,6 +8,10 @@ static unsigned event_count;
 static unsigned battle_count;
 static BATTLE_RESULT next_result = BATTLE_VICTORY;
 
+void fade_world_out() {}
+
+void fade_world_in() {}
+
 static void record(StoryEvent event) {
     if(event_count == STORY_LOG_CAPACITY) {
         fprintf(stderr, "story log full\n");

@@ -8,6 +8,10 @@ volatile uint8_t world_phase;
 volatile uint16_t probe_checks, probe_failure;
 static unsigned dialogues;
 
+void fade_world_out() {}
+
+void fade_world_in() {}
+
 bool dialogue_show(char const PROGMEM*) {
     ++dialogues;
     return true;

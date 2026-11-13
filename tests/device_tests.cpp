@@ -42,6 +42,7 @@ struct Device {
     uint8_t buttons = 0, previous_marker = 0;
     bool started = false;
     bool proof = false;
+    uint8_t frame_area = 0;
     uint64_t begin = 0, render_begin = 0;
     Cost last;
     std::vector<Cost> frames;
@@ -125,6 +126,7 @@ struct Device {
         if(marker != previous_marker) {
             if(marker == 1) {
                 begin = cpu.cycle_count;
+                frame_area = proof ? 0 : state().area;
                 stages = {};
                 previous_phase = 0;
                 phase_begin = begin;
@@ -139,7 +141,10 @@ struct Device {
                 last.reload = stages.reload;
                 last.chunks = stages.chunks;
                 last.collision = stages.collision;
-                require(last.total <= 320000, "exploration frame exceeded the 320000-cycle budget");
+                // Cross-area updates now include a blocking fade. FadeTrace checks each of its
+                // display frames; ordinary exploration still has the single-frame CPU budget.
+                require((!proof && state().area != frame_area) || last.total <= 320000,
+                        "exploration frame exceeded the 320000-cycle budget");
                 frames.push_back(last);
             }
             previous_marker = marker;
@@ -417,6 +422,131 @@ struct GroveAction {
     bool strike;
 };
 
+// Host-only SPI observation of the frames actually sent to the OLED. It adds no guest markers or
+// buffers. The framebuffer's absolute address is part of the AVM memory map.
+struct FadeTrace {
+    struct Frame {
+        std::array<uint8_t, 1024> pixels;
+        uint64_t cycle;
+    };
+
+    Device& device;
+    std::vector<Frame> frames;
+    Frame pending{};
+    unsigned bytes = 0;
+    uint64_t previous_transfer = 0;
+
+    explicit FadeTrace(Device& d) : device(d) {
+        require(!d.cycle_observer, "another device observer is attached");
+        std::copy_n(d.ab->core_state.cpu.data.begin() + 0x500, 1024, pending.pixels.begin());
+        pending.cycle = d.ab->core_state.cpu.cycle_count;
+        frames.push_back(pending);
+        d.observer_context = this;
+        d.cycle_observer = [](void* context, bool after) {
+            static_cast<FadeTrace*>(context)->observe(after);
+        };
+    }
+
+    ~FadeTrace() {
+        device.cycle_observer = nullptr;
+        device.observer_context = nullptr;
+    }
+
+    void observe(bool after) {
+        auto const& cpu = device.ab->core_state.cpu;
+        if(!after) {
+            previous_transfer = cpu.spi_transmit_zero_cycle;
+            return;
+        }
+        uint8_t port = cpu.data[absim::reg::addr::PORTD];
+        if(!cpu.spi_busy || cpu.spi_transmit_zero_cycle == previous_transfer ||
+           (port & 0x50) != 0x10)
+            return;
+        if(!bytes)
+            pending.cycle = cpu.cycle_count;
+        pending.pixels[bytes++] = cpu.spi_data_byte;
+        if(bytes == pending.pixels.size()) {
+            frames.push_back(pending);
+            bytes = 0;
+        }
+    }
+
+    void verify(char const* name) const {
+        auto black = std::find_if(frames.begin() + 1, frames.end(), [](Frame const& f) {
+            return std::all_of(f.pixels.begin(), f.pixels.end(), [](uint8_t p) { return p == 0; });
+        });
+        require(black != frames.end() && black - frames.begin() >= 8 && frames.end() - black > 8,
+                "battle transition did not fade through black");
+        auto first = black - 8;
+        auto last = black + 8;
+        require(first->pixels != black->pixels && last->pixels != black->pixels,
+                "battle transition has an empty endpoint");
+        constexpr uint8_t BAYER[4][4] = {
+            {0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+        uint64_t worst = 0;
+        for(auto frame = first + 1; frame <= last; ++frame) {
+            unsigned step = frame <= black ? unsigned(frame - first) : unsigned(last - frame);
+            auto const& source = frame <= black ? first->pixels : last->pixels;
+            for(unsigned i = 0; i < source.size(); ++i) {
+                uint8_t expected = source[i];
+                for(unsigned bit = 0; bit < 8; ++bit) {
+                    if(BAYER[bit % 4][i % 4] < step * 2)
+                        expected &= uint8_t(~(1 << bit));
+                }
+                require(frame->pixels[i] == expected,
+                        "battle dither changed or leaked scene pixels");
+            }
+            if(frame != first + 1)
+                worst = std::max(worst, frame->cycle - (frame - 1)->cycle);
+        }
+        // Allow interrupt jitter around the 320,000-cycle frame period, but no missed frame.
+        require(worst < 336000, "battle transition missed its 50 Hz frame budget");
+        std::cout << "{\"workload\":\"" << name << "\",\"fade_frames\":16,"
+                  << "\"worst_frame_cycles\":" << worst << ",\"budget_cycles\":320000}\n";
+    }
+};
+
+static void verify_house_fades(Device& d) {
+    Game original = d.state();
+    Game at_door = original;
+    at_door.player = {(uint16_t)(positions::ElderDoor.x * TILE),
+                      (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
+    d.set_state(at_door);
+    d.advance(0, 1600000);
+    require(d.state().can_interact, "house door did not become interactive");
+    uint8_t door_tile = d.cached_tile(positions::ElderDoor.x, positions::ElderDoor.y);
+    {
+        FadeTrace trace(d);
+        d.tap(BTN_A);
+        d.advance(0, 4800000);
+        trace.verify("house_entry");
+    }
+    Game inside = d.state();
+    require(inside.area == positions::ElderExit.area &&
+                inside.player.x == positions::ElderExit.x * TILE &&
+                inside.player.y == (positions::ElderExit.y - 1) * TILE &&
+                inside.player.facing == NORTH &&
+                d.cached_tile(positions::ElderExit.x, positions::ElderExit.y) ==
+                    HOUSE_TILE_EDGE_TOP_EXIT,
+            "house entry revealed the wrong destination or tile cache");
+    {
+        FadeTrace trace(d);
+        for(unsigned frames = 0; d.state().area == inside.area; ++frames) {
+            require(frames < 2 * TILE, "walking onto the house exit did not teleport");
+            d.frame(BTN_DOWN);
+        }
+        trace.verify("house_exit");
+    }
+    Game outside = d.state();
+    require(outside.area == original.area && outside.player.x == positions::ElderDoor.x * TILE &&
+                outside.player.y == (positions::ElderDoor.y + 1) * TILE &&
+                outside.player.facing == SOUTH && !outside.player.walking &&
+                d.cached_tile(positions::ElderDoor.x, positions::ElderDoor.y) == door_tile,
+            "house exit revealed the wrong destination or tile cache");
+    d.set_state(original);
+    d.advance(0, 1600000);
+}
+
 // The shortest plan that wins against the enemy's search, found by a breadth-first search over
 // party actions with the enemy's replies applied. The rogue (10 HP) begins at (2,1) and the archer
 // (9) at (1,2); the wolf (9) at (6,1) and the brute (12) at (5,2). Trees stand at (4,0) and (6,0),
@@ -466,7 +596,9 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
 // Plays the sign's battle from its first board through the victory overlay, then closes the
 // outcome line. The battle starts after the welcome line closes, so the caller resumes with
 // exploration.
-static void play_grove_battle(Device& d) {
+static void play_grove_battle(Device& d, bool verify_transition = false) {
+    // A caller may have just closed the welcome; let the entry transition finish before acting.
+    d.advance(0, 6400000);
     GroveCell cursor{2, 1}; // The battle opens with the cursor on the rogue.
     for(auto const& action : GROVE_VICTORY_PLAN) {
         grove_move_cursor(d, cursor, action.hero);
@@ -479,7 +611,18 @@ static void play_grove_battle(Device& d) {
     }
     // The victory overlay waits for a fresh A. Its outcome line then opens over exploration.
     d.advance(0, 1600000);
-    d.tap(BTN_A);
+    if(verify_transition) {
+        FadeTrace trace(d);
+        auto frozen = d.state();
+        d.tap(BTN_A);
+        d.advance(0, 4000000);
+        trace.verify("battle_exit");
+        auto paused = d.state();
+        require(!memcmp(&frozen, &paused, sizeof(Game)), "battle exit advanced world simulation");
+    } else {
+        d.tap(BTN_A);
+        d.advance(0, 4000000);
+    }
     require(d.prompt() == DIALOGUE_TYPING, "grove battle did not return to its outcome line");
     d.wait_for_prompt();
     d.tap(BTN_A);
@@ -492,12 +635,16 @@ static void press_with_music_fade(Device& d) {
         Device& device;
         std::vector<uint8_t> levels;
         uint8_t previous = 255;
-    } trace{d, {}};
+        void (*observer)(void*, bool);
+        void* observer_context;
+    } trace{d, {}, 255, d.cycle_observer, d.observer_context};
     d.observer_context = &trace;
     d.cycle_observer = [](void* context, bool after) {
+        auto& trace = *static_cast<Trace*>(context);
+        if(trace.observer)
+            trace.observer(trace.observer_context, after);
         if(!after)
             return;
-        auto& trace = *static_cast<Trace*>(context);
         auto const& ram = trace.device.ab->core_state.cpu.data;
         uint8_t level = ram[0xa71];
         if(level != trace.previous) {
@@ -507,15 +654,17 @@ static void press_with_music_fade(Device& d) {
         require(ram[0xa17] == 128 && ram[0xa72] == 255, "music fade changed master or SFX gain");
     };
     d.tap(BTN_A);
-    d.advance(0, 1600000);
+    // A battle entry also has a 320 ms visual transition; wait for its input loop while the
+    // longer music fade is still running, so the right/left pair reaches the same screen.
+    d.advance(0, 4000000);
     require(d.ab->core_state.cpu.data[0xa73] != 0, "fade did not return while the song was still fading");
     auto display = d.ab->peripherals.display.ram;
     d.tap(BTN_RIGHT);
     require(d.ab->peripherals.display.ram != display, "music fade blocked input or display updates");
     d.tap(BTN_LEFT); // Restore the menu selection or battle cursor.
     d.advance(0, 16000000);
-    d.cycle_observer = nullptr;
-    d.observer_context = nullptr;
+    d.cycle_observer = trace.observer;
+    d.observer_context = trace.observer_context;
     require(trace.levels.size() > 100 && trace.levels.back() == 255 &&
                 d.ab->core_state.cpu.data[0xa73] == 0,
             "song switch did not complete its fade and restore full volume");
@@ -582,11 +731,19 @@ int main(int argc, char** argv) try {
     require(d.prompt() == DIALOGUE_DONE, "advance guard did not ignore an early A press");
     d.capture(out / "sign-dialogue.pgm");
     d.advance(0, 8000000);
-    press_with_music_fade(d);
+    {
+        FadeTrace trace(d);
+        auto frozen = d.state();
+        press_with_music_fade(d);
+        trace.verify("battle_entry");
+        auto paused = d.state();
+        require(!memcmp(&frozen, &paused, sizeof(Game)), "battle entry advanced world simulation");
+    }
     // Closing the welcome starts the Grove battle, which returns only after its outcome line.
     d.capture(out / "grove-battle.pgm");
-    play_grove_battle(d);
+    play_grove_battle(d, true);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
+    verify_house_fades(d);
 
     // Stand one tile north of the villager, facing it, and talk with A.
     auto npc_state = d.state();

@@ -15,6 +15,10 @@ volatile uint8_t probe_completed, probe_exhausted, probe_progress;
 // Zero at run time. The compiler cannot prove it, so each kernel iteration keeps its real work.
 volatile uint8_t probe_zero;
 
+void fade_world_out() {}
+
+void fade_world_in() {}
+
 // The probe stops here at every phase boundary. avm-lldb sets a breakpoint on this function.
 extern "C" RPG_NOINLINE void probe_mark() {
     probe_marks = (uint8_t)(probe_marks + 1);

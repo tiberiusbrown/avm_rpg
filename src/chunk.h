@@ -75,6 +75,9 @@ template <TilePos TARGET> bool teleport_player(DIRECTION facing = STILL) {
     }
     if(TARGET.x >= dimensions.width_tiles || TARGET.y >= dimensions.height_tiles)
         return false;
+    // Keep the old area/cache intact until the outgoing world has disappeared. The frame's
+    // update_visible_world reveals the destination after its tile and actor updates finish.
+    fade_world_out();
     game.area = TARGET.area;
     npc_reset();
     game.dimensions = dimensions;

@@ -6,6 +6,10 @@ starting position and then starts a test battle, enters a house when the player 
 its door, and B opens the status/save menu. Two sample villagers show
 standing and wandering characters using different rows of the actor atlas.
 
+Teleports, including entering and leaving buildings, use the same 320 ms dither fade through
+black as battles. The destination's camera, tile cache and actors are prepared while the screen
+is black. The shared fade adds no static RAM.
+
 The sign's battle is a synchronous prototype. Its controls and rules are described in
 [Battle prototype](#battle-prototype) below.
 
@@ -126,6 +130,11 @@ dialogue, so story code can alternate dialogue and battles in ordinary sequence.
 8x4 battlefield is a PROGMEM tile array in the world tileset. It is separate from the
 overworld cache and from the current area.
 
+- Entering and leaving battle fades through black with a fixed 4x4 ordered dither. Each half
+  takes eight frames at 50 Hz (160 ms), with the world and battle state paused. The cursor appears
+  after the board is revealed. Leaving begins only when A dismisses the victory or defeat screen.
+  Erase-mask sprites stay in flash; fading out reuses the framebuffer, and fading in redraws the
+  incoming scene without a second framebuffer or additional static RAM.
 - D-pad moves the cursor one cell per press. It is a 22x22 plus-mask sprite with black borders
   around a dashed outline. The dashes are two white pixels with two black pixels between them, and
   they turn clockwise around the outline. The cursor glides to each cell it moves to.

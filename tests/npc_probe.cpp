@@ -5,6 +5,10 @@
 volatile uint8_t world_phase;
 volatile uint16_t probe_checks, probe_failure;
 
+void fade_world_out() {}
+
+void fade_world_in() {}
+
 static void check(bool value, uint16_t line) {
     probe_checks = (uint16_t)(probe_checks + 1);
     if(!value && !probe_failure) {
