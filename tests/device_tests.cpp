@@ -417,30 +417,28 @@ struct GroveAction {
     bool strike;
 };
 
-// The shortest plan that wins against the enemy's search, found by a breadth-first search over
-// party actions with the enemy's replies applied. The heroes begin at (2,1) and (2,2), and the
-// creatures at (5,1) and (5,2). The last creature falls on its own activation, so the battle ends
-// by exhaustion.
+// The shortest plan that wins against the enemy's search, found by a breadth-first search over party
+// actions with the enemy's replies applied. The heroes begin at (2,1) and (2,2), and the creatures at
+// (5,1) and (5,2). The battle ends in victory when the last creature falls to Hero B's strike.
 constexpr GroveAction GROVE_VICTORY_PLAN[] = {
-    {{2, 1}, {2, 0}, false}, // Hero A steps north. Creature A steps to (5,0).
-    {{2, 0}, {3, 0}, false}, // Hero A steps east. Creature B steps to (4,2).
-    {{3, 0}, {4, 0}, false}, // Hero A steps east. Creature A steps to (6,0).
-    {{4, 0}, {3, 0}, false}, // Hero A steps back west. Creature A steps to (5,0).
-    {{2, 2}, {3, 2}, false}, // Hero B steps east. Creature B steps to (5,2).
-    {{3, 2}, {4, 2}, false}, // Hero B steps east. Creature B steps to (5,1).
-    {{3, 0}, {4, 0}, false}, // Hero A steps east. Creature A strikes Hero A from (5,0).
-    {{4, 0}, {5, 0}, true},  // Hero A strikes creature A, which steps back to (6,0).
-    {{4, 2}, {4, 1}, false}, // Hero B steps north. Creature B strikes Hero B from (5,1).
-    {{4, 1}, {5, 1}, true},  // Hero B strikes creature B. Creature B strikes Hero B back.
-    {{4, 1}, {5, 1}, true},  // Hero B strikes creature B again, and creature B falls.
-    {{4, 0}, {5, 0}, false}, // Hero A steps into the vacated cell. Exhaustion ends the battle.
+    {{2, 2}, {3, 2}, false}, // Hero B steps east. Creature A steps to (4,1).
+    {{2, 1}, {3, 1}, false}, // Hero A steps east. Creature A strikes Hero A from (4,1).
+    {{3, 1}, {4, 1}, true},  // Hero A strikes creature A, which steps back to (4,0).
+    {{3, 2}, {4, 2}, false}, // Hero B steps east. Creature B strikes Hero B from (5,2).
+    {{4, 2}, {5, 2}, true},  // Hero B strikes creature B, which steps back to (6,2).
+    {{4, 2}, {5, 2}, false}, // Hero B steps into the vacated cell. Creature B steps to (6,1).
+    {{5, 2}, {5, 1}, false}, // Hero B steps north. Creature B steps to (6,0).
+    {{3, 1}, {3, 0}, false}, // Hero A steps north. Creature A strikes Hero A from (4,0).
+    {{3, 0}, {4, 0}, true},  // Hero A strikes creature A, which falls. Creature B steps to (7,0).
+    {{5, 1}, {6, 1}, false}, // Hero B steps east. Creature B steps to (7,1).
+    {{6, 1}, {7, 1}, true},  // Hero B strikes creature B, which falls. The battle ends in victory.
 };
 
 // After each hero action the test advances past both sides' reactions: the hero's own animation,
 // the enemy pause, the enemy's search, the enemy's animation, and the enemy's result pause. The
-// search runs on the guest for about 36 million cycles at the first enemy turn, which freezes the
-// display for about 2.2 seconds. The reactions take about 290 frames in all, and the search cost
-// varies with the position. 120 million cycles (375 frames of 320,000 cycles each) leaves a margin.
+// search costs at most 25.5 million cycles on the AVM at the positions measured in
+// docs/performance.md, which freezes the display for up to about 1.6 seconds. 120 million cycles
+// (375 frames of 320,000 cycles each) leaves a margin for every entry.
 constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 120000000;
 
 // The cursor moves one tile per press, so moving it takes one press per tile.

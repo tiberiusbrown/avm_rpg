@@ -226,5 +226,16 @@ extern uint8_t const PROGMEM ACTOR_SPRITES[];
 // count.
 inline constexpr uint8_t CURSOR_FRAME_COUNT = 4;
 extern uint8_t const PROGMEM CURSOR_SPRITES[];
+// The battle destination markers in battle_targets16.png. Frames 0 to 3 are the movement diamond,
+// and frames 4 to 7 are the attack brackets. A marker shows its base plus the cursor's phase, so
+// every marker pulses with the cursor. The generated sheet asserts the layout.
+inline constexpr uint8_t BATTLE_TARGET_FRAMES = 4;
+inline constexpr uint8_t BATTLE_TARGET_MOVE = 0;
+inline constexpr uint8_t BATTLE_TARGET_ATTACK = 4;
+static_assert(BATTLE_TARGET_FRAMES == CURSOR_FRAME_COUNT, "markers pulse with the cursor's phases");
+constexpr uint8_t battle_target_frame(uint8_t base, uint8_t phase) {
+    return (uint8_t)(base + phase % BATTLE_TARGET_FRAMES);
+}
+extern uint8_t const PROGMEM BATTLE_TARGET_SPRITES[];
 
 #endif

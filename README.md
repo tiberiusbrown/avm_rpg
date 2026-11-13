@@ -120,10 +120,12 @@ overworld cache and from the current area.
   returns. Every unit that loses HP flashes on and off for about a second. The next turn
   waits for the flashing to end, and a defeated unit flashes before it disappears.
 - Each side moves in turn. The creatures search four activations ahead with negamax and
-  alpha-beta pruning, assuming the heroes reply with their best action. Wins come first, then
-  kills, attacks, and moves, and among equal scores the creatures prefer the move the greedy
-  preference would pick. The search runs synchronously, so the display freezes while it thinks.
-  On the first enemy turn of the Grove battle that is about 2.25 seconds on the AVM.
+  alpha-beta pruning, assuming the heroes reply with their best action. They score a position
+  by the damage they deal and the heroes they remove, which count for more than their own
+  losses, plus terms that favor attacks and closing in on the heroes. Wins come first, then
+  kills, other attacks, and moves that close in. The search runs synchronously, so the display
+  freezes while it thinks: about 1.1 seconds on the AVM in the measured in-play position, and up to
+  about 1.6 seconds in the costliest measured position (`docs/performance.md`).
 - From the 21st completed activation onward, the acting unit loses 1 HP after its action.
 - A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
   position, flags, or any other overworld state.

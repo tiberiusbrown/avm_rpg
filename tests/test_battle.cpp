@@ -893,6 +893,204 @@ static void teams_are_explicit() {
     CHECK(unit.team == BATTLE_ENEMY && battle_sprite_row(unit) == 20);
 }
 
+// Manhattan distance from a cell to the nearest living party member.
+static unsigned nearest_hero(BattleState const& s, uint8_t from) {
+    unsigned best = 99;
+    for(uint8_t i = 0; i < s.unit_count; ++i) {
+        BattleUnit const& unit = s.units[i];
+        if(!unit.hp || unit.team != BATTLE_PARTY)
+            continue;
+        int dx = (int)battle_column(from) - (int)battle_column(unit.cell);
+        int dy = (int)battle_row(from) - (int)battle_row(unit.cell);
+        unsigned distance = (unsigned)((dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy));
+        if(distance < best)
+            best = distance;
+    }
+    return best;
+}
+
+// The one-pass masks name the same legal actions as the enumeration, each under its kind from the rules.
+static void action_masks() {
+    for(unsigned seed = 0; seed < 300; ++seed) {
+        BattleState s = random_position(seed % 9, (seed * 7) % 26);
+        BattleActionMasks masks = battle_action_masks(s);
+        unsigned mask_bits = 0;
+        for(unsigned k = 0; k < 4; ++k)
+            for(unsigned bit = 0; bit < 16; ++bit)
+                mask_bits += (masks.kind[k] >> bit) & 1;
+        unsigned seen = 0;
+        BattleActionCursor cursor = battle_actions(s);
+        BattleAction action{};
+        while(battle_next_action(s, cursor, action)) {
+            DIRECTION dir = battle_direction(s.units[action.unit_index].cell, action.destination);
+            uint16_t bit = (uint16_t)(1u << (action.unit_index * 4 + dir));
+            BATTLE_ACTION_KIND kind = battle_action_kind(s, action);
+            CHECK(masks.kind[kind] & bit);
+            ++seen;
+        }
+        CHECK(seen == mask_bits);
+    }
+}
+
+// The enemy's utility changes by exactly the amounts its weights name, on positions where nothing else
+// changes. HERO_B sits away from the creatures, so removing it changes no distance.
+static void utility_weights() {
+    BattleState base = fresh();
+    place(base, HERO_B, 0, 3);
+    base.turn = BATTLE_ENEMY;
+    int16_t start = battle_score(base, BATTLE_ENEMY, 0);
+
+    // Party HP removed is worth 180 per HP to the enemy.
+    BattleState hurt = base;
+    hurt.units[HERO_A].hp = 3;
+    CHECK(battle_score(hurt, BATTLE_ENEMY, 0) - start == 360);
+
+    // Enemy HP removed costs the enemy 90 per HP.
+    BattleState weakened = base;
+    weakened.units[FOE_A].hp = 2;
+    CHECK(battle_score(weakened, BATTLE_ENEMY, 0) - start == -180);
+
+    // Eliminating a party member is worth its HP (5 x 180) plus 600.
+    BattleState fallen = base;
+    fallen.units[HERO_B].hp = 0;
+    CHECK(battle_score(fallen, BATTLE_ENEMY, 0) - start == 1500);
+
+    // A creature that closes one cell on its nearest hero gains 20 for the distance sum and 20 for the
+    // nearest creature.
+    BattleState closer = base;
+    closer.units[FOE_A].cell = cell(4, 1);
+    CHECK(battle_score(closer, BATTLE_ENEMY, 0) - start == 40);
+
+    // A trade of equal blows favors the enemy: it deals 2 HP and takes 2 HP, a net of 360 - 180.
+    BattleState contact = fresh();
+    contact.turn = BATTLE_ENEMY;
+    place(contact, FOE_A, 3, 1);
+    BattleState traded = contact;
+    traded.units[HERO_A].hp = 3;
+    traded.units[FOE_A].hp = 2;
+    CHECK(battle_score(traded, BATTLE_ENEMY, 0) - battle_score(contact, BATTLE_ENEMY, 0) == 180);
+
+    // Mutual engagement counts for the side that acts next: 120 - 60 when the enemy acts, and 60 - 120
+    // when the party acts.
+    BattleState party_turn = contact;
+    party_turn.turn = BATTLE_PARTY;
+    CHECK(battle_score(contact, BATTLE_ENEMY, 0) - battle_score(party_turn, BATTLE_ENEMY, 0) == 120);
+
+    // A static score never reaches a win one ply away.
+    CHECK(battle_score(contact, BATTLE_ENEMY, 0) < BATTLE_SCORE_WIN - BATTLE_AI_DEPTH);
+}
+
+// The enemy attacks a hero it can strike while healthy, advances when nothing is in reach, takes a kill,
+// and does not trade into a counter that would remove it.
+static void enemy_behavior() {
+    // A healthy creature next to a hero attacks it rather than stepping back.
+    BattleState adjacent = custom(BATTLE_ENEMY, 0);
+    place(adjacent, HERO_A, 3, 1);
+    place(adjacent, HERO_B, 0, 3);
+    place(adjacent, FOE_A, 4, 1);
+    place(adjacent, FOE_B, 7, 3);
+    BattleAction strike = battle_enemy_action(adjacent);
+    CHECK(strike.unit_index == FOE_A && strike.destination == cell(3, 1));
+
+    // With nothing in reach, the enemy moves closer to its nearest hero.
+    BattleState far = custom(BATTLE_ENEMY, 0);
+    place(far, HERO_A, 1, 1);
+    place(far, HERO_B, 1, 2);
+    place(far, FOE_A, 6, 1);
+    place(far, FOE_B, 7, 2);
+    BattleAction advance = battle_enemy_action(far);
+    CHECK(advance.unit_index == FOE_A || advance.unit_index == FOE_B);
+    uint8_t origin = far.units[advance.unit_index].cell;
+    CHECK(nearest_hero(far, advance.destination) < nearest_hero(far, origin));
+
+    // A creature at 1 HP next to a healthy hero does not step into the counter that would remove it.
+    BattleState injured = custom(BATTLE_ENEMY, 0);
+    place(injured, HERO_A, 3, 1);
+    place(injured, HERO_B, 0, 3);
+    place(injured, FOE_A, 4, 1);
+    injured.units[FOE_A].hp = 1;
+    place(injured, FOE_B, 6, 2);
+    BattleAction withdraw = battle_enemy_action(injured);
+    CHECK(battle_legal(injured, withdraw));
+    CHECK(!(withdraw.unit_index == FOE_A && withdraw.destination == cell(3, 1)));
+
+    // A creature that can finish a wounded hero takes the kill.
+    BattleState finish = custom(BATTLE_ENEMY, 0);
+    place(finish, HERO_A, 0, 0);
+    place(finish, HERO_B, 4, 2);
+    finish.units[HERO_B].hp = 2;
+    place(finish, FOE_A, 4, 1);
+    place(finish, FOE_B, 7, 3);
+    BattleAction kill = battle_enemy_action(finish);
+    CHECK(kill.unit_index == FOE_A && kill.destination == cell(4, 2));
+
+    // A creature at 1 HP with its last companion gone withdraws rather than trade into its own removal.
+    BattleState last = custom(BATTLE_ENEMY, 0);
+    place(last, HERO_A, 3, 1);
+    place(last, HERO_B, 0, 3);
+    place(last, FOE_A, 4, 1);
+    last.units[FOE_A].hp = 1;
+    last.units[FOE_B].hp = 0;
+    BattleAction retreat = battle_enemy_action(last);
+    CHECK(!(retreat.unit_index == FOE_A && retreat.destination == cell(3, 1)));
+
+    // One creature at 1 HP beside a hero, and a healthy creature beside another hero. The two attacks
+    // are worth the same to the enemy, and both beat a retreat, so the enemy attacks with either one.
+    BattleState mixed = custom(BATTLE_ENEMY, 0);
+    place(mixed, HERO_A, 3, 1);
+    place(mixed, HERO_B, 0, 3);
+    place(mixed, FOE_A, 4, 1);
+    mixed.units[FOE_A].hp = 1;
+    place(mixed, FOE_B, 1, 3);
+    BattleAction trade = battle_enemy_action(mixed);
+    CHECK((trade.unit_index == FOE_A && trade.destination == cell(3, 1)) ||
+          (trade.unit_index == FOE_B && trade.destination == cell(0, 3)));
+}
+
+// Identical positions give identical decisions, search results, and counters, and a search leaves its
+// input unchanged.
+static void determinism() {
+    for(unsigned seed = 0; seed < 60; ++seed) {
+        BattleState s = random_position(seed % 9, (seed * 7) % 26);
+        BattleState copy = s;
+        BattleSearchResult first = battle_search(s, BATTLE_AI_DEPTH);
+        BattleSearchStats first_stats = battle_search_stats();
+        BattleSearchResult second = battle_search(copy, BATTLE_AI_DEPTH);
+        BattleSearchStats second_stats = battle_search_stats();
+        CHECK(same_state(s, copy));
+        CHECK(first.score == second.score);
+        CHECK(first.action.unit_index == second.action.unit_index);
+        CHECK(first.action.destination == second.action.destination);
+        CHECK(first_stats.nodes == second_stats.nodes);
+        CHECK(first_stats.leaves == second_stats.leaves);
+        CHECK(first_stats.deepest == second_stats.deepest);
+        CHECK(battle_enemy_action(s).destination == battle_enemy_action(copy).destination);
+    }
+}
+
+// The destination markers pulse with the cursor. A movement marker shows frames 0 to 3 as the cursor's
+// phase runs, and an attack marker shows frames 4 to 7 at the same phase.
+static void target_frames() {
+    CHECK(BATTLE_TARGET_FRAMES == CURSOR_FRAME_COUNT);
+    CHECK(BATTLE_TARGET_ATTACK == BATTLE_TARGET_MOVE + BATTLE_TARGET_FRAMES);
+    for(uint8_t phase = 0; phase < 16; ++phase) {
+        uint8_t move = battle_target_frame(BATTLE_TARGET_MOVE, phase);
+        uint8_t attack = battle_target_frame(BATTLE_TARGET_ATTACK, phase);
+        // The phases cycle through the four frames of each marker.
+        CHECK(move == BATTLE_TARGET_MOVE + phase % BATTLE_TARGET_FRAMES);
+        CHECK(attack == BATTLE_TARGET_ATTACK + phase % BATTLE_TARGET_FRAMES);
+        // Both kinds of marker stand at the same point of their cycles.
+        CHECK(attack - BATTLE_TARGET_ATTACK == move - BATTLE_TARGET_MOVE);
+    }
+    // Every phase byte names a frame of its own marker, so no marker reads past its four frames.
+    for(unsigned phase = 0; phase < 256; ++phase) {
+        uint8_t move = battle_target_frame(BATTLE_TARGET_MOVE, (uint8_t)phase);
+        uint8_t attack = battle_target_frame(BATTLE_TARGET_ATTACK, (uint8_t)phase);
+        CHECK(move < BATTLE_TARGET_ATTACK);
+        CHECK(attack >= BATTLE_TARGET_ATTACK && attack < BATTLE_TARGET_ATTACK + BATTLE_TARGET_FRAMES);
+    }
+}
+
 int main() {
     initial_layout();
     unit_definitions();
@@ -911,6 +1109,10 @@ int main() {
     copies_are_independent();
     negamax_tactics();
     negamax_scores();
+    action_masks();
+    utility_weights();
+    enemy_behavior();
+    determinism();
     negamax_matches_reference();
     exhaustion_search();
     forced_passes_search();
@@ -918,6 +1120,7 @@ int main() {
     cursor_easing();
     lunge_timing();
     flash_timing();
+    target_frames();
     printf("PASS battle rules: %u checks\n", checks);
     return 0;
 }

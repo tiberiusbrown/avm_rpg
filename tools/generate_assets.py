@@ -1110,6 +1110,28 @@ def read_cursor_frames(root=ROOT):
     return frames, masks
 
 
+# The battle destination markers: four pulse frames for a movement diamond, then four bracket frames
+# for an attack, in two rows of four 16x16 frames. Each frame is plus-mask data, as the actors are.
+TARGET_FRAMES = 4  # Frames per marker, one for each cursor phase.
+TARGET_COUNT = 2 * TARGET_FRAMES
+TARGET_WIDTH, TARGET_HEIGHT = 4 * TILE_SIZE, 2 * TILE_SIZE
+
+
+def read_battle_target_frames(root=ROOT):
+    """Read the destination markers: eight 16x16 plus-mask frames, movement first, then attack."""
+    path = root / "assets" / "images" / "battle_targets16.png"
+    with Image.open(path) as image:
+        require(
+            image.format == "PNG" and image.size == (TARGET_WIDTH, TARGET_HEIGHT),
+            path,
+            f"expected a PNG {TARGET_WIDTH} pixels wide and {TARGET_HEIGHT} pixels high holding "
+            f"{TARGET_COUNT} frames of {TILE_SIZE}: movement, then attack",
+        )
+    frames, masks = read_sprite_sheet("battle_targets16.png", TARGET_WIDTH // TILE_SIZE, root)
+    require(len(frames) == TARGET_COUNT, path, f"expected {TARGET_COUNT} frames")
+    return frames, masks
+
+
 def frame_bytes(rows, size=TILE_SIZE):
     # Page-major bytes. Bits below the frame's last row are padding and stay zero.
     return [
@@ -1157,8 +1179,9 @@ def generate(root=ROOT):
     actor_frames, actor_masks = read_sprite_sheet("actors16.png", ACTOR_COLUMNS, root)
     actor_rows = len(actor_frames) // ACTOR_COLUMNS
     cursor_frames, cursor_masks = read_cursor_frames(root)
+    target_frames, target_masks = read_battle_target_frames(root)
     art = [
-        "/* Generated; 16x16 tiles, alpha-derived actor plus masks, and the 22x22 cursor plus masks. */",
+        "/* Generated; 16x16 tiles, alpha-derived actor and battle target plus masks, and the 22x22 cursor plus masks. */",
         '#include "rpg.h"',
         "",
         "// clang-format off: preserve frame byte groups.",
@@ -1169,6 +1192,8 @@ def generate(root=ROOT):
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
     art.append("")
     art += sprite_lines("CURSOR_SPRITES", cursor_frames, cursor_masks, CURSOR_SIZE)
+    art.append("")
+    art += sprite_lines("BATTLE_TARGET_SPRITES", target_frames, target_masks)
     art.append("// clang-format on")
     art += [
         "",
@@ -1176,6 +1201,10 @@ def generate(root=ROOT):
         '"ACTOR_ROW_COUNT must match the rows in actors16.png");',
         f"static_assert(CURSOR_FRAME_COUNT == {CURSOR_FRAMES}, "
         '"CURSOR_FRAME_COUNT must match the frames in cursor22.png");',
+        f"static_assert(BATTLE_TARGET_FRAMES == {TARGET_FRAMES}, "
+        '"BATTLE_TARGET_FRAMES must match the frames in each row of battle_targets16.png");',
+        f"static_assert(BATTLE_TARGET_ATTACK + BATTLE_TARGET_FRAMES == {TARGET_COUNT}, "
+        '"the destination markers must match the frames in battle_targets16.png");',
     ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]

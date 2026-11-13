@@ -104,6 +104,7 @@ class Pipeline(unittest.TestCase):
             ("TILE_SPRITES", "tiles16.png", 255, False),
             ("HOUSE_TILE_SPRITES", "tiles16_house.png", 255, False),
             ("ACTOR_SPRITES", "actors16.png", 384, True),
+            ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
@@ -210,6 +211,93 @@ class Pipeline(unittest.TestCase):
         image.crop((0, 0, image.width, image.height - 8)).save(path)
         with self.assertRaisesRegex(ValueError, "rows of 16"):
             generate(self.root)
+
+    def test_battle_target_sheet_is_validated(self):
+        path = self.root / "assets/images/battle_targets16.png"
+        original = Image.open(path).convert("RGBA")
+        self.assertEqual(original.size, (64, 32))
+        self.assertIn(
+            "static_assert(BATTLE_TARGET_ATTACK + BATTLE_TARGET_FRAMES == 8,",
+            generate(self.root)["sprites.cpp"],
+        )
+        for image in [original.crop((0, 0, 48, 32)), original.crop((0, 0, 64, 16))]:
+            image.save(path)
+            with self.assertRaisesRegex(ValueError, "expected a PNG 64 pixels wide"):
+                generate(self.root)
+        for pixel, color in [((0, 0), (0, 0, 0, 127)), ((1, 1), (128, 128, 128, 255))]:
+            edited = original.copy()
+            edited.putpixel(pixel, color)
+            edited.save(path)
+            with self.assertRaisesRegex(ValueError, "binary monochrome and alpha"):
+                generate(self.root)
+
+    def test_battle_target_frames_pulse_and_bracket(self):
+        image = Image.open(self.root / "assets/images/battle_targets16.png").convert("RGBA")
+
+        def frame(index):
+            return [
+                [image.getpixel(((index % 4) * 16 + x, (index // 4) * 16 + y)) for x in range(16)]
+                for y in range(16)
+            ]
+
+        def opaque(pixels):
+            return sum(1 for row in pixels for _, _, _, a in row if a)
+
+        for index in range(8):
+            pixels = frame(index)
+            # Each frame is mirror-symmetric, so the pulse grows and shrinks evenly.
+            for y in range(16):
+                for x in range(16):
+                    self.assertEqual(pixels[y][x], pixels[y][15 - x], index)
+                    self.assertEqual(pixels[y][x], pixels[15 - y][x], index)
+            colors = {(r, a) for row in pixels for r, _, _, a in row}
+            self.assertIn((255, 255), colors, index)  # Opaque white.
+            self.assertIn((0, 255), colors, index)  # Opaque black outline.
+        # Movement diamonds grow from small to large and back, inside a three-pixel transparent margin.
+        self.assertEqual([opaque(frame(i)) for i in range(4)], [24, 40, 60, 40])
+        self.assertEqual(frame(1), frame(3))
+        for index in range(4):
+            pixels = frame(index)
+            margin = [
+                pixels[y][x][3] for y in range(16) for x in range(16) if min(x, y, 15 - x, 15 - y) < 3
+            ]
+            self.assertTrue(all(a == 0 for a in margin), index)
+        # Attack brackets move in one pixel per step, and the centre of the tile stays transparent.
+        for index in range(4, 8):
+            pixels = frame(index)
+            centre = [pixels[y][x][3] for y in range(6, 10) for x in range(6, 10)]
+            self.assertTrue(all(a == 0 for a in centre), index)
+        self.assertEqual(frame(5), frame(7))
+        expanded, neutral, contracted = frame(4), frame(5), frame(6)
+        self.assertEqual(expanded[1][1], (255, 255, 255, 255))
+        self.assertEqual(expanded[0][0], (0, 0, 0, 255))
+        self.assertEqual(neutral[2][2], (255, 255, 255, 255))
+        self.assertEqual(neutral[1][1], (0, 0, 0, 255))
+        self.assertEqual(contracted[3][3], (255, 255, 255, 255))
+        self.assertEqual(contracted[2][2], (0, 0, 0, 255))
+
+    def test_cursor_plus_masks_match_cursor22(self):
+        source = generate(self.root)["sprites.cpp"]
+        body = source.split(" CURSOR_SPRITES[] = {", 1)[1].split("};", 1)[0]
+        body = re.sub(r"//[^\n]*", "", body)
+        data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
+        self.assertEqual(data[:2], [22, 22])
+        # Three pages of 22 columns per frame, each byte paired with its mask.
+        stride = 3 * 22 * 2
+        self.assertEqual(len(data), 2 + 4 * stride)
+        image = Image.open(self.root / "assets" / "images" / "cursor22.png").convert("RGBA")
+        for frame in range(4):
+            for page in range(3):
+                for x in range(22):
+                    offset = 2 + frame * stride + (page * 22 + x) * 2
+                    for bit in range(8):
+                        y = page * 8 + bit
+                        bits = ((data[offset] >> bit) & 1, (data[offset + 1] >> bit) & 1)
+                        if y >= 22:
+                            self.assertEqual(bits, (0, 0))
+                            continue
+                        r, _, _, a = image.getpixel((frame * 22 + x, y))
+                        self.assertEqual(bits, (int(bool(r and a)), int(bool(a))))
 
     def test_sign_relocation_crosses_chunk(self):
         tx, ty = self.tile_of("GroveSign")

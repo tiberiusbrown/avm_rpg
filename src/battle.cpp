@@ -213,6 +213,63 @@ BattleDestinations battle_destinations(BattleState const& state, uint8_t unit_in
     return result;
 }
 
+// Whether the unit's movement pattern lets it step at all. Candidates are orthogonal neighbors, which are
+// adjacent by construction, so only the pattern's permission is left to decide.
+static bool battle_moves(BattleUnit const& actor) {
+    switch(BATTLE_UNIT_TYPES[actor.type].movement_type) {
+        case BATTLE_MOVEMENT_ORTHOGONAL_ONE:
+            return true;
+    }
+    return false;
+}
+
+BattleActionMasks battle_action_masks(BattleState const& state) {
+    BattleActionMasks masks{};
+    if(state.ended)
+        return masks;
+
+    // Bit x of rows[team][y] marks a living unit of that team at column x of row y.
+    uint8_t rows[2][BATTLE_ROWS] = {};
+    uint8_t living[2] = {};
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(!unit.hp)
+            continue;
+        uint8_t row = battle_row(unit.cell);
+        rows[unit.team][row] = (uint8_t)(rows[unit.team][row] | (1 << battle_column(unit.cell)));
+        ++living[unit.team];
+    }
+
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& actor = state.units[i];
+        if(!actor.hp || actor.team != state.turn || !battle_moves(actor))
+            continue;
+        BATTLE_TEAM foe = actor.team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
+        for(uint8_t d = 0; d < 4; ++d) {
+            uint8_t destination = 0;
+            if(!battle_neighbor(actor.cell, (DIRECTION)d, destination))
+                continue;
+            uint8_t column = battle_column(destination), row = battle_row(destination);
+            if((rows[actor.team][row] >> column) & 1)
+                continue; // A friend stands there, so the action is illegal.
+            uint16_t bit = (uint16_t)(1u << (i * 4 + d));
+            if(!((rows[foe][row] >> column) & 1)) {
+                masks.kind[BATTLE_ACTION_MOVE] = (uint16_t)(masks.kind[BATTLE_ACTION_MOVE] | bit);
+                continue;
+            }
+            // An enemy stands there. The attack pattern decides whether it can be struck.
+            BattleUnit const& target = state.units[battle_unit_at(state, destination)];
+            if(!battle_strikes(actor, target))
+                continue;
+            BATTLE_ACTION_KIND kind = BATTLE_ACTION_ATTACK;
+            if(target.hp <= battle_attack_damage(actor))
+                kind = living[foe] == 1 ? BATTLE_ACTION_WIN : BATTLE_ACTION_KILL;
+            masks.kind[kind] = (uint16_t)(masks.kind[kind] | bit);
+        }
+    }
+    return masks;
+}
+
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team) {
     uint8_t count = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i)
@@ -221,14 +278,19 @@ uint8_t battle_living(BattleState const& state, BATTLE_TEAM team) {
     return count;
 }
 
-// Ends the battle once a side has no living units. Returns whether the battle has ended.
+// Ends the battle once a side has no living units. Returns whether the battle has ended. One pass
+// counts both sides.
 static bool battle_check(BattleState& state) {
     if(state.ended)
         return true;
-    if(!battle_living(state, BATTLE_ENEMY)) {
+    uint8_t living[2] = {};
+    for(uint8_t i = 0; i < state.unit_count; ++i)
+        if(state.units[i].hp)
+            ++living[state.units[i].team];
+    if(!living[BATTLE_ENEMY]) {
         state.ended = true;
         state.result = BATTLE_VICTORY;
-    } else if(!battle_living(state, BATTLE_PARTY)) {
+    } else if(!living[BATTLE_PARTY]) {
         state.ended = true;
         state.result = BATTLE_DEFEAT;
     }
@@ -258,10 +320,12 @@ void battle_apply(BattleState& state, BattleAction action) {
 
     if(battle_check(state))
         return;
-    if(state.activations > BATTLE_EXHAUSTION_START)
+    // Exhaustion is the only change left, so the sides are checked again only when it applies.
+    if(state.activations > BATTLE_EXHAUSTION_START) {
         battle_exhaust(actor);
-    if(battle_check(state))
-        return;
+        if(battle_check(state))
+            return;
+    }
     battle_next_turn(state);
 }
 

@@ -172,6 +172,15 @@ struct BattleDestinations {
 
 BattleDestinations battle_destinations(BattleState const& state, uint8_t unit_index);
 
+// Every legal action of the side to act, grouped by kind in one pass. Bit unit * 4 + direction is set in
+// kind[k] for each legal action of kind k. The masks follow the same rules as battle_legal and
+// battle_action_kind, so a search can sort its children without classifying them one at a time.
+struct BattleActionMasks {
+    uint16_t kind[4]; // Indexed by BATTLE_ACTION_KIND.
+};
+
+BattleActionMasks battle_action_masks(BattleState const& state);
+
 // Resolves a legal action. An empty destination is a move. An enemy destination takes the
 // attacker's damage, and the attacker stays where it is. Victory or defeat is checked before
 // exhaustion, so a battle-ending action carries no exhaustion charge.

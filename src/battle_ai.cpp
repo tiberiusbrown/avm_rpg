@@ -1,49 +1,58 @@
 #include "battle_ai.h"
 
-// Static evaluation weights, from one side's perspective. A unit outweighs all the HP it could
-// hold, so losing one is worse than minor damage. A four-unit board keeps every static score within
-// about
-// +-4000, far below BATTLE_SCORE_WIN.
-static constexpr int16_t EVAL_UNIT = 1000;       // Per living unit ahead of the opponent.
-static constexpr int16_t EVAL_HP = 50;           // Per HP, for each unit.
-static constexpr int16_t EVAL_KILL_THREAT = 300; // Per adjacent enemy this side can kill.
-static constexpr int16_t EVAL_ATTACK_THREAT =
-    100; // Per adjacent enemy this side can hit without killing.
-static constexpr int16_t EVAL_DISTANCE = 10; // Per cell of distance to the nearest foe, per unit.
+// Enemy utility weights, in whole points. The enemy values the damage it deals above the damage it
+// takes, and it values eliminations above ordinary HP. Distance and strike terms steer it toward the
+// party. The utility counts living units and HP as differences, so constant offsets never matter.
+static constexpr int16_t UTILITY_ENEMY_UNIT = 550;
+static constexpr int16_t UTILITY_PARTY_UNIT = 600;
+static constexpr int16_t UTILITY_PARTY_HP = 180;
+static constexpr int16_t UTILITY_ENEMY_HP = 90;
+// Per cell of distance from each enemy to its nearest party member, and again for the nearest enemy.
+static constexpr int16_t UTILITY_DISTANCE = 20;
+static constexpr int16_t UTILITY_NEAREST = 20;
+// A strike that the side to act can make now, and one that the other side makes after one activation.
+// Mutual engagement is worth more when the enemy acts next, and less when the party acts next.
+static constexpr int16_t UTILITY_STRIKE_NOW = 120;
+static constexpr int16_t UTILITY_STRIKE_LATER = 60;
 
-// Scores above and below every search score. Windows start at these bounds.
+// Windows start beyond every score the search produces.
 static constexpr int16_t SCORE_INFINITE = 32000;
 
-// A frame lists its children by action kind in order, then one forced pass, then nothing more.
-static constexpr uint8_t STAGE_PASS = BATTLE_ACTION_MOVE + 1;
-static constexpr uint8_t STAGE_DONE = STAGE_PASS + 1;
+// Scores are ordered by band. Each band is wider than any distance a move can score inside it.
+static constexpr int16_t SCORE_KILL = 3000, SCORE_ATTACK = 2000, SCORE_MOVE = 1000;
+
+// A ply's child list is walked through its priority masks, then a forced pass, then nothing.
+static constexpr uint8_t STAGE_DONE = BATTLE_PRIORITY_COUNT + 1;
+static constexpr uint8_t SLOT_PASS = 16;
+static constexpr uint8_t SLOT_NONE = 17;
 static constexpr BattleAction PASS_ACTION{BATTLE_NO_UNIT, 0};
 
-// Bit unit * 4 + direction names one candidate. Four units with four directions fit in 16 bits.
-static_assert(BATTLE_UNIT_CAPACITY * 4 <= 16, "legal-action slots must fit in one 16-bit mask");
+// Candidate slots are unit * 4 + direction, so four units in four directions fit in one 16-bit mask.
+static_assert(BATTLE_UNIT_CAPACITY * 4 <= 16, "candidate slots must fit in one 16-bit mask");
 
-// One node on the explicit search stack. It holds only what the node needs to resume after a child
-// returns: the position, its window, the best child so far, and where it is in the child list.
-struct SearchFrame {
-    BattleState state;
-    BATTLE_TEAM side;         // The team to act here. Its scores are measured for that team.
-    int16_t alpha, beta;      // The window, from this node's perspective.
-    int16_t best;             // Best child score so far, from this node's perspective.
-    BattleAction current;     // The child being searched.
-    BattleAction best_action; // The child that produced best.
-    uint16_t legal;           // Bit unit * 4 + direction for each legal action at this node.
-    uint8_t slot;             // Next candidate bit to consider within the current stage.
-    uint8_t stage;            // The action kind being listed, STAGE_PASS, or STAGE_DONE.
+// The explicit search stack. Each ply keeps only the bookkeeping it needs to resume: its window, the
+// best child so far, and the priority masks of its legal actions, with bits cleared as children are
+// taken. The positions are kept separately, so the root reads the caller's state and never copies it.
+struct SearchPly {
+    int16_t alpha, beta, best;
+    uint16_t classes[BATTLE_PRIORITY_COUNT];
+    uint8_t stage;
+    bool pass_pending;
 };
 
-// Frame i holds the node at ply i. The last frame is scratch for a child scored without expansion.
-// Battles are single-threaded and searches never nest, so one static workspace serves every call.
-// Its size is sizeof(SearchFrame) * (BATTLE_AI_DEPTH + 1) plus the counters.
-static SearchFrame frames[BATTLE_AI_DEPTH + 1];
+static SearchPly plies[BATTLE_AI_DEPTH];
+// Positions for plies 1 through BATTLE_AI_DEPTH - 1, and one scratch position for leaves.
+static BattleState ply_state[BATTLE_AI_DEPTH > 1 ? BATTLE_AI_DEPTH - 1 : 1];
+static BattleState leaf_state;
 static BattleSearchStats stats;
 
 static BATTLE_TEAM opponent(BATTLE_TEAM team) {
     return team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
+}
+
+// The team to act at a ply. Sides alternate strictly, because every child is one activation.
+static BATTLE_TEAM side_at(BATTLE_TEAM root, uint8_t ply) {
+    return (ply & 1) ? opponent(root) : root;
 }
 
 // Manhattan distance between two cells. Terrain does not block movement yet.
@@ -57,57 +66,108 @@ static int16_t cell_distance(uint8_t a, uint8_t b) {
     return (int16_t)(dx + dy);
 }
 
-// The distance from a living unit to the nearest living unit of the other team.
-static int16_t nearest_foe(BattleState const& state, uint8_t index) {
-    BattleUnit const& unit = state.units[index];
-    int16_t nearest = 2 * BATTLE_COLUMNS;
+// The living cells of one side, gathered once per node for the ordering and the utility.
+struct LivingCells {
+    uint8_t cell[BATTLE_UNIT_CAPACITY];
+    uint8_t count;
+};
+
+static LivingCells living_cells(BattleState const& state, BATTLE_TEAM team) {
+    LivingCells list{};
     for(uint8_t i = 0; i < state.unit_count; ++i) {
-        BattleUnit const& foe = state.units[i];
-        if(foe.hp && foe.team != unit.team) {
-            int16_t distance = cell_distance(unit.cell, foe.cell);
-            if(distance < nearest)
-                nearest = distance;
-        }
+        BattleUnit const& unit = state.units[i];
+        if(unit.hp && unit.team == team)
+            list.cell[list.count++] = unit.cell;
+    }
+    return list;
+}
+
+// The distance from a cell to the nearest listed cell. Returns 99 for an empty list.
+static int16_t nearest_listed(LivingCells const& list, uint8_t cell) {
+    int16_t nearest = 99;
+    for(uint8_t i = 0; i < list.count; ++i) {
+        int16_t distance = cell_distance(cell, list.cell[i]);
+        if(distance < nearest)
+            nearest = distance;
     }
     return nearest;
 }
 
-// What one side gains by striking a unit it can reach. A kill is worth more than a hit.
-static int16_t strike_value(BattleState const& state, uint8_t attacker, uint8_t victim) {
-    if(!battle_can_strike(state, attacker, victim))
-        return 0;
-    BattleUnit const& target = state.units[victim];
-    return target.hp <= battle_attack_damage(state.units[attacker]) ? EVAL_KILL_THREAT
-                                                                    : EVAL_ATTACK_THREAT;
-}
+// The living units of one team, by index and cell. The utility decodes columns and rows as it measures.
+struct LivingUnits {
+    uint8_t index[BATTLE_UNIT_CAPACITY];
+    uint8_t cell[BATTLE_UNIT_CAPACITY];
+    uint8_t count;
+};
 
-// Scores a position from one side's perspective. Living units and HP count for the side and against
-// its opponent. Each unit prefers to be near the other team, and each adjacent pair scores both
-// sides' possible strikes. Terminal positions never reach here.
-static int16_t evaluate(BattleState const& state, BATTLE_TEAM side) {
-    BATTLE_TEAM foe = opponent(side);
-    int16_t score =
-        (int16_t)(EVAL_UNIT * ((int16_t)battle_living(state, side) - battle_living(state, foe)));
+// The enemy's utility in a position, from the enemy's perspective. The party's score is its exact
+// negation, so the search stays zero-sum.
+static int16_t enemy_utility(BattleState const& state) {
+    // One pass over the units collects both sides' living units and their HP.
+    LivingUnits enemy_list{}, party_list{};
+    int16_t enemy_hp = 0, party_hp = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(!unit.hp)
             continue;
-        int16_t value = (int16_t)(EVAL_HP * unit.hp - EVAL_DISTANCE * nearest_foe(state, i));
-        score = (int16_t)(score + (unit.team == side ? value : -value));
+        LivingUnits& list = unit.team == BATTLE_ENEMY ? enemy_list : party_list;
+        uint8_t slot = list.count++;
+        list.index[slot] = i;
+        list.cell[slot] = unit.cell;
+        if(unit.team == BATTLE_ENEMY)
+            enemy_hp = (int16_t)(enemy_hp + unit.hp);
+        else
+            party_hp = (int16_t)(party_hp + unit.hp);
     }
-    for(uint8_t i = 0; i < state.unit_count; ++i) {
-        for(uint8_t j = 0; j < state.unit_count; ++j) {
-            if(state.units[i].team != side || state.units[j].team != foe)
-                continue;
-            score = (int16_t)(score + strike_value(state, i, j) - strike_value(state, j, i));
+    uint8_t enemies = enemy_list.count, party = party_list.count;
+
+    // One pass over the enemy and party pairs gives each enemy's distance to its nearest party member, and
+    // finds the adjacent pairs that can strike. Strikes are checked only for adjacent pairs.
+    uint8_t distance_sum = 0, nearest = 2 * BATTLE_COLUMNS;
+    uint8_t enemy_strikes = 0, party_strikes = 0;
+    for(uint8_t a = 0; a < enemies; ++a) {
+        uint8_t e = enemy_list.index[a];
+        uint8_t reach = 2 * BATTLE_COLUMNS;
+        for(uint8_t b = 0; b < party; ++b) {
+            uint8_t p = party_list.index[b];
+            int16_t dx = (int16_t)(battle_column(enemy_list.cell[a]) - battle_column(party_list.cell[b]));
+            int16_t dy = (int16_t)(battle_row(enemy_list.cell[a]) - battle_row(party_list.cell[b]));
+            if(dx < 0)
+                dx = (int16_t)-dx;
+            if(dy < 0)
+                dy = (int16_t)-dy;
+            int16_t distance = (int16_t)(dx + dy);
+            if(distance < reach)
+                reach = (uint8_t)distance;
+            if(distance == 1) {
+                if(battle_can_strike(state, e, p))
+                    ++enemy_strikes;
+                if(battle_can_strike(state, p, e))
+                    ++party_strikes;
+            }
         }
+        distance_sum = (uint8_t)(distance_sum + reach);
+        if(reach < nearest)
+            nearest = reach;
     }
-    return score;
+
+    int16_t utility = (int16_t)(UTILITY_ENEMY_UNIT * enemies - UTILITY_PARTY_UNIT * party -
+                                UTILITY_PARTY_HP * party_hp + UTILITY_ENEMY_HP * enemy_hp -
+                                UTILITY_DISTANCE * distance_sum - UTILITY_NEAREST * nearest);
+    // A strike the side to act makes next is worth more than one the other side makes later.
+    int16_t strikes = state.turn == BATTLE_ENEMY
+                          ? (int16_t)(UTILITY_STRIKE_NOW * enemy_strikes -
+                                      UTILITY_STRIKE_LATER * party_strikes)
+                          : (int16_t)(UTILITY_STRIKE_LATER * enemy_strikes -
+                                      UTILITY_STRIKE_NOW * party_strikes);
+    return (int16_t)(utility + strikes);
 }
 
 int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply) {
-    if(!state.ended)
-        return evaluate(state, side);
+    if(!state.ended) {
+        int16_t utility = enemy_utility(state);
+        return side == BATTLE_ENEMY ? utility : (int16_t)-utility;
+    }
     // The result names the winner. state.turn is not used, because a battle-ending action leaves it
     // where it was.
     BATTLE_TEAM winner = state.result == BATTLE_VICTORY ? BATTLE_PARTY : BATTLE_ENEMY;
@@ -115,115 +175,172 @@ int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply) {
     return winner == side ? magnitude : (int16_t)-magnitude;
 }
 
-// The candidate slots holding a legal action. The enumeration supplies the actions, so the slots
-// match what the player and the rules see.
-static uint16_t legal_slots(BattleState const& state) {
-    uint16_t slots = 0;
-    BattleActionCursor cursor = battle_actions(state);
-    BattleAction action{};
-    while(battle_next_action(state, cursor, action)) {
-        DIRECTION dir = battle_direction(state.units[action.unit_index].cell, action.destination);
-        uint8_t slot = (uint8_t)(action.unit_index * 4 + dir);
-        slots = (uint16_t)(slots | (1u << slot));
+// The priority of an action, given the opponents of its mover.
+static BATTLE_SEARCH_PRIORITY priority_against(BattleState const& state, BattleAction action,
+                                               LivingCells const& foes) {
+    switch(battle_action_kind(state, action)) {
+        case BATTLE_ACTION_WIN:
+            return BATTLE_PRIORITY_WIN;
+        case BATTLE_ACTION_KILL:
+            return BATTLE_PRIORITY_KILL;
+        case BATTLE_ACTION_ATTACK:
+            return BATTLE_PRIORITY_ATTACK;
+        default:
+            break;
     }
-    return slots;
+    // A move closes the distance to the nearest opponent, or it does not.
+    int16_t before = nearest_listed(foes, state.units[action.unit_index].cell);
+    int16_t after = nearest_listed(foes, action.destination);
+    return after < before ? BATTLE_PRIORITY_APPROACH : BATTLE_PRIORITY_OTHER;
 }
 
-// The action a slot names. Only slots with a legal bit set are read, so the neighbor exists.
+BATTLE_SEARCH_PRIORITY battle_search_priority(BattleState const& state, BattleAction action) {
+    BATTLE_TEAM mover = state.units[action.unit_index].team;
+    return priority_against(state, action, living_cells(state, opponent(mover)));
+}
+
+// The bit position of a single set bit in a 16-bit mask, found by a short binary search.
+static uint8_t bit_index(uint16_t bit) {
+    uint8_t index = 0;
+    if(bit & 0xFF00) {
+        index += 8;
+        bit >>= 8;
+    }
+    if(bit & 0x00F0) {
+        index += 4;
+        bit >>= 4;
+    }
+    if(bit & 0x000C) {
+        index += 2;
+        bit >>= 2;
+    }
+    if(bit & 0x0002)
+        index += 1;
+    return index;
+}
+
+// The action a candidate slot names. Only slots holding a legal action are read, so the neighbor exists.
 static BattleAction slot_action(BattleState const& state, uint8_t slot) {
-    uint8_t unit = (uint8_t)(slot / 4);
+    uint8_t unit = (uint8_t)(slot >> 2);
     uint8_t destination = 0;
-    battle_neighbor(state.units[unit].cell, (DIRECTION)(slot % 4), destination);
+    battle_neighbor(state.units[unit].cell, (DIRECTION)(slot & 3), destination);
     return BattleAction{unit, destination};
 }
 
-// Lists the next child of a frame in move order: wins, kills, other attacks, moves, and then a
-// forced pass when the side has no legal action. Each legal action is listed exactly once.
-static bool next_child(SearchFrame& frame, BattleAction& action) {
-    while(frame.stage <= BATTLE_ACTION_MOVE) {
-        while(frame.slot < 16) {
-            uint8_t slot = frame.slot;
-            ++frame.slot;
-            if(!((frame.legal >> slot) & 1))
-                continue;
-            BattleAction candidate = slot_action(frame.state, slot);
-            if(battle_action_kind(frame.state, candidate) == frame.stage) {
-                action = candidate;
-                return true;
-            }
-        }
-        ++frame.stage;
-        frame.slot = 0;
-    }
-    if(frame.stage == STAGE_PASS) {
-        frame.stage = STAGE_DONE;
-        if(!frame.legal) {
-            action = PASS_ACTION;
-            return true;
-        }
-    }
-    return false;
-}
-
-// Credits a child's score, already from this frame's perspective, to the frame. Once the score
-// reaches beta, the frame is cut off and lists no more children.
-static void absorb(SearchFrame& frame, int16_t score, BattleAction action) {
-    if(score > frame.best) {
-        frame.best = score;
-        frame.best_action = action;
-    }
-    if(score > frame.alpha)
-        frame.alpha = score;
-    if(frame.alpha >= frame.beta)
-        frame.stage = STAGE_DONE;
-}
-
-// Scores are ordered by band. Each band is wider than any distance a move can score inside it.
-static constexpr int16_t SCORE_KILL = 3000, SCORE_ATTACK = 2000, SCORE_MOVE = 1000;
-
-// Manhattan distance from a cell to the nearest living unit of `team`.
-static int16_t distance_to_team(BattleState const& state, uint8_t cell, BATTLE_TEAM team) {
-    int16_t nearest = 255;
-    for(uint8_t i = 0; i < state.unit_count; ++i) {
-        BattleUnit const& unit = state.units[i];
-        if(unit.hp && unit.team == team) {
-            int16_t distance = cell_distance(cell, unit.cell);
-            if(distance < nearest)
-                nearest = distance;
-        }
+// The distance from a column and row to the nearest opponent, given the opponents' columns and rows.
+static int16_t nearest_offset(uint8_t const* columns, uint8_t const* rows, uint8_t count, int16_t x,
+                              int16_t y) {
+    int16_t nearest = 99;
+    for(uint8_t f = 0; f < count; ++f) {
+        int16_t dx = (int16_t)(x - columns[f]);
+        int16_t dy = (int16_t)(y - rows[f]);
+        if(dx < 0)
+            dx = (int16_t)-dx;
+        if(dy < 0)
+            dy = (int16_t)-dy;
+        if(dx + dy < nearest)
+            nearest = (int16_t)(dx + dy);
     }
     return nearest;
 }
 
-int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
-    uint8_t target = battle_unit_at(state, action.destination);
-    if(target != BATTLE_NO_UNIT) {
-        uint8_t damage = battle_attack_damage(state.units[action.unit_index]);
-        return state.units[target].hp <= damage ? SCORE_KILL : SCORE_ATTACK;
+// Sorts a position's legal actions into the priority masks, one bit per candidate slot. The rules give
+// the wins, kills, and attacks in one pass. Each move is then placed by its distance to the opponents.
+// Returns whether any action is legal.
+static bool classify(BattleState const& state, SearchPly& node) {
+    BattleActionMasks kinds = battle_action_masks(state);
+    node.classes[BATTLE_PRIORITY_WIN] = kinds.kind[BATTLE_ACTION_WIN];
+    node.classes[BATTLE_PRIORITY_KILL] = kinds.kind[BATTLE_ACTION_KILL];
+    node.classes[BATTLE_PRIORITY_ATTACK] = kinds.kind[BATTLE_ACTION_ATTACK];
+    node.classes[BATTLE_PRIORITY_APPROACH] = 0;
+    node.classes[BATTLE_PRIORITY_OTHER] = 0;
+
+    // Each unit's distance to the nearest opponent is taken once, and each move is then compared with it.
+    uint16_t moves = kinds.kind[BATTLE_ACTION_MOVE];
+    if(moves) {
+        // The opponents' columns and rows are read once per node. Each move is measured from its mover's cell
+        // and its one-step offset, against the same opponents.
+        uint8_t foe_column[BATTLE_UNIT_CAPACITY], foe_row[BATTLE_UNIT_CAPACITY];
+        uint8_t foes = 0;
+        for(uint8_t i = 0; i < state.unit_count; ++i) {
+            BattleUnit const& unit = state.units[i];
+            if(unit.hp && unit.team != state.turn) {
+                foe_column[foes] = battle_column(unit.cell);
+                foe_row[foes] = battle_row(unit.cell);
+                ++foes;
+            }
+        }
+        while(moves) {
+            uint16_t bit = (uint16_t)(moves & (uint16_t)-moves);
+            moves = (uint16_t)(moves ^ bit);
+            uint8_t slot = bit_index(bit);
+            BattleUnit const& mover = state.units[slot >> 2];
+            int16_t x = battle_column(mover.cell), y = battle_row(mover.cell);
+            int16_t before = nearest_offset(foe_column, foe_row, foes, x, y);
+            switch(slot & 3) {
+                case NORTH:
+                    --y;
+                    break;
+                case EAST:
+                    ++x;
+                    break;
+                case SOUTH:
+                    ++y;
+                    break;
+                default:
+                    --x;
+                    break;
+            }
+            int16_t after = nearest_offset(foe_column, foe_row, foes, x, y);
+            uint8_t priority = after < before ? BATTLE_PRIORITY_APPROACH : BATTLE_PRIORITY_OTHER;
+            node.classes[priority] = (uint16_t)(node.classes[priority] | bit);
+        }
     }
-    return (int16_t)(SCORE_MOVE -
-                     distance_to_team(state, action.destination, opponent(state.turn)));
+    uint16_t all = (uint16_t)(kinds.kind[BATTLE_ACTION_WIN] | kinds.kind[BATTLE_ACTION_KILL] |
+                              kinds.kind[BATTLE_ACTION_ATTACK] | kinds.kind[BATTLE_ACTION_MOVE]);
+    return all != 0;
 }
 
-// Credits a child of the root. The static evaluation is antisymmetric, so approaching a foe cancels
-// out of it, and many root moves tie on search score alone. A tie goes to the action the greedy
-// preference ranks higher, then to the first in move order. The window keeps one point below the
-// best score, so every child that could tie is still searched exactly.
-static void absorb_root(SearchFrame& root, int16_t& best_key, int16_t score, BattleAction action) {
-    int16_t key = action.unit_index == BATTLE_NO_UNIT ? 0 : battle_greedy_score(root.state, action);
-    if(score > root.best || (score == root.best && key > best_key)) {
-        root.best = score;
-        root.best_action = action;
-        best_key = key;
-        root.alpha = (int16_t)(score - 1);
-    }
+// Prepares a node for its children. A side with no legal action gets one forced pass.
+static void start(SearchPly& node, BattleState const& state) {
+    node.pass_pending = !classify(state, node);
+    node.stage = 0;
 }
 
-// Negamax with alpha-beta pruning over an explicit stack, so the search never recurses. A ply
-// expands to its children in move order. A child that is terminal or at the depth limit is scored
-// at once, and it does not occupy a frame. Pruning changes only how many positions are visited, not
-// the root action, because the root's choice and its tie-break are exact for every child that can
-// win.
+// Yields the next child of a node as a candidate slot, SLOT_PASS, or SLOT_NONE once the node has no
+// children left. Each call takes the lowest set bit of the current mask, so no candidate is visited twice.
+static uint8_t next_child(SearchPly& node) {
+    while(node.stage < BATTLE_PRIORITY_COUNT) {
+        uint16_t mask = node.classes[node.stage];
+        if(mask) {
+            uint16_t bit = (uint16_t)(mask & (uint16_t)-mask);
+            node.classes[node.stage] = (uint16_t)(mask ^ bit);
+            return bit_index(bit);
+        }
+        ++node.stage;
+    }
+    node.stage = STAGE_DONE;
+    if(node.pass_pending) {
+        node.pass_pending = false;
+        return SLOT_PASS;
+    }
+    return SLOT_NONE;
+}
+
+// Credits a child's score, already from this node's perspective. Once alpha reaches beta, the node is
+// cut off and lists no more children.
+static void absorb(SearchPly& node, int16_t score) {
+    if(score > node.best)
+        node.best = score;
+    if(score > node.alpha)
+        node.alpha = score;
+    if(node.alpha >= node.beta)
+        node.stage = STAGE_DONE;
+}
+
+// Negamax with alpha-beta pruning over an explicit stack, so the search never recurses. Each ply expands
+// its children in priority order. A child that is terminal or at the depth limit is scored in the scratch
+// position and does not occupy a ply. The root keeps the first action that reaches its best score.
 RPG_NOINLINE BattleSearchResult battle_search(BattleState const& root, uint8_t depth) {
     stats = BattleSearchStats{};
     if(depth < 1)
@@ -236,67 +353,67 @@ RPG_NOINLINE BattleSearchResult battle_search(BattleState const& root, uint8_t d
         return result;
     }
 
-    SearchFrame& top = frames[0];
-    top.state = root;
-    top.side = root.turn;
+    SearchPly& top = plies[0];
     top.alpha = (int16_t)-SCORE_INFINITE;
     top.beta = SCORE_INFINITE;
     top.best = (int16_t)-SCORE_INFINITE;
-    top.legal = legal_slots(root);
-    top.slot = 0;
-    top.stage = 0;
-    int16_t best_key = -1;
+    start(top, root);
+    BattleAction root_child = PASS_ACTION;
+    BattleAction root_best = PASS_ACTION;
 
-    // `ply` is the frame being expanded. Its children are built in the next frame, which is where a
-    // leaf is scored too, so no copy of a position lives on the call stack.
+    // `ply` is the node being expanded. Its child is built in the next position, or in the scratch
+    // position when the child is a leaf.
     uint8_t ply = 0;
     for(;;) {
-        SearchFrame& frame = frames[ply];
-        BattleAction action{};
-        if(next_child(frame, action)) {
-            frame.current = action;
-            ++stats.nodes;
-            SearchFrame& child = frames[ply + 1];
-            child.state = frame.state;
-            if(action.unit_index == BATTLE_NO_UNIT)
-                battle_pass(child.state);
-            else
-                battle_apply(child.state, action);
-            child.side = opponent(frame.side);
-            if(stats.deepest < ply + 1)
-                stats.deepest = (uint8_t)(ply + 1);
-
-            if(!child.state.ended && ply + 1 < depth) {
-                // Descend. The child's window is the parent's window negated and swapped.
-                child.alpha = (int16_t)-frame.beta;
-                child.beta = (int16_t)-frame.alpha;
-                child.best = (int16_t)-SCORE_INFINITE;
-                child.legal = legal_slots(child.state);
-                child.slot = 0;
-                child.stage = 0;
-                ++ply;
-            } else {
-                // Score a leaf from the child's perspective, then credit the parent with the
-                // negation.
-                ++stats.leaves;
-                int16_t score = (int16_t)-battle_score(child.state, child.side, ply + 1);
-                if(ply == 0)
-                    absorb_root(frame, best_key, score, action);
-                else
-                    absorb(frame, score, action);
+        BattleState const& parent = ply == 0 ? root : ply_state[ply - 1];
+        SearchPly& node = plies[ply];
+        uint8_t slot = next_child(node);
+        if(slot == SLOT_NONE) {
+            if(ply == 0) {
+                result.action = root_best;
+                result.score = node.best;
+                return result;
             }
-        } else if(ply == 0) {
-            result.action = frame.best_action;
-            result.score = frame.best;
-            return result;
-        } else {
-            // The frame is finished, so it returns its best score to the parent.
-            int16_t score = frame.best;
+            // The node is finished, so the parent receives its best score, negated.
+            int16_t score = (int16_t)-node.best;
             --ply;
-            if(ply == 0)
-                absorb_root(frames[0], best_key, (int16_t)-score, frames[0].current);
-            else
-                absorb(frames[ply], (int16_t)-score, frames[ply].current);
+            if(ply == 0 && score > plies[0].best)
+                root_best = root_child;
+            absorb(plies[ply], score);
+            continue;
+        }
+
+        BattleAction action = slot == SLOT_PASS ? PASS_ACTION : slot_action(parent, slot);
+        if(ply == 0)
+            root_child = action;
+        if(stats.nodes != 0xFFFF)
+            ++stats.nodes;
+        if(stats.deepest < ply + 1)
+            stats.deepest = (uint8_t)(ply + 1);
+        bool internal = ply + 1 < depth;
+        BattleState& child = internal ? ply_state[ply] : leaf_state;
+        child = parent;
+        if(slot == SLOT_PASS)
+            battle_pass(child);
+        else
+            battle_apply(child, action);
+
+        if(internal && !child.ended) {
+            // Descend. The child's window is the parent's window negated and swapped.
+            SearchPly& next = plies[ply + 1];
+            next.alpha = (int16_t)-node.beta;
+            next.beta = (int16_t)-node.alpha;
+            next.best = (int16_t)-SCORE_INFINITE;
+            start(next, child);
+            ++ply;
+        } else {
+            // Score the leaf from the child's side, and credit the node with the negation.
+            if(stats.leaves != 0xFFFF)
+                ++stats.leaves;
+            int16_t score = (int16_t)-battle_score(child, side_at(root.turn, ply + 1), ply + 1);
+            if(ply == 0 && score > node.best)
+                root_best = action;
+            absorb(node, score);
         }
     }
 }
@@ -306,10 +423,20 @@ BattleSearchStats battle_search_stats() {
 }
 
 uint16_t battle_search_workspace_bytes() {
-    return (uint16_t)(sizeof(frames) + sizeof(stats));
+    return (uint16_t)(sizeof(plies) + sizeof(ply_state) + sizeof(leaf_state));
 }
 
-RPG_NOINLINE BattleAction battle_greedy_action(BattleState const& state) {
+int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
+    uint8_t target = battle_unit_at(state, action.destination);
+    if(target != BATTLE_NO_UNIT) {
+        uint8_t damage = battle_attack_damage(state.units[action.unit_index]);
+        return state.units[target].hp <= damage ? SCORE_KILL : SCORE_ATTACK;
+    }
+    LivingCells foes = living_cells(state, opponent(state.turn));
+    return (int16_t)(SCORE_MOVE - nearest_listed(foes, action.destination));
+}
+
+BattleAction battle_greedy_action(BattleState const& state) {
     BattleAction best{BATTLE_NO_UNIT, 0};
     int16_t best_score = -1;
     BattleActionCursor cursor = battle_actions(state);
@@ -325,7 +452,7 @@ RPG_NOINLINE BattleAction battle_greedy_action(BattleState const& state) {
     return best;
 }
 
-RPG_NOINLINE BattleAction battle_enemy_action(BattleState const& state) {
+BattleAction battle_enemy_action(BattleState const& state) {
     BattleAction action = battle_search(state, BATTLE_AI_DEPTH).action;
     if(battle_legal(state, action))
         return action;

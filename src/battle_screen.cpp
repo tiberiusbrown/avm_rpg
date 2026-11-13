@@ -103,21 +103,16 @@ static uint8_t wait_frame_presses() {
     return pressed;
 }
 
-// Dashed box on an enemy the selected unit can attack.
-static void draw_attack_mark(int16_t x, int16_t y) {
-    for(uint8_t i = 0; i < TILE; i += 4) {
-        avm_draw_filled_rect_white(x + i, y, 2, 1);
-        avm_draw_filled_rect_white(x + i, y + TILE - 1, 2, 1);
-        avm_draw_filled_rect_white(x, y + i, 1, 2);
-        avm_draw_filled_rect_white(x + TILE - 1, y + i, 1, 2);
-    }
+// An attack marker: four black-outlined white brackets at the corners of an enemy's tile. The middle
+// of the tile stays transparent, so the enemy shows through.
+static void draw_attack_mark(int16_t x, int16_t y, uint8_t phase) {
+    avm_draw_plus_mask(x, y, battle_target_frame(BATTLE_TARGET_ATTACK, phase));
 }
 
-// A black block with a white dot marks an empty cell the selected unit can enter. The block
-// keeps the dot readable against the grass pattern.
-static void draw_move_mark(int16_t x, int16_t y) {
-    avm_draw_filled_rect_black(x + 4, y + 4, 8, 8);
-    avm_draw_filled_rect_white(x + 7, y + 7, 2, 2);
+// A movement marker: a white diamond with a black outline, centered on an empty cell that the
+// selected unit can enter.
+static void draw_move_mark(int16_t x, int16_t y, uint8_t phase) {
+    avm_draw_plus_mask(x, y, battle_target_frame(BATTLE_TARGET_MOVE, phase));
 }
 
 // A one-pixel white square outline, `size` pixels on each side.
@@ -147,14 +142,13 @@ static DIRECTION pressed_direction(uint8_t pressed) {
     return STILL;
 }
 
-// Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. Highlights
-// come before the actors: the selected unit gets a white border, and its attack targets are
-// blacked out. Empty destinations get their marks in the same layer. Dashed attack borders come
-// last, over the actors. The cursor is drawn separately, after the board. The mover is drawn even
-// once defeated, so a unit that dies on its move is seen walking first. A flashing unit is drawn
-// only on the visible phases of its flash, and it too is drawn once defeated. The mover faces
-// `mover_facing`, the way it steps or the victim it lunges at. Every other actor stands facing
-// south.
+// Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. The selected
+// unit gets its white border before the actors. The destination markers come after the actors, so
+// they stay visible over the terrain and the unit art. The cursor is drawn separately, after the
+// board. The mover is drawn even once defeated, so a unit that dies on its move is seen walking
+// first. A flashing unit is drawn only on the visible phases of its flash, and it too is drawn once
+// defeated. The mover faces `mover_facing`, the way it steps or the victim it lunges at. Every other
+// actor stands facing south.
 static void draw_board(BattleScreen const& screen, uint8_t selected, DIRECTION mover_facing) {
     BattleState const& state = screen.state;
     // Bit d is set for the selected unit's neighbor in direction d, which is either an empty cell
@@ -176,16 +170,6 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, DIRECTION m
 
     if(selected != BATTLE_NO_UNIT && state.units[selected].hp)
         draw_selection(cell_x(state.units[selected].cell), cell_y(state.units[selected].cell));
-    for(uint8_t d = 0; d < 4; ++d) {
-        uint8_t bit = (uint8_t)(1 << d);
-        if(!((moves | attacks) & bit))
-            continue;
-        uint8_t cell = step(from, d);
-        if(attacks & bit)
-            avm_draw_filled_rect_black(cell_x(cell), cell_y(cell), TILE, TILE);
-        else
-            draw_move_mark(cell_x(cell), cell_y(cell));
-    }
 
     avm_set_sprite(ACTOR_SPRITES);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
@@ -204,11 +188,19 @@ static void draw_board(BattleScreen const& screen, uint8_t selected, DIRECTION m
         avm_draw_plus_mask(x, y, actor_frame(pose, battle_sprite_row(unit), screen.ticks));
     }
 
+    // The destination markers come last, over the actors. They take the cursor's phase, so every
+    // marker pulses with the cursor, and none keeps a clock of its own.
+    uint8_t phase = screen.cursor.phase;
+    avm_set_sprite(BATTLE_TARGET_SPRITES);
     for(uint8_t d = 0; d < 4; ++d) {
-        if(attacks & (1 << d)) {
-            uint8_t cell = step(from, d);
-            draw_attack_mark(cell_x(cell), cell_y(cell));
-        }
+        uint8_t bit = (uint8_t)(1 << d);
+        if(!((moves | attacks) & bit))
+            continue;
+        uint8_t cell = step(from, d);
+        if(attacks & bit)
+            draw_attack_mark(cell_x(cell), cell_y(cell), phase);
+        else
+            draw_move_mark(cell_x(cell), cell_y(cell), phase);
     }
 }
 
