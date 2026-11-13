@@ -219,14 +219,14 @@ enum PAUSE_ITEM : uint8_t {
     PAUSE_PARTY,
     PAUSE_JOURNAL,
     PAUSE_MAP,
-    PAUSE_PASS,
-    PAUSE_AUDIO,
     PAUSE_RESIGN,
+    PAUSE_AUDIO,
+    PAUSE_PASS,
     PAUSE_LOAD,
     PAUSE_ITEM_COUNT
 };
 
-enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PASS };
+enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PASS, MENU_RESIGN };
 
 enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_LOWPASS, OPTION_ITEM_COUNT };
 
@@ -243,6 +243,7 @@ uint8_t menu_width(bool in_battle = false);
 void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
                  char const PROGMEM* feedback, MENU_EXIT action,
                  BattleScreen const* battle = nullptr);
+void render_menu_confirmation(PAUSE_ITEM selection);
 void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
                   BattleScreen const* battle = nullptr);
 uint8_t option_level(OPTION_ITEM item);

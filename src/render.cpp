@@ -129,9 +129,9 @@ void render_title(bool can_continue, uint8_t selection) {
 }
 
 static char const PROGMEM* menu_label(PAUSE_ITEM item) {
-    static char const PROGMEM* const PROGMEM LABELS[] = {F("Resume"),  F("Save"),   F("Party"),
-                                                         F("Journal"), F("Map"),    F("Pass"),
-                                                         F("Audio"),   F("Resign"), F("Load")};
+    static char const PROGMEM* const PROGMEM LABELS[] = {F("Resume"),  F("Save"), F("Party"),
+                                                         F("Journal"), F("Map"),  F("Resign"),
+                                                         F("Audio"),   F("Pass"), F("Load")};
     return LABELS[item];
 }
 
@@ -177,6 +177,19 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
     }
     if(feedback && revealed == width)
         avm_draw_text(width + 4, 58, feedback);
+}
+
+void render_menu_confirmation(PAUSE_ITEM selection) {
+    char const PROGMEM* prompt = F("A Accept  B Cancel");
+    char const PROGMEM* title = selection == PAUSE_PASS ? F("Pass turn?") : F("Resign?");
+    uint8_t width = (uint8_t)avm_text_width(prompt) + 12;
+    int16_t x = (DISPLAY_WIDTH - width) / 2;
+    constexpr uint8_t Y = 18, HEIGHT = 28;
+    avm_draw_filled_rect_black(x, Y, width, HEIGHT);
+    avm_draw_filled_rect_white(x + 1, Y + 1, width - 2, HEIGHT - 2);
+    avm_draw_filled_rect_black(x + 2, Y + 2, width - 4, HEIGHT - 4);
+    avm_draw_text((DISPLAY_WIDTH - avm_text_width(title)) / 2, Y + 10, title);
+    avm_draw_text(x + 6, Y + 21, prompt);
 }
 
 void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,

@@ -835,14 +835,46 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     require(pause_row_visible(d, 3) && !pause_row_visible(d, 4) && !pause_row_visible(d, 5),
             "battle pause menu did not hide exploration items and unavailable Load");
     d.capture(out / "battle-menu.pgm");
-    // Resign remains visible and does nothing.
-    for(unsigned i = 0; i < 3; ++i)
-        d.tap(BTN_DOWN);
+    auto confirmation_visible = [&] {
+        auto pixels = pause_frame(d).pixels;
+        auto pixel = [&](int x, int y) { return (pixels[y / 8 * 128 + x] >> (y % 8)) & 1; };
+        int left = 64, right = 64;
+        if(!pixel(64, 19))
+            return false;
+        while(left > 1 && pixel(left - 1, 19))
+            --left;
+        while(right < 126 && pixel(right + 1, 19))
+            ++right;
+        if(right - left < 60 || left + right != 127)
+            return false;
+        for(int x = left; x <= right; ++x)
+            if(pixel(x, 18) || !pixel(x, 44) || pixel(x, 45))
+                return false;
+        for(int y = 19; y <= 44; ++y)
+            if(pixel(left - 1, y) || !pixel(left, y) || !pixel(right, y) || pixel(right + 1, y))
+                return false;
+        return true;
+    };
+    auto unchanged = [&] {
+        BattleState paused = d.battle_state();
+        return !memcmp(&initial, &paused, sizeof(initial)) && d.serial() == serial;
+    };
+    // Resign is now second. Holding the opening A cannot accept, even past the guard.
+    d.tap(BTN_DOWN);
+    d.advance(BTN_A, 6400000);
+    require(unchanged() && confirmation_visible(),
+            "held opening A accepted Resign or its confirmation was not centered");
+    d.capture(out / "battle-resign-confirmation.pgm");
+    d.tap(BTN_B);
+    require(unchanged() && !confirmation_visible(),
+            "cancelled Resign changed the battle or left its panel open");
+    // B cancels immediately, including when pressed together with A during the guard.
     d.tap(BTN_A);
+    d.advance(BTN_A | BTN_B, 320000);
+    d.advance(0, 800000);
+    require(unchanged() && !confirmation_visible(), "B did not cancel Resign confirmation");
     BattleState paused = d.battle_state();
-    require(!memcmp(&initial, &paused, sizeof(initial)) && pause_row_visible(d, 3),
-            "Resign changed the battle");
-    d.tap(BTN_UP); // Audio
+    d.tap(BTN_DOWN); // Audio remains third.
     d.tap(BTN_A);
     d.advance(0, 9600000);
     d.capture(out / "battle-audio.pgm");
@@ -867,7 +899,19 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     };
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    d.tap(BTN_DOWN); // Pass voluntarily, even with legal actions.
+    d.tap(BTN_UP); // Pass is last, even with legal actions available.
+    d.advance(BTN_A, 320000);
+    d.advance(0, 320000);
+    // A fresh press inside the guard is consumed, never deferred until it expires.
+    d.advance(BTN_A, 6400000);
+    require(unchanged() && confirmation_visible(), "early A accepted Pass confirmation");
+    d.capture(out / "battle-pass-confirmation.pgm");
+    d.tap(BTN_B);
+    require(unchanged() && !confirmation_visible(), "cancelled Pass consumed an activation");
+    // Repeat and accept only with a fresh press after the guard.
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    require(unchanged() && confirmation_visible(), "Pass ran before confirmation");
     d.tap(BTN_A);
     BattleState passed = wait_activation();
     require(passed.activations == 1 && passed.turn == BATTLE_ENEMY,
@@ -920,6 +964,44 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     Game after = d.state();
     require(d.serial() == serial && !memcmp(&world, &after, sizeof(world)),
             "battle menu advanced exploration or changed saved options");
+}
+
+static void verify_battle_resign(Device& d, fs::path const& out) {
+    d.advance(0, 6400000);
+    BattleState expected = d.battle_state();
+    Game world = d.state();
+    unsigned serial = d.serial();
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    // Keep the accepting A held through menu exit: it must not dismiss the defeat screen.
+    d.advance(BTN_A, 8000000);
+    expected.ended = true;
+    expected.result = BATTLE_DEFEAT;
+    BattleState resigned = d.battle_state();
+    require(!memcmp(&expected, &resigned, sizeof(expected)),
+            "Resign did not end as defeat without consuming a turn or changing units");
+    Game paused = d.state();
+    require(d.serial() == serial && !memcmp(&world, &paused, sizeof(world)),
+            "Resign advanced exploration before dismissing the result");
+    d.capture(out / "battle-resigned.pgm");
+    d.advance(0, 1600000);
+    require(d.battle_address() != 0 && d.prompt() == DIALOGUE_CLOSED,
+            "accepting Resign also dismissed its defeat screen");
+    {
+        FadeTrace trace(d);
+        d.tap(BTN_A);
+        d.advance(0, 4000000);
+        trace.verify("battle_exit");
+    }
+    require(d.battle_address() == 0 && d.prompt() == DIALOGUE_TYPING,
+            "Resign did not return normally to the story's defeat outcome");
+    d.wait_for_prompt();
+    d.capture(out / "battle-resigned-dialogue.pgm");
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_CLOSED, "Resign outcome did not return to exploration");
 }
 
 static void verify_house_fades(Device& d) {
@@ -1141,7 +1223,9 @@ int main(int argc, char** argv) try {
         d.wait_for_prompt();
         d.tap(BTN_A);
         verify_battle_menu(d, out);
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"battle pause, Audio and team passes\"}\n";
+        verify_battle_resign(d, out);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"battle pause, Audio, team passes and "
+                     "Resign\"}\n";
         return 0;
     }
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "new game did not default to 16 kHz audio");
@@ -1194,6 +1278,10 @@ int main(int argc, char** argv) try {
     verify_battle_menu(d, out);
     play_grove_battle(d, true);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
+    d.tap(BTN_A);
+    d.wait_for_prompt();
+    d.tap(BTN_A);
+    verify_battle_resign(d, out);
     verify_house_fades(d);
 
     // Stand one tile north of the villager, facing it, and talk with A.

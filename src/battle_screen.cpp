@@ -631,6 +631,11 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
                 MENU_EXIT selected = menu_screen(&screen);
                 if(selected == MENU_AUDIO)
                     audio_screen(&screen);
+                if(selected == MENU_RESIGN) {
+                    state.ended = true;
+                    state.result = BATTLE_DEFEAT;
+                    break;
+                }
                 if(selected != MENU_PASS)
                     continue;
                 action = BattleAction{BATTLE_NO_UNIT, 0};

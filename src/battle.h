@@ -27,7 +27,7 @@ inline constexpr uint8_t BATTLE_ENGAGEMENT_DAMAGE = 1;
 
 enum BATTLE_TEAM : uint8_t { BATTLE_PARTY, BATTLE_ENEMY };
 
-// Valid once a battle has ended. A battle always ends with one side wiped out.
+// Valid once a battle has ended, through team elimination or the party's resignation.
 enum BATTLE_RESULT : uint8_t { BATTLE_VICTORY, BATTLE_DEFEAT };
 
 // Terrain only. Its tile IDs belong to one tileset, which need not be the overworld area's.

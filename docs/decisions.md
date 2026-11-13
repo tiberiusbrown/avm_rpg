@@ -162,9 +162,15 @@ an outstanding song fade before a music-volume edit prevents its saved gain undo
 Exploration and battle share `menu_screen`, item filtering and the panel renderer. Battle
 passes its existing local `BattleScreen` for the frozen background; there is no global battle
 state or separate menu loop. On player turns, B cancels a selected unit or opens the menu
-when nothing is selected. Battle items are Resume, Pass, Audio and inactive Resign; Load
-remains exclusive to exploration. Pass consumes one activation and damages every living
-teammate by 1, regardless of whether it is voluntary or forced. Paused-board rendering omits
+when nothing is selected. Battle items are Resume, Resign, Audio and Pass; Load
+remains exclusive to exploration. Pass and Resign open centered black/white/black confirmation
+panels over the paused menu. A requires a fresh press after a 12-frame (240 ms) guard;
+early presses are consumed, holding A never accepts, and B cancels immediately. The existing
+menu loop holds the local confirmation countdown, without nesting another screen loop.
+Confirmed Resign sets the existing defeat result and ends the battle without consuming an
+activation or changing unit HP. The normal result screen, defeat sound and exit transition
+run before returning defeat to the caller. Confirmed Pass consumes one activation and damages
+every living teammate by 1, regardless of whether it is voluntary or forced. Paused-board rendering omits
 selection-target enumeration to keep the deeper menu path within the guest stack budget.
 Story handlers still receive only victory or defeat and need no menu-result handling.
 Every AI search ply also lists a voluntary Pass for its acting side. The unused packed

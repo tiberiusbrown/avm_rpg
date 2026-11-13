@@ -191,11 +191,14 @@ overworld cache and from the current area.
   as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at
   (6,0), rocks at (1,3), and a boulder at (4,3), which leave an open lane through rows 1 and 2.
 - During a player turn, B opens the shared pause menu when no unit is selected; otherwise it
-  cancels the selected unit. The battle menu contains **Resume**, **Pass**, **Audio**, and
-  **Resign**. Resign is a placeholder. Exploration items, including Load, are hidden in battle.
+  cancels the selected unit. The battle menu contains **Resume**, **Resign**, **Audio**, and
+  **Pass**. Pass and Resign open centered confirmation panels: A accepts after a 240 ms guard
+  and a fresh press; B cancels immediately. Confirmed Resign ends the battle as a defeat,
+  with the normal result screen and defeat outcome for the caller.
+  Exploration items, including Load, are hidden in battle.
   Resume or B returns to the same battle, and Audio uses the same sliders and transition as
-  exploration, with the frozen board behind it. Pass voluntarily consumes the party's turn. The AI considers Pass for either side at every
-  search depth, alongside moves and attacks.
+  exploration, with the frozen board behind it. Confirmed Pass voluntarily consumes the party's
+  turn. The AI considers Pass for either side at every search depth, alongside moves and attacks.
 - Each activation is one move, one attack, or a pass. Every move costs its mover 1 HP, whatever its
   distance, but first deals 1 damage to every enemy beside its destination; an attack costs nothing
   and hits only its target. A unit with 1 HP may still move: it deals its damage and then falls,

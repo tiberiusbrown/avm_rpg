@@ -23,8 +23,8 @@ in optimized IR:
 
 | Guest | .saved | ordinary .data | total static / 1024 | code | read-only data | stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
-| rpg | 267 | 210 | 477 | 34386 | 123863 | 240 |
-| rpg_qa | 267 | 216 | 483 | 34506 | 123863 | 240 |
+| rpg | 267 | 210 | 477 | 34764 | 123901 | 240 |
+| rpg_qa | 267 | 216 | 483 | 34876 | 123901 | 240 |
 
 The earlier M1 baseline below predates the current world, battle and save implementations:
 

@@ -55,6 +55,9 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
     bool closing = false;
     MENU_EXIT action = MENU_RESUME;
     char const PROGMEM* feedback = nullptr;
+    // Zero is closed; one waits for a fresh A; larger values guard the first 240 ms.
+    uint8_t confirmation = 0;
+    constexpr uint8_t CONFIRM_GUARD_FRAMES = 12;
     input_sync();
 
     for(;;) {
@@ -62,12 +65,25 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(width));
         render_menu((uint8_t)cursor_pixel(revealed), width, selection, save_exists, feedback,
                     action, battle);
+        if(confirmation)
+            render_menu_confirmation(selection);
         avm_display(true);
         uint8_t pressed = input_pressed();
 
         if(closing) {
             if(!revealed || (action == MENU_AUDIO && !cursor_pixel(revealed)))
                 return action;
+            continue;
+        }
+        if(confirmation) {
+            if(pressed & BTN_B)
+                confirmation = 0;
+            else if(confirmation == 1 && (pressed & BTN_A)) {
+                confirmation = 0;
+                action = selection == PAUSE_PASS ? MENU_PASS : MENU_RESIGN;
+                closing = true;
+            } else if(confirmation > 1)
+                --confirmation;
             continue;
         }
         if(pressed & BTN_B) {
@@ -95,8 +111,8 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
                     input_sync();
                     break;
                 case PAUSE_PASS:
-                    action = MENU_PASS;
-                    closing = true;
+                case PAUSE_RESIGN:
+                    confirmation = CONFIRM_GUARD_FRAMES + 1;
                     feedback = nullptr;
                     break;
                 case PAUSE_LOAD:
