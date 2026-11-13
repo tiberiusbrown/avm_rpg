@@ -1,0 +1,5 @@
+// A hero is selected: a rising two-note chirp.
+sfx
+volume max
+instrument chirp { wave pulse duty 25% volume 11 volume_slide { delta -6 over 60ms } }
+channel 1 chirp octave 5 { e:36ms b:64ms }

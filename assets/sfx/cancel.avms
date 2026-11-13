@@ -1,0 +1,5 @@
+// The selection is cancelled: the selection chirp, falling.
+sfx
+volume max
+instrument chirp { wave pulse duty 25% volume 10 volume_slide { delta -6 over 60ms } }
+channel 1 chirp octave 5 { b:36ms e:64ms }

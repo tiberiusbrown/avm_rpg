@@ -1,0 +1,5 @@
+// The enemy starts its turn: two low notes a tritone apart.
+sfx
+volume max
+instrument omen { wave pulse duty 50% volume 9 volume_slide { delta -5 over 110ms } }
+channel 1 omen octave 3 { e:70ms r:20ms bb:120ms }

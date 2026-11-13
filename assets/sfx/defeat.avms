@@ -1,0 +1,12 @@
+// The party loses: a slow falling minor line.
+sfx
+volume max
+automation 8ms
+instrument dirge { wave pulse duty 50% volume 11 gate 85% }
+channel 1 dirge octave 4 {
+    e:170ms d:170ms c:170ms
+    gate 100%
+    lfo { target pitch depth 25cents period 120ms }
+    volume_slide { to 0 over 520ms }
+    b,:520ms
+}

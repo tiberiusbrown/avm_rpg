@@ -2,6 +2,14 @@
 
 #include <avm.h>
 #include "music.h"
+#include "sfx.h"
+
+struct SfxTrack {
+    void const AVM_PROGMEM* data;
+};
+
+#include "sfx_data.h"
+static_assert(sizeof(SFX_TRACKS) / sizeof(SFX_TRACKS[0]) == SFX_COUNT);
 
 constexpr uint8_t MUSIC_MASTER_VOLUME = 128;
 static uint8_t music_selection;
@@ -10,6 +18,10 @@ char const PROGMEM* music_next() {
     music_selection = (uint8_t)((music_selection + 1) % MUSIC_COUNT);
     avm_audio_play(MUSIC_TRACKS[music_selection].data);
     return MUSIC_TRACKS[music_selection].title;
+}
+
+RPG_NOINLINE void sfx_play(SFX effect) {
+    avm_audio_sfx(SFX_TRACKS[effect].data);
 }
 
 uint8_t saved_record[SAVE_BYTES] __attribute__((section(".saved"))) = {0};

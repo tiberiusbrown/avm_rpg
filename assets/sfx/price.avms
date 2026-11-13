@@ -1,0 +1,5 @@
+// A move's blood price, when that is the move's only damage: a soft falling double blip.
+sfx
+volume max
+instrument drop { wave pulse duty 50% volume 8 }
+channel 1 drop octave 4 { c:28ms r:16ms a,:44ms }

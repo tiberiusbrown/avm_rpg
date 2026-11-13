@@ -1,0 +1,5 @@
+// One footfall of a walking unit: a soft noise tick.
+sfx
+volume max
+instrument footfall { wave noise volume 5 volume_slide { to 0 over 24ms } }
+channel 3 footfall octave 4 { c:24ms }

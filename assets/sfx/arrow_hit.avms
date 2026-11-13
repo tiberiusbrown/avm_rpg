@@ -1,0 +1,12 @@
+// An arrow lands: a short noise thunk.
+sfx
+volume max
+automation 8ms
+instrument thunk { wave noise volume 12 volume_slide { to 0 over 80ms } }
+instrument knock {
+    wave pulse duty 50% volume 8
+    frequency_slide { delta -500cents over 50ms }
+    volume_slide { to 0 over 60ms }
+}
+channel 1 knock octave 4 { d:60ms }
+channel 3 thunk octave 3 { c:80ms }

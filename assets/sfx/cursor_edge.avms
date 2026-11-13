@@ -1,0 +1,9 @@
+// The battle cursor is pushed against the edge of the board: a dull low bump.
+sfx
+volume max
+instrument bump {
+    wave pulse duty 50% volume 10
+    frequency_slide { delta -400cents over 40ms }
+    volume_slide { to 0 over 48ms }
+}
+channel 1 bump octave 3 { g:48ms }

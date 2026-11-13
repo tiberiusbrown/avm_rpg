@@ -2,6 +2,7 @@
 #include "battle_ai.h"
 #include "battle_cursor.h"
 #include "battle_motion.h"
+#include "sfx.h"
 
 #include <avm.h>
 
@@ -221,7 +222,7 @@ static int8_t toward_zero(int8_t offset, int8_t amount) {
 // faces the way it steps, and the walking pose cycles while it moves. A straight move of one or two
 // cells walks the whole way. A knight leap is a fast jump: it covers both axes at once, standing
 // rather than walking, and arcs above its path (battle_leap_lift), so it is seen to jump over the
-// units and terrain it passes. The logical state has already changed, so only the drawn offset is
+// units and terrain it passes. A walker's footfalls sound as it goes, and a leap whistles and thuds. The logical state has already changed, so only the drawn offset is
 // left to cover. With no offset, it does nothing.
 static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen) {
     bool leap = screen.mover_dx != 0 && screen.mover_dy != 0;
@@ -235,8 +236,13 @@ static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen
     if(leap) {
         step_x = ax > ay ? BATTLE_LEAP_PIXELS : BATTLE_LEAP_PIXELS / 2;
         step_y = ay > ax ? BATTLE_LEAP_PIXELS : BATTLE_LEAP_PIXELS / 2;
+        // One sound covers the whole jump and its landing.
+        sfx_play(SFX_LEAP);
     }
+    uint8_t stride = 0;
     while(screen.mover_dx != 0 || screen.mover_dy != 0) {
+        if(!leap && stride++ % BATTLE_STEP_SOUND_FRAMES == 0)
+            sfx_play(SFX_STEP);
         if(leap) {
             screen.mover_dx = toward_zero(screen.mover_dx, step_x);
             screen.mover_dy = toward_zero(screen.mover_dy, step_y);
@@ -255,14 +261,41 @@ static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen
     screen.motion = MOTION_STILL;
 }
 
+// Whether any flashing unit has been defeated.
+RPG_NOINLINE static bool any_fallen(BattleScreen const& screen) {
+    for(uint8_t i = 0; i < screen.state.unit_count; ++i)
+        if(((screen.flashing >> i) & 1) && !screen.state.units[i].hp)
+            return true;
+    return false;
+}
+
+// The sound of a unit type's attack landing. An archer's arrow has its own sounds.
+static SFX attack_sound(uint8_t type) {
+    switch(type) {
+    case BATTLE_TYPE_SPEARMAN:
+        return SFX_THRUST;
+    case BATTLE_TYPE_WOLF:
+        return SFX_BITE;
+    case BATTLE_TYPE_BRUTE:
+        return SFX_SMASH;
+    default:
+        return SFX_STRIKE;
+    }
+}
+
 // Plays the flash of every flashing unit, and the lunge of `lunger` toward `toward` when it is not
 // BATTLE_NO_UNIT. The lunge moves out, holds, and returns, while the flashes run over the same
-// frames, so the next turn waits for the last flash.
+// frames, so the next turn waits for the last flash. `impact` sounds as the reaction starts. When a
+// flashing unit is defeated, its fall sounds at BATTLE_FALL_SOUND_FRAME, after the impact.
 static inline __attribute__((always_inline)) void
-animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward, uint8_t frames) {
+animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward, uint8_t frames,
+                 SFX impact) {
     screen.mover = lunger;
     screen.motion = MOTION_STILL;
+    sfx_play(impact);
     for(screen.ticks = 0; screen.ticks < frames; ++screen.ticks) {
+        if(screen.ticks == BATTLE_FALL_SOUND_FRAME && any_fallen(screen))
+            sfx_play(SFX_FALL);
         uint8_t reach = lunger == BATTLE_NO_UNIT ? 0 : battle_lunge_pixels(screen.ticks);
         screen.mover_dx = (int8_t)(direction_dx(toward) * reach);
         screen.mover_dy = (int8_t)(direction_dy(toward) * reach);
@@ -315,6 +348,8 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action) {
 static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen, uint8_t to,
                                                             DIRECTION toward) {
     screen.motion = MOTION_SHOT;
+    // The bowstring, then the arrow's hiss, which lasts until the landing sound replaces it.
+    sfx_play(SFX_BOW);
     uint8_t from = screen.state.units[screen.mover].cell;
     uint8_t cells =
         (uint8_t)(battle_column(from) == battle_column(to)
@@ -346,21 +381,27 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
     // its arrow first and does not lunge. Any other attack leaves the attacker as the mover, which
     // lunges toward its victim.
     uint8_t lunger = screen.mover;
+    uint8_t actor = action.unit_index;
+    uint8_t type = screen.state.units[actor].type;
+    // The sound that starts the reaction: the attack landing, the arrow arriving, or for a move
+    // the clash of its engagement, or only its price when it hurt no one else.
+    SFX impact = attack_sound(type);
     if(screen.mover_dx != 0 || screen.mover_dy != 0) {
         walk_unit(screen);
         lunger = BATTLE_NO_UNIT;
-    } else if(screen.state.units[action.unit_index].type == BATTLE_TYPE_ARCHER) {
+        impact = screen.flashing & ~(1 << actor) ? SFX_CLASH : SFX_PRICE;
+    } else if(type == BATTLE_TYPE_ARCHER) {
         fly_arrow(screen, action.destination, toward);
         lunger = BATTLE_NO_UNIT;
+        impact = SFX_ARROW_HIT;
     }
     // Every move costs its mover HP. A move whose only damage is that price, to a mover that
     // survives, flashes briefly, so ordinary moves stay quick; any other damage flashes for the
     // full time.
     if(screen.flashing) {
-        uint8_t actor = action.unit_index;
         bool price_only = screen.flashing == (1 << actor) && screen.state.units[actor].hp;
         animate_reaction(screen, lunger, toward,
-                         price_only ? BATTLE_PRICE_FLASH_FRAMES : BATTLE_FLASH_FRAMES);
+                         price_only ? BATTLE_PRICE_FLASH_FRAMES : BATTLE_FLASH_FRAMES, impact);
     }
 }
 
@@ -377,16 +418,21 @@ static void draw_result(BATTLE_RESULT result) {
 
 // Handles an A press on `cell`. A friendly hero becomes the selection, replacing any other.
 // Otherwise the selected hero acts on the cell if that is legal. Returns the action taken, or one
-// with no unit when the press changes nothing. Kept out of line so party_turn's frame stays small.
+// with no unit when the press changes nothing. A selection chirps, and a press that changes nothing
+// buzzes; a confirmed action is heard through its own motion. Kept out of line so party_turn's frame stays small.
 RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& selected,
                                          uint8_t cell) {
     uint8_t unit = battle_unit_at(state, cell);
     if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY) {
         selected = unit;
-    } else if(selected != BATTLE_NO_UNIT) {
-        BattleAction action{selected, cell};
-        if(battle_legal(state, action))
-            return action;
+        sfx_play(SFX_SELECT);
+    } else {
+        if(selected != BATTLE_NO_UNIT) {
+            BattleAction action{selected, cell};
+            if(battle_legal(state, action))
+                return action;
+        }
+        sfx_play(SFX_ERROR);
     }
     return BattleAction{BATTLE_NO_UNIT, 0};
 }
@@ -411,10 +457,18 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
 
         uint8_t next = cursor.cell;
         DIRECTION dir = pressed_direction(pressed);
-        if(dir != STILL && battle_neighbor(cursor.cell, dir, next))
-            cursor.cell = next;
-        if(pressed & BTN_B)
+        if(dir != STILL) {
+            // A press against the edge of the board bumps instead of ticking.
+            bool moved = battle_neighbor(cursor.cell, dir, next);
+            if(moved)
+                cursor.cell = next;
+            sfx_play(moved ? SFX_CURSOR_MOVE : SFX_CURSOR_EDGE);
+        }
+        if(pressed & BTN_B) {
+            if(selected != BATTLE_NO_UNIT)
+                sfx_play(SFX_CANCEL);
             selected = BATTLE_NO_UNIT;
+        }
         if(pressed & BTN_A) {
             BattleAction action = press_a(state, selected, cursor.cell);
             if(action.unit_index != BATTLE_NO_UNIT) {
@@ -438,6 +492,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
 RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
     draw_board(screen, BATTLE_NO_UNIT, SOUTH);
     avm_display(false);
+    sfx_play(SFX_ENEMY_TURN);
     pause(RESULT_FRAMES);
     return battle_enemy_action(screen.state);
 }
@@ -466,6 +521,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     screen.cursor =
         Cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
     screen.mover = BATTLE_NO_UNIT;
+    sfx_play(SFX_BATTLE_START);
 
     while(!state.ended) {
         battle_settle(state);
@@ -482,6 +538,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     draw_board(screen, BATTLE_NO_UNIT, SOUTH);
     draw_result(state.result);
     avm_display(false);
+    sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
     input_wait_press(BTN_A);
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();

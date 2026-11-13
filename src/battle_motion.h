@@ -13,6 +13,11 @@ inline constexpr uint8_t BATTLE_FLASH_FRAMES = 48;
 // A move whose only damage is its mover's blood price flashes for this shorter time: two hidden and
 // two visible phases, about a third of a second.
 inline constexpr uint8_t BATTLE_PRICE_FLASH_FRAMES = 16;
+// The frame of a full flash at which a defeated unit's falling sound starts. By then the attacker's
+// lunge is over and the attack's own sound has finished.
+inline constexpr uint8_t BATTLE_FALL_SOUND_FRAME = 20;
+// A walking unit's footfall sounds once in this many frames, twice for each cell it crosses.
+inline constexpr uint8_t BATTLE_STEP_SOUND_FRAMES = 8;
 // Frames each hidden or visible phase of a flash lasts.
 inline constexpr uint8_t BATTLE_FLASH_STEP = 4;
 

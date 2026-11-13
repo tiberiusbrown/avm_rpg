@@ -1,0 +1,8 @@
+// A unit that moves next to enemies engages them: a noise crash under a bright metallic clink.
+sfx
+volume max
+automation 8ms
+instrument clink { wave pulse duty 12.5% volume 10 volume_slide { delta -7 over 50ms } }
+instrument scrape { wave noise volume 11 volume_slide { to 0 over 80ms } }
+channel 1 clink octave 6 { b:28ms f#:52ms }
+channel 3 scrape octave 5 { c:80ms }

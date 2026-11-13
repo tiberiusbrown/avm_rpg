@@ -1,0 +1,12 @@
+// A unit is defeated: a falling run of whole tones, then a noise thud as it drops.
+sfx
+volume max
+automation 8ms
+instrument tumble {
+    wave pulse duty 25% volume 11
+    glissando { direction down step 2semitones every 28ms to e3 }
+    volume_slide { to 3 over 330ms }
+}
+instrument puff { wave noise volume 10 volume_slide { to 0 over 100ms } }
+channel 1 tumble octave 5 { e:340ms }
+channel 3 puff octave 3 { r:280ms c:100ms }

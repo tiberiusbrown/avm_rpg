@@ -1,0 +1,11 @@
+// The party wins: a short rising fanfare.
+sfx
+volume max
+automation 8ms
+instrument horn { wave pulse duty 25% volume 12 gate 80% }
+channel 1 horn octave 5 {
+    c:90ms c:90ms c:90ms e:180ms g:90ms
+    gate 100%
+    volume_slide { to 0 over 420ms }
+    c':420ms
+}

@@ -1,0 +1,12 @@
+// A wolf's bite: a growl under two jaw snaps.
+sfx
+volume max
+automation 8ms
+instrument growl {
+    wave pulse duty 50% volume 9
+    lfo { target pitch depth 90cents period 28ms }
+    volume_slide { to 3 over 130ms }
+}
+instrument snap { wave noise volume 12 volume_slide { to 0 over 36ms } }
+channel 1 growl octave 2 { a:130ms }
+channel 3 snap octave 4 { r:40ms c:36ms r:20ms c:36ms }

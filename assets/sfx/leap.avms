@@ -1,0 +1,14 @@
+// A rogue's knight leap: a whistle that rises and falls with the arc over the leap's 160 ms, then
+// a landing thud.
+sfx
+volume max
+automation 8ms
+instrument whistle { wave pulse duty 25% volume 10 }
+instrument thud { wave noise volume 10 volume_slide { to 0 over 70ms } }
+channel 1 whistle octave 5 {
+    frequency_slide { delta 1200cents over 80ms }
+    c:80ms
+    frequency_slide { delta -1200cents over 80ms }
+    c':80ms
+}
+channel 3 thud octave 2 { r:160ms c:70ms }

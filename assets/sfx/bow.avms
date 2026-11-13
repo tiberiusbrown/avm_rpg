@@ -1,0 +1,13 @@
+// An archer shoots: the string's twang, then the arrow's hiss. The hiss outlasts the longest
+// flight (260 ms); the arrow's landing replaces it.
+sfx
+volume max
+automation 8ms
+instrument twang {
+    wave pulse duty 25% volume 11
+    frequency_slide { delta -700cents over 60ms }
+    volume_slide { to 0 over 80ms }
+}
+instrument hiss { wave noise volume 5 volume_slide { to 2 over 300ms } }
+channel 1 twang octave 5 { g:80ms }
+channel 3 hiss octave 6 { c:300ms }

@@ -1,0 +1,5 @@
+// The battle cursor moves one cell: a short high tick.
+sfx
+volume max
+instrument tick { wave pulse duty 12.5% volume 9 note_cut { after 20ms } }
+channel 1 tick octave 6 { e:24ms }

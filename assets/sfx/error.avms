@@ -1,0 +1,5 @@
+// A is pressed on a cell the selected hero cannot act on: a low double buzz.
+sfx
+volume max
+instrument buzz { wave pulse duty 50% volume 10 }
+channel 1 buzz octave 2 { bb:40ms r:24ms bb:64ms }

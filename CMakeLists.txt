@@ -189,6 +189,22 @@ if(RPG_BUILD_GUEST)
             VERBATIM)
         list(APPEND MUSIC_OUTPUTS "${output}")
     endforeach()
+    # Every assets/sfx/*.avms effect compiles into one header, with its ID in another.
+    file(GLOB SFX_SCORES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/sfx/*.avms")
+    # A changed file list must regenerate the effects even when a score was removed.
+    set(SFX_MANIFEST "${CMAKE_CURRENT_BINARY_DIR}/sfx_sources.txt")
+    file(GENERATE OUTPUT "${SFX_MANIFEST}" CONTENT "${SFX_SCORES}\n")
+    set(SFX_OUTPUTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/generated/sfx_ids.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/generated/sfx_data.h")
+    add_custom_command(OUTPUT ${SFX_OUTPUTS}
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_sfx.py"
+            --compiler "${RPG_MUSIC_COMPILER}"
+            --source-dir "${CMAKE_CURRENT_SOURCE_DIR}/assets/sfx"
+            --output-dir "${CMAKE_CURRENT_SOURCE_DIR}/generated"
+        DEPENDS tools/compile_sfx.py "${RPG_MUSIC_COMPILER}" "${SFX_MANIFEST}" ${SFX_SCORES}
+        VERBATIM)
+    list(APPEND MUSIC_OUTPUTS ${SFX_OUTPUTS})
     add_custom_target(rpg_music DEPENDS ${MUSIC_OUTPUTS})
     add_dependencies(rpg_music rpg_music_catalog)
     if(TARGET rpg_device_tests)
@@ -210,7 +226,10 @@ if(RPG_BUILD_GUEST)
             endif()
             set(source_dependencies)
             if(source STREQUAL "src/platform_avm.cpp")
-                list(APPEND source_dependencies src/music.h src/music_catalog.h ${MUSIC_OUTPUTS})
+                list(APPEND source_dependencies src/music.h src/music_catalog.h src/sfx.h ${MUSIC_OUTPUTS})
+            endif()
+            if(source STREQUAL "src/battle_screen.cpp")
+                list(APPEND source_dependencies src/sfx.h ${SFX_OUTPUTS})
             endif()
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"

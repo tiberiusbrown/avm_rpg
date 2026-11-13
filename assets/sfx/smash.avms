@@ -1,0 +1,13 @@
+// A brute's blow, which knocks its victim back: a long noise crash over a falling boom.
+sfx
+volume max
+automation 8ms
+instrument swing { wave noise volume 3 volume_slide { to 6 over 40ms } }
+instrument crash { wave noise volume 15 volume_slide { to 0 over 260ms } }
+instrument boom {
+    wave pulse duty 50% volume 10
+    frequency_slide { delta -1900cents over 180ms }
+    volume_slide { to 0 over 220ms }
+}
+channel 1 boom octave 3 { r:40ms g:220ms }
+channel 3 octave 5 { c:40ms@swing c,,,:260ms@crash }

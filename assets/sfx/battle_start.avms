@@ -1,0 +1,12 @@
+// A battle opens: a rising broken chord under a fading crash.
+sfx
+volume max
+automation 8ms
+instrument call { wave pulse duty 25% volume 11 }
+instrument crash { wave noise volume 8 volume_slide { to 0 over 280ms } }
+channel 1 call octave 4 {
+    a:44ms c':44ms e':44ms a':44ms c'':44ms
+    volume_slide { to 0 over 200ms }
+    e'':200ms
+}
+channel 3 crash octave 4 { c:280ms r:140ms }

@@ -1,0 +1,14 @@
+// A fighter's or rogue's strike: a 40 ms swish while the attacker lunges out, then the blade lands
+// as a noise crack with a short falling ring under it.
+sfx
+volume max
+automation 8ms
+instrument swish { wave noise volume 3 volume_slide { to 7 over 40ms } }
+instrument crack { wave noise volume 13 volume_slide { to 0 over 110ms } }
+instrument ring {
+    wave pulse duty 25% volume 9
+    frequency_slide { delta -1200cents over 70ms }
+    volume_slide { to 0 over 90ms }
+}
+channel 1 ring octave 5 { r:40ms a:90ms }
+channel 3 octave 6 { c:40ms@swish c,,,:110ms@crack }

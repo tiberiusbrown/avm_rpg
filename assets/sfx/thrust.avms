@@ -1,0 +1,12 @@
+// A spearman's thrust: a fast rising zip as the spear goes out, then a sharp noise tick as it lands.
+sfx
+volume max
+automation 8ms
+instrument zip {
+    wave pulse duty 12.5% volume 10
+    frequency_slide { delta 1900cents over 44ms }
+}
+instrument point { wave pulse duty 12.5% volume 11 volume_slide { to 0 over 50ms } }
+instrument tick { wave noise volume 11 volume_slide { to 0 over 60ms } }
+channel 1 octave 4 { e:44ms@zip b'':52ms@point }
+channel 3 tick octave 5 { r:44ms c:60ms }

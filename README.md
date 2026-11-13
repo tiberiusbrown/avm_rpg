@@ -31,6 +31,25 @@ resolves into the first bar of the next loop. It uses channels 0/1/2 and leaves
 noise free. The generated catalog exposes it as `MUSIC_PEACEFUL` and displays
 **Peaceful Village** in the music menu.
 
+Battles have sound effects. Each `assets/sfx/*.avms` score is a one-shot effect, and the
+build compiles them all with `tools/compile_sfx.py` into `generated/sfx_ids.h` and
+`generated/sfx_data.h`; add a score and it becomes `SFX_<FILE>`, played with
+`sfx_play` from `src/sfx.h`. Only one effect plays at a time, and it borrows the
+music's harmony voice, its noise voice, or both, while the melody and bass continue.
+Noise carries the impacts.
+
+| Effect | Heard when |
+|---|---|
+| `battle_start`, `victory`, `defeat` | A battle opens, and its result appears |
+| `cursor_move`, `cursor_edge` | The cursor moves a cell, or is pushed against the board's edge |
+| `select`, `cancel`, `error` | A hero is selected, the selection is cancelled, or A changes nothing |
+| `step`, `leap` | Each footfall of a walking unit, and a rogue's jump and landing |
+| `strike`, `thrust`, `bite`, `smash` | A fighter's or rogue's, spearman's, wolf's, or brute's attack lands |
+| `bow`, `arrow_hit` | An archer shoots and the arrow flies, then lands |
+| `clash`, `price` | A move engages adjacent enemies, or costs only its blood price |
+| `fall` | A unit is defeated, after the blow that defeated it |
+| `enemy_turn` | The enemy's turn starts |
+
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through the scores in filename order, wrapping at the end. The selected
 title appears in the menu footer. Playback starts with `test.avms` when present,
@@ -92,6 +111,7 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
   each `generated/*_music.h` constexpr header and automatically updates the song list.
+- `assets/sfx/*.avms`: the battle sound effects, one score per effect.
 - `assets/music/imported/`: FamiTracker reference files, retained for provenance.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
