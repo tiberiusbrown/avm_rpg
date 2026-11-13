@@ -417,28 +417,31 @@ struct GroveAction {
     bool strike;
 };
 
-// The shortest plan that wins against the enemy's search, found by a breadth-first search over party
-// actions with the enemy's replies applied. The heroes begin at (2,1) and (2,2), and the creatures at
-// (5,1) and (5,2). The battle ends in victory when the last creature falls to Hero B's strike.
+// The shortest plan that wins against the enemy's search, found by a breadth-first search over
+// party actions with the enemy's replies applied. The rogue begins at (2,1) and the archer at
+// (1,2); the wolf at (6,1) and the brute at (5,2). The brute's knockback is blocked twice by the
+// archer standing behind the rogue. The battle ends in victory when the brute falls to the rogue's
+// strike.
 constexpr GroveAction GROVE_VICTORY_PLAN[] = {
-    {{2, 2}, {3, 2}, false}, // Hero B steps east. Creature A steps to (4,1).
-    {{2, 1}, {3, 1}, false}, // Hero A steps east. Creature A strikes Hero A from (4,1).
-    {{3, 1}, {4, 1}, true},  // Hero A strikes creature A, which steps back to (4,0).
-    {{3, 2}, {4, 2}, false}, // Hero B steps east. Creature B strikes Hero B from (5,2).
-    {{4, 2}, {5, 2}, true},  // Hero B strikes creature B, which steps back to (6,2).
-    {{4, 2}, {5, 2}, false}, // Hero B steps into the vacated cell. Creature B steps to (6,1).
-    {{5, 2}, {5, 1}, false}, // Hero B steps north. Creature B steps to (6,0).
-    {{3, 1}, {3, 0}, false}, // Hero A steps north. Creature A strikes Hero A from (4,0).
-    {{3, 0}, {4, 0}, true},  // Hero A strikes creature A, which falls. Creature B steps to (7,0).
-    {{5, 1}, {6, 1}, false}, // Hero B steps east. Creature B steps to (7,1).
-    {{6, 1}, {7, 1}, true},  // Hero B strikes creature B, which falls. The battle ends in victory.
+    {{2, 1}, {0, 2}, false}, // The rogue leaps to (0,2). The brute steps to (5,1).
+    {{0, 2}, {2, 1}, false}, // The rogue leaps back to (2,1). The brute steps to (4,1).
+    {{1, 2}, {1, 1}, false}, // The archer steps behind the rogue. The brute steps to (3,1).
+    {{2, 1},
+     {3, 1},
+     true}, // The rogue strikes the brute. The brute strikes back; the archer blocks the push.
+    {{2, 1}, {3, 1}, true},  // The rogue strikes the brute again. The brute steps back to (3,0).
+    {{1, 1}, {0, 1}, false}, // The archer steps west. The wolf runs to (5,1).
+    {{0, 1}, {0, 0}, false}, // The archer steps north. The wolf runs to (3,1).
+    {{2, 1}, {3, 1}, true},  // The rogue strikes the wolf. The wolf bites back.
+    {{2, 1}, {3, 1}, true},  // The rogue strikes the wolf, which falls. The brute steps to (3,1).
+    {{2, 1}, {3, 1}, true}, // The rogue strikes the brute, which falls. The battle ends in victory.
 };
 
 // After each hero action the test advances past both sides' reactions: the hero's own animation,
 // the enemy pause, the enemy's search, the enemy's animation, and the enemy's result pause. The
-// search costs at most 25.5 million cycles on the AVM at the positions measured in
-// docs/performance.md, which freezes the display for up to about 1.6 seconds. 120 million cycles
-// (375 frames of 320,000 cycles each) leaves a margin for every entry.
+// search's node budget keeps it under about 15 million cycles on the AVM at the positions measured
+// in docs/performance.md, under a second of frozen display. 120 million cycles (375 frames of
+// 320,000 cycles each) leaves a margin for every entry.
 constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 120000000;
 
 // The cursor moves one tile per press, so moving it takes one press per tile.
@@ -465,7 +468,7 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
 // outcome line. The battle starts after the welcome line closes, so the caller resumes with
 // exploration.
 static void play_grove_battle(Device& d) {
-    GroveCell cursor{2, 1};
+    GroveCell cursor{2, 1}; // The battle opens with the cursor on the rogue.
     for(auto const& action : GROVE_VICTORY_PLAN) {
         grove_move_cursor(d, cursor, action.hero);
         d.tap(BTN_A); // Select the hero.

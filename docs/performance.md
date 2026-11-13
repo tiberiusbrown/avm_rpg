@@ -105,108 +105,129 @@ capacity for those additions.
 
 ## Battle search
 
-The creatures use a four-activation negamax search with alpha-beta pruning
-(`src/battle_ai.cpp`). It runs on an explicit stack and never recurses. The guest link
-reports a complete stack bound for every image.
+The Grove battle has six data-defined archetypes (fighter, rogue, archer, spearman, wolf, brute) and
+pits the party's rogue and archer against a wolf and a brute. The enemy chooses with a non-recursive
+negamax search with alpha-beta pruning (`src/battle_ai.cpp`), deepened one ply at a time under a
+deterministic node budget of 300 positions. Only a completed iteration's choice is used; with none, the
+greedy choice is. Every guest link reports a complete stack bound.
 
-Measured on the AVM emulator with `tests/battle_probe.cpp` (`avm time` at each probe mark).
-The opening position has the creatures to act before any party move. The in-play position is
-the first enemy turn after the heroes' opening move, which is the turn the 2.25 second figure
-described before this work.
+Measured on the AVM emulator with `tests/battle_probe.cpp` (`avm time` at each probe mark), and on
+the host with `rpg_battle_bench`. "Before" is the four-ply search over the earlier encounter (two
+identical heroes against two identical creatures, one-step moves and adjacent attacks only), measured
+again at the start of this work with the same probe; the positions are the analogous ones in the new
+encounter. The opening has the enemy to act before any party move. The in-play position is the first
+enemy turn after the archer's opening shot at the brute from range four (before: after hero A's step
+north).
 
-| Position (depth four) | Before (cycles, seconds) | After (cycles, seconds) | Nodes / leaves before | Nodes / leaves after |
+| Position | Before (cycles, seconds, nodes) | After (cycles, seconds) | Nodes | Deepest completed | Budget reached | Host µs |
+|---|---:|---:|---:|---:|---|---:|
+| Initial encounter (opening) | 22,914,708 (1.43 s, 448) | 10,911,093 (0.68 s) | 236 | 3 | no | 6.1 |
+| In-play first enemy turn | 18,075,328 (1.13 s, 347) | 10,911,065 (0.68 s) | 236 | 3 | no | 5.8 |
+| Mid-battle adjacent combat | 16,148,782 (1.01 s, 274) | 11,245,266 (0.70 s) | 238 | 3 | no | 6.2 |
+| Many ranged options (archers and a spearman) | — | 7,158,899 (0.45 s) | 154 | 3 | no | 4.4 |
+| Wolf sprint options (two wolves) | — | 13,427,816 (0.84 s) | 300 | 2 | yes | 7.3 |
+| Knockback available (rogue beside the brute) | — | 10,225,284 (0.64 s) | 216 | 3 | no | 5.6 |
+| Near exhaustion (19 activations) | 24,103,274 (1.51 s, 448) | 10,952,424 (0.68 s) | 236 | 3 | no | 6.6 |
+| Exhaustion active (21, adjacent) | 25,457,648 (1.59 s, 483) | 11,569,803 (0.72 s) | 246 | 3 | no | 8.3 |
+| One survivor per side | 2,701,776 (0.17 s, 73) | 5,327,752 (0.33 s) | 164 | 4 | no | 3.4 |
+
+Every measured decision now takes under 0.85 s, and the routine ones about 0.7 s. The budget caps
+the worst case at 300 positions, about 13.4 million cycles (0.84 s) at the measured cost per
+position; the cap is a count of positions, not a time guarantee. Over 300 random enemy-to-act
+positions from play, the bounded search visits 209 positions on average, completes depth three in
+281 and depth four in 6, falls back to depth two in 13, and reaches the budget in 17. A complete
+depth-four search there averages 509 positions (at most 1,038).
+
+The complete search at each depth on the in-play position shows why the depth is bounded: depth one
+0.46 M cycles (10 nodes), depth two 2.09 M (45), depth three 9.64 M (208), depth four 34.98 M (756
+nodes, 2.19 s). Depth four alone would freeze the display for over two seconds.
+
+### Search structure
+
+* One canonical enumerator (`battle_actions`) lists every legal action exactly once: attacks first, by
+  attacker and victim, then moves, by unit, along four rays or eight knight offsets. Player input,
+  rendering, the greedy fallback, and the search all use it.
+* Actions are packed into one byte (destination in bits 0 to 4, unit in bits 5 and 6), and bit 7 marks
+  a forced pass. The plies share one 80-byte action stack: each ply's list starts where its parent's
+  ends. Sides alternate and never gain units, so a two-on-two battle (20 actions a side) bounds four
+  plies at 80; any other split of the four slots bounds lower, and a side with no living opponent lists
+  only at the root.
+* Ordering: kills (wins, when one opponent is left) first, then other attacks, then moves that shrink the
+  mover's attack gap to its target, then other moves, by in-place partitions. Nodes whose children are
+  all leaves skip the approach ordering, which costs more than the leaves it saves. Each ply keeps one
+  killer move, tried first among its moves. The root tries the previous iteration's choice first.
+* The search fails hard, so a ply needs only its window and two indices. An immediate win ends a node at
+  once, and a decided score ends the deepening.
+* An iteration starts only when the budget left is at least twice the last completed iteration's nodes.
+
+### Evaluation
+
+The utility keeps the earlier weights for units, HP, and strikes. Its positional term is now the attack
+gap: the cells a unit must still travel to line up on a row or column and come within its attack
+range, ignoring blockers. An archer adjacent to its target has a gap of one, and a spearman two cells
+away has none. A fast mover (wolf, rogue) counts one half-move per cell, others two. Strikes count each
+opposing pair on one row or column whose distance is in range with nothing between (the rules'
+`battle_line_blocked`), so blocked lines, the archer's minimum range, and the spearman's reach all
+count correctly. A compile-time table of the distance outside each type's range replaces the range
+arithmetic. The search simulates knockback through `battle_apply`; there is no separate knockback term.
+
+### Costs per operation
+
+Per call on the AVM, copy overhead removed, on the in-play position: evaluation 34.0 thousand cycles
+(19 thousand before, with adjacency-only strikes), enumeration 38.8 thousand (the one-pass masks were
+29 thousand), approach ordering 44.3 thousand, and an action's apply 4.2 thousand (7 thousand before).
+Unlike RAM, a load from a constant object costs 230 to 320 cycles on the AVM, because every constant
+object sits in program memory. Copying the type rules and the gap table into RAM saved 5 percent and
+was rejected to keep RAM low. A move no longer recounts both sides, because only a defeat can end the
+battle.
+
+### Memory and stack
+
+| Guest | Static RAM | Code | Read-only data | Stack / 256 |
 |---|---:|---:|---:|---:|
-| Initial encounter (opening) | 63,969,104 (4.00 s) | 22,914,708 (1.43 s) | 570 / 421 | 448 / 336 |
-| Adjacent combat | 45,355,789 (2.83 s) | 16,148,782 (1.01 s) | 405 / 284 | 274 / 174 |
-| One survivor per side | 7,610,179 (0.48 s) | 2,701,776 (0.17 s) | 88 / 54 | 73 / 47 |
-| Near exhaustion | 62,357,486 (3.90 s) | 24,103,274 (1.51 s) | 558 / 415 | 448 / 336 |
-| Exhaustion active | 58,972,440 (3.69 s) | 25,457,648 (1.59 s) | 517 / 374 | 483 / 368 |
-| In-play first enemy turn | 36,062,515 (2.25 s) | 18,075,328 (1.13 s) | not measured | 347 / 246 |
+| rpg | 473 → 509 | 24,393 → 25,993 | 121,449 → 121,475 | 243 → 223 |
+| rpg_qa | 477 → 513 | 24,549 → 26,149 | 121,449 → 121,475 | 245 → 225 |
 
-The initial encounter is 64 percent faster but still takes 1.43 s, so the one-second goal is not
-met. Near exhaustion and exhaustion active are now the costliest measured positions, at 1.51 s and
-1.59 s.
+`sizeof(BattleState)` is still 22 bytes and `BattleUnit` 4; no ability data is copied with the state.
+The six `BattleUnitType` records (7 bytes each) stay in program memory, and so do the derived rule copy
+and gap table. The static search workspace is 196 bytes (160 before): four 6-byte plies, four killer
+bytes, the 80-byte action stack, and four 22-byte positions for the children of each ply. The work
+counters are compiled only into the host and the battle probe (`RPG_BATTLE_STATS`), so the shipping
+guest carries none. The enumerator's occupancy masks, the ordering's targets, and the evaluation's
+party mask are frame locals. The static RAM increase is the 36 bytes of workspace.
 
-The in-play "before" figure was measured in-game with `avm-lldb` on the first enemy turn,
-using the same search before this work. The probe measures the opening position directly, so
-its before and after figures come from the same method. The depth increments on the opening
-position are 0.28 M cycles for depth one, 1.19 M for depth two, 3.80 M for depth three, and
-22.9 M for depth four.
+The deepest shipping path is now explore → run_chunk (the battle screen, 45 bytes) → enemy_turn (9) →
+deepen (36, the search loop inlined) → battle_score (58). The search parameters are arguments, and the
+loop has one caller, so it shares its frame with the deepening loop.
 
-Per-operation costs on the AVM, measured by the probe's kernels with copy overhead included:
-the utility is about 19 thousand cycles per call, the one-pass legal-action masks about 29
-thousand, and a child's apply about 7 thousand. The old cursor enumeration was about 72
-thousand per full pass, and the search no longer uses it.
+### Decisions
 
-Memory on the guest: static RAM is 473 bytes, down from 498 (the search workspace is 160
-bytes, down from 185). Every type has byte alignment on the AVM, so the old `SearchFrame` was 37
-bytes: a 22-byte position, the side, the window, the best score, the current and best actions, the
-legal-action mask, the slot and the stage. Five frames made the 185 bytes. The new workspace has
-four `SearchPly` records of 18 bytes (window, best score, five class counts, stage and a pass flag)
-and four 22-byte positions, one for each of plies one to three and one for the leaf, 160 bytes in
-all. Only the root keeps an action. The search counters are not in the guest image, because nothing
-in the guest reads them. The host bench reports 196 bytes for the old layout because host alignment
-pads each frame to 38 bytes. Code grew by 809 bytes, to 25,301. Read-only data is unchanged at
-120,935 bytes.
-
-Stack on the guest: the shipping `rpg` bound is 243 bytes (205 before this change), and the
-device-QA image is 245 bytes (207 before), against a 256-byte budget. The deepest path is `battle_search` into `battle_score`, and the
-utility's frame is the largest part of it.
-
-Host measurements from `rpg_battle_bench`, built with the same flags before and after, with the
-enemy to act at depth four:
-
-| Position | Nodes (before → after) | Leaves (before → after) | Unpruned | Host µs (before → after) |
-|---|---:|---:|---:|---:|
-| Initial encounter | 570 → 448 | 421 → 336 | 2,434 | 67.4 → 18.4 |
-| Adjacent combat | 405 → 274 | 284 → 174 | 3,134 | 37.0 → 12.6 |
-| One survivor per side | 88 → 73 | 54 → 47 | 265 | 7.8 → 2.0 |
-| Near exhaustion (19 activations) | 558 → 448 | 415 → 336 | 2,434 | 49.5 → 21.1 |
-| Adjacent, exhaustion next | 202 → 222 | 126 → 137 | 3,126 | 20.7 → 11.1 |
-
-Over 300 random legal positions with the enemy to act, the mean is 440 nodes (570 before) and the
-largest is 855 (1,035 before), against an unpruned mean of 2,677. The exhaustion-next position
-searches about 10 percent more nodes than before, but each node is cheaper, so it runs faster.
-
-### Decisions before and after
-
-These are the positions that `enemy_behavior()` in `tests/test_battle.cpp` checks. The "before"
-column is the committed negamax search with the previous evaluation.
-
-| Position | Before | After |
-|---|---|---|
-| A. Healthy creature beside hero A | steps back to (4,0) | attacks hero A from (4,1) |
-| B. Nothing in reach | sidesteps to (6,2), no closer to a hero | advances to (5,1) |
-| C. Creature A at 1 HP beside hero A, healthy creature B beside hero B | creature A steps back to (4,0) | attacks; creature A and creature B score the same (−1620 for the enemy, against −1770 for a retreat), and the tie goes to creature A |
-| E. Creature A at 1 HP beside hero A, creature B far away | steps back to (5,1) | steps back to (4,0) |
-| Kill available on hero B | attacks from (4,1) | same |
-| Last creature at 1 HP | steps back to (4,0) | same |
+The enemy-behavior tests in `tests/test_battle.cpp` check that the search discovers each mechanic from
+the rules: a lone wolf closes two cells in one run; the brute's blow knocks a fighter away from a
+cornered, 1 HP ally and saves it; an enemy beside an archer strikes it instead of stepping into its
+line; a 2 HP wolf leaves a spearman's two-cell reach; an injured enemy leaves an archer's open line; a
+healthy enemy beside a hero attacks and takes a kill; and the party's rogue leaps over its own fighter
+and the enemy to win a cornered fight in three plies.
 
 ### Simulations
 
-`tests/battle_simulation.cpp` plays the negamax enemy against five party policies on the Grove
-battle: aggressive, defensive, greedy, search, and random. Random plays 64 seeded games; the others
-play one game each. A retreat is an enemy move that increases its Manhattan distance to the nearest
-living hero. Entries are before → after. Random rows are averages per game, except the wins and
-losses, which are totals. Wins and losses are the party's.
+`tests/battle_simulation.cpp` plays the enemy against five party policies on the Grove battle. Random
+plays 64 seeded games and its rows are averages, except the totals for wins and losses (the party's).
+The last four columns count enemy two-cell runs, enemy knockbacks that moved their victim, party shots
+from two or more cells, and party knight leaps.
 
-| Party policy | Actions | Enemy attacks | Enemy moves | Enemy retreats | Longest retreat run | Damage to party | Damage to enemies | Party wins / losses |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Aggressive | 28 → 22 | 2 → 5 | 12 → 6 | 10 → 5 | 6 → 5 | 4 → 9 | 4 → 6 | 1 / 0 → 0 / 1 |
-| Defensive | 36 → 36 | 0 → 0 | 18 → 18 | 6 → 1 | 3 → 1 | 0 → 0 | 0 → 0 | 1 / 0 → 1 / 0 |
-| Greedy | 28 → 22 | 2 → 5 | 12 → 6 | 10 → 5 | 6 → 5 | 4 → 9 | 4 → 6 | 1 / 0 → 0 / 1 |
-| Search | 32 → 36 | 1 → 0 | 15 → 18 | 7 → 2 | 3 → 2 | 2 → 0 | 2 → 0 | 1 / 0 → 1 / 0 |
-| Random (64 games) | 33.1 → 25.5 | 1.4 → 3.9 | 14.9 → 8.5 | 4.3 → 1.1 | 5 → 3 | 2.5 → 7.0 | 0.2 → 1.6 | 24 / 40 → 1 / 63 |
+| Party policy | Actions | Enemy attacks | Enemy moves | Enemy retreats | Damage to party | Damage to enemies | Party wins / losses | Runs | Knockbacks | Shots | Leaps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Aggressive | 23 | 6 | 5 | 4 | 7 | 6 | 0 / 1 | 2 | 3 | 1 | 7 |
+| Defensive | 25 | 4 | 8 | 1 | 6 | 4 | 0 / 1 | 4 | 1 | 1 | 11 |
+| Greedy | 23 | 5 | 6 | 3 | 7 | 8 | 0 / 1 | 1 | 3 | 1 | 5 |
+| Search | 35 | 1 | 16 | 2 | 1 | 2 | 0 / 1 | 4 | 0 | 1 | 11 |
+| Random (64 games) | 24.6 | 4.1 | 7.9 | 1.2 | 6.4 | 0.9 | 0 / 64 | 2.7 | 0.7 | 0.2 | 6.6 |
 
-The enemy now attacks healthy targets: attacks rise in the aggressive and greedy games, and the party
-loses both games that it won before. Against the defensive party, retreats fall from 6 to 1, but the
-enemy never attacks, because the party stays out of reach. When both sides search, neither attacks;
-the enemy advances 18 times, retreats twice, and the party wins at exhaustion. The longest enemy
-retreat run in the aggressive and greedy games is still five. It is a lone injured creature stepping
-back from a stronger hero until exhaustion, and changing the strike or distance weights in the sweeps
-did not remove it. The encounter is harder for the naive policies; the combat rules and the encounter
-data are unchanged. No game timed out. Exhaustion was reached in every single-game row and in 58 of
-the 64 random games, against 64 before.
+A retreat is an enemy move that increases its attack gap to the nearest hero. The new encounter favors
+the enemy: the brute's 6 HP and knockback outlast these policies, and no game times out. Device QA
+wins with a ten-action plan found by breadth-first search against the real enemy
+(`GROVE_VICTORY_PLAN` in `tests/device_tests.cpp`).
 
 ## Reproduce
 

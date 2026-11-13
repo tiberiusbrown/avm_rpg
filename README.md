@@ -80,7 +80,7 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
   encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
-  `src/battle_ai.*` holds the enemy's negamax search, its static evaluation, and the greedy
+  `src/battle_ai.*` holds the enemy's budgeted negamax search, its static evaluation, and the greedy
   choice it falls back on. `src/battle_screen.cpp` is the AVM screen behind `battle_show()`.
   `tests/test_battle.cpp` covers the rules and checks the search against an unpruned reference
   in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
@@ -105,27 +105,42 @@ dialogue, so story code can alternate dialogue and battles in ordinary sequence.
 8x4 battlefield is a PROGMEM tile array in the world tileset. It is separate from the
 overworld cache and from the current area.
 
-- D-pad moves the cursor. It is a 22x22 plus-mask sprite with black borders around a dashed
-  outline. The dashes are two white pixels with two black pixels between them, and they turn
-  clockwise around the outline. The cursor glides to each cell it moves to.
-  A selects a hero, then A confirms an adjacent empty cell to move or an adjacent creature
-  to attack. A on another hero switches the selection to that hero, and B cancels a
-  selection. The selected hero has a two-pixel white border. An invalid confirmation does
-  nothing, and it does not use up the turn. After a hero acts, the cursor returns to that
-  hero, so it can be selected again without moving the cursor.
-- Each activation is one move or one attack. A move walks the unit one cell at the
-  exploration walking speed and pose. Each attack deals 2 HP. The unit that is attacked
-  is removed when its HP reaches 0.
-- An attacker lunges four pixels toward its target, holds for about a quarter second, and
-  returns. Every unit that loses HP flashes on and off for about a second. The next turn
-  waits for the flashing to end, and a defeated unit flashes before it disappears.
-- Each side moves in turn. The creatures search four activations ahead with negamax and
-  alpha-beta pruning, assuming the heroes reply with their best action. They score a position
-  by the damage they deal and the heroes they remove, which count for more than their own
-  losses, plus terms that favor attacks and closing in on the heroes. Wins come first, then
-  kills, other attacks, and moves that close in. The search runs synchronously, so the display
-  freezes while it thinks: about 1.1 seconds on the AVM in the measured in-play position, and up to
-  about 1.6 seconds in the costliest measured position (`docs/performance.md`).
+- D-pad moves the cursor one cell per press. It is a 22x22 plus-mask sprite with black borders
+  around a dashed outline. The dashes are two white pixels with two black pixels between them, and
+  they turn clockwise around the outline. The cursor glides to each cell it moves to.
+  A selects a hero, then A confirms a destination: an empty cell its movement reaches, or an enemy
+  its attack reaches. Every legal destination on the board is marked, with a pulsing diamond for a
+  move and corner brackets for an attack. A on another hero switches the selection to that hero, and
+  B cancels a selection. The selected hero has a two-pixel white border. An invalid confirmation does
+  nothing, and it does not use up the turn. After a hero acts, the cursor returns to that hero, so it
+  can be selected again without moving the cursor.
+- Each unit is one of six archetypes, with separate movement and attack patterns:
+
+  | Archetype | Movement | Attack | Damage |
+  |---|---|---|---|
+  | Fighter | one cell straight | adjacent | 2 |
+  | Rogue | knight leap over anything | adjacent | 2 |
+  | Archer | one cell straight | straight line, 2 to 4 cells | 2 |
+  | Spearman | one cell straight | straight line, 1 or 2 cells | 2 |
+  | Wolf | one or two cells straight | adjacent | 2 |
+  | Brute | one cell straight | adjacent, then knockback | 1 |
+
+  Moves need empty cells all the way, except the rogue's leap, which needs only an empty landing
+  cell. Attacks need every cell between to be empty, whoever stands there. A brute pushes a surviving
+  victim one cell straight away when that cell is on the board and empty. Attackers never move.
+  The Grove pits the party's rogue and archer against a wolf and a brute.
+- Each activation is one move or one attack. A straight move walks at the exploration walking speed
+  and pose, and a knight leap glides straight to its cell. An attacker, ranged or not, lunges four
+  pixels toward its target, holds for about a quarter second, and returns. Every unit that loses HP
+  flashes on and off for about a second, at its new cell after a knockback. The next turn waits for the
+  flashing to end, and a defeated unit flashes before it disappears.
+- Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
+  a time, up to four, within a budget of 300 positions, and uses the deepest completed search. It
+  assumes the heroes reply with their best action. It scores a position by the damage it deals and the
+  heroes it removes, which count for more than its own losses, plus terms for the attacks each side can
+  make and for how far each enemy still is from an attack position. The search runs synchronously:
+  about 0.7 seconds on the AVM in the measured positions, and at most about 0.85 seconds
+  (`docs/performance.md`).
 - From the 21st completed activation onward, the acting unit loses 1 HP after its action.
 - A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
   position, flags, or any other overworld state.

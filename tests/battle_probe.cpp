@@ -1,6 +1,7 @@
-// AVM timing probe for the battle search. It runs the search on representative positions and a few
-// micro-kernels, and it stops at probe_mark between phases. avm-lldb reads `avm time` at each stop, so the
-// difference between a phase's start and end marks is the emulated cost of that phase.
+// AVM timing probe for the battle search. It runs the enemy's decision on representative positions,
+// the complete search at each depth, and a few micro-kernels, and it stops at probe_mark between
+// phases. avm-lldb reads `avm time` at each stop, so the difference between a phase's start and end
+// marks is the emulated cost of that phase.
 #include "battle.h"
 #include "battle_ai.h"
 #include <avm.h>
@@ -10,6 +11,7 @@ volatile uint8_t probe_marks;
 volatile int16_t probe_score;
 volatile uint8_t probe_unit, probe_dest;
 volatile uint16_t probe_nodes, probe_leaves, probe_checksum;
+volatile uint8_t probe_completed, probe_exhausted;
 // Zero at run time. The compiler cannot prove it, so each kernel iteration keeps its real work.
 volatile uint8_t probe_zero;
 
@@ -22,9 +24,11 @@ static uint8_t cell(unsigned x, unsigned y) {
     return (uint8_t)(y * BATTLE_COLUMNS + x);
 }
 
+static constexpr uint8_t ROGUE = 0, ARCHER = 1, WOLF = 2, BRUTE = 3;
+
 // Scenarios and kernel buffers are static, so the probe's own stack frames stay small.
 static BattleState scenario;
-static BattleAction legal[16];
+static uint8_t legal[BATTLE_ACTION_CAPACITY];
 
 static void grove(BATTLE_TEAM turn, uint8_t activations) {
     battle_begin(scenario, &BATTLE_GROVE);
@@ -32,48 +36,48 @@ static void grove(BATTLE_TEAM turn, uint8_t activations) {
     scenario.activations = activations;
 }
 
-// Runs one search between two marks. The results are stored before the end mark, so lldb reads them there.
-static void measure_search(uint8_t phase, BattleState const& s) {
-    probe_phase = phase;
-    probe_mark();
-    BattleSearchResult r = battle_search(s, BATTLE_AI_DEPTH);
+static void record(BattleAction action) {
     BattleSearchStats st = battle_search_stats();
-    probe_score = r.score;
-    probe_unit = r.action.unit_index;
-    probe_dest = r.action.destination;
+    probe_unit = action.unit_index;
+    probe_dest = action.destination;
     probe_nodes = st.nodes;
     probe_leaves = st.leaves;
+    probe_completed = st.completed;
+    probe_exhausted = st.exhausted;
+}
+
+// Runs the enemy's whole decision between two marks, as the battle screen calls it. The results are
+// stored before the end mark, so lldb reads them there.
+static void measure_decision(uint8_t phase, BattleState const& s) {
+    probe_phase = phase;
+    probe_mark();
+    BattleAction action = battle_enemy_action(s);
+    record(action);
+    probe_score = 0;
+    probe_phase = (uint8_t)(phase + 1);
+    probe_mark();
+}
+
+// The complete search at one depth, between two marks, so the depth increments show the cost per
+// level.
+static void measure_depth(uint8_t phase, BattleState const& s, uint8_t depth) {
+    probe_phase = phase;
+    probe_mark();
+    BattleSearchResult r = battle_search(s, depth);
+    record(r.action);
+    probe_score = r.score;
     probe_phase = (uint8_t)(phase + 1);
     probe_mark();
 }
 
 static constexpr unsigned KERNEL_LOOPS = 100;
-// A RAM copy of the movement types, used only to compare its read cost with the program-memory table.
-static uint8_t ram_movement[BATTLE_UNIT_TYPE_COUNT] = {0, 0, 0, 0};
-
-// The opening position at a given depth, between two marks, so the depth increments show the cost per level.
-static void measure_depth(uint8_t phase, BattleState const& s, uint8_t depth) {
-    probe_phase = phase;
-    probe_mark();
-    BattleSearchResult r = battle_search(s, depth);
-    BattleSearchStats st = battle_search_stats();
-    probe_score = r.score;
-    probe_nodes = st.nodes;
-    probe_leaves = st.leaves;
-    probe_phase = (uint8_t)(phase + 1);
-    probe_mark();
-}
 
 // Each kernel runs KERNEL_LOOPS times between two marks. Every iteration copies the scenario and changes its
 // activation count by probe_zero, which only the probe can read. The copy-only kernel gives the overhead
 // that the other kernels include, so it can be subtracted.
 static void run_kernels(BattleState const& base) {
-    unsigned count = 0;
-    BattleActionCursor cursor = battle_actions(base);
-    BattleAction action{};
-    while(battle_next_action(base, cursor, action))
-        legal[count++] = action;
-
+    uint8_t attacks = 0;
+    uint8_t count = battle_actions(base, legal, attacks);
     uint16_t sum = 0;
 
     probe_phase = 20;
@@ -103,10 +107,8 @@ static void run_kernels(BattleState const& base) {
     for(unsigned i = 0; i < KERNEL_LOOPS; ++i) {
         BattleState t = base;
         t.activations = (uint8_t)(t.activations + probe_zero);
-        BattleActionCursor c = battle_actions(t);
-        BattleAction a{};
-        while(battle_next_action(t, c, a))
-            sum = (uint16_t)(sum + 1);
+        uint8_t a = 0;
+        sum = (uint16_t)(sum + battle_actions(t, legal, a));
     }
     probe_checksum = sum;
     probe_phase = 25;
@@ -117,83 +119,96 @@ static void run_kernels(BattleState const& base) {
     for(unsigned i = 0; i < KERNEL_LOOPS; ++i) {
         BattleState t = base;
         t.activations = (uint8_t)(t.activations + probe_zero);
-        BattleActionMasks masks = battle_action_masks(t);
-        sum = (uint16_t)(sum + masks.kind[BATTLE_ACTION_MOVE]);
+        uint8_t a = 0;
+        uint8_t n = battle_actions(t, legal, a);
+        battle_order_actions(t, legal, n, a, true);
+        sum = (uint16_t)(sum + legal[0]);
     }
     probe_checksum = sum;
     probe_phase = 27;
     probe_mark();
 
+    count = battle_actions(base, legal, attacks);
+    BattleAction first = battle_unpack(legal[count - 1]);
     probe_phase = 28;
     probe_mark();
     for(unsigned i = 0; i < KERNEL_LOOPS; ++i) {
         BattleState t = base;
         t.activations = (uint8_t)(t.activations + probe_zero);
-        battle_apply(t, legal[0]);
+        battle_apply(t, first);
         sum = (uint16_t)(sum + t.activations);
     }
     probe_checksum = sum;
     probe_phase = 29;
-    probe_mark();
-
-    // Program-memory table reads against an identical RAM copy, with an index only the probe can change.
-    probe_phase = 30;
-    probe_mark();
-    for(unsigned i = 0; i < KERNEL_LOOPS; ++i) {
-        uint8_t index = (uint8_t)((probe_zero + i) & 3);
-        sum = (uint16_t)(sum + BATTLE_UNIT_TYPES[index].movement_type);
-    }
-    probe_checksum = sum;
-    probe_phase = 31;
-    probe_mark();
-
-    probe_phase = 32;
-    probe_mark();
-    for(unsigned i = 0; i < KERNEL_LOOPS; ++i) {
-        uint8_t index = (uint8_t)((probe_zero + i) & 3);
-        sum = (uint16_t)(sum + ram_movement[index]);
-    }
-    probe_checksum = sum;
-    probe_phase = 33;
     probe_mark();
 }
 
 extern "C" void setup() {
     // The shared guest checks require the single game object, so the probe builds one like the other probes.
     game_new();
-    grove(BATTLE_ENEMY, 0);
-    measure_search(2, scenario);
 
+    // The opening position with the enemy to act before any party move.
     grove(BATTLE_ENEMY, 0);
-    scenario.units[0].cell = cell(4, 1);
-    measure_search(4, scenario);
+    measure_decision(2, scenario);
 
+    // The first enemy turn in play, after the archer's opening shot at the brute from range four.
+    grove(BATTLE_PARTY, 0);
+    battle_apply(scenario, BattleAction{ARCHER, cell(5, 2)});
+    measure_decision(4, scenario);
+
+    // Mid-battle adjacent combat: the rogue beside the brute, the wolf beside the rogue.
+    grove(BATTLE_ENEMY, 6);
+    scenario.units[ROGUE].cell = cell(4, 2);
+    scenario.units[WOLF].cell = cell(4, 1);
+    measure_decision(6, scenario);
+
+    // Many ranged options: archers on both sides and an enemy spearman.
+    grove(BATTLE_ENEMY, 4);
+    scenario.units[ROGUE].type = BATTLE_TYPE_ARCHER;
+    scenario.units[WOLF].type = BATTLE_TYPE_ARCHER;
+    scenario.units[BRUTE].type = BATTLE_TYPE_SPEARMAN;
+    scenario.units[ROGUE].cell = cell(1, 0);
+    scenario.units[WOLF].cell = cell(6, 0);
+    measure_decision(8, scenario);
+
+    // Wolf sprint options: two wolves with open rows ahead.
     grove(BATTLE_ENEMY, 0);
-    scenario.units[1].hp = 0;
-    scenario.units[2].hp = 0;
-    scenario.units[0].hp = 3;
-    scenario.units[0].cell = cell(2, 1);
-    scenario.units[3].hp = 2;
-    scenario.units[3].cell = cell(3, 2);
-    measure_search(6, scenario);
+    scenario.units[BRUTE].type = BATTLE_TYPE_WOLF;
+    scenario.units[BRUTE].hp = 4;
+    measure_decision(10, scenario);
 
+    // A knockback is possible: the rogue has leapt beside the brute.
+    grove(BATTLE_ENEMY, 2);
+    scenario.units[ROGUE].cell = cell(4, 2);
+    measure_decision(12, scenario);
+
+    // Near exhaustion, and exhaustion active in adjacent combat.
     grove(BATTLE_ENEMY, 19);
-    measure_search(8, scenario);
-
+    measure_decision(14, scenario);
     grove(BATTLE_ENEMY, 21);
-    measure_search(10, scenario);
+    scenario.units[ROGUE].cell = cell(4, 2);
+    scenario.units[WOLF].cell = cell(4, 1);
+    measure_decision(16, scenario);
 
-    grove(BATTLE_ENEMY, 0);
+    // One survivor per side.
+    grove(BATTLE_ENEMY, 8);
+    scenario.units[ARCHER].hp = 0;
+    scenario.units[WOLF].hp = 0;
+    scenario.units[ROGUE].hp = 3;
+    scenario.units[BRUTE].hp = 3;
+    scenario.units[BRUTE].cell = cell(5, 1);
+    measure_decision(18, scenario);
+
+    // The complete search at each depth on the in-play position.
+    grove(BATTLE_PARTY, 0);
+    battle_apply(scenario, BattleAction{ARCHER, cell(5, 2)});
     measure_depth(40, scenario, 1);
     measure_depth(42, scenario, 2);
     measure_depth(44, scenario, 3);
+    measure_depth(46, scenario, 4);
 
-    // The first enemy turn in play, after the party's opening move of HERO_A to (2,0).
-    grove(BATTLE_ENEMY, 1);
-    scenario.units[0].cell = cell(2, 0);
-    measure_search(12, scenario);
-
-    grove(BATTLE_ENEMY, 0);
+    grove(BATTLE_PARTY, 0);
+    battle_apply(scenario, BattleAction{ARCHER, cell(5, 2)});
     run_kernels(scenario);
 
     probe_phase = 34;
