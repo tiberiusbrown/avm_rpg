@@ -34,7 +34,6 @@ static void check(bool value, uint16_t line) {
 
 #define CHECK(value) check((value), __LINE__)
 #include "world_scenarios.h"
-static uint8_t record[SAVE_BYTES];
 
 extern "C" RPG_NOINLINE void probe_done() {
     avm_debug_break();
@@ -47,10 +46,9 @@ extern "C" void setup() {
     // The sign shows its welcome, runs a battle (stubbed here), and then shows the outcome line.
     CHECK(dialogues == 2 && !frame_pressed);
     game.gold = 19;
-    save_encode(record);
-    CHECK(save_decode(record) && game.gold == 19 && game.player.x == positions::PlayerStart.x * TILE);
-    record[2] = 3;
-    CHECK(!save_decode(record));
+    CHECK(save_restore() && game.gold == 19 && game.player.x == positions::PlayerStart.x * TILE);
+    game.save_version = 3;
+    CHECK(!save_restore());
     probe_done();
 }
 

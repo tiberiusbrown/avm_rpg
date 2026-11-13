@@ -4,7 +4,13 @@
 
 #include <string.h>
 
+#ifdef RPG_AVM
+Game game __attribute__((section(".saved"))){};
+#else
 Game game{};
+#endif
+
+bool save_exists;
 
 uint16_t rng_next() {
     uint16_t x = game.rng;
@@ -20,6 +26,7 @@ uint16_t rng_next() {
 void game_start() {
     memset(&game, 0, sizeof(game));
 
+    game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
     game.hp = 20;
     game.max_hp = 20;

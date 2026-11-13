@@ -38,6 +38,11 @@ def inspect_lto(compiler, elf):
     if elf.stem != "m0_proof":
         assert "@game = internal global %struct.Game " in ir, "expected one guest Game object"
         assert not signatures, "Game-reference helpers should use the singleton directly"
+        saved_globals = re.findall(r'^@[^\n]*\bglobal\b[^\n]*section "\.saved"[^\n]*', ir, re.MULTILINE)
+        assert len(saved_globals) == 1 and saved_globals[0].startswith("@game = "), (
+            "Game must be the sole saved object, without a separate save buffer"
+        )
+        assert "@saved_record" not in ir, "duplicate save buffer survived LTO"
     if elf.stem != "m0_proof":
         # Value NTTPs must resolve to immediate coordinates, including template parameter objects.
         stored_positions = re.findall(
@@ -47,6 +52,7 @@ def inspect_lto(compiler, elf):
     result = {
         "game_reference_arguments_eliminated": True,
         "unconditional_global_game": elf.stem != "m0_proof",
+        "live_game_saved_without_buffer": elf.stem != "m0_proof",
         "retained_game_rule_functions": signatures,
         "map_tile_position_storage_eliminated": True,
         "optimized_ir": ir_path.name,

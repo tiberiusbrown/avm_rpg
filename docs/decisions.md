@@ -142,7 +142,7 @@ rendering, and display loops. Exploration calls the menu, which calls status;
 returning resumes the caller. Selections, animation position and feedback are local variables.
 The pause panel eases halfway in from the left each frame while the world fades to 50% black;
 closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Load or Options. Map is
-visible only in the overworld; Load requires a valid physical save. Party calls status;
+visible only in the overworld; Load uses the global `save_exists` flag. Party calls status;
 Journal, Map and Options are placeholders. A selects and B resumes. Load eases the panel
 out while fading fully to black, then returns to exploration to restore and refresh the
 saved world while hidden, keeping that work off the menu's stack. The restored world fades
@@ -164,16 +164,18 @@ Facing plus proximity identifies an NPC on an A edge; `npc_talk` records the req
 and `npc_dialogue` shows that NPC's line in the Dialogue phase. Iona's ordinary function
 calls show an introduction, ask a question, and apply its result; accepting sets
 the lantern flag and grants five gold once. Menu B opens/closes;
-A activates the selected pause item. Startup allows New or Continue only after validating
-the physical record. No inventory/quest VM/battle scaffolding is implemented.
+A activates the selected pause item. Startup loads and validates the physical record to set
+`save_exists`, then prepares new-game defaults without clearing that flag. Save writes once
+and sets the flag immediately, without reading the record back. Menu visibility uses the
+flag without further storage access.
 
-Save version 1 is exactly 24 defined bytes with CRC, stable area/flag values and
-little-endian numbers. It never saves structs or pointers. Invalid data is
-rejected before state mutation. UI reports checked writes after physical readback.
-Format migrations must be explicit; asset/source order must never assign IDs.
-Ambient simulation is reconstructed on load: the persistent RNG continues, but
-NPC positions/timers and the animation tick are intentionally transient. Future
-rules requiring exact ambient continuation would need extra serialized fields.
+Save version 6 places the entire pointer-free `Game` object in `.saved`; the live state is
+the save storage, so no duplicate static buffer or serialization step is required. A layout
+version is part of `Game`; changes to its byte layout require a version bump. There is no
+checksum. Load checks the version, stats, flags, bounds and NPC residences before entering
+the world, then reconstructs transient NPC/cache state and repairs blocked player positions.
+A rejected load clears the flag and prepares a new game. Existing version-1–5 records are
+incompatible. The global flag is ordinary `.data` and is never persisted.
 
 ## Future strategic combat boundary (M3)
 

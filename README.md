@@ -14,10 +14,10 @@ The pause menu slides in from the left, easing halfway to its target each frame 
 world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Journal**,
 **Map**, **Load**, or **Options**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
-Map appears only in the overworld, and Load appears only for a valid save, including
+Map appears only in the overworld, and Load appears only when the save flag is set, including
 immediately after saving. Party opens the traveler status screen. Journal, Map, and
 Options are placeholders. The world stays frozen while the menu is open; music continues.
-Save writes and verifies the existing single save slot. Selecting Load eases the panel out
+Save writes the existing single save slot and immediately sets the save flag, without readback. Selecting Load eases the panel out
 while fading the world completely to black, restores the saved world while hidden, then
 fades it completely back in before play resumes.
 
@@ -88,8 +88,13 @@ Physical Arduboy piezo listening and balance checks remain necessary.
 The overworld is one 240x248-tile map with a village in its north-west corner, beside
 a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
 ten houses has its own interior: face a door and press A to enter, and walk out through
-the exit at the bottom of the room to leave. **This development build rejects saves from
-versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
+the exit at the bottom of the room to leave. **This development build rejects saves from versions 1–5.** Save version 6 writes the live,
+pointer-free `Game` struct directly from AVM's `.saved` prefix (264 bytes), with no separate
+save buffer or checksum. Startup loads and validates that state to initialize the global
+`save_exists` flag, then prepares a new game for the title screen. New Game preserves the
+flag; Continue and Load restore the saved world. NPC casts, the tile cache and the animation
+tick are rebuilt when a save is loaded. Compared with the pause-menu build, total shipping
+static RAM falls from 499 to 472 bytes, including the new flag.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.

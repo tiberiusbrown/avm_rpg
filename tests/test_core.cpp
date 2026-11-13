@@ -110,8 +110,8 @@ static void sign() {
                 (positions::GroveSign.y + 1) * TILE, NORTH);
     game_update(0, BTN_A);
     CHECK(dialogues == before + 2 && story_stub_battles() == 1); // Diagonals do not read the sign.
-    world_enter(AREA_OUTDOOR, (positions::GroveSign.x + 1) * TILE,
-                positions::GroveSign.y * TILE, WEST);
+    world_enter(AREA_OUTDOOR, (positions::GroveSign.x + 1) * TILE, positions::GroveSign.y * TILE,
+                WEST);
     game_update(0, BTN_A);
     CHECK(dialogues == before + 4 && story_stub_battles() == 2);
 }
@@ -154,58 +154,71 @@ static void grove_battle() {
     CHECK(game.player.x == x && game.player.y == y && game.hp == hp);
 }
 
-static void checksum(uint8_t* record) {
-    uint16_t value = save_checksum(record);
-    record[SAVE_CRC_OFFSET] = (uint8_t)value;
-    record[SAVE_CRC_OFFSET + 1] = (uint8_t)(value >> 8);
-}
-
 static void saves() {
-    uint8_t record[SAVE_BYTES], bad[SAVE_BYTES];
     game_new();
     game.gold = 37;
     game.set_flag(FLAG_RESERVED);
-    save_encode(record);
-    game.gold = 0;
-    Game running = game;
-    CHECK(save_valid(record));
-    CHECK(!memcmp(&game, &running, sizeof(Game)));
-    CHECK(save_decode(record) && game.gold == 37 && game.get_flag(FLAG_RESERVED));
-    for(unsigned i = 0; i < SAVE_BYTES; ++i) {
-        memcpy(bad, record, sizeof(bad));
-        bad[i] ^= 0x40;
+    Game saved = game;
+    CHECK(save_valid());
+    CHECK(!memcmp(&game, &saved, sizeof(Game)));
+
+    auto reject = [] {
         Game before = game;
-        CHECK(!save_valid(bad));
+        CHECK(!save_valid());
+        CHECK(!save_restore());
         CHECK(!memcmp(&game, &before, sizeof(Game)));
-        CHECK(!save_decode(bad));
-        CHECK(!memcmp(&game, &before, sizeof(Game)));
+    };
+    for(uint8_t version = 0; version < SAVE_VERSION; ++version) {
+        game.save_version = version;
+        reject();
     }
-    for(uint8_t version = 1; version < SAVE_VERSION; ++version) {
-        memcpy(bad, record, sizeof(bad));
-        bad[2] = version;
-        checksum(bad);
-        CHECK(!save_valid(bad));
-        CHECK(!save_decode(bad));
-    }
-    memcpy(bad, record, sizeof(bad));
-    bad[6] = bad[7] = 255;
-    checksum(bad);
-    CHECK(!save_valid(bad));
-    CHECK(!save_decode(bad));
-    memcpy(bad, record, sizeof(bad));
-    bad[6] = positions::GroveSign.x * TILE;
-    bad[7] = 0;
-    bad[8] = positions::GroveSign.y * TILE; // Syntactically valid, but inside the sign.
-    bad[9] = 0;
-    checksum(bad);
-    CHECK(save_decode(bad));
-    world_place(game.area, game.player.x, game.player.y, game.player.facing);
+    game = saved;
+    game.area = 255;
+    reject();
+    game = saved;
+    game.player.x = 65535;
+    reject();
+    game = saved;
+    game.player.y = 65535;
+    reject();
+    game = saved;
+    game.player.facing = STILL;
+    reject();
+    game = saved;
+    game.hp = game.max_hp + 1;
+    reject();
+    game = saved;
+    game.max_hp = 0;
+    reject();
+    game = saved;
+    game.level = 0;
+    reject();
+    game = saved;
+    game.rng = 0;
+    reject();
+    game = saved;
+    game.flags.bytes[WorldFlags::BYTE_COUNT - 1] |= 0x80;
+    reject();
+
+    game_new();
+    game = saved; // AVM load replaces this live object directly, without a staging buffer.
+    game.ticks = 100;
+    game.player.walking = 1;
+    CHECK(save_restore());
+    CHECK(game.gold == 37 && game.get_flag(FLAG_RESERVED));
+    CHECK(!game.ticks && !game.player.walking);
+    CHECK(game.npcs.residence[NPC_VILLAGER] == saved.npcs.residence[NPC_VILLAGER]);
+    update_visible_world(0, false);
+    CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
+    CHECK(cached_tile(positions::GroveSign) == TILE_SIGN);
+
+    game.player.x = positions::GroveSign.x * TILE;
+    game.player.y = positions::GroveSign.y * TILE;
+    CHECK(save_restore()); // Structurally valid, but inside the sign.
     update_visible_world(0, false);
     CHECK(player_terrain_clear(game.player.x, game.player.y));
     CHECK(game.player.x != positions::GroveSign.x * TILE ||
           game.player.y != positions::GroveSign.y * TILE);
-    CHECK(!save_decode(record, 3));
-    CHECK(!save_valid(record, 3));
 }
 
 int main() {

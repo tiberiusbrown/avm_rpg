@@ -149,8 +149,8 @@ sprite atlases and strings are immutable program assets with stable numeric IDs.
 `avm_generate_random_seed` supplies platform entropy. `avm_init_random_seed` and
 `avm_random` implement a 16-bit xorshift generator in the runtime. RPG uses the
 same compact xorshift rule with explicit nonzero state inside `Game`, seeded
-`0xbabe` for repeatable QA and serialized for continuation. Ambient state is
-reconstructed, rather than persisting all NPC positions.
+`0xbabe` for repeatable QA and serialized for continuation. Ambient state is reconstructed on load even though the saved live object contains the
+NPC slots and cache.
 
 ### Physical persistence versus application validity
 
@@ -170,31 +170,25 @@ erased, and blocks on flash page programming. LOAD scans matching-size records;
 SAVE_EXISTS only checks the first size word. Changing `.saved` length changes physical
 compatibility. Equal-length new versions still require application validation.
 
-**Verified and Measured:** RPG stores a 24-byte, explicit little-endian format:
+RPG save version 6 stores the complete 264-byte `Game` object directly in `.saved`.
+It contains no pointers and uses the AVM byte-aligned struct layout; changing that layout
+requires a version bump. There is no separate static save buffer, encoder, decoder or
+checksum. The version byte is the first payload byte. The native host's `sizeof(Game)`
+is not the guest format; device QA reads the packed AVM layout.
 
-| Offset | Bytes | Value |
-|---:|---:|---|
-| 0 | 2 | `RP` magic |
-| 2 | 1 | version 2; explicit validated version-1 migration |
-| 3 | 1 | record length 24 |
-| 4 | 1 | stable area ID (1 outdoor, 2 interior) |
-| 5 | 1 | facing 0..3 |
-| 6,8 | 2 each | player x,y in pixels |
-| 10,11,12 | 1 each | HP, max HP, level |
-| 13 | 1 | reserved zero |
-| 14,16,18 | 2 each | gold, flags, nonzero RNG |
-| 20 | 2 | reserved zero |
-| 22 | 2 | CRC-16/CCITT-FALSE, bytes 0..21 |
+Startup calls `avm_load()` and validates the loaded version, area, pixel bounds, facing,
+stats, defined flag bits and NPC residences. The result initializes the ordinary global
+`save_exists` flag before new-game defaults are prepared for the title screen. Starting a
+new game preserves that flag. Save calls `avm_save()` and sets the flag to true, without
+readback or validation; the UI reports `Saved`. The title and pause menu use the cached
+flag without loading or checking storage again. Continue and Load explicitly load and
+validate the object, reset NPC casts and animation ticks, refresh the area cache and repair
+blocked player positions. A rejected load clears the flag and prepares new-game defaults.
+The absence of a checksum means corruption that passes these field checks is not detected.
 
-Load validates magic, version, length, CRC, fields, projected effective terrain, bounds and the
-stationary NPC's quest-conditioned collision box before mutating live state. Version 1
-permits only its original lantern flag; version 2 permits defined bits 0..4.
-No pointers, padding,
-UI state or NPC scratch are serialized. Ambient spawns relocate within authored
-bounds if a loaded player occupies them. Save feedback requires physical load
-readback with the expected checksum, not merely SAVE_EXISTS. CRC is corruption
-detection, not authentication. Invalid saves leave the title's Continue disabled.
-A fresh-device restart with the actual exported sector was exercised; see QA logs.
+Version-1–5 records are incompatible with the new saved size and layout. Full-device QA
+checks that the physical payload equals the live `Game`, that a fresh restart restores
+progress, and that an invalid version is rejected during startup.
 
 ### Audio
 

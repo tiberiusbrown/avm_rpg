@@ -4,11 +4,10 @@
 #include <avm.h>
 
 __attribute__((noinline)) void title_screen() {
-    bool can_continue = game_load();
     uint8_t selection = 0;
 
     for(;;) {
-        render_title(can_continue, selection);
+        render_title(save_exists, selection);
         avm_display(true);
         uint8_t pressed = input_wait_press();
 
@@ -19,9 +18,8 @@ __attribute__((noinline)) void title_screen() {
                 game_start();
                 return;
             }
-            if(can_continue && game_load())
+            if(save_exists && game_load())
                 return;
-            can_continue = false;
         }
     }
 }
@@ -37,7 +35,6 @@ bool menu_item_visible(PAUSE_ITEM item, bool can_load) {
 }
 
 __attribute__((noinline)) bool menu_screen() {
-    bool can_load = game_has_save();
     PAUSE_ITEM selection = PAUSE_RESUME;
     uint8_t width = menu_width();
     int16_t revealed = 0;
@@ -49,7 +46,7 @@ __attribute__((noinline)) bool menu_screen() {
     for(;;) {
         input_wait_frame();
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(width));
-        render_menu((uint8_t)cursor_pixel(revealed), width, selection, can_load, feedback,
+        render_menu((uint8_t)cursor_pixel(revealed), width, selection, save_exists, feedback,
                     load_requested);
         avm_display(true);
         uint8_t pressed = input_pressed();
@@ -67,7 +64,7 @@ __attribute__((noinline)) bool menu_screen() {
                 selection =
                     (PAUSE_ITEM)((selection + (pressed & BTN_DOWN ? 1 : PAUSE_ITEM_COUNT - 1)) %
                                  PAUSE_ITEM_COUNT);
-            } while(!menu_item_visible(selection, can_load));
+            } while(!menu_item_visible(selection, save_exists));
             feedback = nullptr;
         } else if(pressed & BTN_A) {
             switch(selection) {
@@ -76,23 +73,17 @@ __attribute__((noinline)) bool menu_screen() {
                     feedback = nullptr;
                     break;
                 case PAUSE_SAVE:
-                    feedback = game_save() ? F("Saved and checked") : F("Save failed");
-                    can_load = game_has_save();
+                    game_save();
+                    feedback = F("Saved");
                     break;
                 case PAUSE_PARTY:
                     status_screen();
                     input_sync();
                     break;
                 case PAUSE_LOAD:
-                    if(game_has_save()) {
-                        load_requested = true;
-                        closing = true;
-                        feedback = nullptr;
-                    } else {
-                        can_load = false;
-                        selection = PAUSE_RESUME;
-                        feedback = F("Load failed");
-                    }
+                    load_requested = true;
+                    closing = true;
+                    feedback = nullptr;
                     break;
                 default:
                     break;
@@ -111,8 +102,8 @@ __attribute__((noinline)) void explore() {
         if(pressed & BTN_B) {
             // Refresh after the menu's locals have left the stack: chunk dialogue can enter battle.
             if(menu_screen()) {
-                if(game_load())
-                    update_visible_world(0, false);
+                game_load();
+                update_visible_world(0, false);
                 fade_world_in();
             }
             input_sync();

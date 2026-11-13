@@ -70,22 +70,18 @@ static void test_destination_admission_and_travel() {
 }
 
 static void test_save_round_trip_and_rejection() {
-    uint8_t record[SAVE_BYTES];
     CHECK(npc_set_destination(NPC_VILLAGER, positions::VillagerEast));
     TilePos before = game.npcs.residence[NPC_VILLAGER];
-    save_encode(record);
+    Game saved = game;
 
     game_new();
-    CHECK(save_decode(record));
+    game = saved;
+    CHECK(save_restore());
     CHECK(game.npcs.residence[NPC_VILLAGER] == before);
 
-    // A residence outside the authored map is rejected, even with a valid checksum.
-    size_t residence_at = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT;
-    record[residence_at] = 9; // No such area.
-    uint16_t crc = save_checksum(record);
-    record[SAVE_CRC_OFFSET] = (uint8_t)crc;
-    record[SAVE_CRC_OFFSET + 1] = (uint8_t)(crc >> 8);
-    CHECK(!save_decode(record));
+    // Invalid destinations are rejected before any loaded NPC state is used.
+    game.npcs.residence[NPC_VILLAGER].area = 9;
+    CHECK(!save_restore());
 }
 
 static unsigned moved_pixels(uint16_t x, uint16_t y, Npc const& n) {
@@ -126,13 +122,15 @@ static uint16_t home_y() {
 static void test_npc_outside_cache_is_frozen() {
     game_new();
     Npc* villager = npc_find(NPC_VILLAGER);
-    place_player(positions::VillagerEast.x, positions::VillagerEast.y); // Far east: the home is outside the cache.
+    place_player(positions::VillagerEast.x,
+                 positions::VillagerEast.y); // Far east: the home is outside the cache.
     update_visible_world(0, false);
     CHECK(npc_move_to(NPC_VILLAGER, home_x(), home_y() + TILE));
     for(unsigned frame = 0; frame < 20; ++frame)
         game_update(0);
     CHECK(villager->actor.x == home_x() && villager->actor.y == home_y());
-    place_player(positions::PlayerStart.x, positions::PlayerStart.y); // Back at the start, where the home is cached again.
+    place_player(positions::PlayerStart.x,
+                 positions::PlayerStart.y); // Back at the start, where the home is cached again.
     for(unsigned frame = 0; frame < 200 && villager->behavior != NPC_STAND; ++frame) {
         uint16_t x = villager->actor.x, y = villager->actor.y;
         game_update(0);

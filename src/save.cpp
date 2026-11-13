@@ -1,115 +1,29 @@
 #include "rpg.h"
 #include "npc.h"
 
-#include <string.h>
-
-static void put16(uint8_t* p, uint16_t n) {
-    p[0] = (uint8_t)n;
-    p[1] = (uint8_t)(n >> 8);
-}
-
-static uint16_t get16(uint8_t const* p) {
-    return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
-}
-
-uint16_t save_checksum(uint8_t const* in, uint16_t length) {
-    uint16_t crc = 0xffff;
-    uint16_t i;
-    uint8_t b;
-
-    for(i = 0; i < length; ++i) {
-        crc ^= (uint16_t)in[i] << 8;
-        for(b = 0; b < 8; ++b)
-            crc = (uint16_t)((crc << 1) ^ ((crc & 0x8000) ? 0x1021 : 0));
-    }
-
-    return crc;
-}
-
-void save_encode(uint8_t out[SAVE_BYTES]) {
-    memset(out, 0, SAVE_BYTES);
-
-    out[0] = 'R';
-    out[1] = 'P';
-    out[2] = SAVE_VERSION;
-    out[3] = SAVE_BYTES;
-
-    out[4] = game.area;
-    out[5] = game.player.facing;
-    put16(out + 6, game.player.x);
-    put16(out + 8, game.player.y);
-
-    out[10] = game.hp;
-    out[11] = game.max_hp;
-    out[12] = game.level;
-
-    put16(out + 14, game.gold);
-    put16(out + 16, game.rng);
-    put16(out + 18, FLAG_COUNT);
-    memcpy(out + SAVE_HEADER_BYTES, game.flags.bytes, WorldFlags::BYTE_COUNT);
-    uint8_t* residence = out + SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT;
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id, residence += 3) {
-        residence[0] = game.npcs.residence[id].area;
-        residence[1] = game.npcs.residence[id].x;
-        residence[2] = game.npcs.residence[id].y;
-    }
-
-    put16(out + SAVE_CRC_OFFSET, save_checksum(out));
-}
-
-bool save_valid(uint8_t const* in, uint16_t length) {
-    if(length < 4 || in[0] != 'R' || in[1] != 'P')
+bool save_valid() {
+    if(game.save_version != SAVE_VERSION || game.player.facing > WEST || !game.max_hp ||
+       game.hp > game.max_hp || !game.level || !game.rng)
         return false;
-    uint16_t size = in[3];
-    if(in[2] != SAVE_VERSION || size < 24 || size > length ||
-       get16(in + size - 2) != save_checksum(in, size - 2))
+    if(FLAG_COUNT % 8 && (game.flags.bytes[WorldFlags::BYTE_COUNT - 1] >> (FLAG_COUNT % 8)))
         return false;
-
-    uint16_t count = get16(in + 18);
-    uint16_t bytes = count / 8 + (count % 8 != 0);
-    uint16_t residence_at = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT;
-    if(count != FLAG_COUNT || residence_at + SAVE_NPC_BYTES > size - 2)
-        return false;
-    if(count % 8 && (in[SAVE_HEADER_BYTES + bytes - 1] >> (count % 8)))
-        return false;
-    for(uint16_t i = residence_at + SAVE_NPC_BYTES; i < size - 2; ++i)
-        if(in[i])
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
+        if(!npc_destination_valid(game.npcs.residence[id]))
             return false;
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
-        uint8_t const* r = in + residence_at + 3 * (id - 1);
-        if(!npc_destination_valid({r[0], r[1], r[2]}))
-            return false;
-    }
-    uint16_t x = get16(in + 6), y = get16(in + 8);
-    Area const PROGMEM* area = world_area(in[4]);
-    if(!area || in[5] > WEST || !in[11] || in[10] > in[11] || !in[12] || in[13] || !get16(in + 16))
+    Area const PROGMEM* area = world_area(game.area);
+    if(!area)
         return false;
     MapDimensions dimensions{area->width, area->height};
-    if(!dimensions.pixel_bounds(x, y))
-        return false;
-    return true;
+    return dimensions.pixel_bounds(game.player.x, game.player.y);
 }
 
-// Kept out of line so validation locals stay out of the path into the restored world.
-RPG_NOINLINE bool save_decode(uint8_t const* in, uint16_t length) {
-    if(!save_valid(in, length))
+bool save_restore() {
+    if(!save_valid())
         return false;
 
-    // Nothing mutates until every field is valid. No struct bytes are saved. The caller places
-    // the restored player and refreshes the world, which repairs the saved position against the
-    // loaded cache.
-    memset(&game, 0, sizeof(game));
-    game.area = in[4];
-    game.player = {get16(in + 6), get16(in + 8), (DIRECTION)in[5], 0};
-    game.hp = in[10];
-    game.max_hp = in[11];
-    game.level = in[12];
-    game.gold = get16(in + 14);
-    memcpy(game.flags.bytes, in + SAVE_HEADER_BYTES, WorldFlags::BYTE_COUNT);
-    game.rng = get16(in + 16);
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
-        uint8_t const* r = in + SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + 3 * (id - 1);
-        game.npcs.residence[id] = {r[0], r[1], r[2]};
-    }
-    return true;
+    // The entire pointer-free Game is saved in place. Rebuild its derived world/NPC state before
+    // resuming, including overlap repair in the caller's first cache refresh.
+    game.ticks = 0;
+    game.can_interact = false;
+    return world_place(game.area, game.player.x, game.player.y, game.player.facing);
 }

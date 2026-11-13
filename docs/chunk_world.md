@@ -80,8 +80,9 @@ PROGMEM battlefield rather than the chunk cache.
 The generic flags, staged handlers, movement, route and save mechanisms remain.
 There is one reserved flag bit and no current quest state.
 
-SAVE_VERSION is now 4. Versions 1–3 are deliberately rejected because their
-area layouts, pixel coordinates and quest flags describe the removed content.
-New saves retain the explicit 24-byte record with version, CRC, position/stats,
-RNG and flags. Invalid records leave Game unchanged. Valid blocked positions
-are repaired only after candidate bounds/structure pass and the area cache loads.
+SAVE_VERSION is now 6. Versions 1–5 are deliberately rejected. The live pointer-free
+`Game` object occupies `.saved`, with no duplicate serialization buffer or checksum.
+Startup loads and validates the object before setting `save_exists`, then prepares the title's
+new-game defaults. Saving writes the live object and sets the flag without readback. Loads
+validate version, stats, flags, bounds and NPC residences before placing the player; blocked
+positions are repaired after the area cache loads. Runtime casts, cache and ticks are rebuilt.

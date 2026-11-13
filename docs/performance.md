@@ -13,6 +13,19 @@ AVM revision: `3ceedda679c03c00a24d0353be2bedce0478ed4e`. RPG changes remain unc
 
 ## Memory and complete link-time stack bounds
 
+The version-6 save refactor places the live `Game` directly in `.saved`, eliminating the
+29-byte serialization buffer. A layout-version byte and the ordinary `save_exists` flag
+leave total static RAM 27 bytes lower than the pause-menu build. Current RelWithDebInfo
+links retain full LTO and report complete stack bounds, with the sole saved object verified
+in optimized IR:
+
+| Guest | .saved | ordinary .data | total static / 1024 | code | read-only data | stack / 256 |
+|---|---:|---:|---:|---:|---:|---:|
+| rpg | 264 | 208 | 472 | 31902 | 123785 | 242 |
+| rpg_qa | 264 | 212 | 476 | 31987 | 123785 | 240 |
+
+The earlier M1 baseline below predates the current world, battle and save implementations:
+
 | Guest | .saved | ordinary .data | total static / 1024 | code | read-only data | stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
 | m0_proof | 0 | 12 | 12 | 489 | 1017 | 30 |

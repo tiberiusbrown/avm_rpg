@@ -20,7 +20,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 105 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
+static_assert(sizeof(Game) == 106 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -1085,9 +1085,9 @@ int main(int argc, char** argv) try {
     d.capture(out / "menu-saved.pgm");
     auto saved = d.state();
     auto sector = d.sector();
-    require(sector[0] == SAVE_BYTES && sector[2] == 'R' && sector[3] == 'P' &&
-                sector[4] == SAVE_VERSION,
-            "no physical version-5 FX save record");
+    require((sector[0] | (uint16_t)sector[1] << 8) == sizeof(Game) && sector[2] == SAVE_VERSION &&
+                !memcmp(sector.data() + 2, &saved, sizeof(Game)),
+            "physical save did not contain the live Game object");
     // Closing with B reverses the slide and restores the world. Reopen and resume with A.
     {
         FadeTrace trace(d);
@@ -1137,6 +1137,7 @@ int main(int argc, char** argv) try {
     restarted.phase_addr = d.phase_addr;
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
+    require(restarted.state().gold == 0, "startup validation did not restore new-game defaults");
     require(restarted.serial() == 0, "restart did not show title");
     require(!restarted.music_enabled(), "music started on the continue title");
     restarted.tap(BTN_DOWN);
@@ -1154,19 +1155,33 @@ int main(int argc, char** argv) try {
     summary("dense_collision", restarted, 30, BTN_LEFT);
     restarted.capture(out / "forest.pgm");
 
-    sector[8] ^= 0x40;
+    Device new_with_save(package, g, m, s, q);
+    new_with_save.import_sector(sector);
+    new_with_save.advance(0, 3200000);
+    new_with_save.tap(BTN_A);
+    new_with_save.tap(BTN_B);
+    new_with_save.advance(0, 1600000);
+    require(pause_row_visible(new_with_save, 6),
+            "starting a new game lost the save flag checked at startup");
+
+    sector[2] ^= 0x40; // Invalid Game layout version; there is no checksum.
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
     corrupt.advance(0, 3200000);
-    corrupt.tap(BTN_DOWN);
-    corrupt.tap(BTN_A);
-    require(corrupt.serial() == 0, "corrupt save accepted");
-    require(!corrupt.music_enabled(), "failed continue started music");
-    corrupt.tap(BTN_UP);
-    corrupt.tap(BTN_A);
+    corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);
-    require(!pause_row_visible(corrupt, 6), "pause menu offered a corrupt save");
+    require(!pause_row_visible(corrupt, 6), "startup accepted an invalid save payload");
+    corrupt.tap(BTN_B);
+    corrupt.frame();
+
+    Device invalid_continue(package, g, m, s, q);
+    invalid_continue.import_sector(sector);
+    invalid_continue.advance(0, 3200000);
+    invalid_continue.tap(BTN_DOWN);
+    invalid_continue.tap(BTN_A);
+    require(invalid_continue.serial() == 0, "corrupt save accepted");
+    require(!invalid_continue.music_enabled(), "failed continue started music");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
                  "scrolling with the animated pause menu\"}\n";
     return 0;

@@ -35,15 +35,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-enum {
-    SAVE_VERSION = 5,
-    SAVE_HEADER_BYTES = 20,
-    SAVE_NPC_BYTES = 3 * (NPC_ID_LIMIT - 1),
-    SAVE_BYTES = SAVE_HEADER_BYTES + WorldFlags::BYTE_COUNT + SAVE_NPC_BYTES + 2,
-    SAVE_CRC_OFFSET = SAVE_BYTES - 2
-};
-
-static_assert(SAVE_BYTES <= 255, "save length fits the record header");
+inline constexpr uint8_t SAVE_VERSION = 6;
 
 enum {
     BTN_B = 4,
@@ -91,6 +83,8 @@ struct Camera {
 };
 
 struct Game {
+    // The live object is AVM's saved prefix. Bump the version when its byte layout changes.
+    uint8_t save_version;
     Actor player;
     uint16_t rng, gold, ticks;
     WorldFlags flags;
@@ -130,6 +124,9 @@ struct Game {
 };
 
 extern Game game;
+extern bool save_exists;
+
+inline constexpr uint16_t SAVE_BYTES = sizeof(Game);
 
 struct Area {
     uint8_t width, height;
@@ -192,14 +189,10 @@ Camera game_camera();
 bool dialogue_show(char const PROGMEM* words);
 // Wrap/page the question, then return A = yes or B = no.
 bool dialogue_ask(char const PROGMEM* question);
-void save_encode(uint8_t out[SAVE_BYTES]);
-// Checks the entire record without changing the running game.
-bool save_valid(uint8_t const* in, uint16_t length = SAVE_BYTES);
-// Restores a valid record into game without placing the player in its world. A caller that resumes
-// play must then call world_place(game.area, game.player.x, game.player.y, game.player.facing) and
-// update_visible_world.
-bool save_decode(uint8_t const* in, uint16_t length = SAVE_BYTES);
-uint16_t save_checksum(uint8_t const* in, uint16_t length = SAVE_CRC_OFFSET);
+// Validate the loaded live object before using any saved world coordinates or NPC residences.
+bool save_valid();
+// Validate and place the loaded player, rebuilding transient state. The caller refreshes the world.
+bool save_restore();
 void rpg_render_world();
 // Eight 20 ms steps per half, using flash-resident ordered-dither erase masks.
 inline constexpr uint8_t FADE_STEPS = 8;
@@ -240,9 +233,8 @@ void explore();
 // world.
 bool menu_screen();
 void status_screen();
-bool game_save();
+void game_save();
 bool game_load();
-bool game_has_save();
 char const PROGMEM* music_next();
 
 extern uint8_t const PROGMEM TILE_SPRITES[];

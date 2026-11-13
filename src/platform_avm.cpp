@@ -38,8 +38,6 @@ RPG_NOINLINE void sfx_play(SFX effect) {
     avm_audio_sfx(SFX_TRACKS[effect].data);
 }
 
-uint8_t saved_record[SAVE_BYTES] __attribute__((section(".saved"))) = {0};
-
 #ifdef RPG_DEVICE_QA
 volatile uint16_t frame_serial;
 volatile uint8_t frame_marker;
@@ -63,32 +61,27 @@ extern "C" __attribute__((noinline)) void rpg_render_end() {
 }
 #endif
 
-bool game_has_save() {
-    return avm_load() && save_valid(saved_record);
-}
-
 bool game_load() {
-    if(!avm_load() || !save_decode(saved_record))
+    if(!save_exists)
         return false;
-    world_place(game.area, game.player.x, game.player.y, game.player.facing);
+    if(!avm_load() || !save_restore()) {
+        save_exists = false;
+        game_start();
+        return false;
+    }
     return true;
 }
 
-bool game_save() {
-    save_encode(saved_record);
-    uint16_t expected_crc = save_checksum(saved_record);
+void game_save() {
     avm_save();
-
-    // Read back and validate before reporting success; the write API has no result.
-    return avm_load() && saved_record[SAVE_CRC_OFFSET] == (uint8_t)expected_crc &&
-           saved_record[SAVE_CRC_OFFSET + 1] == (uint8_t)(expected_crc >> 8) &&
-           save_checksum(saved_record) == expected_crc;
+    save_exists = true;
 }
 
 extern "C" void setup() {
     avm_set_frame_rate(50);
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    save_exists = avm_load() && save_valid();
     game_start();
 }
 
