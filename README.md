@@ -101,6 +101,8 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
 - `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle
   cursor, the destination markers, and the archer's arrow, one 16x16 frame per direction in
   north/east/south/west order.
+- `assets/images/battle_damage16.png`: the damage indicators, nine 16x16 frames for losses of
+  1 to 9 HP. Each is the same spiky burst with its own 3x5 digit in the black middle.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
   encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
@@ -178,8 +180,9 @@ overworld cache and from the current area.
   once the arrow arrives. Any other attacker lunges four pixels toward its target, holds for about a
   quarter second, and returns. Once a move arrives, every unit that lost HP flashes: for about a
   second when an enemy was hit, and briefly when only the mover paid. A knocked-back unit flashes at
-  its new cell. The next turn waits for the flashing to end, and a defeated unit flashes before it
-  disappears.
+  its new cell. While a unit flashes, a spiky burst over its cell shows the HP it lost. The next
+  turn waits for the flashing to end, and a defeated unit flashes before it disappears. After the
+  enemy's action the cursor returns on the next frame.
 - Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
   a time, up to four, within a budget of 480 positions (fewer with more than four living units), and
   uses the deepest completed search. It assumes the heroes reply with their best action. It scores a

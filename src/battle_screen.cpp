@@ -8,7 +8,7 @@
 #include <avm.h>
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
-// Frames at 50 Hz. Each side's result stays on screen for this long.
+// Frames at 50 Hz. The party's result stays on screen for this long before the enemy chooses.
 static constexpr uint8_t RESULT_FRAMES = 25;
 
 static void pause(uint8_t frames) {
@@ -69,6 +69,9 @@ struct BattleScreen {
     uint8_t motion; // SCREEN_MOTION
     // Bit i is set for each unit flashing after damage.
     uint8_t flashing;
+    // The HP each flashing unit lost, four bits per unit: unit i is in damage[i / 2], in the high
+    // half when i is odd. HP is at most BATTLE_MAX_HP, so a loss always fits.
+    uint8_t damage[BATTLE_UNIT_CAPACITY / 2];
     // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
     // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
     // 256, which keeps the pose cycle whole.
@@ -287,6 +290,26 @@ static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen
     screen.motion = MOTION_STILL;
 }
 
+// The HP that unit `index` lost to the action being played.
+static uint8_t damage_taken(BattleScreen const& screen, uint8_t index) {
+    uint8_t pair = screen.damage[index / 2];
+    return (uint8_t)(index & 1 ? pair >> 4 : pair & 0x0F);
+}
+
+// Draws a damage indicator over every flashing unit: a spiky burst on the unit's cell, with the HP
+// the unit lost in its black middle. It stays up for the whole flash, over the visible and the
+// hidden phases alike, and it is drawn after the board, so no neighbouring actor covers it.
+RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
+    avm_set_sprite(BATTLE_DAMAGE_SPRITES);
+    for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
+        if(!((screen.flashing >> i) & 1))
+            continue;
+        uint8_t cell = screen.state.units[i].cell;
+        avm_draw_plus_mask(cell_x(cell), cell_y(cell),
+                           battle_damage_frame(damage_taken(screen, i)));
+    }
+}
+
 // Whether any flashing unit has been defeated.
 RPG_NOINLINE static bool any_fallen(BattleScreen const& screen) {
     for(uint8_t i = 0; i < screen.state.unit_count; ++i)
@@ -311,7 +334,8 @@ static SFX attack_sound(uint8_t type) {
 
 // Plays the flash of every flashing unit, and the lunge of `lunger` toward `toward` when it is not
 // BATTLE_NO_UNIT. The lunge moves out, holds, and returns, while the flashes run over the same
-// frames, so the next turn waits for the last flash. `impact` sounds as the reaction starts. When a
+// frames, so the next turn waits for the last flash. Each flashing unit carries its damage
+// indicator for as long as it flashes. `impact` sounds as the reaction starts. When a
 // flashing unit is defeated, its fall sounds at BATTLE_FALL_SOUND_FRAME, after the impact.
 static inline __attribute__((always_inline)) void
 animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward, uint8_t frames,
@@ -327,6 +351,7 @@ animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward, uint8_t
         screen.mover_dy = (int8_t)(direction_dy(toward) * reach);
         // The attacker faces its victim while it is out of place, and stands south once it returns.
         draw_board(screen, BATTLE_NO_UNIT, reach ? toward : SOUTH);
+        draw_damage(screen);
         avm_display(false);
         input_wait_frame();
     }
@@ -338,7 +363,8 @@ animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward, uint8_t
 
 // Applies a legal action to the rules and records its motion on the screen. The actor becomes the
 // mover. A move sets up its walk from the old cell, however far away it is. Every unit whose HP the
-// action lowers is marked to flash, found by comparing HP before and after: an attack's victim, and
+// action lowers is marked to flash, with the HP it lost, found by comparing HP before and after: an
+// attack's victim, and
 // for a move every enemy its engagement hit and the mover itself, which pays the blood price. When
 // the engagement defeats the last enemy, the battle ends before the price, so the mover keeps its
 // HP: its victims flash and vanish, and it stays drawn on the result screen. Units are marked by
@@ -362,9 +388,15 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action) {
     battle_apply(state, action);
 
     screen.flashing = 0;
-    for(uint8_t i = 0; i < state.unit_count; ++i)
-        if(state.units[i].hp < before[i])
+    for(uint8_t i = 0; i < BATTLE_UNIT_CAPACITY / 2; ++i)
+        screen.damage[i] = 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        if(state.units[i].hp < before[i]) {
+            uint8_t lost = (uint8_t)(before[i] - state.units[i].hp);
             screen.flashing = (uint8_t)(screen.flashing | (1 << i));
+            screen.damage[i / 2] = (uint8_t)(screen.damage[i / 2] | (i & 1 ? lost << 4 : lost));
+        }
+    }
     return toward;
 }
 
@@ -524,13 +556,6 @@ RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
     return battle_enemy_action(screen.state);
 }
 
-// Shows the board after the enemy's action, with no unit highlighted.
-RPG_NOINLINE static void enemy_result(BattleScreen const& screen) {
-    draw_board(screen, BATTLE_NO_UNIT, SOUTH);
-    avm_display(false);
-    pause(RESULT_FRAMES);
-}
-
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     // Everything this battle needs lives in one local, and each helper receives it.
     BattleScreen screen{};
@@ -560,8 +585,9 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         if(state.turn == BATTLE_PARTY) {
             resolve(screen, party_turn(screen));
         } else {
+            // The party's turn starts on the frame after the enemy's action ends, so the cursor is
+            // back at once.
             resolve(screen, enemy_turn(screen));
-            enemy_result(screen);
         }
     }
 

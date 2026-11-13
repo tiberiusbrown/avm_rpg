@@ -106,6 +106,7 @@ class Pipeline(unittest.TestCase):
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
+            ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 9, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
@@ -241,6 +242,51 @@ class Pipeline(unittest.TestCase):
         )
         original.crop((0, 0, 48, 16)).save(path)
         with self.assertRaisesRegex(ValueError, "expected a PNG 64 pixels wide"):
+            generate(self.root)
+
+    def test_battle_damage_sheet_is_validated(self):
+        path = self.root / "assets/images/battle_damage16.png"
+        original = Image.open(path).convert("RGBA")
+        self.assertEqual(original.size, (144, 16))
+        self.assertIn(
+            "static_assert(BATTLE_DAMAGE_FRAMES == 9,", generate(self.root)["sprites.cpp"]
+        )
+        # Each burst is a black outline around a white outline around the black middle.
+        # Row 4 is the border above the digit, so it crosses every layer and no digit pixel.
+        for frame in range(9):
+            runs = []
+            for x in range(16):
+                layer = original.getpixel((frame * 16 + x, 4))[::3]
+                if not runs or runs[-1] != layer:
+                    runs.append(layer)
+            transparent, black, white = (0, 0), (0, 255), (255, 255)
+            self.assertEqual(runs, [transparent, black, white, black, white, black, transparent])
+        # The first frame carries a 1 in the 3x5 cell at (6, 5).
+        one = [
+            "".join("#" if original.getpixel((6 + x, 5 + y))[0] else "." for x in range(3))
+            for y in range(5)
+        ]
+        self.assertEqual(one, [".#.", "##.", ".#.", ".#.", "###"])
+        # The one-pixel border around a digit must stay black: columns 5 and 9, rows 4 and 10.
+        for pixel in [(5, 4), (16 + 9, 10), (8 * 16 + 5, 7)]:
+            edited = original.copy()
+            edited.putpixel(pixel, (255, 255, 255, 255))
+            edited.save(path)
+            with self.assertRaisesRegex(ValueError, "one-pixel black border"):
+                generate(self.root)
+        # Only the digit may differ between frames, and no two frames share a digit.
+        edited = original.copy()
+        edited.putpixel((3 * 16 + 7, 1), (0, 0, 0, 255))
+        edited.save(path)
+        with self.assertRaisesRegex(ValueError, "same burst in every frame"):
+            generate(self.root)
+        edited = original.copy()
+        edited.paste(original.crop((0, 0, 16, 16)), (16, 0))
+        edited.save(path)
+        with self.assertRaisesRegex(ValueError, "its own digit"):
+            generate(self.root)
+        original.crop((0, 0, 128, 16)).save(path)
+        with self.assertRaisesRegex(ValueError, "expected a PNG 144 pixels wide"):
             generate(self.root)
 
     def test_battle_arrows_point_in_direction_order(self):

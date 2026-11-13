@@ -1151,6 +1151,56 @@ def read_battle_arrow_frames(root=ROOT):
     return frames, masks
 
 
+# The damage indicators shown over a unit that loses HP: nine 16x16 plus-mask frames side by side,
+# for 1 to 9 HP. Each is the same spiky burst with its digit, 3x5 pixels in a blocky hand, drawn white
+# in the black middle with a one-pixel black border around it.
+DAMAGE_FRAMES = 9
+DAMAGE_DIGIT_LEFT, DAMAGE_DIGIT_TOP = 6, 5
+DAMAGE_DIGIT_WIDTH, DAMAGE_DIGIT_HEIGHT = 3, 5
+
+
+def read_battle_damage_frames(root=ROOT):
+    """Read the damage bursts: nine 16x16 plus-mask frames, for 1 to 9 HP in order."""
+    path = root / "assets" / "images" / "battle_damage16.png"
+    with Image.open(path) as image:
+        require(
+            image.format == "PNG" and image.size == (DAMAGE_FRAMES * TILE_SIZE, TILE_SIZE),
+            path,
+            f"expected a PNG {DAMAGE_FRAMES * TILE_SIZE} pixels wide and {TILE_SIZE} pixels high "
+            f"holding {DAMAGE_FRAMES} frames: 1 to 9",
+        )
+    frames, masks = read_sprite_sheet("battle_damage16.png", DAMAGE_FRAMES, root)
+    columns = range(DAMAGE_DIGIT_LEFT, DAMAGE_DIGIT_LEFT + DAMAGE_DIGIT_WIDTH)
+    rows = range(DAMAGE_DIGIT_TOP, DAMAGE_DIGIT_TOP + DAMAGE_DIGIT_HEIGHT)
+    for frame, mask in zip(frames, masks):
+        require(
+            all(
+                mask[y][x] == "#" and (frame[y][x] == "." or (x in columns and y in rows))
+                for y in range(rows.start - 1, rows.stop + 1)
+                for x in range(columns.start - 1, columns.stop + 1)
+            ),
+            path,
+            "keep each digit's cell opaque, with a one-pixel black border around it",
+        )
+        require(
+            all(
+                (frame[y][x], mask[y][x]) == (frames[0][y][x], masks[0][y][x])
+                for y in range(TILE_SIZE)
+                for x in range(TILE_SIZE)
+                if not (x in columns and y in rows)
+            ),
+            path,
+            "draw the same burst in every frame; only the digit may differ",
+        )
+    digits = [tuple(frame[y][columns.start : columns.stop] for y in rows) for frame in frames]
+    require(
+        len(set(digits)) == DAMAGE_FRAMES and all("#" in "".join(digit) for digit in digits),
+        path,
+        "give every frame its own digit",
+    )
+    return frames, masks
+
+
 def frame_bytes(rows, size=TILE_SIZE):
     # Page-major bytes. Bits below the frame's last row are padding and stay zero.
     return [
@@ -1200,8 +1250,9 @@ def generate(root=ROOT):
     cursor_frames, cursor_masks = read_cursor_frames(root)
     target_frames, target_masks = read_battle_target_frames(root)
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
+    damage_frames, damage_masks = read_battle_damage_frames(root)
     art = [
-        "/* Generated; 16x16 tiles, alpha-derived actor, battle target, and arrow plus masks, and the 22x22 cursor plus masks. */",
+        "/* Generated; 16x16 tiles, alpha-derived actor, battle target, arrow, and damage plus masks, and the 22x22 cursor plus masks. */",
         '#include "rpg.h"',
         "",
         "// clang-format off: preserve frame byte groups.",
@@ -1216,6 +1267,8 @@ def generate(root=ROOT):
     art += sprite_lines("BATTLE_TARGET_SPRITES", target_frames, target_masks)
     art.append("")
     art += sprite_lines("BATTLE_ARROW_SPRITES", arrow_frames, arrow_masks)
+    art.append("")
+    art += sprite_lines("BATTLE_DAMAGE_SPRITES", damage_frames, damage_masks)
     art.append("// clang-format on")
     art += [
         "",
@@ -1229,6 +1282,8 @@ def generate(root=ROOT):
         '"the destination markers must match the frames in battle_targets16.png");',
         f"static_assert(BATTLE_ARROW_FRAMES == {ARROW_FRAMES}, "
         '"BATTLE_ARROW_FRAMES must match the frames in battle_arrows16.png");',
+        f"static_assert(BATTLE_DAMAGE_FRAMES == {DAMAGE_FRAMES}, "
+        '"BATTLE_DAMAGE_FRAMES must match the frames in battle_damage16.png");',
     ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]

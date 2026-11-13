@@ -248,5 +248,13 @@ extern uint8_t const PROGMEM BATTLE_TARGET_SPRITES[];
 // direction is its own frame index. The generated sheet asserts the count.
 inline constexpr uint8_t BATTLE_ARROW_FRAMES = 4;
 extern uint8_t const PROGMEM BATTLE_ARROW_SPRITES[];
+// The damage indicators, battle_damage16.png: one 16x16 plus-mask frame for each loss of 1 to 9
+// HP, a spiky burst with the digit in its black middle. Frame n - 1 shows a loss of n, and a larger
+// loss shows the last frame. The generated sheet asserts the count.
+inline constexpr uint8_t BATTLE_DAMAGE_FRAMES = 9;
+constexpr uint8_t battle_damage_frame(uint8_t lost) {
+    return (uint8_t)((lost > BATTLE_DAMAGE_FRAMES ? BATTLE_DAMAGE_FRAMES : lost) - 1);
+}
+extern uint8_t const PROGMEM BATTLE_DAMAGE_SPRITES[];
 
 #endif

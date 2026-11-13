@@ -249,6 +249,11 @@ object costs 230 to 320 cycles on the AVM, because every constant object sits in
 | rpg | 473 → 501 | 24,393 → 28,945 | 121,449 → 121,869 | 243 → 232 |
 | rpg_qa | 477 → 505 | 24,549 → 29,101 | 121,449 → 121,869 | 245 → 234 |
 
+The damage indicators add 149 bytes of code (31,527 → 31,676) and 578 of read-only data (nine 16x16
+burst sprites with masks) to the build they were measured against, and no static RAM (500). The stack
+bound rises from 240 to 244: the screen keeps each unit's lost HP in four bits, four bytes of
+`BattleScreen`, which is live on the deepest path.
+
 The thinking indicator and the arcing leap add 269 bytes of code (28,676 → 28,945) and no static RAM
 or read-only data. The stack bound rises from 228 to 232: the progress countdown and the values that
 number a step stay live in deepen's frame (40 → 44 bytes), which lies on the deepest path. Keeping the
