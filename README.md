@@ -55,8 +55,10 @@ switch to Steel at Dawn and return to Peaceful Village when the result appears.
 Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
+The runtime starts it immediately when no song is active.
 The interpreter lowers music attenuation by one every 4 ms, then restores the
-gain captured by the request and starts the queued song. At the default full
+gain captured by the initial fade request and starts the queued song. Further
+requests replace only the queued song, preserving gain and fade progress. At the default full
 music gain of 255 the fade lasts 1.02 seconds; lower gains fade at the same slope.
 Input, display animation and gameplay continue during the fade. Requesting the
 current song leaves it playing. The current-song getter avoids extra static RAM

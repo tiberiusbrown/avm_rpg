@@ -18,10 +18,7 @@ void music_play(MUSIC_TRACK track) {
     if(current == MUSIC_TRACKS[track].data)
         return;
 
-    if(current)
-        avm_audio_play_fade(MUSIC_TRACKS[track].data);
-    else
-        avm_audio_play(MUSIC_TRACKS[track].data);
+    avm_audio_play_fade(MUSIC_TRACKS[track].data);
 }
 
 char const PROGMEM* music_next() {
