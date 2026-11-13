@@ -2082,13 +2082,13 @@ static void four_a_side() {
 
     // The enemy's budgeted choice on a full board is a completed iteration's, and legal.
     // The budget scales down with more living units.
-    CHECK(battle_ai_budget(fresh()) == BATTLE_AI_NODE_BUDGET && battle_ai_budget(enemy) == 120);
+    CHECK(battle_ai_budget(fresh()) == BATTLE_AI_NODE_BUDGET && battle_ai_budget(enemy) == 240);
     BattleState six = enemy;
     six.units[0].hp = 0;
     six.units[4].hp = 0;
-    CHECK(battle_ai_budget(six) == 160);
+    CHECK(battle_ai_budget(six) == 320);
     BattleSearchResult think = battle_think(enemy, BATTLE_AI_DEPTH, battle_ai_budget(enemy));
-    CHECK(think.depth >= 1 && battle_search_stats().nodes <= 150);
+    CHECK(think.depth >= 1 && battle_search_stats().nodes <= battle_ai_budget(enemy));
     CHECK(battle_legal(enemy, think.action));
     CHECK(battle_legal(enemy, battle_enemy_action(enemy)));
 
@@ -2160,6 +2160,58 @@ static void arrow_timing() {
     }
 }
 
+static void leap_arc() {
+    // A leap covers its two long-axis cells in BATTLE_LEAP_FRAMES frames, rising from the start and
+    // landing level, highest at mid-flight, and the same on the way down as on the way up.
+    static_assert(BATTLE_LEAP_FRAMES * BATTLE_LEAP_PIXELS == 2 * TILE, "a leap lands on its cell");
+    CHECK(battle_leap_lift(2 * TILE) == 0 && battle_leap_lift(0) == 0);
+    CHECK(battle_leap_lift(TILE) == BATTLE_LEAP_HEIGHT);
+    for(uint8_t left = 0; left <= BATTLE_LEAP_FRAMES; ++left) {
+        uint8_t remaining = (uint8_t)(left * BATTLE_LEAP_PIXELS);
+        CHECK(battle_leap_lift(remaining) == battle_leap_lift((uint8_t)(2 * TILE - remaining)));
+        CHECK(battle_leap_lift(remaining) <= BATTLE_LEAP_HEIGHT);
+        if(left > 0 && left <= BATTLE_LEAP_FRAMES / 2)
+            CHECK(battle_leap_lift(remaining) >
+                  battle_leap_lift((uint8_t)(remaining - BATTLE_LEAP_PIXELS)));
+    }
+}
+
+static void thinking_indicator() {
+    // The box sits at the screen's center and holds its three dots with a margin on every side.
+    CHECK(BATTLE_THINKING_X * 2 + BATTLE_THINKING_WIDTH == 128 + 1 ||
+          BATTLE_THINKING_X * 2 + BATTLE_THINKING_WIDTH == 128 - 1 ||
+          BATTLE_THINKING_X * 2 + BATTLE_THINKING_WIDTH == 128);
+    CHECK(BATTLE_THINKING_Y * 2 + BATTLE_THINKING_HEIGHT >= 63 &&
+          BATTLE_THINKING_Y * 2 + BATTLE_THINKING_HEIGHT <= 65);
+    CHECK(battle_thinking_dot_x(0) > BATTLE_THINKING_X + 1);
+    CHECK(battle_thinking_dot_x(BATTLE_THINKING_DOTS - 1) + BATTLE_THINKING_DOT <
+          BATTLE_THINKING_X + BATTLE_THINKING_WIDTH - 1);
+    CHECK(battle_thinking_dot_x(0) - BATTLE_THINKING_X ==
+          BATTLE_THINKING_X + BATTLE_THINKING_WIDTH -
+              (battle_thinking_dot_x(BATTLE_THINKING_DOTS - 1) + BATTLE_THINKING_DOT));
+    // Steps light one more dot each, then none.
+    CHECK(battle_thinking_lit(1) == 1 && battle_thinking_lit(3) == 3 &&
+          battle_thinking_lit(4) == 0 && battle_thinking_lit(5) == 1);
+
+    // A budgeted search reports one step per budget / BATTLE_AI_PROGRESS_STEPS positions over all
+    // its iterations, the first after one interval; an unbudgeted one reports none.
+    unsigned searched = 0;
+    for(unsigned trial = 0; trial < 120; ++trial) {
+        BattleState s = random_board();
+        if(s.ended)
+            continue;
+        uint16_t budget = battle_ai_budget(s);
+        battle_think(s, BATTLE_AI_DEPTH, budget);
+        BattleSearchStats st = battle_search_stats();
+        CHECK(st.progress == st.nodes / (budget / BATTLE_AI_PROGRESS_STEPS));
+        CHECK(st.progress <= BATTLE_AI_PROGRESS_STEPS);
+        battle_search(s, 2);
+        CHECK(battle_search_stats().progress == 0);
+        ++searched;
+    }
+    CHECK(searched > 50);
+}
+
 static void flash_timing() {
     unsigned hidden = 0, changes = 0;
     bool previous = battle_flash_hidden(0);
@@ -2228,6 +2280,8 @@ int main() {
     lunge_timing();
     flash_timing();
     arrow_timing();
+    leap_arc();
+    thinking_indicator();
     target_frames();
     printf("PASS battle rules: %u checks\n", checks);
     return 0;

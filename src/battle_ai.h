@@ -10,10 +10,14 @@ inline constexpr uint8_t BATTLE_AI_DEPTH = 4;
 // Positions the enemy may visit while it chooses an action, summed over every iteration of the
 // deepening search, for a battle of four living units. A position costs more to search the more
 // units live, so a battle with more units gets proportionally fewer (battle_ai_budget). The value
-// was chosen from AVM measurements (docs/performance.md): a position costs about 0.95 ms per living
-// unit, so a spent budget stays near 0.9 s with four units and 0.95 s with eight. The cost of a
-// position varies, so it bounds the work rather than the seconds.
-inline constexpr uint16_t BATTLE_AI_NODE_BUDGET = 240;
+// was chosen from AVM measurements (docs/performance.md) so that a spent budget stays under two
+// seconds: a position costs about 3.7 ms with four living units and 7.9 ms with eight. The cost of
+// a position varies, so it bounds the work rather than the seconds.
+inline constexpr uint16_t BATTLE_AI_NODE_BUDGET = 480;
+
+// Progress steps over a spent budget. A budgeted search reports progress every budget / this many
+// positions, about five times a second on the AVM, through battle_think_progress.
+inline constexpr uint8_t BATTLE_AI_PROGRESS_STEPS = 10;
 
 // A win or loss scores this much, less the plies it takes. Static utilities stay far below it, so a
 // terminal result always outweighs material, HP, and position.
@@ -51,6 +55,7 @@ struct BattleSearchStats {
     uint8_t completed; // Deepest iteration searched to the end. Its result is the one returned.
     bool exhausted;    // An iteration ran out of budget, and its partial result was discarded.
     uint16_t iteration_nodes[BATTLE_AI_DEPTH]; // Nodes of each iteration, partial ones included.
+    uint8_t progress;                          // Calls to battle_think_progress.
 };
 
 // The deepest search the static action stack holds from this position: BATTLE_AI_DEPTH for battles
@@ -70,8 +75,14 @@ BattleSearchResult battle_search(BattleState const& state, uint8_t depth);
 // the last one. Each iteration tries the previous iteration's choice first. The result is that of
 // the deepest completed iteration. When none completed, its depth is zero and the action has no
 // unit. A budget of zero means no limit.
-// The deepest iteration is also limited by battle_search_depth_limit.
+// The deepest iteration is also limited by battle_search_depth_limit. With a budget, every
+// budget / BATTLE_AI_PROGRESS_STEPS positions across all iterations it calls battle_think_progress.
 BattleSearchResult battle_think(BattleState const& state, uint8_t max_depth, uint16_t budget);
+
+// Called during a budgeted search, with `step` counting the progress steps reached so far from 1.
+// The battle screen draws its thinking indicator here; host builds and the battle probe define
+// their own. It must not touch the search's state or battle_action_scratch.
+void battle_think_progress(uint8_t step);
 
 BattleSearchStats battle_search_stats();
 

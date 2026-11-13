@@ -48,6 +48,52 @@ constexpr uint8_t battle_lunge_pixels(uint8_t frame) {
     return 0;
 }
 
+// A rogue's knight leap is a fast arcing jump: it covers its two cells along the long axis at this
+// many pixels a frame, and one cell along the short axis at half that, so it lands after
+// BATTLE_LEAP_FRAMES frames. On the way it rises and falls on a parabola that peaks this many
+// pixels above the straight line at mid-flight.
+inline constexpr uint8_t BATTLE_LEAP_PIXELS = 4;
+inline constexpr uint8_t BATTLE_LEAP_FRAMES = 2 * BATTLE_CELL_PIXELS / BATTLE_LEAP_PIXELS;
+inline constexpr uint8_t BATTLE_LEAP_HEIGHT = 10;
+
+// The leaper's height above its straight path, from the pixels it still has to cover along the long
+// axis. The parabola is symmetric, so the distance left gives the same height as the distance
+// flown.
+constexpr uint8_t battle_leap_lift(uint8_t remaining) {
+    uint8_t left = (uint8_t)(remaining / BATTLE_LEAP_PIXELS);
+    if(left >= BATTLE_LEAP_FRAMES)
+        return 0;
+    return (uint8_t)(4 * BATTLE_LEAP_HEIGHT * left * (BATTLE_LEAP_FRAMES - left) /
+                     (BATTLE_LEAP_FRAMES * BATTLE_LEAP_FRAMES));
+}
+
+// The enemy's thinking indicator: a white-bordered black box at the center of the 128x64 screen
+// with three 3x3 dots, drawn over the board while the search runs. Each progress step lights one
+// more dot, then none, so the dots fill in a cycle of four steps.
+inline constexpr uint8_t BATTLE_THINKING_WIDTH = 21;
+inline constexpr uint8_t BATTLE_THINKING_HEIGHT = 9;
+inline constexpr uint8_t BATTLE_THINKING_X = (128 - BATTLE_THINKING_WIDTH) / 2;
+inline constexpr uint8_t BATTLE_THINKING_Y = (64 - BATTLE_THINKING_HEIGHT) / 2;
+inline constexpr uint8_t BATTLE_THINKING_DOTS = 3;
+inline constexpr uint8_t BATTLE_THINKING_DOT = 3;
+inline constexpr uint8_t BATTLE_THINKING_SPACING = 5;
+
+// Dots lit at a progress step, counting steps from 1.
+constexpr uint8_t battle_thinking_lit(uint8_t step) {
+    return (uint8_t)(step % (BATTLE_THINKING_DOTS + 1));
+}
+
+// The space between the box's edge and the outer dots, the same on both sides.
+inline constexpr uint8_t BATTLE_THINKING_MARGIN =
+    (BATTLE_THINKING_WIDTH - (BATTLE_THINKING_DOTS - 1) * BATTLE_THINKING_SPACING -
+     BATTLE_THINKING_DOT) /
+    2;
+
+// The left edge of a dot, centered in the box.
+constexpr uint8_t battle_thinking_dot_x(uint8_t dot) {
+    return (uint8_t)(BATTLE_THINKING_X + BATTLE_THINKING_MARGIN + dot * BATTLE_THINKING_SPACING);
+}
+
 // Whether a flashing unit is hidden at a frame counted from the start of its flash. Each flash
 // starts hidden and alternates every BATTLE_FLASH_STEP frames.
 constexpr bool battle_flash_hidden(uint8_t frame) {

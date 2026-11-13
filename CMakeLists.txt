@@ -217,7 +217,7 @@ if(RPG_BUILD_GUEST)
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
@@ -252,8 +252,8 @@ if(RPG_BUILD_GUEST)
     guest(m0_proof src/proof.cpp)
     guest(m15_probe ${RULES} tests/world_probe.cpp)
     guest(m16_probe ${RULES} tests/npc_probe.cpp)
-    guest(m17_battle_probe ${RULES} tests/battle_probe.cpp)
-    set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/battle_screen.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
+    guest(m17_battle_probe ${RULES} src/battle_thinking.cpp tests/battle_probe.cpp)
+    set(PLATFORM src/input.cpp src/screens.cpp src/dialogue_overlay.cpp src/battle_screen.cpp src/battle_thinking.cpp src/render.cpp src/platform_avm.cpp generated/sprites.cpp)
     guest(rpg ${RULES} ${PLATFORM})
     add_dependencies(rpg rpg_music)
     # The shipping guest has no markers. Device QA reads this same logic with markers enabled.

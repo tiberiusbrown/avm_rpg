@@ -47,7 +47,7 @@ struct Cursor {
     uint8_t frames;
 };
 
-enum SCREEN_MOTION : uint8_t { MOTION_STILL, MOTION_WALK, MOTION_SHOT };
+enum SCREEN_MOTION : uint8_t { MOTION_STILL, MOTION_WALK, MOTION_LEAP, MOTION_SHOT };
 
 // Everything one battle's screen needs. battle_show allocates it on its own frame and passes it to
 // each helper, so no battle data is static.
@@ -140,6 +140,14 @@ static DIRECTION pressed_direction(uint8_t pressed) {
     return STILL;
 }
 
+// A leaper's height above its straight path, from the offset it still has to cover along the long
+// axis.
+static uint8_t leap_lift(BattleScreen const& screen) {
+    int8_t ax = screen.mover_dx < 0 ? (int8_t)-screen.mover_dx : screen.mover_dx;
+    int8_t ay = screen.mover_dy < 0 ? (int8_t)-screen.mover_dy : screen.mover_dy;
+    return battle_leap_lift((uint8_t)(ax > ay ? ax : ay));
+}
+
 // Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. The selected
 // unit gets its white border before the actors. The destination markers come after the actors, so
 // they stay visible over the terrain and the unit art. The cursor is drawn separately, after the
@@ -172,9 +180,12 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
         // even one already defeated, stays drawn.
         if(flashing && screen.motion == MOTION_STILL && battle_flash_hidden(screen.ticks))
             continue;
-        // The mover is drawn at its cell plus the offset it still has to cover.
+        // The mover is drawn at its cell plus the offset it still has to cover, and a leaper is
+        // raised by its arc.
         int16_t x = (int16_t)(cell_x(unit.cell) + (moving ? screen.mover_dx : 0));
         int16_t y = (int16_t)(cell_y(unit.cell) + (moving ? screen.mover_dy : 0));
+        if(moving && screen.motion == MOTION_LEAP)
+            y = (int16_t)(y - leap_lift(screen));
         Actor const pose{(uint16_t)x, (uint16_t)y, moving ? mover_facing : SOUTH,
                          (uint8_t)(moving && screen.motion == MOTION_WALK)};
         avm_draw_plus_mask(x, y, actor_frame(pose, battle_sprite_row(unit), screen.ticks));
@@ -199,10 +210,6 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
     }
 }
 
-// Pixels a leap covers per frame along its long axis. A knight leap is two cells by one, so the
-// short axis covers half as much and both reach zero together after eight frames.
-static constexpr int8_t LEAP_PIXELS = 4;
-
 // Moves an offset toward zero by up to `amount` pixels.
 static int8_t toward_zero(int8_t offset, int8_t amount) {
     if(offset > 0)
@@ -212,12 +219,13 @@ static int8_t toward_zero(int8_t offset, int8_t amount) {
 
 // Walks the mover one pixel per frame to its logical cell, as the player walks in exploration. It
 // faces the way it steps, and the walking pose cycles while it moves. A straight move of one or two
-// cells walks the whole way. A knight leap glides straight to its cell along both axes at once, so
-// it never appears to walk through the units it jumps over. The logical state has already changed,
-// so only the drawn offset is left to cover. With no offset, it does nothing.
+// cells walks the whole way. A knight leap is a fast jump: it covers both axes at once, standing
+// rather than walking, and arcs above its path (battle_leap_lift), so it is seen to jump over the
+// units and terrain it passes. The logical state has already changed, so only the drawn offset is
+// left to cover. With no offset, it does nothing.
 static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen) {
-    screen.motion = MOTION_WALK;
     bool leap = screen.mover_dx != 0 && screen.mover_dy != 0;
+    screen.motion = leap ? MOTION_LEAP : MOTION_WALK;
     // The offset moves toward zero, so the walker faces the opposite way along its longer axis.
     int8_t ax = screen.mover_dx < 0 ? (int8_t)-screen.mover_dx : screen.mover_dx;
     int8_t ay = screen.mover_dy < 0 ? (int8_t)-screen.mover_dy : screen.mover_dy;
@@ -225,8 +233,8 @@ static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen
         ax >= ay ? (screen.mover_dx < 0 ? EAST : WEST) : (screen.mover_dy < 0 ? SOUTH : NORTH);
     int8_t step_x = 1, step_y = 1;
     if(leap) {
-        step_x = ax > ay ? LEAP_PIXELS : LEAP_PIXELS / 2;
-        step_y = ay > ax ? LEAP_PIXELS : LEAP_PIXELS / 2;
+        step_x = ax > ay ? BATTLE_LEAP_PIXELS : BATTLE_LEAP_PIXELS / 2;
+        step_y = ay > ax ? BATTLE_LEAP_PIXELS : BATTLE_LEAP_PIXELS / 2;
     }
     while(screen.mover_dx != 0 || screen.mover_dy != 0) {
         if(leap) {

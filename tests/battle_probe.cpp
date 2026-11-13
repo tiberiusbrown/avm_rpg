@@ -11,7 +11,7 @@ volatile uint8_t probe_marks;
 volatile int16_t probe_score;
 volatile uint8_t probe_unit, probe_dest;
 volatile uint16_t probe_nodes, probe_leaves, probe_checksum;
-volatile uint8_t probe_completed, probe_exhausted;
+volatile uint8_t probe_completed, probe_exhausted, probe_progress;
 // Zero at run time. The compiler cannot prove it, so each kernel iteration keeps its real work.
 volatile uint8_t probe_zero;
 
@@ -60,6 +60,7 @@ static void record(BattleAction action) {
     probe_leaves = st.leaves;
     probe_completed = st.completed;
     probe_exhausted = st.exhausted;
+    probe_progress = st.progress;
 }
 
 // Runs the enemy's whole decision between two marks, as the battle screen calls it. The results are

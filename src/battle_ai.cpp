@@ -589,6 +589,24 @@ static void note_cutoff(BattleState const& parent, uint8_t ply, uint8_t packed) 
         killers[ply] = packed;
 }
 
+// Positions between a budgeted search's progress steps. Zero, for no budget or one below
+// BATTLE_AI_PROGRESS_STEPS, reports no progress. One byte holds it for budgets below 2,560.
+static uint8_t progress_interval(uint16_t budget) {
+    uint16_t interval = (uint16_t)(budget / BATTLE_AI_PROGRESS_STEPS);
+    return (uint8_t)(interval > 0xFF ? 0xFF : interval);
+}
+
+// Reports one progress step, numbered by the positions visited so far, and returns the countdown
+// to the next. Kept out of line, so the search's frame does not grow by the call's work; it runs
+// only a few times a second.
+RPG_NOINLINE static uint8_t report_progress(uint16_t budget, uint16_t visited) {
+    uint8_t interval = progress_interval(budget);
+    if(COUNT_STATS)
+        ++stats.progress;
+    battle_think_progress((uint8_t)(visited / interval));
+    return interval;
+}
+
 // Negamax with alpha-beta pruning over an explicit stack, so the search never recurses. Each ply
 // expands its children in search order. A child that is terminal or at the depth limit is scored
 // where it was built and does not occupy a ply. The root keeps the first action that raises its
@@ -596,10 +614,9 @@ static void note_cutoff(BattleState const& parent, uint8_t ply, uint8_t packed) 
 // visited, and stores the result in `found` once the tree is finished. Returns `budget` without
 // finishing when one more position would exceed it; a budget of zero is unlimited. Inlined into its
 // only caller, deepen, so the guest stack carries one frame for both.
-static inline __attribute__((always_inline)) uint16_t search_tree(BattleState const& root,
-                                                                  uint8_t depth, uint16_t budget,
-                                                                  uint8_t first,
-                                                                  BattleSearchResult& found) {
+static inline __attribute__((always_inline)) uint16_t
+search_tree(BattleState const& root, uint8_t depth, uint16_t budget, uint8_t first,
+            BattleSearchResult& found, uint16_t whole_budget, uint16_t used, uint8_t& until) {
     uint16_t nodes = 0;
     for(uint8_t i = 0; i < BATTLE_AI_DEPTH; ++i)
         killers[i] = 0; // No killer yet. A legal byte here only reorders, deterministically.
@@ -641,6 +658,8 @@ static inline __attribute__((always_inline)) uint16_t search_tree(BattleState co
             return nodes;
         }
         ++nodes;
+        if(until && !--until)
+            until = report_progress(whole_budget, (uint16_t)(used + nodes));
 
         BattleState const& parent = ply == 0 ? root : ply_state[ply - 1];
         bool pass = node.next > node.end;
@@ -712,6 +731,8 @@ RPG_NOINLINE static BattleSearchResult deepen(BattleState const& state, uint8_t 
         deepest = limit;
     if(shallowest > deepest)
         shallowest = deepest;
+    // The first progress step comes after one interval, so a quick decision reports none.
+    uint8_t until = progress_interval(budget);
     uint16_t used = 0, last = 0;
     uint8_t first = battle_pass_marker(state);
     for(uint8_t depth = shallowest; depth <= deepest; ++depth) {
@@ -722,7 +743,7 @@ RPG_NOINLINE static BattleSearchResult deepen(BattleState const& state, uint8_t 
                 break;
         }
         BattleSearchResult found{PASS_ACTION, 0, 0};
-        uint16_t nodes = search_tree(state, depth, left, first, found);
+        uint16_t nodes = search_tree(state, depth, left, first, found, budget, used, until);
         used = saturating_add(used, nodes);
         if(COUNT_STATS) {
             stats.iteration_nodes[depth - 1] = nodes;
@@ -751,6 +772,11 @@ BattleSearchResult battle_search(BattleState const& state, uint8_t depth) {
 BattleSearchResult battle_think(BattleState const& state, uint8_t max_depth, uint16_t budget) {
     return deepen(state, 1, clamp_depth(max_depth), budget);
 }
+
+#if !defined(RPG_AVM)
+// Host programs draw nothing; the stats count the calls.
+void battle_think_progress(uint8_t) {}
+#endif
 
 BattleSearchStats battle_search_stats() {
     return stats;

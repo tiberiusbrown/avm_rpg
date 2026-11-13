@@ -421,25 +421,25 @@ struct GroveAction {
 // party actions with the enemy's replies applied. The rogue (10 HP) begins at (2,1) and the archer
 // (9) at (1,2); the wolf (9) at (6,1) and the brute (12) at (5,2). Trees stand at (4,0) and (6,0),
 // rocks at (1,3), and a boulder at (4,3). Every move costs its mover 1 HP and hits each adjacent
-// enemy for 1. The battle ends in victory on the enemy's turn: its last unit, the wolf at 1 HP, has
-// no attack, and the move it must make costs its last HP.
+// enemy for 1. The battle ends in victory on the enemy's turn: its last unit, the brute at 1 HP,
+// has no attack, and the move it must make costs its last HP.
 constexpr GroveAction GROVE_VICTORY_PLAN[] = {
     {{1, 2}, {5, 2}, true},  // The archer shoots the brute. The brute steps to (6,2).
-    {{2, 1}, {4, 2}, false}, // The rogue leaps to (4,2). The wolf runs to (5,1).
-    {{4, 2}, {6, 3}, false}, // The rogue leaps beside the brute, engaging it. The brute hits back.
-    {{6, 3}, {6, 2}, true},  // The rogue strikes the brute, which strikes back.
-    {{6, 3}, {6, 2}, true},  // The rogue leaves the brute at 1 HP. The wolf runs to (5,3), biting
-                             // the rogue.
-    {{6, 3}, {5, 1}, false}, // The rogue leaps to (5,1). The wolf runs to (5,2), biting it again.
-    {{5, 1}, {5, 2}, true},  // The 1 HP rogue strikes the wolf, which retreats to (5,3).
-    {{5, 1}, {6, 3}, false}, // The rogue leaps between both, engaging them: the brute falls, then
-                             // the rogue. The 1 HP wolf must move, and falls.
+    {{2, 1}, {4, 2}, false}, // The rogue leaps to (4,2). The wolf runs to (4,1), biting the rogue.
+    {{4, 2}, {4, 1}, true},  // The rogue strikes the wolf, which strikes back.
+    {{4, 2}, {4, 1}, true},  // The rogue strikes the wolf again. The 1 HP wolf runs to (6,1).
+    {{1, 2}, {2, 2}, false}, // The archer steps east. The brute steps to (5,2), beside the rogue.
+    {{4, 2}, {5, 2}, true},  // The rogue strikes the brute, which knocks it back to (3,2).
+    {{3, 2}, {5, 1}, false}, // The rogue leaps to (5,1), engaging the wolf, which falls, and the
+                             // brute, which steps to (5,3).
+    {{5, 1}, {6, 3}, false}, // The 1 HP rogue leaps beside the brute and falls. The 1 HP brute must
+                             // move, and falls.
 };
 
 // After each hero action the test advances past both sides' reactions: the hero's own animation,
 // the enemy pause, the enemy's search, the enemy's animation, and the enemy's result pause. The
-// search's node budget keeps it under about 15 million cycles on the AVM at the positions measured
-// in docs/performance.md, under a second of frozen display. 120 million cycles (375 frames of
+// search's node budget keeps it under about 31 million cycles on the AVM at the positions measured
+// in docs/performance.md, under two seconds of thinking. 120 million cycles (375 frames of
 // 320,000 cycles each) leaves a margin for every entry.
 constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 120000000;
 

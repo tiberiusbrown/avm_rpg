@@ -143,8 +143,8 @@ overworld cache and from the current area.
   unless that damage defeats the last enemy, which wins the battle before the cost is paid. A side
   with no legal action passes, and its first living unit loses 1 HP. Every activation costs HP, so
   every battle ends.
-- A straight move walks at the exploration walking speed and pose, and a knight leap glides straight
-  to its cell. An archer faces its target and looses an arrow, drawn in one of four direction
+- A straight move walks at the exploration walking speed and pose. A knight leap is a fast arcing
+  jump: the rogue reaches its cell in eight frames, rising up to ten pixels above its path. An archer faces its target and looses an arrow, drawn in one of four direction
   sprites, which flies four pixels a frame from the archer to the target; the target flashes only
   once the arrow arrives. Any other attacker lunges four pixels toward its target, holds for about a
   quarter second, and returns. Once a move arrives, every unit that lost HP flashes: for about a
@@ -152,13 +152,15 @@ overworld cache and from the current area.
   its new cell. The next turn waits for the flashing to end, and a defeated unit flashes before it
   disappears.
 - Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
-  a time, up to four, within a budget of 240 positions (fewer with more than four living units), and
+  a time, up to four, within a budget of 480 positions (fewer with more than four living units), and
   uses the deepest completed search. It assumes the heroes reply with their best action. It scores a
   position by the damage it deals and the heroes it removes, which count for more than its own losses,
   plus terms for the attacks each side can make and for how far each enemy still is from an attack
   position. Moves that damage or defeat enemies are searched alongside attacks. The search runs
-  synchronously: about 0.5 to 0.8 seconds on the AVM in the measured Grove positions, and under a
-  second in every measured position, including three and four units a side (`docs/performance.md`).
+  synchronously and takes up to two seconds on the AVM: 0.3 to 1.9 seconds in the measured positions,
+  including three and four units a side (`docs/performance.md`). While it runs, a small box at the
+  center of the screen shows three dots that fill in about five times a second; each update redraws
+  only that box and pushes the display without clearing it.
 - A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
   position, flags, or any other overworld state.
 

@@ -118,53 +118,62 @@ on them or moves through them, they stop shots, thrusts, and knockback, and a ro
 them but cannot land on them.
 
 The enemy chooses with a non-recursive negamax search with alpha-beta pruning (`src/battle_ai.cpp`),
-deepened one ply at a time under a deterministic node budget: 240 positions with up to four living
-units, scaled by four over the living units beyond that (160 with six, 120 with eight). Only a completed
+deepened one ply at a time under a deterministic node budget: 480 positions with up to four living
+units, scaled by four over the living units beyond that (320 with six, 240 with eight). Only a completed
 iteration's choice is used; with none, the greedy choice is. Every guest link reports a complete stack
-bound. A position costs about 0.95 ms per living unit, so a spent budget stays under a second: the
-budget was 300 (200 with six, 150 with eight), and with terrain the three-a-side and in-contact
-positions spent it in 1.07 and 1.18 s.
+bound. The budget allows up to two seconds per enemy move: a position costs about 3.7 ms with four
+living units, 5.4 ms with six, and 7.9 ms with eight, so a spent budget takes 1.75 to 1.9 s. It was
+240 (160, 120), which kept every decision under a second.
 
-Measured on the AVM emulator with `tests/battle_probe.cpp` (`avm time` at each probe mark), and on
-the host with `rpg_battle_bench`. "Before" is the open battlefield with the 300-position budget. The
-opening has the enemy to act before any party move. The in-play position is the first enemy turn after
-the archer's opening shot at the brute. The engagement positions put the wolf one run from one party
-unit, or from a cell beside both; the sacrifice gives the 1 HP wolf a run beside the party's last unit,
-a 1 HP archer. The four-a-side position is fighter, rogue, archer, and spearman against wolf, brute,
-archer, and fighter, four columns apart; three a side drops each side's last unit; "in contact" moves
-the enemy line two columns closer. The round tree now stands where the many-ranged and four-a-side
-positions had their enemy at (6,0), so that unit starts at (7,0), and the trees differ.
+While the budgeted search runs it reports progress every budget / 10 positions, the first after one
+interval, so a spent budget gives ten steps, about five a second, and a decision under 0.2 s gives
+none. Each step calls `battle_think_progress` (`src/battle_thinking.cpp`), which redraws only a 21x9
+box at the screen's center over the board already in the display buffer, lights one more of its three
+dots, and pushes the buffer with `avm_display(false)`. A step costs about 25 thousand cycles (1.6 ms),
+under 1.5 percent of the search. The countdown is one byte of the search's frame, and the interval and
+step number come from the budget and the positions already counted, so the indicator takes no static
+RAM.
 
-| Position | Before (seconds, nodes) | After (cycles, seconds) | Nodes | Deepest completed | Budget reached | Host µs |
-|---|---:|---:|---:|---:|---|---:|
-| Initial encounter (opening) | 0.69 s, 195 | 8,792,788 (0.55 s) | 149 | 3 | no | 4.7 |
-| In-play first enemy turn | 0.69 s, 195 | 8,792,721 (0.55 s) | 149 | 3 | no | 4.5 |
-| Mid-battle adjacent combat | 0.82 s, 236 | 11,974,263 (0.75 s) | 209 | 3 | no | 6.7 |
-| Many ranged options (archers and a spearman) | 0.47 s, 134 | 13,036,896 (0.81 s) | 219 | 4 | no | 6.8 |
-| Wolf sprint options (two wolves) | 0.88 s, 257 | 11,297,002 (0.71 s) | 199 | 3 | no | 5.7 |
-| Knockback available (rogue beside the brute) | 0.71 s, 202 | 9,684,438 (0.61 s) | 167 | 3 | no | 5.3 |
-| One engagement target | 0.87 s, 252 | 9,994,038 (0.62 s) | 174 | 3 | no | 5.4 |
-| Two engagement targets | 0.50 s, 139 | 7,735,598 (0.48 s) | 130 | 3 | no | 4.1 |
-| 1 HP sacrifice that wins | 0.008 s, 1 | 139,398 (0.009 s) | 1 | 1 | no | 0.1 |
-| Opening after 19 activations | 0.69 s, 195 | 8,792,788 (0.55 s) | 149 | 3 | no | 4.8 |
-| Adjacent combat after 21 activations | 0.82 s, 236 | 11,974,307 (0.75 s) | 209 | 3 | no | 6.4 |
-| One survivor per side | 0.44 s, 163 | 5,370,511 (0.34 s) | 119 | 4 | no | 3.1 |
-| Four a side (budget 120) | 0.73 s, 116 | 7,908,586 (0.49 s) | 75 | 2 | no | 4.1 |
-| Three a side (budget 160) | 0.38 s, 77 | 13,710,179 (0.86 s) | 160 | 2 | yes | 8.5 |
-| Four a side in contact (budget 120) | 0.50 s, 65 | 15,123,574 (0.95 s) | 120 | 2 | yes | 8.1 |
+Measured on the AVM emulator with `tests/battle_probe.cpp` (`avm time` at each probe mark, the
+progress steps drawn), and on the host with `rpg_battle_bench`. "Before" is the 240-position budget.
+The opening has the enemy to act before any party move. The in-play position is the first enemy turn
+after the archer's opening shot at the brute. The engagement positions put the wolf one run from one
+party unit, or from a cell beside both; the sacrifice gives the 1 HP wolf a run beside the party's last
+unit, a 1 HP archer. The four-a-side position is fighter, rogue, archer, and spearman against wolf,
+brute, archer, and fighter, four columns apart; three a side drops each side's last unit; "in contact"
+moves the enemy line two columns closer.
 
-Every measured decision takes under a second; the Grove's routine ones take 0.48 to 0.81 s. Terrain
-removes moves and lines, so most Grove trees are smaller than on the open field, while the three- and
-four-a-side positions change shape and now spend their budgets on an abandoned third iteration. The
-lower budget changes none of the measured choices. The activation count does not change the rules, so
-the late positions search exactly like the early ones. Over 300 random enemy-to-act positions from
-Grove play, the bounded search visits 164 positions on average, completes depth three in 281 and depth
-four in 4, falls back to depth two in 15, and reaches the budget in 24. A complete depth-four search
-there averages 363 positions (at most 662).
+| Position | Before (seconds, nodes) | After (cycles, seconds) | Nodes | Deepest completed | Budget reached | Progress steps | Host µs |
+|---|---:|---:|---:|---:|---|---:|---:|
+| Initial encounter (opening) | 0.55 s, 149 | 25,642,951 (1.60 s) | 407 | 4 | no | 8 | 13.9 |
+| In-play first enemy turn | 0.55 s, 149 | 25,642,918 (1.60 s) | 407 | 4 | no | 8 | 13.1 |
+| Mid-battle adjacent combat | 0.75 s, 209 | 12,074,459 (0.75 s) | 209 | 3 | no | 4 | 6.4 |
+| Many ranged options (archers and a spearman) | 0.81 s, 219 | 13,137,527 (0.82 s) | 219 | 4 | no | 4 | 7.1 |
+| Wolf sprint options (two wolves) | 0.71 s, 199 | 11,396,685 (0.71 s) | 199 | 3 | no | 4 | 6.4 |
+| Knockback available (rogue beside the brute) | 0.61 s, 167 | 29,997,341 (1.87 s) | 480 | 3 | yes | 10 | 16.3 |
+| One engagement target | 0.62 s, 174 | 30,365,671 (1.90 s) | 480 | 3 | yes | 10 | 16.9 |
+| Two engagement targets | 0.48 s, 130 | 26,495,381 (1.66 s) | 408 | 4 | no | 8 | 14.4 |
+| 1 HP sacrifice that wins | 0.009 s, 1 | 139,232 (0.009 s) | 1 | 1 | no | 0 | 0.1 |
+| Opening after 19 activations | 0.55 s, 149 | 25,642,924 (1.60 s) | 407 | 4 | no | 8 | 14.2 |
+| Adjacent combat after 21 activations | 0.75 s, 209 | 12,074,459 (0.75 s) | 209 | 3 | no | 4 | 6.3 |
+| One survivor per side | 0.34 s, 119 | 5,420,353 (0.34 s) | 119 | 4 | no | 2 | 3.0 |
+| Four a side (budget 240) | 0.49 s, 75 | 26,107,383 (1.63 s) | 240 | 2 | yes | 10 | 13.7 |
+| Three a side (budget 320) | 0.86 s, 160 | 22,212,066 (1.39 s) | 260 | 3 | no | 8 | 12.7 |
+| Four a side in contact (budget 240) | 0.95 s, 120 | 27,873,675 (1.74 s) | 224 | 3 | no | 9 | 14.7 |
+
+Every measured decision takes under 1.9 s. The opening, in-play, and two-engagement positions now
+complete depth four (1.6 to 1.7 s), and the three-a-side and in-contact positions depth three. Where
+the doubling rule predicts that depth four would not fit (adjacent combat, the wolf sprint), the
+search stops at depth three as before, so those decisions are unchanged. The knockback and one-target
+positions start depth four and run out of budget, so they spend 1.9 s and keep depth three's choice.
+The activation count does not change the rules, so the late positions search exactly like the early
+ones. Over 300 random enemy-to-act positions from Grove play, the bounded search visits 373 positions
+on average, completes depth four in 167 and depth three in 133, and reaches the budget in 73. A
+complete depth-four search there averages 363 positions (at most 662).
 
 The complete search at each depth on the in-play position: depth one 0.49 M cycles (9 nodes), depth
-two 1.83 M (30), depth three 7.52 M (128), depth four 19.34 M (302 nodes, 1.21 s). Depth four alone
-would freeze the display for over a second.
+two 1.83 M (30), depth three 7.51 M (128), depth four 19.34 M (302 nodes, 1.21 s). The deepening run
+needs more, 407 positions, because each iteration repeats the shallower ones.
 
 Terrain costs the rules little. `Battlefield` holds a four-byte blocked mask, one byte per row, and a
 compile-time 128-byte table of the cell pairs that terrain screens, so a line check adds one
@@ -237,8 +246,14 @@ object costs 230 to 320 cycles on the AVM, because every constant object sits in
 
 | Guest | Static RAM | Code | Read-only data | Stack / 256 |
 |---|---:|---:|---:|---:|
-| rpg | 473 → 501 | 24,393 → 28,676 | 121,449 → 121,869 | 243 → 228 |
-| rpg_qa | 477 → 505 | 24,549 → 28,832 | 121,449 → 121,869 | 245 → 230 |
+| rpg | 473 → 501 | 24,393 → 28,945 | 121,449 → 121,869 | 243 → 232 |
+| rpg_qa | 477 → 505 | 24,549 → 29,101 | 121,449 → 121,869 | 245 → 234 |
+
+The thinking indicator and the arcing leap add 269 bytes of code (28,676 → 28,945) and no static RAM
+or read-only data. The stack bound rises from 228 to 232: the progress countdown and the values that
+number a step stay live in deepen's frame (40 → 44 bytes), which lies on the deepest path. Keeping the
+countdown, interval, and step in statics instead saved two of those bytes for three bytes of static
+RAM. The indicator's own calls run from deepen and stay shallower than the evaluation below it.
 
 Terrain and the arrow animation leave static RAM at 501 bytes. They add 266 bytes of code (28,410 →
 28,676) and 394 of read-only data (the four 16x16 arrow sprites with masks, 256 bytes, and the
@@ -258,7 +273,7 @@ enumerator's occupancy masks, the ordering's target cells (eight bytes), and the
 mask are frame locals. The static RAM increase is the 28 bytes of workspace.
 
 The deepest shipping path is explore → update_visible_world → run_chunk (the battle screen, 45 bytes)
-→ enemy_turn (9) → deepen (40, the search loop inlined) → battle_score (42) → battle_line_blocked
+→ enemy_turn (9) → deepen (44, the search loop inlined) → battle_score (42) → battle_line_blocked
 (14). The arrow's flight runs inside the battle screen's resolve and never overlaps the search. The search parameters are arguments, and the
 loop has one caller, so it shares its frame with the deepening loop.
 
@@ -281,28 +296,28 @@ plays 64 seeded games; rows are averages per game, pairs are party/enemy, and th
 longest retreat run are totals or maxima. An engaging move is one that damaged an opponent; the price
 is the HP movers paid; a sacrifice is a move by a 1 HP unit, and a sacrifice win is one whose engagement
 won the battle. Every simulated activation is checked to lower the total HP, and every battle to end
-within its starting HP. The open-field rows are the same games before terrain and the 240-position
-budget.
+within its starting HP. The "240 budget" rows are the same games under the one-second budget.
 
 | Party policy | Activations | Attacks | Moves | Engaging moves | Engagement damage | Price | Sacrifices | Sacrifice wins | Passes | Damage taken | Enemy retreats | Party wins / losses |
 |---|---:|---|---|---|---|---|---|---|---|---|---:|---:|
-| Aggressive | 27 | 3 / 3 | 11 / 10 | 1 / 0 | 1 / 0 | 11 / 10 | 1 / 1 | 0 / 0 | 0 / 0 | 19 / 20 | 7 | 0 / 1 |
-| Defensive | 34 | 1 / 0 | 16 / 17 | 0 / 3 | 0 / 3 | 16 / 16 | 1 / 1 | 0 / 1 | 0 / 0 | 19 / 19 | 1 | 0 / 1 |
-| Greedy | 25 | 4 / 3 | 9 / 9 | 1 / 1 | 1 / 1 | 9 / 9 | 1 / 0 | 0 / 0 | 0 / 0 | 19 / 20 | 5 | 0 / 1 |
+| Aggressive | 24 | 3 / 2 | 9 / 10 | 2 / 2 | 2 / 2 | 9 / 10 | 0 / 1 | 0 / 0 | 0 / 0 | 16 / 21 | 7 | 1 / 0 |
+| Defensive | 30 | 2 / 0 | 13 / 15 | 0 / 5 | 0 / 5 | 13 / 15 | 0 / 2 | 0 / 0 | 0 / 0 | 18 / 21 | 8 | 1 / 0 |
+| Greedy | 23 | 3 / 3 | 9 / 8 | 1 / 1 | 1 / 1 | 9 / 8 | 1 / 1 | 0 / 0 | 0 / 0 | 19 / 18 | 5 | 0 / 1 |
 | Search | 24 | 4 / 2 | 8 / 10 | 1 / 1 | 1 / 1 | 8 / 10 | 1 / 1 | 0 / 0 | 0 / 0 | 15 / 21 | 3 | 1 / 0 |
-| Random (64 games) | 17.9 | 0.5 / 2.9 | 8.5 / 5.9 | 1.6 / 2.7 | 1.7 / 2.9 | 8.5 / 5.6 | 0.5 / 0.0 | 0 / 0 | 0.1 / 0 | 18.9 / 8.5 | 1.0 | 0 / 64 |
-| Open field: aggressive | 20 | 4 / 3 | 6 / 7 | 2 / 1 | 2 / 1 | 6 / 7 | 0 / 2 | 0 / 0 | 0 / 0 | 13 / 21 | 4 | 1 / 0 |
-| Open field: defensive | 19 | 1 / 2 | 9 / 7 | 1 / 4 | 1 / 4 | 9 / 7 | 1 / 0 | 0 / 0 | 0 / 0 | 19 / 11 | 1 | 0 / 1 |
-| Open field: greedy | 26 | 4 / 3 | 9 / 10 | 1 / 2 | 1 / 2 | 9 / 9 | 0 / 1 | 0 / 1 | 0 / 0 | 19 / 20 | 7 | 0 / 1 |
-| Open field: search | 29 | 2 / 1 | 13 / 13 | 2 / 2 | 2 / 2 | 12 / 13 | 1 / 0 | 0 / 0 | 0 / 0 | 17 / 21 | 4 | 1 / 0 |
-| Open field: random | 19.0 | 0.4 / 2.5 | 9.2 / 6.8 | 1.5 / 3.4 | 1.5 / 3.6 | 9.2 / 6.4 | 0.7 / 0.1 | 0 / 0.1 | 0 / 0 | 19.0 / 9.2 | 0.8 | 1 / 63 |
+| Random (64 games) | 18.1 | 0.5 / 2.8 | 8.7 / 6.1 | 1.5 / 3.0 | 1.5 / 3.1 | 8.7 / 5.8 | 0.5 / 0.1 | 0 / 0 | 0 / 0 | 19.0 / 8.7 | 0.9 | 0 / 64 |
+| 240 budget: aggressive | 27 | 3 / 3 | 11 / 10 | 1 / 0 | 1 / 0 | 11 / 10 | 1 / 1 | 0 / 0 | 0 / 0 | 19 / 20 | 7 | 0 / 1 |
+| 240 budget: defensive | 34 | 1 / 0 | 16 / 17 | 0 / 3 | 0 / 3 | 16 / 16 | 1 / 1 | 0 / 1 | 0 / 0 | 19 / 19 | 1 | 0 / 1 |
+| 240 budget: greedy | 25 | 4 / 3 | 9 / 9 | 1 / 1 | 1 / 1 | 9 / 9 | 1 / 0 | 0 / 0 | 0 / 0 | 19 / 20 | 5 | 0 / 1 |
+| 240 budget: search | 24 | 4 / 2 | 8 / 10 | 1 / 1 | 1 / 1 | 8 / 10 | 1 / 1 | 0 / 0 | 0 / 0 | 15 / 21 | 3 | 1 / 0 |
+| 240 budget: random | 17.9 | 0.5 / 2.9 | 8.5 / 5.9 | 1.6 / 2.7 | 1.7 / 2.9 | 8.5 / 5.6 | 0.5 / 0.0 | 0 / 0 | 0.1 / 0 | 18.9 / 8.5 | 1.0 | 0 / 64 |
 
-Terrain narrows the field to the lane through rows 1 and 2, so fewer moves engage and the blood price
-makes up more of the damage; the defensive game, which mostly repositions, lasts 34 activations, still
-within the 40 the starting HP allow. The enemy now beats the aggressive party as well. Device QA wins
-with an eight-action plan found by breadth-first search against the real enemy (`GROVE_VICTORY_PLAN`
-in `tests/device_tests.cpp`); its last turn leaves the 1 HP wolf with moves but no attack, so it must
-pay its last HP.
+Terrain narrows the field to the lane through rows 1 and 2, so few moves engage and the blood price
+makes up much of the damage. Each deterministic policy plays a single game, so one changed enemy
+choice can flip its result: under the larger budget the aggressive and defensive parties now win,
+while the random party still loses all 64 games, and the enemy's engagement damage against the
+defensive party rises from 3 to 5. Device QA wins with an eight-action plan found by breadth-first
+search against the real enemy (`GROVE_VICTORY_PLAN` in `tests/device_tests.cpp`); its last turn
+leaves the 1 HP brute with moves but no attack, so it must pay its last HP.
 
 ## Reproduce
 
