@@ -77,6 +77,9 @@ versions 1–3.** Its save format is version 4; new saves still use 24 bytes.
   `assets/maps/AUTHORING_INTERIOR.md`.
 - `assets/images/actors16.png`: 32 character rows (16 people, then 16 creatures and
   enemies), 12 frames per row, binary alpha.
+- `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle
+  cursor, the destination markers, and the archer's arrow, one 16x16 frame per direction in
+  north/east/south/west order.
 - `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
   encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
@@ -116,39 +119,51 @@ overworld cache and from the current area.
   can be selected again without moving the cursor.
 - Each unit is one of six archetypes, with separate movement and attack patterns:
 
-  | Archetype | Movement | Attack | Damage |
-  |---|---|---|---|
-  | Fighter | one cell straight | adjacent | 2 |
-  | Rogue | knight leap over anything | adjacent | 2 |
-  | Archer | one cell straight | straight line, 2 to 4 cells | 2 |
-  | Spearman | one cell straight | straight line, 1 or 2 cells | 2 |
-  | Wolf | one or two cells straight | adjacent | 2 |
-  | Brute | one cell straight | adjacent, then knockback | 1 |
+  | Archetype | Movement | Attack | Damage | Starting HP |
+  |---|---|---|---|---|
+  | Fighter | one cell straight | adjacent | 3 | 10 |
+  | Rogue | knight leap over anything | adjacent | 3 | 10 |
+  | Archer | one cell straight | straight line, 2 to 4 cells | 3 | 9 |
+  | Spearman | one cell straight | straight line, 1 or 2 cells | 3 | 10 |
+  | Wolf | one or two cells straight | adjacent | 3 | 9 |
+  | Brute | one cell straight | adjacent, then knockback | 2 | 12 |
 
-  Moves need empty cells all the way, except the rogue's leap, which needs only an empty landing
-  cell. Attacks need every cell between to be empty, whoever stands there. A brute pushes a surviving
-  victim one cell straight away when that cell is on the board and empty. Attackers never move.
-  A battle holds up to four units a side. The Grove pits the party's rogue and archer against a
-  wolf and a brute.
-- Each activation is one move or one attack. A straight move walks at the exploration walking speed
-  and pose, and a knight leap glides straight to its cell. An attacker, ranged or not, lunges four
-  pixels toward its target, holds for about a quarter second, and returns. Every unit that loses HP
-  flashes on and off for about a second, at its new cell after a knockback. The next turn waits for the
-  flashing to end, and a defeated unit flashes before it disappears.
+  Moves need empty, open cells all the way, except the rogue's leap, which needs only an empty, open
+  landing cell. Attacks need every cell between to be empty and open, whoever stands there. A brute
+  pushes a surviving victim one cell straight away when that cell is on the board, empty, and open.
+  Attackers never move. A battle holds up to four units a side. The Grove pits the party's rogue and
+  archer against a wolf and a brute.
+- Battlefield tiles with collision in the world tileset block. No unit stands on them or moves
+  through them, and they stop arrows, spear thrusts, and knockback. A rogue's leap passes over them,
+  as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at
+  (6,0), rocks at (1,3), and a boulder at (4,3), which leave an open lane through rows 1 and 2.
+- Each activation is one move or one attack. Every move costs its mover 1 HP, whatever its
+  distance, but first deals 1 damage to every enemy beside its destination; an attack costs nothing
+  and hits only its target. A unit with 1 HP may still move: it deals its damage and then falls,
+  unless that damage defeats the last enemy, which wins the battle before the cost is paid. A side
+  with no legal action passes, and its first living unit loses 1 HP. Every activation costs HP, so
+  every battle ends.
+- A straight move walks at the exploration walking speed and pose, and a knight leap glides straight
+  to its cell. An archer faces its target and looses an arrow, drawn in one of four direction
+  sprites, which flies four pixels a frame from the archer to the target; the target flashes only
+  once the arrow arrives. Any other attacker lunges four pixels toward its target, holds for about a
+  quarter second, and returns. Once a move arrives, every unit that lost HP flashes: for about a
+  second when an enemy was hit, and briefly when only the mover paid. A knocked-back unit flashes at
+  its new cell. The next turn waits for the flashing to end, and a defeated unit flashes before it
+  disappears.
 - Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
-  a time, up to four, within a budget of 300 positions (fewer with more than four living units), and
-  uses the deepest completed search. It
-  assumes the heroes reply with their best action. It scores a position by the damage it deals and the
-  heroes it removes, which count for more than its own losses, plus terms for the attacks each side can
-  make and for how far each enemy still is from an attack position. The search runs synchronously:
-  about 0.6 to 0.75 seconds on the AVM in the measured Grove positions, and under 0.9 seconds in every
-  measured position, including three and four units a side (`docs/performance.md`).
-- From the 21st completed activation onward, the acting unit loses 1 HP after its action.
+  a time, up to four, within a budget of 240 positions (fewer with more than four living units), and
+  uses the deepest completed search. It assumes the heroes reply with their best action. It scores a
+  position by the damage it deals and the heroes it removes, which count for more than its own losses,
+  plus terms for the attacks each side can make and for how far each enemy still is from an attack
+  position. Moves that damage or defeat enemies are searched alongside attacks. The search runs
+  synchronously: about 0.5 to 0.8 seconds on the AVM in the measured Grove positions, and under a
+  second in every measured position, including three and four units a side (`docs/performance.md`).
 - A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
   position, flags, or any other overworld state.
 
-The battle is the only feature in this prototype. Other encounters, obstacles, and
-terrain collision are not implemented.
+The battle is the only feature in this prototype. Other encounters and battlefields are not
+implemented.
 
 The bottom-right atlas cell (0xFF) is reserved for the impassable outside-map
 sentinel. Black cells retain their indices. Characters use direction order

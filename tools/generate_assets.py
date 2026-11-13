@@ -1132,6 +1132,25 @@ def read_battle_target_frames(root=ROOT):
     return frames, masks
 
 
+# The archer's arrow in flight: one 16x16 plus-mask frame per direction, in DIRECTION order (north,
+# east, south, west), side by side.
+ARROW_FRAMES = 4
+
+
+def read_battle_arrow_frames(root=ROOT):
+    """Read the arrow frames: four 16x16 plus-mask frames, north, east, south, then west."""
+    path = root / "assets" / "images" / "battle_arrows16.png"
+    with Image.open(path) as image:
+        require(
+            image.format == "PNG" and image.size == (ARROW_FRAMES * TILE_SIZE, TILE_SIZE),
+            path,
+            f"expected a PNG {ARROW_FRAMES * TILE_SIZE} pixels wide and {TILE_SIZE} pixels high "
+            f"holding {ARROW_FRAMES} frames: north, east, south, west",
+        )
+    frames, masks = read_sprite_sheet("battle_arrows16.png", ARROW_FRAMES, root)
+    return frames, masks
+
+
 def frame_bytes(rows, size=TILE_SIZE):
     # Page-major bytes. Bits below the frame's last row are padding and stay zero.
     return [
@@ -1180,8 +1199,9 @@ def generate(root=ROOT):
     actor_rows = len(actor_frames) // ACTOR_COLUMNS
     cursor_frames, cursor_masks = read_cursor_frames(root)
     target_frames, target_masks = read_battle_target_frames(root)
+    arrow_frames, arrow_masks = read_battle_arrow_frames(root)
     art = [
-        "/* Generated; 16x16 tiles, alpha-derived actor and battle target plus masks, and the 22x22 cursor plus masks. */",
+        "/* Generated; 16x16 tiles, alpha-derived actor, battle target, and arrow plus masks, and the 22x22 cursor plus masks. */",
         '#include "rpg.h"',
         "",
         "// clang-format off: preserve frame byte groups.",
@@ -1194,6 +1214,8 @@ def generate(root=ROOT):
     art += sprite_lines("CURSOR_SPRITES", cursor_frames, cursor_masks, CURSOR_SIZE)
     art.append("")
     art += sprite_lines("BATTLE_TARGET_SPRITES", target_frames, target_masks)
+    art.append("")
+    art += sprite_lines("BATTLE_ARROW_SPRITES", arrow_frames, arrow_masks)
     art.append("// clang-format on")
     art += [
         "",
@@ -1205,6 +1227,8 @@ def generate(root=ROOT):
         '"BATTLE_TARGET_FRAMES must match the frames in each row of battle_targets16.png");',
         f"static_assert(BATTLE_TARGET_ATTACK + BATTLE_TARGET_FRAMES == {TARGET_COUNT}, "
         '"the destination markers must match the frames in battle_targets16.png");',
+        f"static_assert(BATTLE_ARROW_FRAMES == {ARROW_FRAMES}, "
+        '"BATTLE_ARROW_FRAMES must match the frames in battle_arrows16.png");',
     ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]

@@ -18,8 +18,12 @@ inline constexpr uint8_t BATTLE_NO_UNIT = BATTLE_UNIT_CAPACITY;
 // The most HP a unit can hold.
 inline constexpr uint8_t BATTLE_MAX_HP = 15;
 
-// Completed activations after this many lose one HP from the acting unit.
-inline constexpr uint8_t BATTLE_EXHAUSTION_START = 20;
+// The blood price: every voluntary move costs its unit this much HP, after the move's engagement
+// damage. A forced pass costs the passing side's first living unit the same.
+inline constexpr uint8_t BATTLE_MOVE_COST = 1;
+// Engagement damage: a unit that moves deals this much to every enemy orthogonally adjacent to its
+// destination.
+inline constexpr uint8_t BATTLE_ENGAGEMENT_DAMAGE = 1;
 
 enum BATTLE_TEAM : uint8_t { BATTLE_PARTY, BATTLE_ENEMY };
 
@@ -27,9 +31,19 @@ enum BATTLE_TEAM : uint8_t { BATTLE_PARTY, BATTLE_ENEMY };
 enum BATTLE_RESULT : uint8_t { BATTLE_VICTORY, BATTLE_DEFEAT };
 
 // Terrain only. Its tile IDs belong to one tileset, which need not be the overworld area's.
+// A cell whose tile has collision in its tileset blocks: no unit stands on it or moves through it,
+// no shot or thrust passes it, and no knockback pushes a unit onto it. A rogue's leap still passes
+// over it, as it passes over units, but cannot land on it. `blocked` holds the same information as
+// the tiles' collision, one bit per cell (bit x of blocked[y]), so the rules read four bytes
+// instead of the collision table; the tests check that the two agree. `screened` says, for every
+// pair of cells, whether blocking terrain stands strictly between them on one row or column: for
+// cells a and b, bit b % 8 of screened[a][b / 8]. Terrain never moves, so it is computed once at
+// compile time, and a shot checks it with one load.
 struct Battlefield {
     uint8_t tileset;
     uint8_t const PROGMEM* tiles; // BATTLE_CELLS row-major tile IDs.
+    uint8_t blocked[4];           // One mask per row; BATTLE_ROWS is 4.
+    uint8_t screened[32][4];      // BATTLE_CELLS by BATTLE_CELLS bits.
 };
 
 // Cells are row-major, so one index gives both the column and the row.
@@ -49,6 +63,9 @@ constexpr uint8_t battle_cell(uint8_t column, uint8_t row) {
 enum BATTLEFIELD_ID : uint8_t { BATTLEFIELD_GROVE, BATTLEFIELD_COUNT };
 
 extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
+
+// Whether a battlefield's cell is blocked by its terrain.
+bool battle_blocked(uint8_t field, uint8_t cell);
 
 // How a unit reaches empty cells. An orthogonal unit moves straight north, east, south, or west for
 // one cell up to its move range, and every cell it passes and lands on must be empty. A knight unit
@@ -76,27 +93,29 @@ struct BattleUnitType {
 
 // The six archetypes. The team is stored on each unit, so any type can fight on either side.
 enum BATTLE_UNIT_TYPE : uint8_t {
-    BATTLE_TYPE_FIGHTER,  // Steps one cell; strikes an adjacent unit for 2.
-    BATTLE_TYPE_ROGUE,    // Leaps like a chess knight; strikes an adjacent unit for 2.
-    BATTLE_TYPE_ARCHER,   // Steps one cell; shoots along a clear line 2 to 4 cells away for 2.
-    BATTLE_TYPE_SPEARMAN, // Steps one cell; thrusts along a clear line 1 or 2 cells away for 2.
-    BATTLE_TYPE_WOLF,     // Runs one or two cells straight; bites an adjacent unit for 2.
-    BATTLE_TYPE_BRUTE,    // Steps one cell; strikes an adjacent unit for 1 and knocks it back.
+    BATTLE_TYPE_FIGHTER,  // Steps one cell; strikes an adjacent unit for 3.
+    BATTLE_TYPE_ROGUE,    // Leaps like a chess knight; strikes an adjacent unit for 3.
+    BATTLE_TYPE_ARCHER,   // Steps one cell; shoots along a clear line 2 to 4 cells away for 3.
+    BATTLE_TYPE_SPEARMAN, // Steps one cell; thrusts along a clear line 1 or 2 cells away for 3.
+    BATTLE_TYPE_WOLF,     // Runs one or two cells straight; bites an adjacent unit for 3.
+    BATTLE_TYPE_BRUTE,    // Steps one cell; strikes an adjacent unit for 2 and knocks it back.
     BATTLE_UNIT_TYPE_COUNT,
 };
 
 // The archetype definitions. Sprite rows come from actors16.png: people for the fighter, rogue,
-// archer, and spearman, the four-legged dog for the wolf, and the hulking ogre for the brute. This
-// one initializer builds the program-memory table and the rule copy below.
+// archer, and spearman, the four-legged dog for the wolf, and the hulking ogre for the brute.
+// Normal attacks deal 3, and the brute's 2 plus knockback. Encounters give each unit its HP; the
+// balanced starting values are 10 for a fighter, rogue, or spearman, 9 for an archer or wolf, and
+// 12 for a brute. This one initializer builds the program-memory table and the rule copy below.
 // clang-format off
 #define BATTLE_UNIT_TYPE_INITIALIZER                                                               \
     {                                                                                              \
-        {2, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 1, 2, BATTLE_EFFECT_NONE},       /* Fighter */       \
-        {1, BATTLE_MOVEMENT_KNIGHT, 0, 1, 1, 2, BATTLE_EFFECT_NONE},           /* Rogue */         \
-        {0, BATTLE_MOVEMENT_ORTHOGONAL, 1, 2, 4, 2, BATTLE_EFFECT_NONE},       /* Archer */        \
-        {3, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 2, 2, BATTLE_EFFECT_NONE},       /* Spearman */      \
-        {17, BATTLE_MOVEMENT_ORTHOGONAL, 2, 1, 1, 2, BATTLE_EFFECT_NONE},      /* Wolf */          \
-        {25, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 1, 1, BATTLE_EFFECT_KNOCKBACK}, /* Brute */         \
+        {2, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 1, 3, BATTLE_EFFECT_NONE},       /* Fighter */       \
+        {1, BATTLE_MOVEMENT_KNIGHT, 0, 1, 1, 3, BATTLE_EFFECT_NONE},           /* Rogue */         \
+        {0, BATTLE_MOVEMENT_ORTHOGONAL, 1, 2, 4, 3, BATTLE_EFFECT_NONE},       /* Archer */        \
+        {3, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 2, 3, BATTLE_EFFECT_NONE},       /* Spearman */      \
+        {17, BATTLE_MOVEMENT_ORTHOGONAL, 2, 1, 1, 3, BATTLE_EFFECT_NONE},      /* Wolf */          \
+        {25, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 1, 2, BATTLE_EFFECT_KNOCKBACK}, /* Brute */         \
     }
 // clang-format on
 
@@ -245,17 +264,19 @@ DIRECTION battle_direction(uint8_t from, uint8_t to);
 uint8_t battle_attack_damage(BattleUnit const& unit);
 uint8_t battle_sprite_row(BattleUnit const& unit);
 
-// True when the unit is alive and its movement pattern reaches the cell, which must be empty, along
-// with every cell an orthogonal move passes. Ignores whose turn it is.
+// True when the unit is alive and its movement pattern reaches the cell, which must be empty and
+// open, along with every cell an orthogonal move passes; a knight's leap passes over anything.
+// Ignores whose turn it is.
 bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t destination);
 
-// Whether a living unit stands strictly between two cells on one row or column. The rules use it
-// for attacks and orthogonal moves, and the evaluation uses it for the same attacks.
+// Whether a living unit or blocking terrain stands strictly between two cells on one row or column.
+// The rules use it for attacks and orthogonal moves, and the evaluation uses it for the same
+// attacks.
 bool battle_line_blocked(BattleState const& state, uint8_t a, uint8_t b);
 
 // True when both units are alive and on opposing teams, they share a row or column at a distance
-// within the attacker's range, and no living unit stands between them. Ignores whose turn it is, so
-// the evaluation can ask about either side.
+// within the attacker's range, and no living unit or blocking terrain stands between them. Ignores
+// whose turn it is, so the evaluation can ask about either side.
 bool battle_can_attack(BattleState const& state, uint8_t attacker, uint8_t victim);
 
 // An action is legal when the battle is running, the unit is alive and belongs to the side to act,
@@ -287,27 +308,66 @@ extern uint8_t battle_action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
 // True when the side to act has at least one legal action. It lists in battle_action_scratch.
 bool battle_can_act(BattleState const& state);
 
-// What a legal action does, from the most urgent kind to the least. A win is a kill of the last
-// living opponent, which ends the battle at once.
+// What a legal action does to the opposing side, from the most urgent kind to the least. A win
+// defeats every remaining opponent, by an attack or by a move's engagement damage, and ends the
+// battle at once, even when a sacrificing mover falls too. A kill defeats at least one opponent.
+// Damage is any other action that hurts an opponent: every attack, and a move that engages an
+// adjacent enemy. A quiet move hurts no opponent; it only costs its mover HP.
 enum BATTLE_ACTION_KIND : uint8_t {
     BATTLE_ACTION_WIN,
     BATTLE_ACTION_KILL,
-    BATTLE_ACTION_ATTACK,
-    BATTLE_ACTION_MOVE,
+    BATTLE_ACTION_ATTACK, // Damage without a kill: every other attack, and engaging moves.
+    BATTLE_ACTION_MOVE,   // A quiet move.
 };
 
 BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction action);
 
-// Resolves a legal action. An empty destination is a move. An enemy destination takes the
-// attacker's damage, and the attacker stays where it is. A knockback then pushes a surviving victim
-// one cell directly away when that cell is on the board and empty. Victory or defeat is checked
-// before exhaustion, so a battle-ending action carries no exhaustion charge.
+// The engagement a move to `destination` would make: how many living enemies of the unit stand
+// orthogonally adjacent to it, which each take BATTLE_ENGAGEMENT_DAMAGE, and how many of them that
+// defeats. The destination is assumed empty, as for any legal move.
+struct BattleEngagement {
+    uint8_t hits, kills;
+};
+
+BattleEngagement battle_engagement(BattleState const& state, uint8_t unit_index,
+                                   uint8_t destination);
+
+// Whether two cells share an edge: a row apart (a difference of BATTLE_COLUMNS), or one apart on
+// the same row, so a row wrap is never adjacency.
+constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
+    uint8_t difference = a > b ? (uint8_t)(a - b) : (uint8_t)(b - a);
+    return difference == BATTLE_COLUMNS || (difference == 1 && battle_row(a) == battle_row(b));
+}
+
+// Resolves a legal action, all of it, before deciding whether the battle has ended.
+//
+// A move (an empty destination) has three effects in order: the unit stands on its destination;
+// every living enemy orthogonally adjacent to the destination loses BATTLE_ENGAGEMENT_DAMAGE, once
+// each; then the mover pays BATTLE_MOVE_COST. A unit with 1 HP may move, deal its engagement
+// damage, and fall. When the engagement defeats the last opponent, the battle ends there, the
+// acting side wins, and the price is never paid, so a 1 HP unit that finishes the battle this way
+// survives it. Engagement damage ignores the mover's attack pattern and never triggers an attack
+// effect.
+//
+// An attack (an enemy destination) takes the attacker's damage, and the attacker stays where it is.
+// A knockback then pushes a surviving victim one cell directly away when that cell is on the board
+// and empty; a push is not a move, so it costs nothing and engages no one. Attacks cost the
+// attacker nothing.
+//
+// Then the battle ends once a side has no living unit. The acting side wins when no opponent is
+// left; it wins before its mover pays, so the two sides never fall together. When an action removes
+// only the acting side's last unit (a move that costs its last HP without winning), the opponent
+// wins. There is no draw.
 void battle_apply(BattleState& state, BattleAction action);
 
-// Forced pass for a side with no legal action. It counts as an activation.
+// Forced pass for a side with no legal action. The side's first living unit, in slot order, loses
+// BATTLE_MOVE_COST, which can defeat it and end the battle. It counts as an activation. A side
+// passes only when no unit can move or attack; a move that would cost a unit its last HP is still a
+// move.
 void battle_pass(BattleState& state);
 
-// Passes while the side to act has no legal action. Returns the number of passes.
+// Passes while the side to act has no legal action. Returns the number of passes. Every pass costs
+// HP and no action restores any, so it always returns.
 uint8_t battle_settle(BattleState& state);
 
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team);

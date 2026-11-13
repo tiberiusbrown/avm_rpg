@@ -10,9 +10,10 @@ inline constexpr uint8_t BATTLE_AI_DEPTH = 4;
 // Positions the enemy may visit while it chooses an action, summed over every iteration of the
 // deepening search, for a battle of four living units. A position costs more to search the more
 // units live, so a battle with more units gets proportionally fewer (battle_ai_budget). The value
-// was chosen from AVM measurements (docs/performance.md), not derived from a time limit: the cost
-// of a position varies, so it bounds the work rather than the seconds.
-inline constexpr uint16_t BATTLE_AI_NODE_BUDGET = 300;
+// was chosen from AVM measurements (docs/performance.md): a position costs about 0.95 ms per living
+// unit, so a spent budget stays near 0.9 s with four units and 0.95 s with eight. The cost of a
+// position varies, so it bounds the work rather than the seconds.
+inline constexpr uint16_t BATTLE_AI_NODE_BUDGET = 240;
 
 // A win or loss scores this much, less the plies it takes. Static utilities stay far below it, so a
 // terminal result always outweighs material, HP, and position.
@@ -77,13 +78,17 @@ BattleSearchStats battle_search_stats();
 // Bytes of static search workspace, not counting the counters, which only tests and probes read.
 uint16_t battle_search_workspace_bytes();
 
-// Orders one position's legal actions in place for the search, as battle_actions wrote them: kills
-// first, then other attacks, then, when `approach` is set, approach moves before other moves. Each
-// group is partitioned in place, so the order inside a group is deterministic but not the
-// enumeration order. The search leaves `approach` clear at nodes whose children are all leaves. The
-// reference search uses it to match the search's root order.
-void battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
-                          uint8_t attacks, bool approach);
+// Orders one position's legal actions in place for the search, as battle_actions wrote them: wins
+// first, then other kills, then the remaining attacks; then, when `approach` is set, the moves that
+// engage an enemy, then quiet moves, approach moves first. Kills and wins count a move's engagement
+// as well as attacks. The search leaves `approach` clear at nodes whose children are all leaves,
+// where the remaining moves stay unordered: measured on the AVM, ordering them there cost more than
+// the leaves it saved. Each group is partitioned in place, so the order inside a group is
+// deterministic but not the enumeration order. Returns the index where the moves after the kills
+// and attacks begin when `approach` is clear, and the first quiet move when it is set; the search
+// promotes its killer there. The reference search uses it to match the search's root order.
+uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
+                             uint8_t attacks, bool approach);
 
 // The ordering priority of one legal action.
 BATTLE_SEARCH_PRIORITY battle_search_priority(BattleState const& state, BattleAction action);
@@ -99,20 +104,22 @@ int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply);
 uint8_t battle_attack_gap(BATTLE_UNIT_TYPE type, uint8_t dx, uint8_t dy);
 
 // The enemy's node budget for a position: BATTLE_AI_NODE_BUDGET with up to four living units,
-// scaled by four over the living units beyond that (200 with six, 150 with eight).
+// scaled by four over the living units beyond that (160 with six, 120 with eight).
 uint16_t battle_ai_budget(BattleState const& state);
 
 // The enemy's choice: battle_think at BATTLE_AI_DEPTH within battle_ai_budget. When no
 // iteration completes, or its action is not legal, the greedy choice is used instead.
 BattleAction battle_enemy_action(BattleState const& state);
 
-// The greedy choice for the side to act. Kills beat attacks, attacks beat moves, and a move scores
-// higher the smaller the attack gap it leaves to the nearest living opponent. Ties go to the first
-// action in enumeration order. It is a deterministic baseline and a fallback, and it is always a
-// legal action when one exists.
+// The greedy choice for the side to act, by battle_greedy_score. Ties go to the first action in
+// enumeration order. It is a deterministic baseline and a fallback, and it is always a legal action
+// when one exists.
 BattleAction battle_greedy_action(BattleState const& state);
 
-// The greedy preference of one legal action.
+// The greedy preference of one legal action: a win (an attack or engagement that defeats every
+// remaining opponent, even by a sacrifice) first, a move that loses the side's last unit without
+// winning last, and otherwise the net exchange, 100 per opponent defeated and 10 per HP dealt, less
+// the blood price and 100 when the mover falls, then the move's attack gap to the nearest opponent.
 int16_t battle_greedy_score(BattleState const& state, BattleAction action);
 
 #endif

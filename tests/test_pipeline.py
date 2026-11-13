@@ -105,6 +105,7 @@ class Pipeline(unittest.TestCase):
             ("HOUSE_TILE_SPRITES", "tiles16_house.png", 255, False),
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
+            ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
@@ -230,6 +231,37 @@ class Pipeline(unittest.TestCase):
             edited.save(path)
             with self.assertRaisesRegex(ValueError, "binary monochrome and alpha"):
                 generate(self.root)
+
+    def test_battle_arrow_sheet_is_validated(self):
+        path = self.root / "assets/images/battle_arrows16.png"
+        original = Image.open(path).convert("RGBA")
+        self.assertEqual(original.size, (64, 16))
+        self.assertIn(
+            "static_assert(BATTLE_ARROW_FRAMES == 4,", generate(self.root)["sprites.cpp"]
+        )
+        original.crop((0, 0, 48, 16)).save(path)
+        with self.assertRaisesRegex(ValueError, "expected a PNG 64 pixels wide"):
+            generate(self.root)
+
+    def test_battle_arrows_point_in_direction_order(self):
+        image = Image.open(self.root / "assets/images/battle_arrows16.png").convert("RGBA")
+
+        def white(index):
+            return {
+                (x, y)
+                for y in range(16)
+                for x in range(16)
+                if image.getpixel((index * 16 + x, y)) == (255, 255, 255, 255)
+            }
+
+        east = white(1)
+        # West mirrors east; north and south are east turned a quarter each way.
+        self.assertEqual(white(3), {(15 - x, y) for x, y in east})
+        self.assertEqual(white(0), {(y, 15 - x) for x, y in east})
+        self.assertEqual(white(2), {(15 - y, x) for x, y in east})
+        # The head (the white pixel farthest along the flight) is at the far end of each frame.
+        self.assertEqual(max(x for x, _ in east), 14)
+        self.assertEqual(min(y for _, y in white(0)), 1)
 
     def test_battle_target_frames_pulse_and_bracket(self):
         image = Image.open(self.root / "assets/images/battle_targets16.png").convert("RGBA")

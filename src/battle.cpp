@@ -1,21 +1,105 @@
 #include "battle.h"
 #include "tile_ids.h"
 
-// Grass with a few flowers, in a fixed arrangement. Every tile here has zero collision.
-constexpr uint8_t PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS] = {
-    TILE_GRASS_06,   TILE_GRASS_07, TILE_GRASS_06, TILE_FLOWERS_26, TILE_GRASS_06,
-    TILE_GRASS_07,   TILE_GRASS_16, TILE_GRASS_06, TILE_GRASS_07,   TILE_GRASS_06,
-    TILE_GRASS_16,   TILE_GRASS_06, TILE_GRASS_06, TILE_FLOWERS_27, TILE_GRASS_06,
-    TILE_GRASS_07,   TILE_GRASS_06, TILE_GRASS_16, TILE_GRASS_07,   TILE_GRASS_06,
-    TILE_FLOWERS_26, TILE_GRASS_06, TILE_GRASS_06, TILE_GRASS_07,   TILE_GRASS_07,
-    TILE_GRASS_06,   TILE_GRASS_06, TILE_GRASS_06, TILE_GRASS_07,   TILE_GRASS_16,
-    TILE_FLOWERS_27, TILE_GRASS_06,
+// The guest inlines the marked rules helpers into the evaluation, so they add no frame at the
+// search's deepest point. Host compilers decide for themselves.
+#if defined(__clang__)
+#define BATTLE_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define BATTLE_ALWAYS_INLINE
+#endif
+
+// Grass with a few flowers, in a fixed arrangement, and four blocking tiles: a pine at (4,0) and a
+// round tree at (6,0) on the top row, rocks at (1,3) and a boulder at (4,3) on the bottom row. The
+// two on column 4 leave a central lane through rows 1 and 2. One initializer builds the
+// program-memory tiles and the ordinary constant copy the blocked mask is computed from.
+// clang-format off
+#define BATTLE_GROVE_TILE_INITIALIZER                                                              \
+    {                                                                                              \
+        TILE_GRASS_06,   TILE_GRASS_07,   TILE_GRASS_06,   TILE_FLOWERS_26,                        \
+        TILE_TREE,       TILE_GRASS_07,   TILE_TREE_ROUND, TILE_GRASS_06,                          \
+        TILE_GRASS_07,   TILE_GRASS_06,   TILE_GRASS_16,   TILE_GRASS_06,                          \
+        TILE_GRASS_06,   TILE_FLOWERS_27, TILE_GRASS_06,   TILE_GRASS_07,                          \
+        TILE_GRASS_06,   TILE_GRASS_16,   TILE_GRASS_07,   TILE_GRASS_06,                          \
+        TILE_FLOWERS_26, TILE_GRASS_06,   TILE_GRASS_06,   TILE_GRASS_07,                          \
+        TILE_GRASS_07,   TILE_ROCKS,      TILE_GRASS_06,   TILE_GRASS_06,                          \
+        TILE_BOULDER,    TILE_GRASS_16,   TILE_FLOWERS_27, TILE_GRASS_06,                          \
+    }
+// clang-format on
+
+constexpr uint8_t PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS] = BATTLE_GROVE_TILE_INITIALIZER;
+static constexpr uint8_t GROVE_TILES[BATTLE_CELLS] = BATTLE_GROVE_TILE_INITIALIZER;
+
+// The world tiles a battlefield uses that block. Each has collision in the world tileset, which the
+// tests check, along with the absence of collision on every other battlefield tile.
+static constexpr bool blocking_world_tile(uint8_t tile) {
+    return tile == TILE_TREE || tile == TILE_TREE_ROUND || tile == TILE_ROCKS ||
+           tile == TILE_BOULDER;
+}
+
+// The blocked mask of one row, from the constant copy of its tiles.
+static constexpr uint8_t blocked_row(uint8_t const* tiles, uint8_t row) {
+    uint8_t mask = 0;
+    for(uint8_t x = 0; x < BATTLE_COLUMNS; ++x)
+        if(blocking_world_tile(tiles[row * BATTLE_COLUMNS + x]))
+            mask = (uint8_t)(mask | (1 << x));
+    return mask;
+}
+
+static_assert(BATTLE_ROWS == 4 && BATTLE_CELLS == 32,
+              "a battlefield keeps one blocked mask per row and 32 by 32 screening bits");
+
+// The screening bits of one battlefield: for each pair of cells on one row or column, whether a
+// blocking tile stands strictly between them.
+struct Screening {
+    uint8_t bits[BATTLE_CELLS][4];
 };
+
+static constexpr Screening screening(uint8_t const* tiles) {
+    Screening screen{};
+    for(uint8_t a = 0; a < BATTLE_CELLS; ++a)
+        for(uint8_t b = 0; b < BATTLE_CELLS; ++b) {
+            uint8_t ax = battle_column(a), ay = battle_row(a), bx = battle_column(b),
+                    by = battle_row(b);
+            if(ax != bx && ay != by)
+                continue;
+            int sx = bx > ax ? 1 : bx < ax ? -1 : 0, sy = by > ay ? 1 : by < ay ? -1 : 0;
+            int x = ax + sx, y = ay + sy;
+            bool blocked = false;
+            while(x != bx || y != by) {
+                blocked = blocked || blocking_world_tile(tiles[y * BATTLE_COLUMNS + x]);
+                x += sx;
+                y += sy;
+            }
+            if(blocked)
+                screen.bits[a][b / 8] = (uint8_t)(screen.bits[a][b / 8] | (1 << (b % 8)));
+        }
+    return screen;
+}
+
+static constexpr Screening GROVE_SCREENING = screening(GROVE_TILES);
+
+// Copies a screening into the program-memory initializer, one row of four bytes per cell.
+#define BATTLE_SCREEN_ROW(s, a)                                                                    \
+    { s.bits[a][0], s.bits[a][1], s.bits[a][2], s.bits[a][3] }
+#define BATTLE_SCREEN_ROWS8(s, a)                                                                  \
+    BATTLE_SCREEN_ROW(s, a), BATTLE_SCREEN_ROW(s, a + 1), BATTLE_SCREEN_ROW(s, a + 2),             \
+        BATTLE_SCREEN_ROW(s, a + 3), BATTLE_SCREEN_ROW(s, a + 4), BATTLE_SCREEN_ROW(s, a + 5),     \
+        BATTLE_SCREEN_ROW(s, a + 6), BATTLE_SCREEN_ROW(s, a + 7)
 
 // The grove clearing, in the world tileset.
 constexpr Battlefield PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT] = {
-    {TILESET_WORLD, BATTLE_GROVE_TILES},
+    {TILESET_WORLD,
+     BATTLE_GROVE_TILES,
+     {blocked_row(GROVE_TILES, 0), blocked_row(GROVE_TILES, 1), blocked_row(GROVE_TILES, 2),
+      blocked_row(GROVE_TILES, 3)},
+     {BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 0), BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 8),
+      BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 16), BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 24)}},
 };
+
+bool battle_blocked(uint8_t field, uint8_t cell) {
+    return (BATTLEFIELDS[field].blocked[battle_row(cell)] >> battle_column(cell)) & 1;
+}
 
 constexpr BattleUnitType PROGMEM BATTLE_UNIT_TYPES[BATTLE_UNIT_TYPE_COUNT] =
     BATTLE_UNIT_TYPE_INITIALIZER;
@@ -36,17 +120,17 @@ constexpr bool battle_types_fit() {
 
 static_assert(battle_types_fit(), "a unit type exceeds BATTLE_MOVE_LIMIT or has an empty range");
 
-// Nocturne Grove: the party's rogue and archer against a wolf and a brute. The archer can shoot the
-// brute at range four at once, the wolf can run at the party, and the rogue can leap toward the
-// centre, where the brute can knock it back.
+// Nocturne Grove: the party's rogue (10 HP) and archer (9) against a wolf (9) and a brute (12). The
+// archer can shoot the brute at range four at once along the open row 2, the wolf can run at the
+// party along row 1, and the rogue can leap toward the centre, where the brute can knock it back.
 constexpr BattleEncounter PROGMEM BATTLE_GROVE{
     BATTLEFIELD_GROVE,
     4,
     {
-        {battle_cell(2, 1), 5, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
-        {battle_cell(1, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
-        {battle_cell(6, 1), 4, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
-        {battle_cell(5, 2), 6, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
+        {battle_cell(2, 1), 10, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
+        {battle_cell(1, 2), 9, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
+        {battle_cell(6, 1), 9, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
+        {battle_cell(5, 2), 12, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
     },
 };
 
@@ -130,8 +214,18 @@ static uint8_t battle_line_distance(uint8_t a, uint8_t b) {
     return 0;
 }
 
-// Only the units are examined, so the cost does not grow with the distance.
-bool battle_line_blocked(BattleState const& state, uint8_t a, uint8_t b) {
+// Whether blocking terrain lies strictly between two cells on one row or column: one lookup in the
+// battlefield's compile-time screening bits. Inlined, so it adds no frame below the evaluation.
+static inline __attribute__((always_inline)) bool battle_terrain_between(uint8_t field, uint8_t a,
+                                                                         uint8_t b) {
+    return (BATTLEFIELDS[field].screened[a][b >> 3] >> (b & 7)) & 1;
+}
+
+// Terrain first, from the battlefield's masks; then the units, so the cost does not grow with the
+// distance.
+RPG_NOINLINE bool battle_line_blocked(BattleState const& state, uint8_t a, uint8_t b) {
+    if(battle_terrain_between(state.field, a, b))
+        return true;
     uint8_t lo = a < b ? a : b, hi = a < b ? b : a;
     bool same_row = battle_row(a) == battle_row(b);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
@@ -151,7 +245,8 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
     if(unit_index >= state.unit_count || destination >= BATTLE_CELLS)
         return false;
     BattleUnit const& actor = state.units[unit_index];
-    if(!actor.hp || battle_unit_at(state, destination) != BATTLE_NO_UNIT)
+    if(!actor.hp || battle_blocked(state.field, destination) ||
+       battle_unit_at(state, destination) != BATTLE_NO_UNIT)
         return false;
     BattleUnitRules const& rules = battle_rules(actor.type);
     if(rules.movement_type == BATTLE_MOVEMENT_KNIGHT) {
@@ -236,7 +331,12 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
     attacks = 0;
     if(state.ended)
         return 0;
-    uint8_t rows[BATTLE_ROWS] = {};
+    // Blocking terrain starts the occupancy, so moves, shots, and leap landings treat it as
+    // occupied.
+    uint8_t rows[BATTLE_ROWS];
+    uint8_t const PROGMEM* blocked = BATTLEFIELDS[state.field].blocked;
+    for(uint8_t row = 0; row < BATTLE_ROWS; ++row)
+        rows[row] = blocked[row];
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(unit.hp)
@@ -334,14 +434,40 @@ RPG_NOINLINE bool battle_can_act(BattleState const& state) {
     return false;
 }
 
+// Kept out of line: the ordering, the killer bookkeeping, and the greedy choice share one copy.
+RPG_NOINLINE BattleEngagement battle_engagement(BattleState const& state, uint8_t unit_index,
+                                                uint8_t destination) {
+    BattleEngagement engagement{0, 0};
+    BATTLE_TEAM team = state.units[unit_index].team;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(!unit.hp || unit.team == team || !battle_cells_adjacent(unit.cell, destination))
+            continue;
+        ++engagement.hits;
+        if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE)
+            ++engagement.kills;
+    }
+    return engagement;
+}
+
 BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction action) {
+    BattleUnit const& actor = state.units[action.unit_index];
+    uint8_t opponents =
+        battle_living(state, actor.team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY);
     uint8_t occupant = battle_unit_at(state, action.destination);
-    if(occupant == BATTLE_NO_UNIT)
-        return BATTLE_ACTION_MOVE;
-    BattleUnit const& victim = state.units[occupant];
-    if(victim.hp > battle_attack_damage(state.units[action.unit_index]))
+    uint8_t kills;
+    if(occupant == BATTLE_NO_UNIT) {
+        BattleEngagement engagement =
+            battle_engagement(state, action.unit_index, action.destination);
+        if(!engagement.hits)
+            return BATTLE_ACTION_MOVE;
+        kills = engagement.kills;
+    } else {
+        kills = state.units[occupant].hp <= battle_attack_damage(actor) ? 1 : 0;
+    }
+    if(!kills)
         return BATTLE_ACTION_ATTACK;
-    return battle_living(state, victim.team) == 1 ? BATTLE_ACTION_WIN : BATTLE_ACTION_KILL;
+    return kills == opponents ? BATTLE_ACTION_WIN : BATTLE_ACTION_KILL;
 }
 
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team) {
@@ -352,86 +478,102 @@ uint8_t battle_living(BattleState const& state, BATTLE_TEAM team) {
     return count;
 }
 
-// Ends the battle once a side has no living units. Returns whether the battle has ended. One pass
-// counts both sides.
-static bool battle_check(BattleState& state) {
-    if(state.ended)
-        return true;
+// Ends the battle once a side has no living units, after `acting` has resolved an action or part of
+// one. The acting side wins when no opponent lives; otherwise its opponent wins when the acting
+// side has none left. Returns whether the battle has ended.
+static bool battle_check(BattleState& state, BATTLE_TEAM acting) {
     uint8_t living[2] = {};
     for(uint8_t i = 0; i < state.unit_count; ++i)
         if(state.units[i].hp)
             ++living[state.units[i].team];
-    if(!living[BATTLE_ENEMY]) {
-        state.ended = true;
-        state.result = BATTLE_VICTORY;
-    } else if(!living[BATTLE_PARTY]) {
-        state.ended = true;
-        state.result = BATTLE_DEFEAT;
-    }
-    return state.ended;
+    BATTLE_TEAM opposing = acting == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
+    BATTLE_TEAM winner;
+    if(!living[opposing])
+        winner = acting;
+    else if(!living[acting])
+        winner = opposing;
+    else
+        return false;
+    state.ended = true;
+    state.result = winner == BATTLE_PARTY ? BATTLE_VICTORY : BATTLE_DEFEAT;
+    return true;
 }
 
 static void battle_next_turn(BattleState& state) {
     state.turn = state.turn == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
 }
 
-static void battle_exhaust(BattleUnit& unit) {
-    if(unit.hp)
-        --unit.hp;
+// Removes HP from a unit, stopping at zero. Returns whether the unit fell.
+static bool battle_damage(BattleUnit& unit, uint8_t amount) {
+    unit.hp = unit.hp > amount ? (uint8_t)(unit.hp - amount) : 0;
+    return !unit.hp;
 }
 
-// Pushes a struck unit one cell directly away from its attacker when that cell is on the board and
-// empty. Attacks are always along a row or column, so the push follows that line.
+// Pushes a struck unit one cell directly away from its attacker when that cell is on the board,
+// open, and empty. Attacks are always along a row or column, so the push follows that line.
 static void battle_knock_back(BattleState& state, BattleUnit const& actor, BattleUnit& target) {
     DIRECTION away = battle_direction(actor.cell, target.cell);
     uint8_t cell = target.cell;
-    if(battle_neighbor(target.cell, away, cell) && battle_unit_at(state, cell) == BATTLE_NO_UNIT)
+    if(battle_neighbor(target.cell, away, cell) && !battle_blocked(state.field, cell) &&
+       battle_unit_at(state, cell) == BATTLE_NO_UNIT)
         target.cell = cell;
 }
 
 void battle_apply(BattleState& state, BattleAction action) {
     BattleUnit& actor = state.units[action.unit_index];
-    uint8_t occupant = battle_unit_at(state, action.destination);
-    // A running battle has living units on both sides, so only a removal can end it: the sides are
-    // counted after a blow that defeats its victim and after an exhaustion charge that defeats the
-    // actor.
-    bool removed = false;
+    BATTLE_TEAM acting = actor.team;
+    uint8_t destination = action.destination;
+    // One pass finds the unit on the destination and marks the enemies next to it, bit i for unit
+    // i.
+    uint8_t occupant = BATTLE_NO_UNIT, engaged = 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(!unit.hp)
+            continue;
+        if(unit.cell == destination)
+            occupant = i;
+        else if(unit.team != acting && battle_cells_adjacent(unit.cell, destination))
+            engaged = (uint8_t)(engaged | (1 << i));
+    }
+    // A running battle has living units on both sides, so only a defeat can end it: the sides are
+    // counted only when some unit fell.
+    bool fell = false;
+    ++state.activations;
     if(occupant == BATTLE_NO_UNIT) {
-        actor.cell = action.destination;
+        // Move, then engage every adjacent enemy once, then pay the blood price, even with 1 HP
+        // left.
+        actor.cell = destination;
+        for(uint8_t i = 0; engaged; ++i, engaged = (uint8_t)(engaged >> 1))
+            if(engaged & 1)
+                fell = battle_damage(state.units[i], BATTLE_ENGAGEMENT_DAMAGE) || fell;
+        // An engagement that defeats the last opponent ends the battle before the price is due.
+        if(fell && battle_check(state, acting))
+            return;
+        fell = battle_damage(actor, BATTLE_MOVE_COST) || fell;
     } else {
         BattleUnit& target = state.units[occupant];
         BattleUnitRules const& rules = battle_rules(actor.type);
-        uint8_t damage = rules.damage;
-        target.hp = target.hp > damage ? (uint8_t)(target.hp - damage) : 0;
-        removed = !target.hp;
-        if(target.hp && rules.effect == BATTLE_EFFECT_KNOCKBACK)
+        fell = battle_damage(target, rules.damage);
+        if(!fell && rules.effect == BATTLE_EFFECT_KNOCKBACK)
             battle_knock_back(state, actor, target);
     }
-    ++state.activations;
 
-    if(removed && battle_check(state))
+    if(fell && battle_check(state, acting))
         return;
-    if(state.activations > BATTLE_EXHAUSTION_START) {
-        battle_exhaust(actor);
-        if(!actor.hp && battle_check(state))
-            return;
-    }
     battle_next_turn(state);
 }
 
 void battle_pass(BattleState& state) {
     ++state.activations;
-    if(state.activations > BATTLE_EXHAUSTION_START) {
-        // The first living unit on the side pays, so the choice is deterministic.
-        for(uint8_t i = 0; i < state.unit_count; ++i) {
-            BattleUnit& unit = state.units[i];
-            if(unit.hp && unit.team == state.turn) {
-                battle_exhaust(unit);
-                break;
-            }
+    // The first living unit on the side pays, so the choice is deterministic.
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit& unit = state.units[i];
+        if(unit.hp && unit.team == state.turn) {
+            battle_damage(unit, BATTLE_MOVE_COST);
+            break;
         }
     }
-    if(battle_check(state))
+    if(battle_check(state, state.turn))
         return;
     battle_next_turn(state);
 }

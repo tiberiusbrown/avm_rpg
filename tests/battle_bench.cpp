@@ -115,14 +115,14 @@ int main() {
     ranged.units[WOLF].type = BATTLE_TYPE_ARCHER;
     ranged.units[BRUTE].type = BATTLE_TYPE_SPEARMAN;
     place(ranged, ROGUE, 1, 0);
-    place(ranged, WOLF, 6, 0);
+    place(ranged, WOLF, 7, 0);
     place(ranged, BRUTE, 5, 2);
     report("many ranged options", ranged);
 
     BattleState sprint = fresh();
     sprint.turn = BATTLE_ENEMY;
     sprint.units[BRUTE].type = BATTLE_TYPE_WOLF;
-    sprint.units[BRUTE].hp = 4;
+    sprint.units[BRUTE].hp = 9;
     report("two wolves sprinting", sprint);
 
     BattleState knock = fresh();
@@ -130,23 +130,48 @@ int main() {
     place(knock, ROGUE, 4, 2);
     report("knockback available", knock);
 
-    BattleState near_exhaustion = fresh();
-    near_exhaustion.turn = BATTLE_ENEMY;
-    near_exhaustion.activations = 19;
-    report("near exhaustion (19)", near_exhaustion);
+    // The activation count no longer changes the rules, so late positions search like early ones.
+    BattleState late_opening = fresh();
+    late_opening.turn = BATTLE_ENEMY;
+    late_opening.activations = 19;
+    report("opening, 19 activations", late_opening);
 
-    BattleState exhausted = adjacent;
-    exhausted.activations = 21;
-    report("exhaustion active (21)", exhausted);
+    BattleState late_adjacent = adjacent;
+    late_adjacent.activations = 21;
+    report("adjacent, 21 activations", late_adjacent);
 
     BattleState survivors = fresh();
     survivors.turn = BATTLE_ENEMY;
     survivors.units[ARCHER].hp = 0;
     survivors.units[WOLF].hp = 0;
-    survivors.units[ROGUE].hp = 3;
-    survivors.units[BRUTE].hp = 3;
+    survivors.units[ROGUE].hp = 6;
+    survivors.units[BRUTE].hp = 6;
     place(survivors, BRUTE, 5, 1);
     report("one survivor per side", survivors);
+
+    BattleState one_target = fresh();
+    one_target.turn = BATTLE_ENEMY;
+    one_target.activations = 2;
+    place(one_target, WOLF, 4, 1);
+    report("one engagement target", one_target);
+
+    BattleState two_targets = fresh();
+    two_targets.turn = BATTLE_ENEMY;
+    two_targets.activations = 2;
+    place(two_targets, ROGUE, 3, 0);
+    place(two_targets, ARCHER, 2, 1);
+    place(two_targets, WOLF, 5, 1);
+    report("two engagement targets", two_targets);
+
+    BattleState sacrifice = fresh();
+    sacrifice.turn = BATTLE_ENEMY;
+    sacrifice.activations = 12;
+    sacrifice.units[ROGUE].hp = 0;
+    sacrifice.units[ARCHER].hp = 1;
+    place(sacrifice, ARCHER, 2, 1);
+    sacrifice.units[WOLF].hp = 1;
+    place(sacrifice, WOLF, 5, 1);
+    report("1 HP sacrifice", sacrifice);
 
     // Four and three units a side, as in tests/battle_probe.cpp.
     BattleState four{};
@@ -157,8 +182,8 @@ int main() {
     BATTLE_UNIT_TYPE const enemy_types[4] = {BATTLE_TYPE_WOLF, BATTLE_TYPE_BRUTE,
                                              BATTLE_TYPE_ARCHER, BATTLE_TYPE_FIGHTER};
     uint8_t const party_cells[4] = {cell(1, 0), cell(2, 1), cell(1, 2), cell(2, 3)};
-    uint8_t const enemy_cells[4] = {cell(6, 0), cell(5, 1), cell(6, 2), cell(5, 3)};
-    uint8_t const party_hp[4] = {5, 5, 4, 5}, enemy_hp[4] = {4, 6, 4, 5};
+    uint8_t const enemy_cells[4] = {cell(7, 0), cell(5, 1), cell(6, 2), cell(5, 3)};
+    uint8_t const party_hp[4] = {10, 10, 9, 10}, enemy_hp[4] = {9, 12, 9, 10};
     for(uint8_t i = 0; i < 4; ++i) {
         four.units[i] = BattleUnit{party_cells[i], party_hp[i], party_types[i], BATTLE_PARTY};
         four.units[4 + i] = BattleUnit{enemy_cells[i], enemy_hp[i], enemy_types[i], BATTLE_ENEMY};

@@ -116,99 +116,99 @@ static BattleAction party_choice(BattleState const& s, uint8_t policy) {
     return pick;
 }
 
-static unsigned party_hp(BattleState const& s) {
+static unsigned team_hp(BattleState const& s, BATTLE_TEAM team) {
     unsigned total = 0;
     for(uint8_t i = 0; i < s.unit_count; ++i)
-        if(s.units[i].team == BATTLE_PARTY)
+        if(s.units[i].team == team)
             total += s.units[i].hp;
     return total;
 }
 
-static unsigned enemy_hp(BattleState const& s) {
-    unsigned total = 0;
-    for(uint8_t i = 0; i < s.unit_count; ++i)
-        if(s.units[i].team == BATTLE_ENEMY)
-            total += s.units[i].hp;
-    return total;
+static unsigned total_hp(BattleState const& s) {
+    return team_hp(s, BATTLE_PARTY) + team_hp(s, BATTLE_ENEMY);
 }
 
+// Counts per team, indexed by BATTLE_TEAM.
 struct GameStats {
-    unsigned actions;
-    unsigned enemy_attacks, enemy_moves, enemy_retreats;
-    unsigned max_retreat_streak;
-    unsigned party_damage, enemy_damage;
+    unsigned activations;
+    unsigned attacks[2], moves[2], engaging_moves[2], engagement_damage[2], move_price[2];
+    unsigned sacrifices[2], sacrifice_wins[2], passes[2], damage_taken[2];
+    unsigned enemy_retreats, max_retreat_streak;
     unsigned victory, defeat, timeout;
-    unsigned exhaustion;
-    // The new mechanics: two-cell enemy runs, enemy knockbacks that moved their victim, party shots
-    // from two or more cells, and party knight leaps.
-    unsigned enemy_runs, enemy_knockbacks, party_shots, party_leaps;
 };
 
-// The straight-line or knight distance class of an action: the column and row differences.
-static void action_offset(BattleState const& s, BattleAction a, int& dx, int& dy) {
-    dx = abs((int)battle_column(a.destination) - (int)battle_column(s.units[a.unit_index].cell));
-    dy = abs((int)battle_row(a.destination) - (int)battle_row(s.units[a.unit_index].cell));
+// Every completed activation must lower the total living HP: the battle's termination guarantee.
+static void require_progress(unsigned before, BattleState const& s) {
+    if(total_hp(s) >= before) {
+        printf("activation %u lost no HP\n", (unsigned)s.activations);
+        exit(1);
+    }
 }
 
 // Plays one battle from the Grove encounter. A retreat is an enemy move that increases its attack
-// gap to the nearest living party member, so an archer stepping out of contact counts as one.
+// gap to the nearest living party member, so an archer stepping out of contact counts as one. A
+// sacrifice is a move by a unit with only the blood price left in HP; it falls unless its
+// engagement wins the battle first, which counts as a sacrifice win.
 static GameStats play(uint8_t policy) {
     GameStats g{};
     BattleState s;
     battle_begin(s, &BATTLE_GROVE);
+    unsigned starting_hp = total_hp(s);
     unsigned streak = 0;
     for(unsigned guard = 0; guard < 400 && !s.ended; ++guard) {
-        battle_settle(s);
+        while(!s.ended && !battle_can_act(s)) {
+            unsigned before = total_hp(s);
+            ++g.passes[s.turn];
+            battle_pass(s);
+            require_progress(before, s);
+        }
         if(s.ended)
             break;
-        if(s.activations > BATTLE_EXHAUSTION_START)
-            g.exhaustion = 1;
-        if(s.turn == BATTLE_ENEMY) {
-            BattleAction a = battle_enemy_action(s);
-            if(!battle_legal(s, a)) {
-                printf("illegal enemy action\n");
-                exit(1);
-            }
-            unsigned before = party_hp(s);
-            uint8_t victim = battle_unit_at(s, a.destination);
-            bool attack = victim != BATTLE_NO_UNIT;
-            bool retreat = false;
-            int dx = 0, dy = 0;
-            action_offset(s, a, dx, dy);
-            if(attack) {
-                ++g.enemy_attacks;
-            } else {
-                if(dx + dy == 2 && (dx == 0 || dy == 0))
-                    ++g.enemy_runs;
-                ++g.enemy_moves;
-                BATTLE_UNIT_TYPE type = s.units[a.unit_index].type;
-                int from = nearest_gap(s, type, s.units[a.unit_index].cell, BATTLE_PARTY);
-                int to = nearest_gap(s, type, a.destination, BATTLE_PARTY);
-                retreat = to > from;
-                if(retreat)
-                    ++g.enemy_retreats;
-            }
-            battle_apply(s, a);
-            if(attack && s.units[victim].hp && s.units[victim].cell != a.destination)
-                ++g.enemy_knockbacks;
-            g.party_damage += before - party_hp(s);
-            streak = retreat ? streak + 1 : 0;
-            if(streak > g.max_retreat_streak)
-                g.max_retreat_streak = streak;
-        } else {
-            BattleAction a = party_choice(s, policy);
-            unsigned before = enemy_hp(s);
-            int dx = 0, dy = 0;
-            action_offset(s, a, dx, dy);
-            bool attack = battle_unit_at(s, a.destination) != BATTLE_NO_UNIT;
-            if(attack && dx + dy >= 2)
-                ++g.party_shots;
-            if(!attack && dx && dy)
-                ++g.party_leaps;
-            battle_apply(s, a);
-            g.enemy_damage += before - enemy_hp(s);
+        BATTLE_TEAM team = s.turn;
+        BattleAction a = team == BATTLE_ENEMY ? battle_enemy_action(s) : party_choice(s, policy);
+        if(!battle_legal(s, a)) {
+            printf("illegal action\n");
+            exit(1);
         }
-        ++g.actions;
+        BATTLE_TEAM foe = team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
+        unsigned own_before = team_hp(s, team), foe_before = team_hp(s, foe), before = total_hp(s);
+        bool last_hp = s.units[a.unit_index].hp == BATTLE_MOVE_COST;
+        bool attack = battle_unit_at(s, a.destination) != BATTLE_NO_UNIT;
+        if(attack) {
+            ++g.attacks[team];
+        } else {
+            ++g.moves[team];
+            if(team == BATTLE_ENEMY) {
+                BATTLE_UNIT_TYPE type = s.units[a.unit_index].type;
+                bool retreat = nearest_gap(s, type, a.destination, BATTLE_PARTY) >
+                               nearest_gap(s, type, s.units[a.unit_index].cell, BATTLE_PARTY);
+                g.enemy_retreats += retreat;
+                streak = retreat ? streak + 1 : 0;
+                if(streak > g.max_retreat_streak)
+                    g.max_retreat_streak = streak;
+            }
+        }
+        battle_apply(s, a);
+        require_progress(before, s);
+        g.damage_taken[foe] += foe_before - team_hp(s, foe);
+        g.damage_taken[team] += own_before - team_hp(s, team);
+        if(!attack) {
+            unsigned dealt = foe_before - team_hp(s, foe);
+            g.engaging_moves[team] += dealt != 0;
+            g.engagement_damage[team] += dealt;
+            g.move_price[team] += own_before - team_hp(s, team);
+            if(last_hp) {
+                ++g.sacrifices[team];
+                if(s.ended && (s.result == BATTLE_VICTORY) == (team == BATTLE_PARTY))
+                    ++g.sacrifice_wins[team];
+            }
+        }
+    }
+    g.activations = s.activations;
+    if(g.activations > starting_hp) {
+        printf("battle lasted %u activations, beyond its %u starting HP\n", g.activations,
+               starting_hp);
+        exit(1);
     }
     if(!s.ended)
         g.timeout = 1;
@@ -219,47 +219,62 @@ static GameStats play(uint8_t policy) {
     return g;
 }
 
+static void add(GameStats& sum, GameStats const& g) {
+    sum.activations += g.activations;
+    for(int t = 0; t < 2; ++t) {
+        sum.attacks[t] += g.attacks[t];
+        sum.moves[t] += g.moves[t];
+        sum.engaging_moves[t] += g.engaging_moves[t];
+        sum.engagement_damage[t] += g.engagement_damage[t];
+        sum.move_price[t] += g.move_price[t];
+        sum.sacrifices[t] += g.sacrifices[t];
+        sum.sacrifice_wins[t] += g.sacrifice_wins[t];
+        sum.passes[t] += g.passes[t];
+        sum.damage_taken[t] += g.damage_taken[t];
+    }
+    sum.enemy_retreats += g.enemy_retreats;
+    if(g.max_retreat_streak > sum.max_retreat_streak)
+        sum.max_retreat_streak = g.max_retreat_streak;
+    sum.victory += g.victory;
+    sum.defeat += g.defeat;
+    sum.timeout += g.timeout;
+}
+
 int main() {
-    // Each policy plays the same battle. Deterministic policies play once, and the random policy plays a
-    // fixed set of seeds.
+    // Each policy plays the same battle. Deterministic policies play once, and the random policy
+    // plays a fixed set of seeds. Pairs are party/enemy; rows are averages per game except the
+    // win/loss/timeout totals and the longest retreat run.
     constexpr unsigned random_games = 64;
-    printf("%-10s %5s %6s %7s %7s %6s %6s %6s %7s %5s %5s %5s %6s %5s %6s %6s %6s\n", "policy",
-           "games", "acts", "pDmg", "eDmg", "eAtk", "eMov", "eRet", "maxStrk", "win", "loss",
-           "tout", "exhst", "eRun", "eKnock", "pShot", "pLeap");
+    printf("%-10s %5s %5s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %4s %4s %4s %4s\n", "policy",
+           "games", "acts", "attacks", "moves", "engMove", "engDmg", "price", "sacrif", "sacWin",
+           "passes", "dmgTkn", "eRetr", "run", "win", "loss", "tout");
     unsigned total_timeouts = 0;
     for(uint8_t policy = 0; policy < POLICY_COUNT; ++policy) {
         unsigned games = policy == POLICY_RANDOM ? random_games : 1;
         GameStats sum{};
-        unsigned max_streak = 0;
         for(unsigned game = 0; game < games; ++game) {
             random_seed = 1 + game;
-            GameStats g = play(policy);
-            sum.actions += g.actions;
-            sum.enemy_attacks += g.enemy_attacks;
-            sum.enemy_moves += g.enemy_moves;
-            sum.enemy_retreats += g.enemy_retreats;
-            sum.party_damage += g.party_damage;
-            sum.enemy_damage += g.enemy_damage;
-            sum.victory += g.victory;
-            sum.defeat += g.defeat;
-            sum.timeout += g.timeout;
-            sum.exhaustion += g.exhaustion;
-            sum.enemy_runs += g.enemy_runs;
-            sum.enemy_knockbacks += g.enemy_knockbacks;
-            sum.party_shots += g.party_shots;
-            sum.party_leaps += g.party_leaps;
-            if(g.max_retreat_streak > max_streak)
-                max_streak = g.max_retreat_streak;
+            add(sum, play(policy));
         }
         total_timeouts += sum.timeout;
-        printf("%-10s %5u %6.1f %7.1f %7.1f %6.1f %6.1f %6.1f %7u %5u %5u %5u %6u %5.1f %6.1f "
-               "%6.1f %6.1f\n",
-               policy_name(policy), games, (double)sum.actions / games,
-               (double)sum.party_damage / games, (double)sum.enemy_damage / games,
-               (double)sum.enemy_attacks / games, (double)sum.enemy_moves / games,
-               (double)sum.enemy_retreats / games, max_streak, sum.victory, sum.defeat, sum.timeout,
-               sum.exhaustion, (double)sum.enemy_runs / games, (double)sum.enemy_knockbacks / games,
-               (double)sum.party_shots / games, (double)sum.party_leaps / games);
+        double n = games;
+        auto pair = [&](unsigned const* v) {
+            char text[32];
+            snprintf(text, sizeof(text), "%.1f/%.1f", v[0] / n, v[1] / n);
+            printf(" %7s", text);
+        };
+        printf("%-10s %5u %5.1f", policy_name(policy), games, sum.activations / n);
+        pair(sum.attacks);
+        pair(sum.moves);
+        pair(sum.engaging_moves);
+        pair(sum.engagement_damage);
+        pair(sum.move_price);
+        pair(sum.sacrifices);
+        pair(sum.sacrifice_wins);
+        pair(sum.passes);
+        pair(sum.damage_taken);
+        printf(" %7.1f %4u %4u %4u %4u\n", sum.enemy_retreats / n, sum.max_retreat_streak,
+               sum.victory, sum.defeat, sum.timeout);
     }
     return total_timeouts == 0 ? 0 : 1;
 }

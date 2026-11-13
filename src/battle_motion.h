@@ -10,8 +10,28 @@ inline constexpr uint8_t BATTLE_LUNGE_PIXELS = 4;
 inline constexpr uint8_t BATTLE_LUNGE_FRAMES = 2;
 inline constexpr uint8_t BATTLE_LUNGE_PAUSE_FRAMES = 12;
 inline constexpr uint8_t BATTLE_FLASH_FRAMES = 48;
+// A move whose only damage is its mover's blood price flashes for this shorter time: two hidden and
+// two visible phases, about a third of a second.
+inline constexpr uint8_t BATTLE_PRICE_FLASH_FRAMES = 16;
 // Frames each hidden or visible phase of a flash lasts.
 inline constexpr uint8_t BATTLE_FLASH_STEP = 4;
+
+// An archer's arrow flies straight at its target, this many pixels a frame, before the target
+// reacts. Its sprite is one 16-pixel cell; it starts half a cell out from the archer's cell and
+// lands half a cell short of the target's, so a shot at range 2 takes 5 frames and one at range 4
+// takes 13.
+inline constexpr uint8_t BATTLE_ARROW_PIXELS = 4;
+inline constexpr uint8_t BATTLE_CELL_PIXELS = 16;
+
+// Frames an arrow flies to a target `cells` away along a row or column.
+constexpr uint8_t battle_arrow_frames(uint8_t cells) {
+    return (uint8_t)((cells * BATTLE_CELL_PIXELS - BATTLE_CELL_PIXELS) / BATTLE_ARROW_PIXELS + 1);
+}
+
+// The arrow's offset from its archer's cell, in pixels along its flight, at a frame of that flight.
+constexpr uint8_t battle_arrow_offset(uint8_t frame) {
+    return (uint8_t)(BATTLE_CELL_PIXELS / 2 + frame * BATTLE_ARROW_PIXELS);
+}
 
 // The attacker's offset from its cell, in pixels, at a frame of its lunge. It moves out in equal
 // steps, holds at full reach, and moves back in the same steps.

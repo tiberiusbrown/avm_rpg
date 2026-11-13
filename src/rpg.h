@@ -237,5 +237,9 @@ constexpr uint8_t battle_target_frame(uint8_t base, uint8_t phase) {
     return (uint8_t)(base + phase % BATTLE_TARGET_FRAMES);
 }
 extern uint8_t const PROGMEM BATTLE_TARGET_SPRITES[];
+// The archer's arrow in flight, battle_arrows16.png: one 16x16 plus-mask frame per DIRECTION, so a
+// direction is its own frame index. The generated sheet asserts the count.
+inline constexpr uint8_t BATTLE_ARROW_FRAMES = 4;
+extern uint8_t const PROGMEM BATTLE_ARROW_SPRITES[];
 
 #endif

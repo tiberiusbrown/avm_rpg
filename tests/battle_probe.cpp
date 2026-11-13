@@ -35,14 +35,14 @@ static constexpr BattleEncounter PROGMEM FOUR_A_SIDE{
     BATTLEFIELD_GROVE,
     8,
     {
-        {battle_cell(1, 0), 5, BATTLE_TYPE_FIGHTER, BATTLE_PARTY},
-        {battle_cell(2, 1), 5, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
-        {battle_cell(1, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
-        {battle_cell(2, 3), 5, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY},
-        {battle_cell(6, 0), 4, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
-        {battle_cell(5, 1), 6, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
-        {battle_cell(6, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_ENEMY},
-        {battle_cell(5, 3), 5, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY},
+        {battle_cell(1, 0), 10, BATTLE_TYPE_FIGHTER, BATTLE_PARTY},
+        {battle_cell(2, 1), 10, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
+        {battle_cell(1, 2), 9, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
+        {battle_cell(2, 3), 10, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY},
+        {battle_cell(7, 0), 9, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
+        {battle_cell(5, 1), 12, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
+        {battle_cell(6, 2), 9, BATTLE_TYPE_ARCHER, BATTLE_ENEMY},
+        {battle_cell(5, 3), 10, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY},
     },
 };
 
@@ -184,13 +184,13 @@ extern "C" void setup() {
     scenario.units[WOLF].type = BATTLE_TYPE_ARCHER;
     scenario.units[BRUTE].type = BATTLE_TYPE_SPEARMAN;
     scenario.units[ROGUE].cell = cell(1, 0);
-    scenario.units[WOLF].cell = cell(6, 0);
+    scenario.units[WOLF].cell = cell(7, 0);
     measure_decision(8, scenario);
 
     // Wolf sprint options: two wolves with open rows ahead.
     grove(BATTLE_ENEMY, 0);
     scenario.units[BRUTE].type = BATTLE_TYPE_WOLF;
-    scenario.units[BRUTE].hp = 4;
+    scenario.units[BRUTE].hp = 9;
     measure_decision(10, scenario);
 
     // A knockback is possible: the rogue has leapt beside the brute.
@@ -198,7 +198,8 @@ extern "C" void setup() {
     scenario.units[ROGUE].cell = cell(4, 2);
     measure_decision(12, scenario);
 
-    // Near exhaustion, and exhaustion active in adjacent combat.
+    // A long battle (formerly near exhaustion and exhaustion active): the activation count no
+    // longer matters, so these measure the opening and adjacent combat late in a battle.
     grove(BATTLE_ENEMY, 19);
     measure_decision(14, scenario);
     grove(BATTLE_ENEMY, 21);
@@ -210,8 +211,8 @@ extern "C" void setup() {
     grove(BATTLE_ENEMY, 8);
     scenario.units[ARCHER].hp = 0;
     scenario.units[WOLF].hp = 0;
-    scenario.units[ROGUE].hp = 3;
-    scenario.units[BRUTE].hp = 3;
+    scenario.units[ROGUE].hp = 6;
+    scenario.units[BRUTE].hp = 6;
     scenario.units[BRUTE].cell = cell(5, 1);
     measure_decision(18, scenario);
 
@@ -229,6 +230,26 @@ extern "C" void setup() {
     for(uint8_t i = 4; i < 8; ++i)
         scenario.units[i].cell = (uint8_t)(scenario.units[i].cell - 2);
     measure_decision(54, scenario);
+
+    // One engagement target: the wolf can run beside the rogue.
+    grove(BATTLE_ENEMY, 2);
+    scenario.units[WOLF].cell = cell(4, 1);
+    scenario.units[ROGUE].cell = cell(2, 1);
+    measure_decision(56, scenario);
+    // Two engagement targets: the wolf can run to (3,1), beside both party units.
+    grove(BATTLE_ENEMY, 2);
+    scenario.units[ROGUE].cell = cell(3, 0);
+    scenario.units[ARCHER].cell = cell(2, 1);
+    scenario.units[WOLF].cell = cell(5, 1);
+    measure_decision(58, scenario);
+    // A 1 HP sacrifice: the wolf, at 1 HP, can run beside the 1 HP archer, the party's last unit.
+    grove(BATTLE_ENEMY, 12);
+    scenario.units[ROGUE].hp = 0;
+    scenario.units[ARCHER].hp = 1;
+    scenario.units[ARCHER].cell = cell(2, 1);
+    scenario.units[WOLF].hp = 1;
+    scenario.units[WOLF].cell = cell(5, 1);
+    measure_decision(60, scenario);
 
     // The complete search at each depth on the in-play position.
     grove(BATTLE_PARTY, 0);

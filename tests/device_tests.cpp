@@ -418,23 +418,22 @@ struct GroveAction {
 };
 
 // The shortest plan that wins against the enemy's search, found by a breadth-first search over
-// party actions with the enemy's replies applied. The rogue begins at (2,1) and the archer at
-// (1,2); the wolf at (6,1) and the brute at (5,2). The brute's knockback is blocked twice by the
-// archer standing behind the rogue. The battle ends in victory when the brute falls to the rogue's
-// strike.
+// party actions with the enemy's replies applied. The rogue (10 HP) begins at (2,1) and the archer
+// (9) at (1,2); the wolf (9) at (6,1) and the brute (12) at (5,2). Trees stand at (4,0) and (6,0),
+// rocks at (1,3), and a boulder at (4,3). Every move costs its mover 1 HP and hits each adjacent
+// enemy for 1. The battle ends in victory on the enemy's turn: its last unit, the wolf at 1 HP, has
+// no attack, and the move it must make costs its last HP.
 constexpr GroveAction GROVE_VICTORY_PLAN[] = {
-    {{2, 1}, {0, 2}, false}, // The rogue leaps to (0,2). The brute steps to (5,1).
-    {{0, 2}, {2, 1}, false}, // The rogue leaps back to (2,1). The brute steps to (4,1).
-    {{1, 2}, {1, 1}, false}, // The archer steps behind the rogue. The brute steps to (3,1).
-    {{2, 1},
-     {3, 1},
-     true}, // The rogue strikes the brute. The brute strikes back; the archer blocks the push.
-    {{2, 1}, {3, 1}, true},  // The rogue strikes the brute again. The brute steps back to (3,0).
-    {{1, 1}, {0, 1}, false}, // The archer steps west. The wolf runs to (5,1).
-    {{0, 1}, {0, 0}, false}, // The archer steps north. The wolf runs to (3,1).
-    {{2, 1}, {3, 1}, true},  // The rogue strikes the wolf. The wolf bites back.
-    {{2, 1}, {3, 1}, true},  // The rogue strikes the wolf, which falls. The brute steps to (3,1).
-    {{2, 1}, {3, 1}, true}, // The rogue strikes the brute, which falls. The battle ends in victory.
+    {{1, 2}, {5, 2}, true},  // The archer shoots the brute. The brute steps to (6,2).
+    {{2, 1}, {4, 2}, false}, // The rogue leaps to (4,2). The wolf runs to (5,1).
+    {{4, 2}, {6, 3}, false}, // The rogue leaps beside the brute, engaging it. The brute hits back.
+    {{6, 3}, {6, 2}, true},  // The rogue strikes the brute, which strikes back.
+    {{6, 3}, {6, 2}, true},  // The rogue leaves the brute at 1 HP. The wolf runs to (5,3), biting
+                             // the rogue.
+    {{6, 3}, {5, 1}, false}, // The rogue leaps to (5,1). The wolf runs to (5,2), biting it again.
+    {{5, 1}, {5, 2}, true},  // The 1 HP rogue strikes the wolf, which retreats to (5,3).
+    {{5, 1}, {6, 3}, false}, // The rogue leaps between both, engaging them: the brute falls, then
+                             // the rogue. The 1 HP wolf must move, and falls.
 };
 
 // After each hero action the test advances past both sides' reactions: the hero's own animation,

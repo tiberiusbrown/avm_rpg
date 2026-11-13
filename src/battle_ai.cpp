@@ -20,8 +20,11 @@ static constexpr int16_t UTILITY_STRIKE_LATER = 60;
 // Windows start beyond every score the search produces.
 static constexpr int16_t SCORE_INFINITE = 32000;
 
-// Scores are ordered by band. Each band is wider than any gap a move can score inside it.
-static constexpr int16_t SCORE_KILL = 3000, SCORE_ATTACK = 2000, SCORE_MOVE = 1000;
+// Greedy values: a win above everything and a losing sacrifice below everything; otherwise a net
+// exchange of units and HP, from which a move then subtracts its attack gap to the nearest opponent
+// (at most about ten cells, under one HP's worth).
+static constexpr int16_t GREEDY_WIN = 10000, GREEDY_LOSS = -10000;
+static constexpr int16_t GREEDY_KILL = 100, GREEDY_HP = 10;
 
 // An iteration is started only when the budget left is at least this many times the nodes of the
 // last completed iteration. A deeper iteration that cannot finish would only spend time and be
@@ -384,10 +387,59 @@ static bool kills(BattleState const& state, uint8_t packed) {
     return victim.hp <= battle_attack_damage(state.units[packed >> 5]);
 }
 
+// Whether a packed action that defeats an opponent defeats them all. An attack removes one victim;
+// a move's engagement can remove several. Only kills are asked, so the loop runs for few actions;
+// it counts here rather than calling battle_engagement, which would add a frame below the search's.
+static bool wins(BattleState const& state, uint8_t packed) {
+    uint8_t destination = (uint8_t)(packed & (BATTLE_CELLS - 1));
+    bool attack = battle_unit_at(state, destination) != BATTLE_NO_UNIT;
+    uint8_t opponents = 0, defeated = attack ? 1 : 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(!unit.hp || unit.team == state.turn)
+            continue;
+        ++opponents;
+        if(!attack && unit.hp <= BATTLE_ENGAGEMENT_DAMAGE &&
+           battle_cells_adjacent(unit.cell, destination))
+            ++defeated;
+    }
+    return defeated == opponents;
+}
+
+// Whether a packed action's destination has its bit set in a set of row masks, bit x of rows[y].
+static bool in_rows(uint8_t const* rows, uint8_t packed) {
+    uint8_t cell = (uint8_t)(packed & (BATTLE_CELLS - 1));
+    return (rows[battle_row(cell)] >> battle_column(cell)) & 1;
+}
+
+// Marks the four cells orthogonally adjacent to `cell` in row masks.
+static void mark_neighbors(uint8_t* rows, uint8_t cell) {
+    uint8_t x = battle_column(cell), y = battle_row(cell);
+    uint8_t bit = (uint8_t)(1 << x);
+    rows[y] = (uint8_t)(rows[y] | (bit << 1) | (bit >> 1));
+    // Bits shifted past column 7 drop out of the byte; a shift below column 0 drops out too.
+    if(y)
+        rows[y - 1] = (uint8_t)(rows[y - 1] | bit);
+    if(y + 1 < BATTLE_ROWS)
+        rows[y + 1] = (uint8_t)(rows[y + 1] | bit);
+}
+
+// Reverses actions[begin, end).
+static void reverse(uint8_t* actions, uint8_t begin, uint8_t end) {
+    while(begin + 1 < end) {
+        --end;
+        uint8_t swap = actions[begin];
+        actions[begin] = actions[end];
+        actions[end] = swap;
+        ++begin;
+    }
+}
+
 // Moves every action that satisfies `first` ahead of the rest, swapping from both ends. Each action
 // is tested once, and the result depends only on the input order, so it is deterministic.
+// Returns the index of the first action that does not satisfy `first`.
 template <typename PREDICATE>
-static void partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE first) {
+static uint8_t partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE first) {
     while(begin < end) {
         if(first(actions[begin])) {
             ++begin;
@@ -398,18 +450,57 @@ static void partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE fi
         actions[begin] = actions[end];
         actions[end] = swap;
     }
+    return begin;
 }
 
 // Kept out of line, so its working values never sit on the search's deepest frames.
-RPG_NOINLINE void battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
-                                       uint8_t attacks, bool approach) {
-    partition(actions, 0, attacks, [&](uint8_t packed) { return kills(state, packed); });
-    if(count == attacks || !approach)
-        return;
-    uint8_t targets[BATTLE_UNIT_CAPACITY];
-    set_targets(state, targets);
-    partition(actions, attacks, count,
-              [&](uint8_t packed) { return approaches(state, targets, packed); });
+RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
+                                          uint8_t attacks, bool approach) {
+    // Two masks of cells beside living opponents: rows[0..3] for any opponent, rows[4..7] for one
+    // that a single engagement hit defeats. A move's engagement is then one bit test. The same
+    // bytes hold the approach targets afterwards.
+    uint8_t rows[2 * BATTLE_ROWS] = {};
+    bool fragile = false; // An opponent that one engagement hit defeats.
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(!unit.hp || unit.team == state.turn)
+            continue;
+        mark_neighbors(rows, unit.cell);
+        if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE) {
+            mark_neighbors(rows + BATTLE_ROWS, unit.cell);
+            fragile = true;
+        }
+    }
+
+    // Kills to the front of each group: [attack kills | other attacks][move kills | other moves]. A
+    // move can kill only a fragile opponent, so without one the move pass is skipped.
+    uint8_t* const killing = rows + BATTLE_ROWS;
+    uint8_t attack_kills =
+        partition(actions, 0, attacks, [&](uint8_t packed) { return kills(state, packed); });
+    uint8_t move_kills = 0;
+    if(fragile) {
+        move_kills = (uint8_t)(partition(actions, attacks, count,
+                                         [&](uint8_t packed) { return in_rows(killing, packed); }) -
+                               attacks);
+        // Rotate the move kills ahead of the other attacks, so every kill leads.
+        reverse(actions, attack_kills, attacks);
+        reverse(actions, attacks, (uint8_t)(attacks + move_kills));
+        reverse(actions, attack_kills, (uint8_t)(attacks + move_kills));
+    }
+    uint8_t damaging = (uint8_t)(attack_kills + move_kills);
+    partition(actions, 0, damaging, [&](uint8_t packed) { return wins(state, packed); });
+    // Then the other attacks, which all damage, then the moves that engage an enemy, then quiet
+    // moves.
+    uint8_t quiet = (uint8_t)(attacks + move_kills);
+    if(!approach)
+        return quiet;
+    quiet = partition(actions, quiet, count, [&](uint8_t packed) { return in_rows(rows, packed); });
+    if(quiet == count || !approach)
+        return quiet;
+    set_targets(state, rows);
+    partition(actions, quiet, count,
+              [&](uint8_t packed) { return approaches(state, rows, packed); });
+    return quiet;
 }
 
 BATTLE_SEARCH_PRIORITY battle_search_priority(BattleState const& state, BattleAction action) {
@@ -459,11 +550,11 @@ static void start(uint8_t ply, BattleState const& state, uint8_t base, uint8_t d
         node.end = base;
         return;
     }
-    battle_order_actions(state, actions, count, attacks, ply + 1 < depth);
+    uint8_t quiet = battle_order_actions(state, actions, count, attacks, ply + 1 < depth);
     if(ply == 0)
         promote(actions, 0, count, first);
     else
-        promote(actions, attacks, count, killers[ply]);
+        promote(actions, quiet, count, killers[ply]);
     node.next = base;
     node.end = (uint8_t)(base + count);
 }
@@ -489,8 +580,10 @@ static uint16_t saturating_add(uint16_t a, uint16_t b) {
     return sum < a ? (uint16_t)0xFFFF : sum;
 }
 
-// Records a move that cut a node off at `ply` as that ply's killer. Attacks are already searched
-// first. The search never passes a forced pass here: a node that passes has no other child.
+// Records a move that cut a node off at `ply` as that ply's killer. Attacks are searched first
+// anyway. A killer is promoted only among the next node's quiet moves (see start), so a move that
+// engages an enemy is never treated as a quiet move: it stays in its damaging group. The search
+// never passes a forced pass here: a node that passes has no other child.
 static void note_cutoff(BattleState const& parent, uint8_t ply, uint8_t packed) {
     if(ply && battle_unit_at(parent, (uint8_t)(packed & (BATTLE_CELLS - 1))) == BATTLE_NO_UNIT)
         killers[ply] = packed;
@@ -668,18 +761,33 @@ uint16_t battle_search_workspace_bytes() {
 }
 
 int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
-    uint8_t target = battle_unit_at(state, action.destination);
     BattleUnit const& actor = state.units[action.unit_index];
-    if(target != BATTLE_NO_UNIT)
-        return state.units[target].hp <= battle_attack_damage(actor) ? SCORE_KILL : SCORE_ATTACK;
-    return (int16_t)(SCORE_MOVE -
+    uint8_t opponents =
+        battle_living(state, actor.team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY);
+    uint8_t target = battle_unit_at(state, action.destination);
+    if(target != BATTLE_NO_UNIT) {
+        uint8_t hp = state.units[target].hp, damage = battle_attack_damage(actor);
+        if(hp <= damage)
+            return opponents == 1 ? GREEDY_WIN : (int16_t)(GREEDY_KILL + GREEDY_HP * hp);
+        return (int16_t)(GREEDY_HP * damage);
+    }
+    BattleEngagement engagement = battle_engagement(state, action.unit_index, action.destination);
+    if(engagement.kills && engagement.kills == opponents)
+        return GREEDY_WIN; // A winning sacrifice still wins.
+    bool falls = actor.hp <= BATTLE_MOVE_COST;
+    if(falls && battle_living(state, actor.team) == 1)
+        return GREEDY_LOSS; // The side's last unit would fall without winning.
+    int16_t value =
+        (int16_t)(GREEDY_KILL * engagement.kills +
+                  GREEDY_HP * (engagement.hits - BATTLE_MOVE_COST) - (falls ? GREEDY_KILL : 0));
+    return (int16_t)(value -
                      nearest_gap(state, actor.team, OUTSIDE.cells[actor.type], action.destination));
 }
 
 // Kept out of line, so the enemy turn's frame does not carry the greedy fallback's values.
 RPG_NOINLINE BattleAction battle_greedy_action(BattleState const& state) {
     BattleAction best{BATTLE_NO_UNIT, 0};
-    int16_t best_score = -1;
+    int16_t best_score = INT16_MIN;
     // The search is not running, so the shared scratch is free.
     uint8_t* actions = battle_action_scratch;
     uint8_t attacks = 0;
