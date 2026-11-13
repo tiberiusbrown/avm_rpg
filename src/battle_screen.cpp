@@ -82,6 +82,23 @@ static void draw_cursor(Cursor const& cursor) {
                        (int16_t)(cursor_pixel(cursor.y) - CURSOR_MARGIN), cursor.phase);
 }
 
+// Inspect the living actor under the logical cursor, independently of the selected hero. Keep
+// the panel on the other half of the board so it cannot cover the actor being inspected.
+static void draw_actor_info(BattleState const& state, Cursor const& cursor) {
+    uint8_t index = battle_unit_at(state, cursor.cell);
+    if(index == BATTLE_NO_UNIT)
+        return;
+
+    static constexpr char PROGMEM CLASS_NAMES[BATTLE_UNIT_TYPE_COUNT][9] = {
+        "Fighter", "Rogue", "Archer", "Spearman", "Wolf", "Brute"};
+    BattleUnit const& unit = state.units[index];
+    int16_t x = battle_column(cursor.cell) < BATTLE_COLUMNS / 2 ? 76 : 2;
+    avm_draw_filled_rect_white(x, 44, 50, 18);
+    avm_draw_filled_rect_black(x + 1, 45, 48, 16);
+    avm_draw_text(x + 4, 51, CLASS_NAMES[unit.type]);
+    avm_draw_textf(x + 4, 59, F("HP %u"), unit.hp);
+}
+
 // Moves the rendered cursor halfway toward its logical cell and advances the dash pattern.
 static void animate_cursor(Cursor& cursor) {
     cursor.x = cursor_ease(cursor.x, cursor_subpixel(cell_x(cursor.cell)));
@@ -459,6 +476,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
     input_sync();
     for(;;) {
         draw_board(screen, selected, SOUTH);
+        draw_actor_info(state, cursor);
         draw_cursor(cursor);
         avm_display(false);
         uint8_t pressed =

@@ -144,6 +144,8 @@ overworld cache and from the current area.
   A on the selected hero or B cancels a selection. The selected hero has a two-pixel white border.
   An invalid confirmation does nothing, and it does not use up the turn. After a hero acts, the
   cursor returns to that hero, so it can be selected again without moving the cursor.
+- Hovering the cursor over a living actor shows its class and current HP in a small panel on
+  the opposite side of the screen. The panel disappears over empty cells.
 - Each unit is one of six archetypes, with separate movement and attack patterns:
 
   | Archetype | Movement | Attack | Damage | Starting HP |
