@@ -8,9 +8,15 @@
 inline constexpr uint8_t BATTLE_COLUMNS = 8, BATTLE_ROWS = 4;
 inline constexpr uint8_t BATTLE_CELLS = BATTLE_COLUMNS * BATTLE_ROWS;
 
-// Two party members and two enemies.
-inline constexpr uint8_t BATTLE_UNIT_CAPACITY = 4;
+// Up to four units on each side, in eight unit slots. A slot's team is stored on its unit, so the
+// slots of the two sides may come in any order. The rules and the search accept any split of the
+// slots; an encounter has at most BATTLE_SIDE_CAPACITY units per side.
+inline constexpr uint8_t BATTLE_SIDE_CAPACITY = 4;
+inline constexpr uint8_t BATTLE_UNIT_CAPACITY = 2 * BATTLE_SIDE_CAPACITY;
 inline constexpr uint8_t BATTLE_NO_UNIT = BATTLE_UNIT_CAPACITY;
+
+// The most HP a unit can hold.
+inline constexpr uint8_t BATTLE_MAX_HP = 15;
 
 // Completed activations after this many lose one HP from the acting unit.
 inline constexpr uint8_t BATTLE_EXHAUSTION_START = 20;
@@ -134,12 +140,20 @@ constexpr bool battle_in_attack_range(BattleUnitRules const& rules, uint8_t dist
     return distance >= rules.attack_min && distance <= rules.attack_max;
 }
 
-// A unit's board cell, health, type, and team. The team is stored, so artwork never decides it.
+// A unit's board cell, health, type, and team. The team is stored, so artwork never decides it. The
+// fields are packed into two bytes (the cell in the first; HP, type, and team in the second), so a
+// battle state with eight slots is no larger than four unpacked units, and every copy the search
+// makes stays at 22 bytes.
 struct BattleUnit {
-    uint8_t cell, hp;
-    BATTLE_UNIT_TYPE type;
-    BATTLE_TEAM team;
+    uint8_t cell : 5;
+    uint8_t hp : 4; // At most BATTLE_MAX_HP.
+    BATTLE_UNIT_TYPE type : 3;
+    BATTLE_TEAM team : 1;
 };
+
+static_assert(sizeof(BattleUnit) == 2, "a unit packs into two bytes");
+static_assert(BATTLE_CELLS <= 32 && BATTLE_MAX_HP <= 15 && BATTLE_UNIT_TYPE_COUNT <= 8,
+              "the unit's bit fields hold every cell, HP value, and type");
 
 // A fixed starting arrangement. Story code names one of these and passes it to battle_show.
 struct BattleEncounter {
@@ -166,11 +180,11 @@ struct BattleAction {
     uint8_t destination;
 };
 
-// Search scratch stores an action in one byte: bits 0 to 4 hold the destination and bits 5 and 6
-// the unit. Bit 7 is never set by a packed action, so BATTLE_PACKED_PASS names a forced pass.
-static_assert(BATTLE_CELLS == 32 && BATTLE_UNIT_CAPACITY <= 4,
+// Search scratch stores an action in one byte: bits 0 to 4 hold the destination and bits 5 to 7 the
+// unit. Every byte value names some action, so a forced pass is written as unit 0 targeting its own
+// cell, which is never legal (see battle_pass_marker).
+static_assert(BATTLE_CELLS == 32 && BATTLE_UNIT_CAPACITY <= 8,
               "a packed action holds a cell and a unit");
-inline constexpr uint8_t BATTLE_PACKED_PASS = 0x80;
 
 constexpr uint8_t battle_pack(BattleAction action) {
     return (uint8_t)(action.unit_index << 5 | action.destination);
@@ -180,10 +194,17 @@ constexpr BattleAction battle_unpack(uint8_t packed) {
     return BattleAction{(uint8_t)(packed >> 5), (uint8_t)(packed & (BATTLE_CELLS - 1))};
 }
 
+// The packed byte that stands for a forced pass in a position: unit 0 targeting its own cell. A
+// unit never legally targets its own cell, alive (a friendly cell) or defeated, so the byte never
+// names a legal action of that position.
+constexpr uint8_t battle_pass_marker(BattleState const& state) {
+    return state.units[0].cell;
+}
+
 // Bounds on legal actions. A unit has at most eight moves: four directions of two cells for the
 // longest orthogonal range, or eight knight leaps. An attack pairs an acting unit with an opponent,
 // so a side of a units facing BATTLE_UNIT_CAPACITY - a opponents has at most a * (capacity - a)
-// attacks. The bound below is the largest total over every split of the four slots.
+// attacks. The bound below is the largest total over every split of the slots.
 inline constexpr uint8_t BATTLE_MOVE_LIMIT = 8;
 
 constexpr uint8_t battle_action_bound(uint8_t actors) {
@@ -255,7 +276,15 @@ uint8_t battle_actions(BattleState const& state, uint8_t* out, uint8_t& attacks)
 uint8_t battle_unit_actions(BattleState const& state, uint8_t unit_index, uint8_t* out,
                             uint8_t& attacks);
 
-// True when the side to act has at least one legal action.
+// Shared scratch for action lists, so no caller keeps a list on its own frame. While the enemy's
+// search runs it is the search's action stack; between searches, battle_can_act, the battle
+// screen's destination markers, and the greedy choice list actions here briefly. No list here
+// survives a call into another of those users. It holds BATTLE_ACTION_CAPACITY actions and more.
+inline constexpr uint8_t BATTLE_ACTION_SCRATCH_CAPACITY = 80;
+static_assert(BATTLE_ACTION_SCRATCH_CAPACITY >= BATTLE_ACTION_CAPACITY, "a whole side's list fits");
+extern uint8_t battle_action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
+
+// True when the side to act has at least one legal action. It lists in battle_action_scratch.
 bool battle_can_act(BattleState const& state);
 
 // What a legal action does, from the most urgent kind to the least. A win is a kill of the last

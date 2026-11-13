@@ -30,6 +30,22 @@ static constexpr uint8_t ROGUE = 0, ARCHER = 1, WOLF = 2, BRUTE = 3;
 static BattleState scenario;
 static uint8_t legal[BATTLE_ACTION_CAPACITY];
 
+// Four units a side: a mixed party against a mixed enemy, the two lines four columns apart.
+static constexpr BattleEncounter PROGMEM FOUR_A_SIDE{
+    BATTLEFIELD_GROVE,
+    8,
+    {
+        {battle_cell(1, 0), 5, BATTLE_TYPE_FIGHTER, BATTLE_PARTY},
+        {battle_cell(2, 1), 5, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
+        {battle_cell(1, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
+        {battle_cell(2, 3), 5, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY},
+        {battle_cell(6, 0), 4, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
+        {battle_cell(5, 1), 6, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
+        {battle_cell(6, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_ENEMY},
+        {battle_cell(5, 3), 5, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY},
+    },
+};
+
 static void grove(BATTLE_TEAM turn, uint8_t activations) {
     battle_begin(scenario, &BATTLE_GROVE);
     scenario.turn = turn;
@@ -198,6 +214,21 @@ extern "C" void setup() {
     scenario.units[BRUTE].hp = 3;
     scenario.units[BRUTE].cell = cell(5, 1);
     measure_decision(18, scenario);
+
+    // Four units a side, the enemy to act; then three a side, without each side's last unit.
+    battle_begin(scenario, &FOUR_A_SIDE);
+    scenario.turn = BATTLE_ENEMY;
+    measure_decision(50, scenario);
+    scenario.units[3].hp = 0;
+    scenario.units[7].hp = 0;
+    measure_decision(52, scenario);
+    // Four a side in contact: the lines have closed to adjacent columns.
+    battle_begin(scenario, &FOUR_A_SIDE);
+    scenario.turn = BATTLE_ENEMY;
+    scenario.activations = 6;
+    for(uint8_t i = 4; i < 8; ++i)
+        scenario.units[i].cell = (uint8_t)(scenario.units[i].cell - 2);
+    measure_decision(54, scenario);
 
     // The complete search at each depth on the in-play position.
     grove(BATTLE_PARTY, 0);

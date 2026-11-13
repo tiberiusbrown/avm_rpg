@@ -321,12 +321,17 @@ uint8_t battle_unit_actions(BattleState const& state, uint8_t unit_index, uint8_
     return battle_enumerate(state, unit_index, (uint8_t)(unit_index + 1), out, attacks);
 }
 
-// Kept out of line, so its action buffer never sits on the frame of a caller deep in the battle
-// screen.
+uint8_t battle_action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
+
+// One unit at a time, stopping at the first unit that can act. Kept out of line, so its loop stays
+// off the battle screen's frames.
 RPG_NOINLINE bool battle_can_act(BattleState const& state) {
-    uint8_t actions[BATTLE_ACTION_CAPACITY];
     uint8_t attacks = 0;
-    return battle_actions(state, actions, attacks) != 0;
+    for(uint8_t u = 0; u < state.unit_count; ++u)
+        if(state.units[u].team == state.turn &&
+           battle_unit_actions(state, u, battle_action_scratch, attacks))
+            return true;
+    return false;
 }
 
 BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction action) {

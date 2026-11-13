@@ -177,7 +177,8 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
     // marker pulses with the cursor, and none keeps a clock of its own. They come from the same
     // enumeration the rules use, so any legal cell on the board can carry one: attacks lead the
     // list and get brackets, and the moves after them get diamonds.
-    uint8_t actions[BATTLE_UNIT_ACTION_CAPACITY];
+    // The list goes in the shared scratch, which is idle while the screen draws.
+    uint8_t* actions = battle_action_scratch;
     uint8_t attacks = 0;
     uint8_t count = battle_unit_actions(state, selected, actions, attacks);
     uint8_t phase = screen.cursor.phase;

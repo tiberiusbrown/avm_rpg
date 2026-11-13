@@ -8,8 +8,10 @@
 inline constexpr uint8_t BATTLE_AI_DEPTH = 4;
 
 // Positions the enemy may visit while it chooses an action, summed over every iteration of the
-// deepening search. The value was chosen from AVM measurements (docs/performance.md), not derived
-// from a time limit: the cost of a position varies, so it bounds the work rather than the seconds.
+// deepening search, for a battle of four living units. A position costs more to search the more
+// units live, so a battle with more units gets proportionally fewer (battle_ai_budget). The value
+// was chosen from AVM measurements (docs/performance.md), not derived from a time limit: the cost
+// of a position varies, so it bounds the work rather than the seconds.
 inline constexpr uint16_t BATTLE_AI_NODE_BUDGET = 300;
 
 // A win or loss scores this much, less the plies it takes. Static utilities stay far below it, so a
@@ -50,10 +52,15 @@ struct BattleSearchStats {
     uint16_t iteration_nodes[BATTLE_AI_DEPTH]; // Nodes of each iteration, partial ones included.
 };
 
+// The deepest search the static action stack holds from this position: BATTLE_AI_DEPTH for battles
+// of up to three units a side, fewer for larger ones. Units never return, so the limit holds below
+// it.
+uint8_t battle_search_depth_limit(BattleState const& state);
+
 // Negamax with alpha-beta pruning, searched completely to `depth` plies (clamped to 1 through
-// BATTLE_AI_DEPTH) on an explicit stack. The state is not modified. Production code never recurses.
-// The result is deterministic. Ties go to the first action in search order, and the action is
-// always legal when one exists.
+// BATTLE_AI_DEPTH, then to battle_search_depth_limit) on an explicit stack. The state is not
+// modified. Production code never recurses. The result is deterministic. Ties go to the first
+// action in search order, and the action is always legal when one exists.
 BattleSearchResult battle_search(BattleState const& state, uint8_t depth);
 
 // Iterative deepening under a node budget: depth one, then two, and so on to `max_depth`, stopping
@@ -62,6 +69,7 @@ BattleSearchResult battle_search(BattleState const& state, uint8_t depth);
 // the last one. Each iteration tries the previous iteration's choice first. The result is that of
 // the deepest completed iteration. When none completed, its depth is zero and the action has no
 // unit. A budget of zero means no limit.
+// The deepest iteration is also limited by battle_search_depth_limit.
 BattleSearchResult battle_think(BattleState const& state, uint8_t max_depth, uint16_t budget);
 
 BattleSearchStats battle_search_stats();
@@ -90,7 +98,11 @@ int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply);
 // between them are ignored, so it is an estimate.
 uint8_t battle_attack_gap(BATTLE_UNIT_TYPE type, uint8_t dx, uint8_t dy);
 
-// The enemy's choice: battle_think at BATTLE_AI_DEPTH within BATTLE_AI_NODE_BUDGET. When no
+// The enemy's node budget for a position: BATTLE_AI_NODE_BUDGET with up to four living units,
+// scaled by four over the living units beyond that (200 with six, 150 with eight).
+uint16_t battle_ai_budget(BattleState const& state);
+
+// The enemy's choice: battle_think at BATTLE_AI_DEPTH within battle_ai_budget. When no
 // iteration completes, or its action is not legal, the greedy choice is used instead.
 BattleAction battle_enemy_action(BattleState const& state);
 

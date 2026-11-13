@@ -67,7 +67,7 @@ static void report(char const* name, BattleState const& s) {
     BattleSearchResult result{};
     auto begin = clock::now();
     for(unsigned i = 0; i < repeats; ++i)
-        result = battle_think(s, BATTLE_AI_DEPTH, BATTLE_AI_NODE_BUDGET);
+        result = battle_think(s, BATTLE_AI_DEPTH, battle_ai_budget(s));
     auto end = clock::now();
     BattleSearchStats stats = battle_search_stats();
     double micros = std::chrono::duration<double, std::micro>(end - begin).count() / repeats;
@@ -148,6 +148,33 @@ int main() {
     place(survivors, BRUTE, 5, 1);
     report("one survivor per side", survivors);
 
+    // Four and three units a side, as in tests/battle_probe.cpp.
+    BattleState four{};
+    four.field = BATTLEFIELD_GROVE;
+    four.unit_count = 8;
+    BATTLE_UNIT_TYPE const party_types[4] = {BATTLE_TYPE_FIGHTER, BATTLE_TYPE_ROGUE,
+                                             BATTLE_TYPE_ARCHER, BATTLE_TYPE_SPEARMAN};
+    BATTLE_UNIT_TYPE const enemy_types[4] = {BATTLE_TYPE_WOLF, BATTLE_TYPE_BRUTE,
+                                             BATTLE_TYPE_ARCHER, BATTLE_TYPE_FIGHTER};
+    uint8_t const party_cells[4] = {cell(1, 0), cell(2, 1), cell(1, 2), cell(2, 3)};
+    uint8_t const enemy_cells[4] = {cell(6, 0), cell(5, 1), cell(6, 2), cell(5, 3)};
+    uint8_t const party_hp[4] = {5, 5, 4, 5}, enemy_hp[4] = {4, 6, 4, 5};
+    for(uint8_t i = 0; i < 4; ++i) {
+        four.units[i] = BattleUnit{party_cells[i], party_hp[i], party_types[i], BATTLE_PARTY};
+        four.units[4 + i] = BattleUnit{enemy_cells[i], enemy_hp[i], enemy_types[i], BATTLE_ENEMY};
+    }
+    four.turn = BATTLE_ENEMY;
+    report("four a side", four);
+    BattleState three = four;
+    three.units[3].hp = 0;
+    three.units[7].hp = 0;
+    report("three a side", three);
+    BattleState contact = four;
+    contact.activations = 6;
+    for(uint8_t i = 4; i < 8; ++i)
+        contact.units[i].cell = (uint8_t)(contact.units[i].cell - 2);
+    report("four a side in contact", contact);
+
     // Spread over random legal positions with the enemy to act.
     unsigned samples = 0, budget_hits = 0, max_nodes = 0, max_nodes_seed = 0;
     unsigned depth_counts[BATTLE_AI_DEPTH + 1] = {};
@@ -156,7 +183,7 @@ int main() {
         BattleState s = random_position(seed % 11, (seed * 5) % 26);
         if(s.ended || s.turn != BATTLE_ENEMY)
             continue;
-        battle_think(s, BATTLE_AI_DEPTH, BATTLE_AI_NODE_BUDGET);
+        battle_think(s, BATTLE_AI_DEPTH, battle_ai_budget(s));
         BattleSearchStats stats = battle_search_stats();
         if(stats.nodes > max_nodes) {
             max_nodes = stats.nodes;

@@ -128,19 +128,21 @@ overworld cache and from the current area.
   Moves need empty cells all the way, except the rogue's leap, which needs only an empty landing
   cell. Attacks need every cell between to be empty, whoever stands there. A brute pushes a surviving
   victim one cell straight away when that cell is on the board and empty. Attackers never move.
-  The Grove pits the party's rogue and archer against a wolf and a brute.
+  A battle holds up to four units a side. The Grove pits the party's rogue and archer against a
+  wolf and a brute.
 - Each activation is one move or one attack. A straight move walks at the exploration walking speed
   and pose, and a knight leap glides straight to its cell. An attacker, ranged or not, lunges four
   pixels toward its target, holds for about a quarter second, and returns. Every unit that loses HP
   flashes on and off for about a second, at its new cell after a knockback. The next turn waits for the
   flashing to end, and a defeated unit flashes before it disappears.
 - Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
-  a time, up to four, within a budget of 300 positions, and uses the deepest completed search. It
+  a time, up to four, within a budget of 300 positions (fewer with more than four living units), and
+  uses the deepest completed search. It
   assumes the heroes reply with their best action. It scores a position by the damage it deals and the
   heroes it removes, which count for more than its own losses, plus terms for the attacks each side can
   make and for how far each enemy still is from an attack position. The search runs synchronously:
-  about 0.7 seconds on the AVM in the measured positions, and at most about 0.85 seconds
-  (`docs/performance.md`).
+  about 0.6 to 0.75 seconds on the AVM in the measured Grove positions, and under 0.9 seconds in every
+  measured position, including three and four units a side (`docs/performance.md`).
 - From the 21st completed activation onward, the acting unit loses 1 HP after its action.
 - A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
   position, flags, or any other overworld state.

@@ -140,12 +140,13 @@ static BattleState random_play(unsigned plies, unsigned start) {
     return s;
 }
 
-// A random running board: two to four units of random types, HP, and cells, with at least one
-// living unit on each team, a random side to act, and a random activation count.
-static BattleState random_board() {
+// A random running board: two to eight units of random types, HP, and cells, at most four on each
+// team and at least one, a random side to act, and a random activation count.
+static BattleState random_board(uint8_t most = BATTLE_UNIT_CAPACITY) {
     BattleState s{};
     s.field = BATTLEFIELD_GROVE;
-    s.unit_count = (uint8_t)(2 + next_random(3));
+    s.unit_count = (uint8_t)(2 + next_random(most - 1));
+    uint8_t per_team[2] = {};
     for(uint8_t i = 0; i < s.unit_count; ++i) {
         uint8_t c = 0;
         for(;;) {
@@ -159,6 +160,9 @@ static BattleState random_board() {
         BATTLE_TEAM team = i == 0   ? BATTLE_PARTY
                            : i == 1 ? BATTLE_ENEMY
                                     : (BATTLE_TEAM)next_random(2);
+        if(per_team[team] == BATTLE_SIDE_CAPACITY)
+            team = team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
+        ++per_team[team];
         s.units[i] = BattleUnit{c, (uint8_t)(1 + next_random(6)),
                                 (BATTLE_UNIT_TYPE)next_random(BATTLE_UNIT_TYPE_COUNT), team};
     }
@@ -261,7 +265,7 @@ static void unit_definitions() {
     CHECK(BATTLE_UNIT_TYPES[BATTLE_TYPE_ARCHER].sprite_row < 16);
 
     // The copied state stays compact: no ability data is stored per unit.
-    static_assert(sizeof(BattleUnit) == 4, "a unit is its cell, HP, type, and team");
+    static_assert(sizeof(BattleUnit) == 2, "a unit packs its cell, HP, type, and team");
     static_assert(sizeof(BattleState) == 22, "the copied battle state did not grow");
     static_assert(sizeof(BattleUnitType) == 7, "a unit type is seven bytes of program memory");
 }
@@ -790,7 +794,7 @@ static void check_enumeration(BattleState const& s) {
 
     unsigned seen[BATTLE_UNIT_CAPACITY][BATTLE_CELLS] = {};
     for(uint8_t i = 0; i < count; ++i) {
-        CHECK(packed[i] < 0x80);
+        CHECK(packed[i] != battle_pass_marker(s));
         BattleAction action = battle_unpack(packed[i]);
         CHECK(battle_pack(action) == packed[i]);
         CHECK(action.unit_index < s.unit_count && action.destination < BATTLE_CELLS);
@@ -885,11 +889,10 @@ static void legal_action_enumeration() {
                                             {6, 2, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 4}});
     check_enumeration(four);
 
-    // The capacity is the largest total over every split of the four slots, and each per-unit bound
-    // holds for every archetype.
-    static_assert(BATTLE_ACTION_CAPACITY == 32,
-                  "four units of eight moves, or three with three attacks");
-    static_assert(BATTLE_UNIT_ACTION_CAPACITY == 11, "eight moves and three attacks");
+    // The capacity is the largest total over every split of the eight slots, and each per-unit
+    // bound holds for every archetype.
+    static_assert(BATTLE_ACTION_CAPACITY == 64, "eight units of eight moves");
+    static_assert(BATTLE_UNIT_ACTION_CAPACITY == 15, "eight moves and seven attacks");
     for(uint8_t actors = 0; actors <= BATTLE_UNIT_CAPACITY; ++actors)
         CHECK(battle_action_bound(actors) <= BATTLE_ACTION_CAPACITY);
 
@@ -909,12 +912,40 @@ static void legal_action_enumeration() {
 }
 
 static void action_encoding() {
+    // Every unit slot and cell round-trips through one byte.
     for(uint8_t u = 0; u < BATTLE_UNIT_CAPACITY; ++u)
-        for(uint8_t c = 0; c < BATTLE_CELLS; ++c) {
-            uint8_t packed = battle_pack({u, c});
-            CHECK(packed < BATTLE_PACKED_PASS);
-            CHECK(same_action(battle_unpack(packed), {u, c}));
-        }
+        for(uint8_t c = 0; c < BATTLE_CELLS; ++c)
+            CHECK(same_action(battle_unpack(battle_pack({u, c})), {u, c}));
+    // The pass marker names unit 0 targeting its own cell, which is never legal, alive or defeated.
+    for(unsigned seed = 0; seed < 2000; ++seed) {
+        BattleState s = random_board();
+        BattleAction marker = battle_unpack(battle_pass_marker(s));
+        CHECK(marker.unit_index == 0 && marker.destination == s.units[0].cell);
+        CHECK(!battle_legal(s, marker) && !oracle_legal(s, 0, s.units[0].cell));
+        s.units[0].hp = 0;
+        CHECK(!battle_legal(s, battle_unpack(battle_pass_marker(s))));
+    }
+}
+
+// Units pack into two bytes and keep every value the rules use.
+static void unit_packing() {
+    BattleUnit unit{31, BATTLE_MAX_HP, BATTLE_TYPE_BRUTE, BATTLE_ENEMY};
+    CHECK(unit.cell == 31 && unit.hp == 15 && unit.type == BATTLE_TYPE_BRUTE &&
+          unit.team == BATTLE_ENEMY);
+    unit.hp = (uint8_t)(unit.hp - 1);
+    unit.cell = 0;
+    CHECK(unit.cell == 0 && unit.hp == 14 && unit.type == BATTLE_TYPE_BRUTE &&
+          unit.team == BATTLE_ENEMY);
+    for(uint8_t t = 0; t < BATTLE_UNIT_TYPE_COUNT; ++t) {
+        unit.type = (BATTLE_UNIT_TYPE)t;
+        CHECK(unit.type == t && unit.hp == 14 && unit.cell == 0);
+    }
+    unit.team = BATTLE_PARTY;
+    CHECK(unit.team == BATTLE_PARTY && unit.type == BATTLE_UNIT_TYPE_COUNT - 1);
+    // The Grove encounter fits the side limit.
+    BattleState grove = fresh();
+    CHECK(battle_living(grove, BATTLE_PARTY) <= BATTLE_SIDE_CAPACITY &&
+          battle_living(grove, BATTLE_ENEMY) <= BATTLE_SIDE_CAPACITY);
 }
 
 // --- Search ordering and scores -------------------------------------------------------------
@@ -1056,10 +1087,16 @@ static void utility_weights() {
 
 // --- Search correctness ----------------------------------------------------------------------
 
+// The search clamps its depth to what the action stack holds for the position, so the reference
+// searches to the same clamped depth.
 static void expect_same_as_reference(BattleState const& s, uint8_t depth) {
     BattleState before = s;
     BattleSearchResult fast = battle_search(s, depth);
     CHECK(same_state(before, s));
+    uint8_t limit = battle_search_depth_limit(s);
+    CHECK(limit >= 1 && limit <= BATTLE_AI_DEPTH);
+    if(depth > limit)
+        depth = limit;
     uint64_t nodes = 0;
     BattleSearchResult slow = reference_search(s, depth, nodes);
     CHECK(fast.score == slow.score);
@@ -1080,7 +1117,8 @@ static void negamax_matches_reference() {
     // ranged attacks, knockbacks, forced passes, and exhaustion.
     for(unsigned seed = 0; seed < 240; ++seed) {
         BattleState s = seed & 1 ? random_board() : random_play(seed % 11, (seed * 11) % 26);
-        uint8_t deepest = seed % 4 == 0 ? BATTLE_AI_DEPTH : 3;
+        // Unpruned references grow quickly with more units, so larger boards stop at three plies.
+        uint8_t deepest = seed % 4 == 0 && s.unit_count <= 4 ? BATTLE_AI_DEPTH : 3;
         for(uint8_t depth = 1; depth <= deepest; ++depth)
             expect_same_as_reference(s, depth);
         BattleAction chosen = battle_enemy_action(s);
@@ -1186,9 +1224,9 @@ static void search_bounds() {
     reference_search(root, BATTLE_AI_DEPTH, unpruned);
     CHECK(first.nodes < unpruned && first.leaves <= first.nodes && first.leaves > 0);
 
-    // The workspace: four plies of 6 bytes, an 80-byte shared action stack (four plies of a
-    // two-on-two battle at 20 actions each), four killer bytes, and four 22-byte positions.
-    CHECK(battle_search_workspace_bytes() == 4 * 6 + 4 + 80 + 4 * 22);
+    // The workspace: four plies of 4 bytes, four killer bytes, the 80-byte shared action scratch
+    // (two plies of four rogues a side, four of any two-on-two battle), and four 22-byte positions.
+    CHECK(battle_search_workspace_bytes() == 4 * 4 + 4 + 80 + 4 * 22);
     printf(
         "search workspace %u bytes; enemy opening depth %u: %u nodes, %u leaves (unpruned %llu)\n",
         (unsigned)battle_search_workspace_bytes(), (unsigned)BATTLE_AI_DEPTH, (unsigned)first.nodes,
@@ -1436,6 +1474,134 @@ static void party_search_uses_leaps() {
     CHECK(battle_search(wall, 2).score < BATTLE_SCORE_WIN - 3);
 }
 
+// --- Three and four units a side -----------------------------------------------------------
+
+// A four-on-four encounter: the rules, the copied state, and the encounter table all hold eight
+// units.
+static constexpr BattleEncounter PROGMEM TEST_FOUR_A_SIDE{
+    BATTLEFIELD_GROVE,
+    8,
+    {
+        {battle_cell(1, 0), 5, BATTLE_TYPE_FIGHTER, BATTLE_PARTY},
+        {battle_cell(1, 1), 5, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
+        {battle_cell(0, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
+        {battle_cell(1, 3), 5, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY},
+        {battle_cell(6, 0), 4, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
+        {battle_cell(6, 1), 6, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
+        {battle_cell(7, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_ENEMY},
+        {battle_cell(6, 3), 15, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY},
+    },
+};
+
+// The most legal actions one unit of each type can have on the 8x4 board, restated from the
+// specification: a stepping unit gets a move or an attack in each direction; an archer, a spearman,
+// or a wolf at most two per direction, and only one toward the near edge of a four-row board; a
+// rogue at most six leaps (two of its eight leave a four-row board from any cell) and four adjacent
+// attacks. Attacks never exceed the opponents.
+static unsigned oracle_unit_limit(BATTLE_UNIT_TYPE type, unsigned opponents) {
+    OracleType rules = oracle_type(type);
+    unsigned moves = rules.knight ? 6 : rules.move_range == 2 ? 7 : 4;
+    unsigned per_type = type == BATTLE_TYPE_FIGHTER || type == BATTLE_TYPE_BRUTE ? 4
+                        : type == BATTLE_TYPE_ROGUE                              ? 10
+                                                                                 : 7;
+    return per_type < moves + opponents ? per_type : moves + opponents;
+}
+
+static void four_a_side() {
+    BattleState s;
+    battle_begin(s, &TEST_FOUR_A_SIDE);
+    CHECK(s.unit_count == 8 && sizeof(BattleState) == 22);
+    CHECK(battle_living(s, BATTLE_PARTY) == 4 && battle_living(s, BATTLE_ENEMY) == 4);
+    for(uint8_t i = 0; i < 8; ++i)
+        CHECK(battle_unit_at(s, s.units[i].cell) == i);
+    CHECK(s.units[7].hp == BATTLE_MAX_HP && s.units[7].type == BATTLE_TYPE_FIGHTER);
+    check_enumeration(s);
+    BattleState enemy = s;
+    enemy.turn = BATTLE_ENEMY;
+    check_enumeration(enemy);
+    // Units in the high slots act like any other: the enemy fighter in slot 7 steps, and slot 6's
+    // archer has a clear shot along row 2 at the party archer five cells away only once it closes
+    // in.
+    CHECK(battle_legal(enemy, act(7, 5, 3)) && !battle_legal(enemy, act(6, 0, 2)));
+    battle_apply(enemy, act(6, 6, 2));
+    CHECK(enemy.units[6].cell == cell(6, 2) && enemy.turn == BATTLE_PARTY);
+
+    // The per-unit limits behind the search's stack bound hold on random boards of every size.
+    for(unsigned seed = 0; seed < 3000; ++seed) {
+        BattleState r = random_board();
+        for(uint8_t u = 0; u < r.unit_count; ++u) {
+            if(!r.units[u].hp || r.units[u].team != r.turn)
+                continue;
+            uint8_t packed[BATTLE_UNIT_ACTION_CAPACITY];
+            uint8_t attacks = 0;
+            unsigned count = battle_unit_actions(r, u, packed, attacks);
+            unsigned opponents =
+                battle_living(r, r.turn == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY);
+            CHECK(count <= oracle_unit_limit(r.units[u].type, opponents));
+        }
+    }
+
+    // The search's depth follows the composition: any two-on-two battle and the Grove get four
+    // plies, a mixed four-on-four battle three, and four rogues a side still two.
+    CHECK(battle_search_depth_limit(fresh()) == BATTLE_AI_DEPTH);
+    BattleState rogues2 = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
+                                               {0, 3, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
+                                               {7, 0, BATTLE_TYPE_ROGUE, BATTLE_ENEMY, 5},
+                                               {7, 3, BATTLE_TYPE_ROGUE, BATTLE_ENEMY, 5}});
+    CHECK(battle_search_depth_limit(rogues2) == BATTLE_AI_DEPTH);
+    CHECK(battle_search_depth_limit(s) == 3);
+    BattleState rogues4 = s;
+    for(uint8_t i = 0; i < 8; ++i)
+        rogues4.units[i].type = BATTLE_TYPE_ROGUE;
+    CHECK(battle_search_depth_limit(rogues4) == 2);
+    // A defeated unit no longer counts, so the limit can only rise as a battle goes on.
+    BattleState fewer = rogues4;
+    fewer.units[0].hp = 0;
+    fewer.units[1].hp = 0;
+    CHECK(battle_search_depth_limit(fewer) >= battle_search_depth_limit(rogues4));
+
+    // The search matches the unpruned reference on four-a-side and three-a-side positions, at every
+    // depth the stack allows (three plies at most, to keep the reference fast).
+    expect_same_as_reference(s, 1);
+    expect_same_as_reference(s, 2);
+    expect_same_as_reference(enemy, 2);
+    expect_same_as_reference(rogues4, 3);
+    CHECK(battle_search_stats().completed == 2);
+    for(unsigned seed = 0; seed < 60; ++seed) {
+        BattleState r = random_board();
+        if(r.unit_count < 6)
+            continue;
+        expect_same_as_reference(r, 1);
+        expect_same_as_reference(r, 2);
+        if(seed % 4 == 0)
+            expect_same_as_reference(r, 3);
+    }
+
+    // The enemy's budgeted choice on a full board is a completed iteration's, and legal.
+    // The budget scales down with more living units.
+    CHECK(battle_ai_budget(fresh()) == BATTLE_AI_NODE_BUDGET && battle_ai_budget(enemy) == 150);
+    BattleState six = enemy;
+    six.units[0].hp = 0;
+    six.units[4].hp = 0;
+    CHECK(battle_ai_budget(six) == 200);
+    BattleSearchResult think = battle_think(enemy, BATTLE_AI_DEPTH, battle_ai_budget(enemy));
+    CHECK(think.depth >= 1 && battle_search_stats().nodes <= 150);
+    CHECK(battle_legal(enemy, think.action));
+    CHECK(battle_legal(enemy, battle_enemy_action(enemy)));
+
+    // A forced pass on a full board: the cornered archer's whole side is boxed in.
+    BattleState boxed = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
+                                             {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
+                                             {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
+                                             {7, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
+                                             {6, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
+                                             {7, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    CHECK(!battle_can_act(boxed));
+    BattleSearchResult passed = battle_search(boxed, 3);
+    CHECK(passed.action.unit_index == BATTLE_NO_UNIT && passed.depth == 3);
+    expect_same_as_reference(boxed, 3);
+}
+
 // --- Presentation helpers --------------------------------------------------------------------
 
 static unsigned ease_to(int16_t start, int16_t target) {
@@ -1519,6 +1685,7 @@ int main() {
     outcomes();
     determinism_and_copies();
     action_encoding();
+    unit_packing();
     legal_action_enumeration();
     search_ordering();
     terminal_scores();
@@ -1531,6 +1698,7 @@ int main() {
     budget_boundaries();
     enemy_behavior();
     party_search_uses_leaps();
+    four_a_side();
     cursor_easing();
     lunge_timing();
     flash_timing();
