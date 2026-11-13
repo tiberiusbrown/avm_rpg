@@ -9,6 +9,8 @@
 #include "world_assets.h"
 #include "tile_ids.h"
 #pragma pack(pop)
+// BattleUnit uses byte-sized bit-field allocation units; packing it would change those offsets.
+#include "battle.h"
 #include "music_catalog.h"
 
 #include <filesystem>
@@ -36,6 +38,7 @@ struct Cost {
 struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
     unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
+    unsigned battle_pointer_addr = 0;
     uint8_t previous_phase = 0;
     uint64_t phase_begin = 0;
     Cost stages;
@@ -88,6 +91,26 @@ struct Device {
 
     void set_state(Game const& g) {
         memcpy(&ab->core_state.cpu.data[game_addr], &g, sizeof(g));
+    }
+
+    unsigned battle_address() const {
+        require(battle_pointer_addr, "missing battle QA pointer address");
+        auto const& ram = ab->core_state.cpu.data;
+        return ram[battle_pointer_addr] | (unsigned)ram[battle_pointer_addr + 1] << 8;
+    }
+
+    void set_battle(BattleState const& state) {
+        unsigned addr = battle_address();
+        require(addr != 0, "no active battle");
+        memcpy(&ab->core_state.cpu.data[addr], &state, sizeof(state));
+    }
+
+    BattleState battle_state() const {
+        unsigned addr = battle_address();
+        require(addr != 0, "no active battle");
+        BattleState state;
+        memcpy(&state, &ab->core_state.cpu.data[addr], sizeof(state));
+        return state;
     }
 
     uint8_t cached_tile(uint8_t x, uint8_t y) const {
@@ -602,10 +625,12 @@ static bool pause_row_visible(Device& d, unsigned row) {
     return false;
 }
 
-static void open_options(Device& d) {
+static void open_audio(Device& d, bool can_load = false) {
     d.tap(BTN_B);
     d.advance(0, 1600000);
     d.tap(BTN_UP);
+    if(can_load)
+        d.tap(BTN_UP);
     d.tap(BTN_A);
     d.advance(0, 9600000);
 }
@@ -630,12 +655,12 @@ static void verify_options_handoff(FadeTrace const& trace) {
         position -= position / 2;
         int visible = (position + 8) / 16;
         require(at < trace.frames.size() && left_edge(trace.frames[at], visible),
-                "pause did not ease out before Options");
+                "pause did not ease out before Audio");
         auto const& frame = trace.frames[at++];
         for(unsigned i = 0; i < source.pixels.size(); ++i)
             if(i % 128 >= 39)
                 require(frame.pixels[i] == source.pixels[i],
-                        "world brightened during Options handoff");
+                        "world brightened during Audio handoff");
         require(!previous || frame.cycle - previous < 336000, "pause handoff missed a frame");
         previous = frame.cycle;
     } while((position + 8) / 16);
@@ -643,31 +668,31 @@ static void verify_options_handoff(FadeTrace const& trace) {
     position = 0;
     do {
         bool first_options_frame = position == 0;
-        int distance = OPTIONS_WIDTH * 16 - position;
-        position = distance <= 1 ? OPTIONS_WIDTH * 16 : position + distance / 2;
+        int distance = AUDIO_WIDTH * 16 - position;
+        position = distance <= 1 ? AUDIO_WIDTH * 16 : position + distance / 2;
         int left = 128 - (position + 8) / 16;
-        require(at < trace.frames.size(), "Options did not ease in immediately");
+        require(at < trace.frames.size(), "Audio did not ease in immediately");
         auto const& frame = trace.frames[at++];
         for(int x = left; x < 128; ++x)
             require(!pixel(frame, x, 0) &&
-                        pixel(frame, x, 1) == (x > left && x < left + OPTIONS_WIDTH - 1),
-                    "Options did not ease in from the right");
+                        pixel(frame, x, 1) == (x > left && x < left + AUDIO_WIDTH - 1),
+                    "Audio did not ease in from the right");
         for(unsigned page = 0; page < 8; ++page)
             require(frame.pixels[page * 128 + 39] == source.pixels[page * 128 + 39],
-                    "Options changed the world's half fade");
-        // The first Options image has more drawing work than the outgoing empty pause image.
+                    "Audio changed the world's half fade");
+        // The first Audio image has more drawing work than the outgoing empty pause image.
         // Subsequent presentations must keep the usual 50 Hz cadence.
         require(frame.cycle - previous < (first_options_frame ? 480000 : 336000),
-                "Options handoff missed a frame");
+                "Audio handoff missed a frame");
         previous = frame.cycle;
-    } while(position != OPTIONS_WIDTH * 16);
+    } while(position != AUDIO_WIDTH * 16);
 }
 
 static void verify_audio_options(Device const& d, unsigned music, unsigned sfx, unsigned lowpass) {
     auto const& ram = d.ab->core_state.cpu.data;
     require(ram[0xa71] == music && ram[0xa72] == sfx && ram[0xa6e] == lowpass,
-            "Options did not apply independent audio settings");
-    require(ram[0xa17] == 255, "Options changed the shared master gain");
+            "Audio did not apply independent audio settings");
+    require(ram[0xa17] == 255, "Audio changed the shared master gain");
 }
 
 static void verify_options(Device& d, fs::path const& out) {
@@ -691,7 +716,7 @@ static void verify_options(Device& d, fs::path const& out) {
     d.tap(BTN_LEFT);
     verify_audio_options(d, 119, 128, 0);
     auto pixels = pause_frame(d).pixels;
-    int knob = 128 - OPTIONS_WIDTH + 10 + 14 * (OPTIONS_WIDTH - 23) / 30;
+    int knob = 128 - AUDIO_WIDTH + 10 + 14 * (AUDIO_WIDTH - 23) / 30;
     for(int x = 50; x < 118; ++x)
         require(((pixels[2 * 128 + x] >> 4) & 1) == (x >= knob && x < knob + 3),
                 "music slider thumb did not move with its volume");
@@ -750,14 +775,14 @@ static void verify_options(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     auto paused = d.state();
     require(d.serial() == serial && !memcmp(&paused, &frozen, sizeof(Game)),
-            "Options advanced or altered the paused world");
+            "Audio advanced or altered the paused world");
     d.tap(BTN_B);
     d.frame();
-    require(d.serial() != serial, "B from Options did not return directly to gameplay");
+    require(d.serial() != serial, "B from Audio did not return directly to gameplay");
 }
 
 static void set_test_options(Device& d) {
-    open_options(d);
+    open_audio(d);
     for(unsigned i = 0; i < 3; ++i)
         d.tap(BTN_LEFT);
     d.tap(BTN_DOWN);
@@ -798,6 +823,103 @@ static void verify_pause_party(Device& d) {
     }
     d.tap(BTN_B);
     d.frame();
+}
+
+static void verify_battle_menu(Device& d, fs::path const& out) {
+    d.advance(0, 6400000);
+    BattleState initial = d.battle_state();
+    Game world = d.state();
+    unsigned serial = d.serial();
+    d.tap(BTN_B);
+    d.advance(0, 3200000);
+    require(pause_row_visible(d, 3) && !pause_row_visible(d, 4) && !pause_row_visible(d, 5),
+            "battle pause menu did not hide exploration items and unavailable Load");
+    d.capture(out / "battle-menu.pgm");
+    // Resign remains visible and does nothing.
+    for(unsigned i = 0; i < 3; ++i)
+        d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    BattleState paused = d.battle_state();
+    require(!memcmp(&initial, &paused, sizeof(initial)) && pause_row_visible(d, 3),
+            "Resign changed the battle");
+    d.tap(BTN_UP); // Audio
+    d.tap(BTN_A);
+    d.advance(0, 9600000);
+    d.capture(out / "battle-audio.pgm");
+    d.tap(BTN_LEFT);
+    verify_audio_options(d, 119, 128, 0);
+    d.tap(BTN_RIGHT);
+    paused = d.battle_state();
+    require(!memcmp(&initial, &paused, sizeof(initial)) && d.serial() == serial,
+            "battle advanced while Audio was open");
+    d.tap(BTN_B);
+    d.advance(0, 6400000);
+    paused = d.battle_state();
+    require(!memcmp(&initial, &paused, sizeof(initial)), "Audio did not resume the same battle");
+
+    auto wait_activation = [&] {
+        for(unsigned frame = 0; d.battle_state().activations == 0; ++frame) {
+            require(frame < 300, "battle pass did not resolve");
+            d.advance(0, 320000);
+        }
+        d.advance(0, 160000); // Let the pass finish updating HP before its visual reaction.
+        return d.battle_state();
+    };
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN); // Pass voluntarily, even with legal actions.
+    d.tap(BTN_A);
+    BattleState passed = wait_activation();
+    require(passed.activations == 1 && passed.turn == BATTLE_ENEMY,
+            "player Pass did not consume one activation");
+    for(unsigned i = 0; i < initial.unit_count; ++i)
+        require(passed.units[i].hp == initial.units[i].hp - (initial.units[i].team == BATTLE_PARTY),
+                "player Pass did not damage every party member exactly once");
+    // Restore before the short reaction ends so the ordinary Grove plan can still be exercised.
+    d.set_battle(initial);
+    d.advance(0, 8000000);
+
+    BattleState blocked = initial;
+    blocked.turn = BATTLE_ENEMY;
+    blocked.unit_count = 6;
+    blocked.units[0] = {battle_cell(0, 0), 2, BATTLE_TYPE_ARCHER, BATTLE_ENEMY};
+    blocked.units[1] = {battle_cell(7, 3), 3, BATTLE_TYPE_ARCHER, BATTLE_ENEMY};
+    blocked.units[2] = {battle_cell(1, 0), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
+    blocked.units[3] = {battle_cell(0, 1), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
+    blocked.units[4] = {battle_cell(6, 3), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
+    blocked.units[5] = {battle_cell(7, 2), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
+    d.set_battle(blocked);
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_B); // Resume hands control back to the forced-pass check.
+    passed = wait_activation();
+    require(passed.activations == 1 && passed.turn == BATTLE_PARTY && passed.units[0].hp == 1 &&
+                passed.units[1].hp == 2,
+            "AI forced Pass did not damage its whole team");
+    for(unsigned i = 2; i < blocked.unit_count; ++i)
+        require(passed.units[i].hp == 8, "AI Pass damaged the opposing team");
+    d.set_battle(initial);
+    d.advance(0, 8000000);
+
+    // This archer has legal moves, but its completed search prefers staying put and passing.
+    BattleState waiting = initial;
+    waiting.turn = BATTLE_ENEMY;
+    waiting.unit_count = 2;
+    waiting.units[0] = {battle_cell(0, 0), 4, BATTLE_TYPE_BRUTE, BATTLE_PARTY};
+    waiting.units[1] = {battle_cell(0, 1), 12, BATTLE_TYPE_ARCHER, BATTLE_ENEMY};
+    d.set_battle(waiting);
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_B);
+    passed = wait_activation();
+    require(passed.turn == BATTLE_PARTY && passed.units[0].hp == 4 && passed.units[1].hp == 11 &&
+                passed.units[1].cell == battle_cell(0, 1),
+            "AI did not execute the voluntary Pass selected by its search");
+    d.set_battle(initial);
+    d.advance(0, 8000000);
+    Game after = d.state();
+    require(d.serial() == serial && !memcmp(&world, &after, sizeof(world)),
+            "battle menu advanced exploration or changed saved options");
 }
 
 static void verify_house_fades(Device& d) {
@@ -976,14 +1098,18 @@ static void press_with_music_fade(Device& d) {
 }
 
 int main(int argc, char** argv) try {
-    require(argc == 9, "device_tests package game_address marker_address serial_address "
-                       "output_directory normal|fxc|proof|pause dialogue_address phase_address");
+    require(argc == 9 || argc == 10,
+            "device_tests package game_address marker_address serial_address "
+            "output_directory normal|fxc|proof|pause|battle dialogue_address phase_address "
+            "[battle_pointer_address]");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
     unsigned q = std::stoul(argv[7]);
     Device d(package, g, m, s, q, std::string(argv[6]) == "proof");
     d.phase_addr = std::stoul(argv[8]);
+    if(argc == 10)
+        d.battle_pointer_addr = std::stoul(argv[9]);
     if(d.proof) {
         d.frame();
         summary("m0_proof", d, 30);
@@ -1000,7 +1126,22 @@ int main(int argc, char** argv) try {
     verify_options(d, out);
     verify_pause_party(d);
     if(std::string(argv[6]) == "pause") {
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Options and pause redraw\"}\n";
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Audio and pause redraw\"}\n";
+        return 0;
+    }
+    if(std::string(argv[6]) == "battle") {
+        // Also check that the battle menu hides Load when a physical save is available.
+        d.tap(BTN_B);
+        d.advance(0, 1600000);
+        d.tap(BTN_DOWN);
+        d.tap(BTN_A);
+        d.tap(BTN_B);
+        d.frame();
+        d.tap(BTN_A);
+        d.wait_for_prompt();
+        d.tap(BTN_A);
+        verify_battle_menu(d, out);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"battle pause, Audio and team passes\"}\n";
         return 0;
     }
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "new game did not default to 16 kHz audio");
@@ -1050,6 +1191,7 @@ int main(int argc, char** argv) try {
     }
     // Closing the welcome starts the Grove battle, which returns only after its outcome line.
     d.capture(out / "grove-battle.pgm");
+    verify_battle_menu(d, out);
     play_grove_battle(d, true);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
     verify_house_fades(d);
@@ -1225,7 +1367,7 @@ int main(int argc, char** argv) try {
     require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
             "overworld menu did not show Map or hid an invalid save incorrectly");
 
-    // Up wraps to Options. Pass it to exercise the remaining placeholders.
+    // Up wraps to Audio. Pass it to exercise the remaining placeholders.
     d.tap(BTN_UP);
     d.tap(BTN_UP); // Map
     d.tap(BTN_A);
@@ -1236,7 +1378,7 @@ int main(int argc, char** argv) try {
     auto after_placeholders = d.state();
     require(d.serial() == menu_serial && !memcmp(&menu_state, &after_placeholders, sizeof(Game)),
             "pause placeholders advanced simulation");
-    require(d.ab->core_state.cpu.timer1.ocrNa == 127, "Options changed the audio rate");
+    require(d.ab->core_state.cpu.timer1.ocrNa == 127, "Audio changed the audio rate");
 
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
@@ -1282,7 +1424,7 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     d.advance(0, 4800000);
     require(d.state().area == AREA_INTERIORS, "load fixture did not enter the house");
-    open_options(d);
+    open_audio(d, true);
     d.tap(BTN_LEFT);
     d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
@@ -1295,7 +1437,6 @@ int main(int argc, char** argv) try {
     d.advance(0, 1600000);
     require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
             "interior menu did not show Load while hiding Map");
-    d.tap(BTN_UP); // Options
     d.tap(BTN_UP); // Load
     {
         FadeTrace trace(d);

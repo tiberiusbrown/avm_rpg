@@ -1,6 +1,6 @@
-// Deterministic host simulations of the Grove battle. The enemy plays the negamax search, and the party
-// plays one of several simple policies. The counts show how the enemy behaves across whole battles, and
-// they are used to tune the evaluation. Nothing here changes the battle rules.
+// Deterministic host simulations of the Grove battle. The enemy plays the negamax search, and the
+// party plays one of several simple policies. The counts show how the enemy behaves across whole
+// battles, and they are used to tune the evaluation. Nothing here changes the battle rules.
 #include "battle.h"
 #include "battle_ai.h"
 #include <stdio.h>
@@ -166,6 +166,14 @@ static GameStats play(uint8_t policy) {
             break;
         BATTLE_TEAM team = s.turn;
         BattleAction a = team == BATTLE_ENEMY ? battle_enemy_action(s) : party_choice(s, policy);
+        if(a.unit_index == BATTLE_NO_UNIT) {
+            unsigned before = total_hp(s), own_before = team_hp(s, team);
+            ++g.passes[team];
+            battle_pass(s);
+            g.damage_taken[team] += own_before - team_hp(s, team);
+            require_progress(before, s);
+            continue;
+        }
         if(!battle_legal(s, a)) {
             printf("illegal action\n");
             exit(1);

@@ -141,23 +141,37 @@ flags and RNG survive transitions; NPC scratch does not.
 rendering, and display loops. Exploration calls the menu, which calls status;
 returning resumes the caller. Selections, animation position and feedback are local variables.
 The pause panel eases halfway in from the left each frame while the world fades to 50% black;
-closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Load or Options. Map is
+closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Audio or Load. Map is
 visible only in the overworld; Load uses the global `save_exists` flag. Party calls status;
 Journal and Map are placeholders. A selects and B resumes. Load eases the panel
 out while fading fully to black, then returns to exploration to restore and refresh the
 saved world while hidden, keeping that work off the menu's stack. The restored world fades
 completely back in before simulation resumes.
-Options returns from the pause loop after its panel eases off the left edge, then enters
+Audio returns from the pause loop after its panel eases off the left edge, then enters
 its own loop with an 88-pixel panel easing in from the right. Both use the battle cursor's
 half-distance easing, with a steady half-faded world during handoff. Music and SFX each
 have independent 0..30 volume sliders displayed as 0–200%, mapped to native attenuation
 0..255. Both default to level 15 (100%, native 128), with shared master gain at its maximum
 255. The stored levels retain their prior percentage meaning. Low-pass has
 16 strengths, from bypass to coefficient 1. Up/down selects; left/right adjusts and repeats
-while held. B closes Options directly to gameplay, easing the world back to full brightness.
+while held. B closes Audio directly to gameplay, easing the world back to full brightness.
 The three levels live in `Game::options` and are saved with progress. Startup applies valid
 saved values or defaults; New Game and later loads preserve the current values. Finishing
 an outstanding song fade before a music-volume edit prevents its saved gain undoing the edit.
+
+Exploration and battle share `menu_screen`, item filtering and the panel renderer. Battle
+passes its existing local `BattleScreen` for the frozen background; there is no global battle
+state or separate menu loop. On player turns, B cancels a selected unit or opens the menu
+when nothing is selected. Battle items are Resume, Pass, Audio and inactive Resign; Load
+remains exclusive to exploration. Pass consumes one activation and damages every living
+teammate by 1, regardless of whether it is voluntary or forced. Paused-board rendering omits
+selection-target enumeration to keep the deeper menu path within the guest stack budget.
+Story handlers still receive only victory or defeat and need no menu-result handling.
+Every AI search ply also lists a voluntary Pass for its acting side. The unused packed
+self-target value represents Pass without changing unit-action enumeration or destination
+markers. The shared action stack grows from 80 to 82 bytes so two plies of four rogues per
+side still fit, including each side's pass. A completed Pass result is accepted by the enemy
+controller; it is distinct from an incomplete search by the returned depth.
 
 `Game` contains no mode, pending command, or input/UI bookkeeping.
 `input_wait_press` requires release before a fresh press; `input_wait_frame`

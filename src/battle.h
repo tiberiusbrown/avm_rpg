@@ -19,7 +19,7 @@ inline constexpr uint8_t BATTLE_NO_UNIT = BATTLE_UNIT_CAPACITY;
 inline constexpr uint8_t BATTLE_MAX_HP = 15;
 
 // The blood price: every voluntary move costs its unit this much HP, after the move's engagement
-// damage. A forced pass costs the passing side's first living unit the same.
+// damage. A pass costs every living member of the passing team the same.
 inline constexpr uint8_t BATTLE_MOVE_COST = 1;
 // Engagement damage: a unit that moves deals this much to every enemy orthogonally adjacent to its
 // destination.
@@ -193,14 +193,15 @@ struct BattleState {
 };
 
 // A unit moves or attacks by naming the cell it targets. An empty destination is a move, and a
-// destination holding an enemy is an attack. Every legal action has exactly one outcome.
+// destination holding an enemy is an attack. BATTLE_NO_UNIT instead names a team pass.
+// Every action has exactly one outcome.
 struct BattleAction {
     uint8_t unit_index;
     uint8_t destination;
 };
 
 // Search scratch stores an action in one byte: bits 0 to 4 hold the destination and bits 5 to 7 the
-// unit. Every byte value names some action, so a forced pass is written as unit 0 targeting its own
+// unit. Every byte value names some action, so a pass is written as unit 0 targeting its own
 // cell, which is never legal (see battle_pass_marker).
 static_assert(BATTLE_CELLS == 32 && BATTLE_UNIT_CAPACITY <= 8,
               "a packed action holds a cell and a unit");
@@ -213,7 +214,7 @@ constexpr BattleAction battle_unpack(uint8_t packed) {
     return BattleAction{(uint8_t)(packed >> 5), (uint8_t)(packed & (BATTLE_CELLS - 1))};
 }
 
-// The packed byte that stands for a forced pass in a position: unit 0 targeting its own cell. A
+// The packed byte that stands for a pass in a position: unit 0 targeting its own cell. A
 // unit never legally targets its own cell, alive (a friendly cell) or defeated, so the byte never
 // names a legal action of that position.
 constexpr uint8_t battle_pass_marker(BattleState const& state) {
@@ -301,7 +302,7 @@ uint8_t battle_unit_actions(BattleState const& state, uint8_t unit_index, uint8_
 // search runs it is the search's action stack; between searches, battle_can_act, the battle
 // screen's destination markers, and the greedy choice list actions here briefly. No list here
 // survives a call into another of those users. It holds BATTLE_ACTION_CAPACITY actions and more.
-inline constexpr uint8_t BATTLE_ACTION_SCRATCH_CAPACITY = 80;
+inline constexpr uint8_t BATTLE_ACTION_SCRATCH_CAPACITY = 82;
 static_assert(BATTLE_ACTION_SCRATCH_CAPACITY >= BATTLE_ACTION_CAPACITY, "a whole side's list fits");
 extern uint8_t battle_action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
 
@@ -358,12 +359,12 @@ constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
 // left; it wins before its mover pays, so the two sides never fall together. When an action removes
 // only the acting side's last unit (a move that costs its last HP without winning), the opponent
 // wins. There is no draw.
+// BATTLE_NO_UNIT applies a team-wide pass instead of a unit action.
 void battle_apply(BattleState& state, BattleAction action);
 
-// Forced pass for a side with no legal action. The side's first living unit, in slot order, loses
-// BATTLE_MOVE_COST, which can defeat it and end the battle. It counts as an activation. A side
-// passes only when no unit can move or attack; a move that would cost a unit its last HP is still a
-// move.
+// Every living unit on the passing side loses BATTLE_MOVE_COST, which can defeat the whole team.
+// It counts as one activation. Player and AI may pass voluntarily; settling passes automatically
+// when no unit can move or attack. A move that would cost a unit its last HP is still a move.
 void battle_pass(BattleState& state);
 
 // Passes while the side to act has no legal action. Returns the number of passes. Every pass costs

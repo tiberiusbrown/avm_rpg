@@ -219,12 +219,14 @@ enum PAUSE_ITEM : uint8_t {
     PAUSE_PARTY,
     PAUSE_JOURNAL,
     PAUSE_MAP,
+    PAUSE_PASS,
+    PAUSE_AUDIO,
+    PAUSE_RESIGN,
     PAUSE_LOAD,
-    PAUSE_OPTIONS,
     PAUSE_ITEM_COUNT
 };
 
-enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_OPTIONS };
+enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PASS };
 
 enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_LOWPASS, OPTION_ITEM_COUNT };
 
@@ -232,13 +234,17 @@ constexpr uint8_t option_max(OPTION_ITEM item) {
     return item == OPTION_LOWPASS ? OPTION_SLIDER_MAX : OPTION_VOLUME_MAX;
 }
 
-inline constexpr uint8_t OPTIONS_WIDTH = 88;
+inline constexpr uint8_t AUDIO_WIDTH = 88;
 
-bool menu_item_visible(PAUSE_ITEM item, bool can_load);
-uint8_t menu_width();
+struct BattleScreen;
+void render_battle(BattleScreen const& screen);
+bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle = false);
+uint8_t menu_width(bool in_battle = false);
 void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
-                 char const PROGMEM* feedback, MENU_EXIT action);
-void render_options(uint8_t revealed, OPTION_ITEM selection, bool closing);
+                 char const PROGMEM* feedback, MENU_EXIT action,
+                 BattleScreen const* battle = nullptr);
+void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
+                  BattleScreen const* battle = nullptr);
 uint8_t option_level(OPTION_ITEM item);
 void options_apply();
 void option_adjust(OPTION_ITEM item, bool increase);
@@ -253,9 +259,9 @@ void input_wait_frame();
 
 void title_screen();
 void explore();
-// Return to exploration before loading or opening Options, keeping modal frames off its stack.
-MENU_EXIT menu_screen();
-void options_screen();
+// Return to the caller before opening Audio or performing an action, keeping modal frames shallow.
+MENU_EXIT menu_screen(BattleScreen const* battle = nullptr);
+void audio_screen(BattleScreen const* battle = nullptr);
 void status_screen();
 void game_save();
 bool game_load();

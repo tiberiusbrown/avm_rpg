@@ -12,7 +12,7 @@ is black. The shared fade adds no static RAM.
 
 The pause menu slides in from the left, easing halfway to its target each frame while the
 world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Journal**,
-**Map**, **Load**, or **Options**; A activates the selection, and B resumes with the
+**Map**, **Audio**, or **Load**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
 immediately after saving. Party opens the traveler status screen. Journal and Map are placeholders. The world stays frozen while the menu is open; music continues.
@@ -20,17 +20,17 @@ Save writes the existing single save slot and immediately sets the save flag, wi
 while fading the world completely to black, restores the saved world while hidden, then
 fades it completely back in before play resumes.
 
-Selecting **Options** eases the pause panel out to the left, then immediately eases the
-Options panel in from the right. The world remains frozen at 50% fade throughout the
+Selecting **Audio** eases the pause panel out to the left, then immediately eases the
+Audio panel in from the right. The world remains frozen at 50% fade throughout the
 handoff. Up/down selects **Music**, **SFX**, or **Low-pass**; left/right adjusts the
 slider, with repeat while held. Volume sliders run from Off to 200% in 31 positions, with a default of 100%.
 The low-pass slider runs from bypass to maximum smoothing; the native filter also
-smooths tonal SFX. B eases Options out and returns directly to gameplay.
+smooths tonal SFX. B eases Audio out and returns directly to gameplay.
 
 Audio settings take effect immediately and are stored alongside progress when **Save** is
 selected. Startup initializes defaults (both stream gains 128, shown as 100%; filter off), then loads valid
 saved settings. New Game, Continue and later Load actions preserve the current settings;
-only the Options menu changes them during play.
+only the Audio menu changes them during play.
 
 The sign's battle is a synchronous prototype. Its controls and rules are described in
 [Battle prototype](#battle-prototype) below.
@@ -190,11 +190,18 @@ overworld cache and from the current area.
   through them, and they stop arrows, spear thrusts, and knockback. A rogue's leap passes over them,
   as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at
   (6,0), rocks at (1,3), and a boulder at (4,3), which leave an open lane through rows 1 and 2.
-- Each activation is one move or one attack. Every move costs its mover 1 HP, whatever its
+- During a player turn, B opens the shared pause menu when no unit is selected; otherwise it
+  cancels the selected unit. The battle menu contains **Resume**, **Pass**, **Audio**, and
+  **Resign**. Resign is a placeholder. Exploration items, including Load, are hidden in battle.
+  Resume or B returns to the same battle, and Audio uses the same sliders and transition as
+  exploration, with the frozen board behind it. Pass voluntarily consumes the party's turn. The AI considers Pass for either side at every
+  search depth, alongside moves and attacks.
+- Each activation is one move, one attack, or a pass. Every move costs its mover 1 HP, whatever its
   distance, but first deals 1 damage to every enemy beside its destination; an attack costs nothing
   and hits only its target. A unit with 1 HP may still move: it deals its damage and then falls,
   unless that damage defeats the last enemy, which wins the battle before the cost is paid. A side
-  with no legal action passes, and its first living unit loses 1 HP. Every activation costs HP, so
+  with no legal action passes automatically. Every pass deals 1 damage to every living member
+  of the passing team, for both the player and AI, and can defeat the whole team. Every activation costs HP, so
   every battle ends.
 - A straight move walks at the exploration walking speed and pose. A knight leap is a fast arcing
   jump: the rogue reaches its cell in eight frames, rising up to ten pixels above its path. An archer faces its target and looses an arrow, drawn in one of four direction

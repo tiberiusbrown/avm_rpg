@@ -305,6 +305,7 @@ static void initial_layout() {
         {6, 1, 9, BATTLE_ENEMY, BATTLE_TYPE_WOLF},
         {5, 2, 12, BATTLE_ENEMY, BATTLE_TYPE_BRUTE},
     };
+
     for(uint8_t i = 0; i < 4; ++i) {
         CHECK(battle_column(s.units[i].cell) == expected[i].x &&
               battle_row(s.units[i].cell) == expected[i].y);
@@ -1004,10 +1005,16 @@ static void forced_pass() {
     CHECK(battle_settle(s) == 1 && s.turn == BATTLE_ENEMY && s.activations == 1 &&
           s.units[0].hp == 8);
     CHECK(s.units[1].hp == 10 && s.units[2].hp == 10); // A pass engages no one.
-    // 30. The first living unit on the passing side pays.
+    // 30. Every living teammate pays, including voluntary passes when actions are available.
     BattleState p = fresh();
     battle_pass(p);
-    CHECK(p.activations == 1 && p.units[ROGUE].hp == 9 && p.units[ARCHER].hp == 9);
+    CHECK(p.activations == 1 && p.units[ROGUE].hp == 9 && p.units[ARCHER].hp == 8);
+    CHECK(p.units[WOLF].hp == 9 && p.units[BRUTE].hp == 12 && p.turn == BATTLE_ENEMY);
+    BattleState enemy = fresh();
+    enemy.turn = BATTLE_ENEMY;
+    battle_pass(enemy);
+    CHECK(enemy.activations == 1 && enemy.units[WOLF].hp == 8 && enemy.units[BRUTE].hp == 11);
+    CHECK(enemy.units[ROGUE].hp == 10 && enemy.units[ARCHER].hp == 9 && enemy.turn == BATTLE_PARTY);
     BattleState q = fresh();
     q.units[ROGUE].hp = 0;
     battle_pass(q);
@@ -1022,7 +1029,18 @@ static void forced_pass() {
                                              {7, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
                                              {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
     battle_pass(payer);
-    CHECK(payer.units[0].hp == 0 && !payer.ended && payer.units[1].hp == 9);
+    CHECK(payer.units[0].hp == 0 && !payer.ended && payer.units[1].hp == 8);
+    for(BATTLE_TEAM team : {BATTLE_PARTY, BATTLE_ENEMY}) {
+        BattleState wiped = board(team, {{0, 0, BATTLE_TYPE_ARCHER, team, 1},
+                                         {7, 3, BATTLE_TYPE_ARCHER, team, 1},
+                                         {1, 0, BATTLE_TYPE_FIGHTER, (BATTLE_TEAM)(team ^ 1), 10}});
+        battle_pass(wiped);
+        CHECK(wiped.ended && wiped.activations == 1 && !wiped.units[0].hp && !wiped.units[1].hp);
+        CHECK(wiped.result == (team == BATTLE_PARTY ? BATTLE_DEFEAT : BATTLE_VICTORY));
+        BattleState ended = wiped;
+        battle_pass(wiped);
+        CHECK(!memcmp(&wiped, &ended, sizeof(wiped)));
+    }
 
     // 33. A unit that can move never passes, even when the move would cost its last HP.
     BattleState brink = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 1},
@@ -1119,7 +1137,7 @@ static void termination() {
                         break;
                     BattleAction a =
                         s.turn == BATTLE_PARTY ? policy_action(s, policy) : battle_enemy_action(s);
-                    CHECK(battle_legal(s, a));
+                    CHECK(a.unit_index == BATTLE_NO_UNIT || battle_legal(s, a));
                     battle_apply(s, a);
                     CHECK(total_hp(s) < before);
                     CHECK(s.activations <= budget);
@@ -1389,6 +1407,7 @@ static void search_ordering() {
     battle_order_actions(moves, list, count, attacks, true);
     CHECK(list[0] == battle_pack(act(0, 3, 1)) && list[1] == battle_pack(act(0, 2, 2)));
 }
+
 static void terminal_scores() {
     // The enemy's winning blow leaves state.turn on the enemy; the score still names the enemy.
     BattleState win = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 2},
@@ -1543,7 +1562,7 @@ static void negamax_matches_reference() {
         for(uint8_t depth = 1; depth <= deepest; ++depth)
             expect_same_as_reference(s, depth);
         BattleAction chosen = battle_enemy_action(s);
-        CHECK(battle_legal(s, chosen) || !battle_can_act(s) || s.ended);
+        CHECK(chosen.unit_index == BATTLE_NO_UNIT || battle_legal(s, chosen) || s.ended);
     }
 }
 
@@ -1647,6 +1666,30 @@ static void search_simulates_mechanics() {
     CHECK(battle_search_stats().nodes == 1 && battle_search_stats().leaves == 1);
 }
 
+static void voluntary_pass_search() {
+    BattleState positions[] = {
+        board(BATTLE_PARTY, {{2, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 3},
+                             {4, 2, BATTLE_TYPE_SPEARMAN, BATTLE_ENEMY, 11}}),
+        board(BATTLE_ENEMY, {{0, 0, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 4},
+                             {0, 1, BATTLE_TYPE_ARCHER, BATTLE_ENEMY, 12}}),
+    };
+    for(BattleState const& s : positions) {
+        BattleState before = s;
+        CHECK(battle_can_act(s));
+        BattleSearchResult best = battle_search(s, 3);
+        CHECK(best.action.unit_index == BATTLE_NO_UNIT);
+        CHECK(reference_action_value(s, {BATTLE_NO_UNIT, 0}, 3) == best.score);
+        ActionSet actions = legal_set(s);
+        for(unsigned i = 0; i < actions.count; ++i)
+            CHECK(reference_action_value(s, actions.actions[i], 3) < best.score);
+        CHECK(battle_enemy_action(s).unit_index == BATTLE_NO_UNIT);
+        expect_completed(s, battle_think(s, BATTLE_AI_DEPTH, BATTLE_AI_NODE_BUDGET));
+        for(uint8_t depth = 1; depth <= BATTLE_AI_DEPTH; ++depth)
+            expect_same_as_reference(s, depth);
+        CHECK(same_state(before, s));
+    }
+}
+
 static void sacrifice_search() {
     // A lone 1 HP wolf with no attack falls to the blood price of any move, so every action loses
     // at once, and the search reports that loss one ply deep.
@@ -1699,6 +1742,7 @@ static void sacrifice_search() {
     for(uint8_t depth = 1; depth <= BATTLE_AI_DEPTH; ++depth)
         expect_same_as_reference(hopeless, depth);
 }
+
 // The search explores a bounded tree, respects its depth, and counts what it visits.
 static void search_bounds() {
     BattleState root = fresh();
@@ -1714,7 +1758,7 @@ static void search_bounds() {
     // Depth one examines each legal action once, and each child is a leaf.
     unsigned legal = legal_set(root).count;
     battle_search(root, 1);
-    CHECK(battle_search_stats().nodes == legal && battle_search_stats().leaves == legal);
+    CHECK(battle_search_stats().nodes == legal + 1 && battle_search_stats().leaves == legal + 1);
     // Pruning visits fewer positions than the unpruned reference, and the counts repeat.
     battle_search(root, BATTLE_AI_DEPTH);
     BattleSearchStats first = battle_search_stats();
@@ -1725,9 +1769,9 @@ static void search_bounds() {
     reference_search(root, BATTLE_AI_DEPTH, unpruned);
     CHECK(first.nodes < unpruned && first.leaves <= first.nodes && first.leaves > 0);
 
-    // The workspace: four plies of 4 bytes, four killer bytes, the 80-byte shared action scratch
+    // The workspace: four plies of 4 bytes, four killer bytes, the 82-byte shared action scratch
     // (two plies of four rogues a side, four of any two-on-two battle), and four 22-byte positions.
-    CHECK(battle_search_workspace_bytes() == 4 * 4 + 4 + 80 + 4 * 22);
+    CHECK(battle_search_workspace_bytes() == 4 * 4 + 4 + 82 + 4 * 22);
     printf(
         "search workspace %u bytes; enemy opening depth %u: %u nodes, %u leaves (unpruned %llu)\n",
         (unsigned)battle_search_workspace_bytes(), (unsigned)BATTLE_AI_DEPTH, (unsigned)first.nodes,
@@ -1747,11 +1791,7 @@ static void expect_completed(BattleState const& s, BattleSearchResult result) {
     uint64_t nodes = 0;
     BattleSearchResult best = reference_search(s, stats.completed, nodes);
     CHECK(result.score == best.score);
-    if(result.action.unit_index == BATTLE_NO_UNIT) {
-        CHECK(!battle_can_act(s));
-        return;
-    }
-    CHECK(battle_legal(s, result.action));
+    CHECK(result.action.unit_index == BATTLE_NO_UNIT || battle_legal(s, result.action));
     CHECK(reference_action_value(s, result.action, stats.completed) == best.score);
 }
 
@@ -1977,6 +2017,7 @@ static void party_search_uses_leaps() {
     // Two plies cannot see the win, so the leap is found by searching through the brute's reply.
     CHECK(battle_search(wall, 2).score < BATTLE_SCORE_WIN - 3);
 }
+
 // --- Three and four units a side -----------------------------------------------------------
 
 // A four-on-four encounter: the rules, the copied state, and the encounter table all hold eight
@@ -2089,8 +2130,9 @@ static void four_a_side() {
     CHECK(battle_ai_budget(six) == 320);
     BattleSearchResult think = battle_think(enemy, BATTLE_AI_DEPTH, battle_ai_budget(enemy));
     CHECK(think.depth >= 1 && battle_search_stats().nodes <= battle_ai_budget(enemy));
-    CHECK(battle_legal(enemy, think.action));
-    CHECK(battle_legal(enemy, battle_enemy_action(enemy)));
+    CHECK(think.action.unit_index == BATTLE_NO_UNIT || battle_legal(enemy, think.action));
+    CHECK(battle_enemy_action(enemy).unit_index == BATTLE_NO_UNIT ||
+          battle_legal(enemy, battle_enemy_action(enemy)));
 
     // A forced pass on a full board: the cornered archer's whole side is boxed in.
     BattleState boxed = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
@@ -2234,7 +2276,8 @@ static void target_frames() {
         uint8_t attack = battle_target_frame(BATTLE_TARGET_ATTACK, (uint8_t)phase);
         CHECK(move == BATTLE_TARGET_MOVE + phase % BATTLE_TARGET_FRAMES);
         CHECK(attack - BATTLE_TARGET_ATTACK == move - BATTLE_TARGET_MOVE);
-        CHECK(attack >= BATTLE_TARGET_ATTACK && attack < BATTLE_TARGET_ATTACK + BATTLE_TARGET_FRAMES);
+        CHECK(attack >= BATTLE_TARGET_ATTACK &&
+              attack < BATTLE_TARGET_ATTACK + BATTLE_TARGET_FRAMES);
     }
 }
 
@@ -2270,6 +2313,7 @@ int main() {
     negamax_matches_reference();
     search_simulates_mechanics();
     search_matches_reference_on_engagements();
+    voluntary_pass_search();
     sacrifice_search();
     search_bounds();
     budget_boundaries();

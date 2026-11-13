@@ -14,7 +14,7 @@
 // ordering applies there unless the root's children are all leaves.
 struct ReferenceActions {
     uint8_t count;
-    uint8_t actions[BATTLE_ACTION_CAPACITY];
+    uint8_t actions[BATTLE_ACTION_CAPACITY + 1];
 };
 
 inline ReferenceActions reference_actions(BattleState const& s, bool approach) {
@@ -22,6 +22,7 @@ inline ReferenceActions reference_actions(BattleState const& s, bool approach) {
     uint8_t attacks = 0;
     list.count = battle_actions(s, list.actions, attacks);
     battle_order_actions(s, list.actions, list.count, attacks, approach);
+    list.actions[list.count++] = battle_pass_marker(s);
     return list;
 }
 
@@ -32,16 +33,13 @@ inline int16_t reference_value(BattleState const& s, BATTLE_TEAM side, uint8_t p
         return battle_score(s, side, ply);
     BATTLE_TEAM foe = side == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
     ReferenceActions list = reference_actions(s, true);
-    if(list.count == 0) {
-        BattleState child = s;
-        battle_pass(child);
-        ++nodes;
-        return (int16_t)-reference_value(child, foe, (uint8_t)(ply + 1), depth, nodes);
-    }
     int16_t best = -32000;
     for(uint8_t i = 0; i < list.count; ++i) {
         BattleState child = s;
-        battle_apply(child, battle_unpack(list.actions[i]));
+        if(list.actions[i] == battle_pass_marker(s))
+            battle_pass(child);
+        else
+            battle_apply(child, battle_unpack(list.actions[i]));
         ++nodes;
         int16_t value = (int16_t)-reference_value(child, foe, (uint8_t)(ply + 1), depth, nodes);
         if(value > best)
@@ -64,7 +62,8 @@ inline int16_t reference_action_value(BattleState const& root, BattleAction acti
 
 // The unpruned reference at the root. The first action in search order with the best score wins, so
 // a tie never replaces an earlier action.
-inline BattleSearchResult reference_search(BattleState const& root, uint8_t depth, uint64_t& nodes) {
+inline BattleSearchResult reference_search(BattleState const& root, uint8_t depth,
+                                           uint64_t& nodes) {
     BattleSearchResult best{BattleAction{BATTLE_NO_UNIT, 0}, 0};
     if(root.ended) {
         best.score = battle_score(root, root.turn, 0);
@@ -72,15 +71,10 @@ inline BattleSearchResult reference_search(BattleState const& root, uint8_t dept
     }
     BATTLE_TEAM foe = root.turn == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
     ReferenceActions list = reference_actions(root, depth > 1);
-    if(list.count == 0) {
-        BattleState child = root;
-        battle_pass(child);
-        ++nodes;
-        best.score = (int16_t)-reference_value(child, foe, 1, depth, nodes);
-        return best;
-    }
     for(uint8_t i = 0; i < list.count; ++i) {
-        BattleAction action = battle_unpack(list.actions[i]);
+        BattleAction action = list.actions[i] == battle_pass_marker(root)
+                                  ? BattleAction{BATTLE_NO_UNIT, 0}
+                                  : battle_unpack(list.actions[i]);
         BattleState child = root;
         battle_apply(child, action);
         ++nodes;

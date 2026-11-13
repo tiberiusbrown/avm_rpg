@@ -520,6 +520,10 @@ static void battle_knock_back(BattleState& state, BattleUnit const& actor, Battl
 }
 
 void battle_apply(BattleState& state, BattleAction action) {
+    if(action.unit_index == BATTLE_NO_UNIT) {
+        battle_pass(state);
+        return;
+    }
     BattleUnit& actor = state.units[action.unit_index];
     BATTLE_TEAM acting = actor.team;
     uint8_t destination = action.destination;
@@ -564,14 +568,14 @@ void battle_apply(BattleState& state, BattleAction action) {
 }
 
 void battle_pass(BattleState& state) {
+    if(state.ended)
+        return;
     ++state.activations;
-    // The first living unit on the side pays, so the choice is deterministic.
+    // Apply the price to the entire team before checking defeat or handing over the turn.
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit& unit = state.units[i];
-        if(unit.hp && unit.team == state.turn) {
+        if(unit.hp && unit.team == state.turn)
             battle_damage(unit, BATTLE_MOVE_COST);
-            break;
-        }
     }
     if(battle_check(state, state.turn))
         return;

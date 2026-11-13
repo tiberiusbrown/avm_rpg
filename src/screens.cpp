@@ -30,13 +30,27 @@ __attribute__((noinline)) void status_screen() {
     input_wait_press(BTN_A | BTN_B);
 }
 
-bool menu_item_visible(PAUSE_ITEM item, bool can_load) {
-    return (item != PAUSE_MAP || game.area == AREA_OUTDOOR) && (item != PAUSE_LOAD || can_load);
+bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle) {
+    switch(item) {
+        case PAUSE_SAVE:
+        case PAUSE_PARTY:
+        case PAUSE_JOURNAL:
+            return !in_battle;
+        case PAUSE_MAP:
+            return !in_battle && game.area == AREA_OUTDOOR;
+        case PAUSE_PASS:
+        case PAUSE_RESIGN:
+            return in_battle;
+        case PAUSE_LOAD:
+            return !in_battle && can_load;
+        default:
+            return true;
+    }
 }
 
-__attribute__((noinline)) MENU_EXIT menu_screen() {
+__attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
     PAUSE_ITEM selection = PAUSE_RESUME;
-    uint8_t width = menu_width();
+    uint8_t width = menu_width(battle != nullptr);
     int16_t revealed = 0;
     bool closing = false;
     MENU_EXIT action = MENU_RESUME;
@@ -47,12 +61,12 @@ __attribute__((noinline)) MENU_EXIT menu_screen() {
         input_wait_frame();
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(width));
         render_menu((uint8_t)cursor_pixel(revealed), width, selection, save_exists, feedback,
-                    action);
+                    action, battle);
         avm_display(true);
         uint8_t pressed = input_pressed();
 
         if(closing) {
-            if(!revealed || (action == MENU_OPTIONS && !cursor_pixel(revealed)))
+            if(!revealed || (action == MENU_AUDIO && !cursor_pixel(revealed)))
                 return action;
             continue;
         }
@@ -64,7 +78,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen() {
                 selection =
                     (PAUSE_ITEM)((selection + (pressed & BTN_DOWN ? 1 : PAUSE_ITEM_COUNT - 1)) %
                                  PAUSE_ITEM_COUNT);
-            } while(!menu_item_visible(selection, save_exists));
+            } while(!menu_item_visible(selection, save_exists, battle != nullptr));
             feedback = nullptr;
         } else if(pressed & BTN_A) {
             switch(selection) {
@@ -80,13 +94,18 @@ __attribute__((noinline)) MENU_EXIT menu_screen() {
                     status_screen();
                     input_sync();
                     break;
+                case PAUSE_PASS:
+                    action = MENU_PASS;
+                    closing = true;
+                    feedback = nullptr;
+                    break;
                 case PAUSE_LOAD:
                     action = MENU_LOAD;
                     closing = true;
                     feedback = nullptr;
                     break;
-                case PAUSE_OPTIONS:
-                    action = MENU_OPTIONS;
+                case PAUSE_AUDIO:
+                    action = MENU_AUDIO;
                     closing = true;
                     feedback = nullptr;
                     break;
@@ -97,7 +116,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen() {
     }
 }
 
-__attribute__((noinline)) void options_screen() {
+__attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
     OPTION_ITEM selection = OPTION_MUSIC;
     int16_t revealed = 0;
     bool closing = false;
@@ -106,8 +125,8 @@ __attribute__((noinline)) void options_screen() {
 
     for(;;) {
         input_wait_frame();
-        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(OPTIONS_WIDTH));
-        render_options((uint8_t)cursor_pixel(revealed), selection, closing);
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(AUDIO_WIDTH));
+        render_audio((uint8_t)cursor_pixel(revealed), selection, closing, battle);
         avm_display(true);
         uint8_t pressed = input_pressed();
         if(closing) {
@@ -157,8 +176,8 @@ __attribute__((noinline)) void explore() {
                 game_load();
                 update_visible_world(0, false);
                 fade_world_in();
-            } else if(action == MENU_OPTIONS)
-                options_screen();
+            } else if(action == MENU_AUDIO)
+                audio_screen();
             input_sync();
             continue;
         }

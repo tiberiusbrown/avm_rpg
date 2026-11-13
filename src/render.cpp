@@ -129,14 +129,17 @@ void render_title(bool can_continue, uint8_t selection) {
 }
 
 static char const PROGMEM* menu_label(PAUSE_ITEM item) {
-    static char const PROGMEM* const PROGMEM LABELS[] = {
-        F("Resume"), F("Save"), F("Party"), F("Journal"), F("Map"), F("Load"), F("Options")};
+    static char const PROGMEM* const PROGMEM LABELS[] = {F("Resume"),  F("Save"),   F("Party"),
+                                                         F("Journal"), F("Map"),    F("Pass"),
+                                                         F("Audio"),   F("Resign"), F("Load")};
     return LABELS[item];
 }
 
-uint8_t menu_width() {
+uint8_t menu_width(bool in_battle) {
     uint16_t width = avm_text_width(F("Paused")) + 8;
     for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
+        if(!menu_item_visible((PAUSE_ITEM)item, save_exists, in_battle))
+            continue;
         uint16_t item_width = avm_text_width(menu_label((PAUSE_ITEM)item)) + 14;
         if(item_width > width)
             width = item_width;
@@ -145,12 +148,15 @@ uint8_t menu_width() {
 }
 
 void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
-                 char const PROGMEM* feedback, MENU_EXIT action) {
-    rpg_render_world();
+                 char const PROGMEM* feedback, MENU_EXIT action, BattleScreen const* battle) {
+    if(battle)
+        render_battle(*battle);
+    else
+        rpg_render_world();
     uint8_t fade = (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / width);
-    draw_fade(action == MENU_OPTIONS ? FADE_STEPS / 2
-              : action == MENU_LOAD  ? FADE_STEPS - fade
-                                     : fade);
+    draw_fade(action == MENU_AUDIO  ? FADE_STEPS / 2
+              : action == MENU_LOAD ? FADE_STEPS - fade
+                                    : fade);
     if(!revealed)
         return;
 
@@ -162,7 +168,7 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
 
     uint8_t y = 17;
     for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
-        if(!menu_item_visible((PAUSE_ITEM)item, can_load))
+        if(!menu_item_visible((PAUSE_ITEM)item, can_load, battle != nullptr))
             continue;
         avm_draw_text(x + 10, y, menu_label((PAUSE_ITEM)item));
         if(item == selection)
@@ -173,18 +179,22 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
         avm_draw_text(width + 4, 58, feedback);
 }
 
-void render_options(uint8_t revealed, OPTION_ITEM selection, bool closing) {
-    rpg_render_world();
-    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / OPTIONS_WIDTH)
+void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
+                  BattleScreen const* battle) {
+    if(battle)
+        render_battle(*battle);
+    else
+        rpg_render_world();
+    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / AUDIO_WIDTH)
                       : FADE_STEPS / 2);
     if(!revealed)
         return;
 
     int16_t x = DISPLAY_WIDTH - revealed;
-    avm_draw_filled_rect_black(x, 0, OPTIONS_WIDTH, 64);
-    avm_draw_filled_rect_white(x + 1, 1, OPTIONS_WIDTH - 2, 62);
-    avm_draw_filled_rect_black(x + 2, 2, OPTIONS_WIDTH - 4, 60);
-    avm_draw_text(x + 4, 8, F("Options"));
+    avm_draw_filled_rect_black(x, 0, AUDIO_WIDTH, 64);
+    avm_draw_filled_rect_white(x + 1, 1, AUDIO_WIDTH - 2, 62);
+    avm_draw_filled_rect_black(x + 2, 2, AUDIO_WIDTH - 4, 60);
+    avm_draw_text(x + 4, 8, F("Audio"));
     avm_draw_text(x + 51, 8, F("B resume"));
 
     static char const PROGMEM* const PROGMEM LABELS[] = {F("Music"), F("SFX"), F("Low-pass")};
@@ -200,7 +210,7 @@ void render_options(uint8_t revealed, OPTION_ITEM selection, bool closing) {
             avm_draw_textf(x + 63, y, F("%u%%"),
                            (level * 100 + OPTION_SLIDER_MAX / 2) / OPTION_SLIDER_MAX);
 
-        constexpr uint8_t TRACK_WIDTH = OPTIONS_WIDTH - 20;
+        constexpr uint8_t TRACK_WIDTH = AUDIO_WIDTH - 20;
         avm_draw_filled_rect_white(x + 10, y + 5, TRACK_WIDTH, 1);
         avm_draw_filled_rect_white(x + 10, y + 3, 1, 5);
         avm_draw_filled_rect_white(x + 10 + TRACK_WIDTH - 1, y + 3, 1, 5);

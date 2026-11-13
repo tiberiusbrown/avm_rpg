@@ -15,15 +15,16 @@ AVM revision: `3ceedda679c03c00a24d0353be2bedce0478ed4e`. RPG changes remain unc
 
 The version-6 save refactor places the live `Game` directly in `.saved`, eliminating the
 29-byte serialization buffer. A layout-version byte and the ordinary `save_exists` flag
-left total static RAM 27 bytes lower than the pause-menu build. The version-7 Options
-menu adds three saved slider levels, bringing the reduction to 24 bytes. Current RelWithDebInfo
+left total static RAM 27 bytes lower than the pause-menu build. The version-7 Audio
+menu adds three saved slider levels. Voluntary Pass adds two bytes to the shared search
+action stack, leaving total shipping static RAM 22 bytes below the pause-menu build. Current RelWithDebInfo
 links retain full LTO and report complete stack bounds, with the sole saved object verified
 in optimized IR:
 
 | Guest | .saved | ordinary .data | total static / 1024 | code | read-only data | stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
-| rpg | 267 | 208 | 475 | 33047 | 123847 | 242 |
-| rpg_qa | 267 | 212 | 479 | 33134 | 123847 | 240 |
+| rpg | 267 | 210 | 477 | 34386 | 123863 | 240 |
+| rpg_qa | 267 | 216 | 483 | 34506 | 123863 | 240 |
 
 The earlier M1 baseline below predates the current world, battle and save implementations:
 
@@ -124,7 +125,7 @@ four units a side in eight unit slots. The Grove battle pits the party's rogue (
 against a wolf (9) and a brute (12). Normal attacks deal 3, and the brute's 2 plus knockback. Every
 voluntary move costs its mover 1 HP (the blood price), paid after it deals 1 engagement damage to each
 enemy orthogonally adjacent to its destination; a move whose engagement defeats the last opponent wins
-before the price is due. A forced pass costs the passing side's first living unit 1 HP. There is no
+before the price is due. Every pass costs each living unit on the passing team 1 HP, including voluntary player passes. There is no
 exhaustion threshold: every activation lowers the total living HP, so a battle lasts at most as many
 activations as its units' starting HP (40 in the Grove). The Grove battlefield has four blocking
 tiles, a pine at (4,0), a round tree at (6,0), rocks at (1,3), and a boulder at (4,3): no unit stands

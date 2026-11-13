@@ -209,12 +209,12 @@ gain before starting the queued song (1.02 seconds at gain 255). Input, display
 and gameplay continue during the fade. Shared master gain stays 255 and
 SFX is unaffected. Runtime getters read the existing music start pointer and
 gain bytes directly from RAM; the RPG stores no duplicate song selection.
-The title leaves audio disabled; dialogue and menus let playback continue. The Options
+The title leaves audio disabled; dialogue and menus let playback continue. The Audio
 panel adjusts music and SFX attenuation independently in 31 positions, from 0–200%,
 leaving shared gain unchanged. Defaults are native 128 (100%); the maximum is native 255
 (200%). Stored level 15 remains 100%, preserving previous saved slider percentages. Its low-pass strength slider maps bypass and progressively smaller coefficients
 (128 down to 1), using the native tonal filter, which includes tonal SFX and bypasses noise.
-Settings live in the saved `Game`, are loaded once at startup and are changed only in Options
+Settings live in the saved `Game`, are loaded once at startup and are changed only in Audio
 thereafter; saving writes them alongside progress.
 Full-device integration checks song switching, PWM output, and exploration with music enabled.
 Listening on physical speakers remains **Unverified**.

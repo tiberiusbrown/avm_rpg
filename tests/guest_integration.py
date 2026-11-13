@@ -172,6 +172,7 @@ def main():
                     mode,
                     0 if mode == "proof" else refs["dialogue_prompt"]["address"],
                     0 if mode == "proof" else refs["world_phase"]["address"],
+                    0 if mode == "proof" else refs["battle_qa_state"]["address"],
                 ],
                 work / f"{mode}.log",
             )

@@ -78,6 +78,12 @@ struct BattleScreen {
     uint8_t ticks;
 };
 
+#ifdef RPG_DEVICE_QA
+extern "C" {
+BattleState const* volatile battle_qa_state;
+}
+#endif
+
 // The sprite is drawn at the cell's origin minus the margin, so its interior lands on the cell.
 static void draw_cursor(Cursor const& cursor) {
     avm_set_sprite(CURSOR_SPRITES);
@@ -123,8 +129,8 @@ static uint8_t wait_frame_presses() {
     return pressed;
 }
 
-// An attack marker: four black-outlined white brackets at the corners of an enemy's tile. The middle
-// of the tile stays transparent, so the enemy shows through.
+// An attack marker: four black-outlined white brackets at the corners of an enemy's tile. The
+// middle of the tile stays transparent, so the enemy shows through.
 static void draw_attack_mark(int16_t x, int16_t y, uint8_t phase) {
     avm_draw_plus_mask(x, y, battle_target_frame(BATTLE_TARGET_ATTACK, phase));
 }
@@ -177,6 +183,7 @@ static uint8_t leap_lift(BattleScreen const& screen) {
 // first. A flashing unit is drawn only on the visible phases of its flash (and throughout a walk,
 // which comes before the flash), and it too is drawn once defeated. The mover faces `mover_facing`,
 // the way it steps or the victim it lunges at. Every other actor stands facing south.
+template <bool MARKERS = true>
 RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected,
                                     DIRECTION mover_facing) {
     BattleState const& state = screen.state;
@@ -213,6 +220,10 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
         avm_draw_plus_mask(x, y, actor_frame(pose, battle_sprite_row(unit), screen.ticks));
     }
 
+    // A paused board has no selected unit or targets. Keep enumeration off its deeper menu stack.
+    if constexpr(!MARKERS)
+        return;
+
     // The destination markers come last, over the actors. They take the cursor's phase, so every
     // marker pulses with the cursor, and none keeps a clock of its own. They come from the same
     // enumeration the rules use, so any legal cell on the board can carry one: attacks lead the
@@ -230,6 +241,12 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
         else
             draw_move_mark(cell_x(cell), cell_y(cell), phase);
     }
+}
+
+void render_battle(BattleScreen const& screen) {
+    draw_board<false>(screen, BATTLE_NO_UNIT, SOUTH);
+    draw_actor_info(screen.state, screen.cursor);
+    draw_cursor(screen.cursor);
 }
 
 // Redraw the frozen board under each mask; the cursor appears after the reveal.
@@ -251,8 +268,9 @@ static int8_t toward_zero(int8_t offset, int8_t amount) {
 // faces the way it steps, and the walking pose cycles while it moves. A straight move of one or two
 // cells walks the whole way. A knight leap is a fast jump: it covers both axes at once, standing
 // rather than walking, and arcs above its path (battle_leap_lift), so it is seen to jump over the
-// units and terrain it passes. A walker's footfalls sound as it goes, and a leap whistles and thuds. The logical state has already changed, so only the drawn offset is
-// left to cover. With no offset, it does nothing.
+// units and terrain it passes. A walker's footfalls sound as it goes, and a leap whistles and
+// thuds. The logical state has already changed, so only the drawn offset is left to cover. With no
+// offset, it does nothing.
 static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen) {
     bool leap = screen.mover_dx != 0 && screen.mover_dy != 0;
     screen.motion = leap ? MOTION_LEAP : MOTION_WALK;
@@ -321,14 +339,14 @@ RPG_NOINLINE static bool any_fallen(BattleScreen const& screen) {
 // The sound of a unit type's attack landing. An archer's arrow has its own sounds.
 static SFX attack_sound(uint8_t type) {
     switch(type) {
-    case BATTLE_TYPE_SPEARMAN:
-        return SFX_THRUST;
-    case BATTLE_TYPE_WOLF:
-        return SFX_BITE;
-    case BATTLE_TYPE_BRUTE:
-        return SFX_SMASH;
-    default:
-        return SFX_STRIKE;
+        case BATTLE_TYPE_SPEARMAN:
+            return SFX_THRUST;
+        case BATTLE_TYPE_WOLF:
+            return SFX_BITE;
+        case BATTLE_TYPE_BRUTE:
+            return SFX_SMASH;
+        default:
+            return SFX_STRIKE;
     }
 }
 
@@ -337,9 +355,9 @@ static SFX attack_sound(uint8_t type) {
 // frames, so the next turn waits for the last flash. Each flashing unit carries its damage
 // indicator for as long as it flashes. `impact` sounds as the reaction starts. When a
 // flashing unit is defeated, its fall sounds at BATTLE_FALL_SOUND_FRAME, after the impact.
-static inline __attribute__((always_inline)) void
-animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward, uint8_t frames,
-                 SFX impact) {
+static inline __attribute__((always_inline)) void animate_reaction(BattleScreen& screen,
+                                                                   uint8_t lunger, DIRECTION toward,
+                                                                   uint8_t frames, SFX impact) {
     screen.mover = lunger;
     screen.motion = MOTION_STILL;
     sfx_play(impact);
@@ -434,6 +452,24 @@ static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen
 // unit the action damages flashes once the motion is done, and the caller waits for the flashes to
 // end.
 RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
+    if(action.unit_index == BATTLE_NO_UNIT) {
+        screen.flashing = 0;
+        for(uint8_t& pair : screen.damage)
+            pair = 0;
+        for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
+            BattleUnit const& unit = screen.state.units[i];
+            if(unit.hp && unit.team == screen.state.turn) {
+                screen.flashing |= (uint8_t)(1 << i);
+                screen.damage[i / 2] |= (uint8_t)(1 << ((i & 1) * 4));
+            }
+        }
+        battle_pass(screen.state);
+        if(screen.flashing)
+            animate_reaction(screen, BATTLE_NO_UNIT, SOUTH,
+                             any_fallen(screen) ? BATTLE_FLASH_FRAMES : BATTLE_PRICE_FLASH_FRAMES,
+                             SFX_PRICE);
+        return;
+    }
     DIRECTION toward = act(screen, action);
     // Only a move leaves an offset to walk, and a walk clears the mover. An archer's attack flies
     // its arrow first and does not lunge. Any other attack leaves the attacker as the mover, which
@@ -476,8 +512,9 @@ static void draw_result(BATTLE_RESULT result) {
 
 // Handles an A press on `cell`. A friendly hero toggles its selection, replacing any other.
 // Otherwise the selected hero acts on the cell if that is legal. Returns the action taken, or one
-// with no unit when no action is taken. A selection chirps, deselection cancels, and an invalid press
-// buzzes; a confirmed action is heard through its own motion. Kept out of line so party_turn's frame stays small.
+// with no unit when no action is taken. A selection chirps, deselection cancels, and an invalid
+// press buzzes; a confirmed action is heard through its own motion. Kept out of line so
+// party_turn's frame stays small.
 RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& selected,
                                          uint8_t cell) {
     uint8_t unit = battle_unit_at(state, cell);
@@ -524,9 +561,13 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
             sfx_play(moved ? SFX_CURSOR_MOVE : SFX_CURSOR_EDGE);
         }
         if(pressed & BTN_B) {
-            if(selected != BATTLE_NO_UNIT)
+            if(selected != BATTLE_NO_UNIT) {
                 sfx_play(SFX_CANCEL);
-            selected = BATTLE_NO_UNIT;
+                selected = BATTLE_NO_UNIT;
+            } else {
+                // Return before opening the shared menu so this input frame is no longer live.
+                return BattleAction{BATTLE_NO_UNIT, BATTLE_CELLS};
+            }
         }
         if(pressed & BTN_A) {
             BattleAction action = press_a(state, selected, cursor.cell);
@@ -561,6 +602,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     BattleScreen screen{};
     BattleState& state = screen.state;
     battle_begin(state, encounter);
+    RPG_QA_MARK(battle_qa_state = &state);
     // The platform sets these at startup, and dialogue sets them to the same values.
     avm_set_text_font(AVM_FONT_BR5D);
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
@@ -579,11 +621,21 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     sfx_play(SFX_BATTLE_START);
 
     while(!state.ended) {
-        battle_settle(state);
+        while(!state.ended && !battle_can_act(state))
+            resolve(screen, BattleAction{BATTLE_NO_UNIT, 0});
         if(state.ended)
             break;
         if(state.turn == BATTLE_PARTY) {
-            resolve(screen, party_turn(screen));
+            BattleAction action = party_turn(screen);
+            if(action.unit_index == BATTLE_NO_UNIT && action.destination == BATTLE_CELLS) {
+                MENU_EXIT selected = menu_screen(&screen);
+                if(selected == MENU_AUDIO)
+                    audio_screen(&screen);
+                if(selected != MENU_PASS)
+                    continue;
+                action = BattleAction{BATTLE_NO_UNIT, 0};
+            }
+            resolve(screen, action);
         } else {
             // The party's turn starts on the frame after the enemy's action ends, so the cursor is
             // back at once.
@@ -601,5 +653,6 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     fade_world_in();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();
+    RPG_QA_MARK(battle_qa_state = nullptr);
     return state.result;
 }

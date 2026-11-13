@@ -3,7 +3,7 @@
 
 #include "battle.h"
 
-// The deepest search, in plies. Each ply is one activation, and a forced pass is one too. The
+// The deepest search, in plies. Each ply is one activation, and a pass is one too. The
 // static workspace is sized for this depth.
 inline constexpr uint8_t BATTLE_AI_DEPTH = 4;
 
@@ -36,9 +36,9 @@ enum BATTLE_SEARCH_PRIORITY : uint8_t {
 };
 
 // The chosen action and its score from the side to act's perspective, and the depth of the
-// completed search that chose it. The action is BattleAction{BATTLE_NO_UNIT, 0} when that side has
-// no legal action and must pass, and when a bounded search completed no iteration, which leaves
-// depth zero.
+// completed search that chose it. BattleAction{BATTLE_NO_UNIT, 0} is a pass, available to both
+// sides even when unit moves or attacks are legal. It is also the no-result sentinel when a
+// bounded search completes no iteration, distinguished by depth zero.
 struct BattleSearchResult {
     BattleAction action;
     int16_t score;
@@ -49,7 +49,7 @@ struct BattleSearchResult {
 // RPG_BATTLE_STATS. Other guests compile them out and report zeros. The node counters saturate
 // instead of wrapping.
 struct BattleSearchStats {
-    uint16_t nodes;    // Positions reached by one action or forced pass, in every iteration.
+    uint16_t nodes;    // Positions reached by one action or pass, in every iteration.
     uint16_t leaves;   // Positions scored without expanding: terminal ones and depth-limit ones.
     uint8_t deepest;   // Greatest ply reached.
     uint8_t completed; // Deepest iteration searched to the end. Its result is the one returned.
@@ -66,7 +66,8 @@ uint8_t battle_search_depth_limit(BattleState const& state);
 // Negamax with alpha-beta pruning, searched completely to `depth` plies (clamped to 1 through
 // BATTLE_AI_DEPTH, then to battle_search_depth_limit) on an explicit stack. The state is not
 // modified. Production code never recurses. The result is deterministic. Ties go to the first
-// action in search order, and the action is always legal when one exists.
+// action in search order. Every ply includes Pass after unit actions; a previous iteration
+// may promote Pass to the front just like its other choices.
 BattleSearchResult battle_search(BattleState const& state, uint8_t depth);
 
 // Iterative deepening under a node budget: depth one, then two, and so on to `max_depth`, stopping
@@ -105,8 +106,9 @@ uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t
 BATTLE_SEARCH_PRIORITY battle_search_priority(BattleState const& state, BattleAction action);
 
 // The score of a position from one side's perspective. A terminal position scores by its winner and
-// its ply. Any other position scores by the enemy's utility, negated for the party. Terminal positions
-// name the winner from `result`, since a battle-ending action leaves state.turn where it was.
+// its ply. Any other position scores by the enemy's utility, negated for the party. Terminal
+// positions name the winner from `result`, since a battle-ending action leaves state.turn where it
+// was.
 int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply);
 
 // Cells a unit of `type` must still travel before it can attack a unit that is dx columns and dy
@@ -119,7 +121,7 @@ uint8_t battle_attack_gap(BATTLE_UNIT_TYPE type, uint8_t dx, uint8_t dy);
 uint16_t battle_ai_budget(BattleState const& state);
 
 // The enemy's choice: battle_think at BATTLE_AI_DEPTH within battle_ai_budget. When no
-// iteration completes, or its action is not legal, the greedy choice is used instead.
+// iteration completes, or its non-pass action is not legal, the greedy choice is used instead.
 BattleAction battle_enemy_action(BattleState const& state);
 
 // The greedy choice for the side to act, by battle_greedy_score. Ties go to the first action in

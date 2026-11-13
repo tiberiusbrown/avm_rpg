@@ -12,8 +12,9 @@ static constexpr int16_t UTILITY_ENEMY_HP = 90;
 // cell, and any other unit needs two, so a cell is worth 20 to a stepping unit.
 static constexpr int16_t UTILITY_GAP = 10;
 static constexpr int16_t UTILITY_NEAREST = 10;
-// A strike that the side to act can make now, and one that the other side makes after one activation.
-// Mutual engagement is worth more when the enemy acts next, and less when the party acts next.
+// A strike that the side to act can make now, and one that the other side makes after one
+// activation. Mutual engagement is worth more when the enemy acts next, and less when the party
+// acts next.
 static constexpr int16_t UTILITY_STRIKE_NOW = 120;
 static constexpr int16_t UTILITY_STRIKE_LATER = 60;
 
@@ -118,7 +119,7 @@ static_assert(UNIT_LIMITS.types[BATTLE_TYPE_FIGHTER].actions == 4 &&
               "per-type action limits on the 8x4 board");
 
 // The most actions one side can list: each living unit's limit, with its attacks capped by the
-// opponents it faces. A side with no action still lists its forced pass.
+// opponents it faces, plus the always-available pass.
 static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t opponents) {
     uint8_t total = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
@@ -129,18 +130,19 @@ static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t 
         uint8_t most = (uint8_t)(limit.moves + opponents);
         total = (uint8_t)(total + (limit.actions < most ? limit.actions : most));
     }
-    return total ? total : 1;
+    return (uint8_t)(total + 1);
 }
 
 // The plies on the stack list their actions one after another, each starting where its parent's
 // list ends. The stack is battle_action_scratch, which nothing else uses while the search runs. Its
-// 80 bytes hold two plies of any battle of up to four a side, even four rogues a side (40 actions
-// each); three plies of a mixed four-on-four battle; and four plies of any two-on-two battle (at
-// most 16 a side). battle_search_depth_limit stops the search at the deepest ply the stack holds.
+// 82 bytes hold two plies of any battle of up to four a side, even four rogues a side (40 unit
+// actions plus a pass each); three plies of a mixed four-on-four battle; and four plies of any
+// two-on-two battle (at most 16 unit actions plus a pass per side). battle_search_depth_limit stops
+// the search at the deepest ply the stack holds.
 static constexpr uint16_t ACTION_STACK_CAPACITY = BATTLE_ACTION_SCRATCH_CAPACITY;
 
 static SearchPly plies[BATTLE_AI_DEPTH];
-static_assert(ACTION_STACK_CAPACITY >= 2 * BATTLE_SIDE_CAPACITY * 10 &&
+static_assert(ACTION_STACK_CAPACITY >= 2 * (BATTLE_SIDE_CAPACITY * 10 + 1) &&
                   ACTION_STACK_CAPACITY <= 255,
               "two plies of four rogues a side fit, and the stack's indices are bytes");
 
@@ -504,6 +506,8 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
 }
 
 BATTLE_SEARCH_PRIORITY battle_search_priority(BattleState const& state, BattleAction action) {
+    if(action.unit_index == BATTLE_NO_UNIT)
+        return BATTLE_PRIORITY_OTHER;
     switch(battle_action_kind(state, action)) {
         case BATTLE_ACTION_WIN:
             return BATTLE_PRIORITY_WIN;
@@ -534,26 +538,22 @@ static void promote(uint8_t* actions, uint8_t to, uint8_t count, uint8_t wanted)
 }
 
 // Prepares a node for its children: its legal actions in search order from `base` in the action
-// stack, or one pending forced pass when it has none. The root moves `first` to the front; a deeper
+// stack followed by its pass candidate. The root moves `first` to the front; a deeper
 // ply moves its killer to the front of its moves. A node whose children are all leaves skips the
 // approach ordering of its moves, which costs more than the leaves it saves.
 static void start(uint8_t ply, BattleState const& state, uint8_t base, uint8_t depth,
-                  uint8_t first) {
+                  uint16_t first) {
     SearchPly& node = plies[ply];
     uint8_t* actions = battle_action_scratch + base;
     uint8_t attacks = 0;
     uint8_t count = battle_actions(state, actions, attacks);
-    if(!count) {
-        // A side with no legal action has one child, its forced pass, which takes no stack space:
-        // next one past end marks it pending.
-        node.next = (uint8_t)(base + 1);
-        node.end = base;
-        return;
-    }
-    uint8_t quiet = battle_order_actions(state, actions, count, attacks, ply + 1 < depth);
-    if(ply == 0)
-        promote(actions, 0, count, first);
-    else
+    uint8_t quiet =
+        count ? battle_order_actions(state, actions, count, attacks, ply + 1 < depth) : 0;
+    uint8_t pass = battle_pass_marker(state);
+    actions[count++] = pass;
+    if(ply == 0 && first < 256)
+        promote(actions, 0, count, (uint8_t)first);
+    else if(ply && killers[ply] != pass)
         promote(actions, quiet, count, killers[ply]);
     node.next = base;
     node.end = (uint8_t)(base + count);
@@ -583,9 +583,10 @@ static uint16_t saturating_add(uint16_t a, uint16_t b) {
 // Records a move that cut a node off at `ply` as that ply's killer. Attacks are searched first
 // anyway. A killer is promoted only among the next node's quiet moves (see start), so a move that
 // engages an enemy is never treated as a quiet move: it stays in its damaging group. The search
-// never passes a forced pass here: a node that passes has no other child.
+// ignores pass candidates, which are not unit moves.
 static void note_cutoff(BattleState const& parent, uint8_t ply, uint8_t packed) {
-    if(ply && battle_unit_at(parent, (uint8_t)(packed & (BATTLE_CELLS - 1))) == BATTLE_NO_UNIT)
+    if(ply && packed != battle_pass_marker(parent) &&
+       battle_unit_at(parent, (uint8_t)(packed & (BATTLE_CELLS - 1))) == BATTLE_NO_UNIT)
         killers[ply] = packed;
 }
 
@@ -615,7 +616,7 @@ RPG_NOINLINE static uint8_t report_progress(uint16_t budget, uint16_t visited) {
 // finishing when one more position would exceed it; a budget of zero is unlimited. Inlined into its
 // only caller, deepen, so the guest stack carries one frame for both.
 static inline __attribute__((always_inline)) uint16_t
-search_tree(BattleState const& root, uint8_t depth, uint16_t budget, uint8_t first,
+search_tree(BattleState const& root, uint8_t depth, uint16_t budget, uint16_t first,
             BattleSearchResult& found, uint16_t whole_budget, uint16_t used, uint8_t& until) {
     uint16_t nodes = 0;
     for(uint8_t i = 0; i < BATTLE_AI_DEPTH; ++i)
@@ -630,18 +631,18 @@ search_tree(BattleState const& root, uint8_t depth, uint16_t budget, uint8_t fir
     uint8_t ply = 0;
     for(;;) {
         SearchPly& node = plies[ply];
-        // A node is finished when next reaches end, or when its forced pass, pending at end + 1,
-        // has been taken, which leaves next at end + 2.
-        if(node.next == node.end || node.next == (uint8_t)(node.end + 2)) {
+        // A node finishes after all candidates, including Pass, or an alpha-beta cutoff.
+        if(node.next == node.end) {
             if(ply == 0) {
-                // A root whose list is empty took its forced pass.
-                found.action = node.end == 0 ? PASS_ACTION : battle_unpack(root_best);
+                // The reserved self-target byte names a pass, never a legal unit action.
+                found.action =
+                    root_best == battle_pass_marker(root) ? PASS_ACTION : battle_unpack(root_best);
                 found.score = node.alpha;
                 found.depth = depth;
                 return nodes;
             }
             // The node is finished, so the parent receives its value, negated. The parent's next is
-            // one past the action that led here, or past end when that was a pass.
+            // one past the candidate that led here, including a pass.
             int16_t score = (int16_t)-node.alpha;
             --ply;
             SearchPly& parent_node = plies[ply];
@@ -662,12 +663,8 @@ search_tree(BattleState const& root, uint8_t depth, uint16_t budget, uint8_t fir
             until = report_progress(whole_budget, (uint16_t)(used + nodes));
 
         BattleState const& parent = ply == 0 ? root : ply_state[ply - 1];
-        bool pass = node.next > node.end;
-        uint8_t packed = 0;
-        if(pass)
-            node.next = (uint8_t)(node.end + 2);
-        else
-            packed = battle_action_scratch[node.next++];
+        uint8_t packed = battle_action_scratch[node.next++];
+        bool pass = packed == battle_pass_marker(parent);
         if(ply == 0)
             root_child = packed;
         if(COUNT_STATS && stats.deepest < ply + 1)
@@ -734,7 +731,7 @@ RPG_NOINLINE static BattleSearchResult deepen(BattleState const& state, uint8_t 
     // The first progress step comes after one interval, so a quick decision reports none.
     uint8_t until = progress_interval(budget);
     uint16_t used = 0, last = 0;
-    uint8_t first = battle_pass_marker(state);
+    uint16_t first = 256; // No preferred action before the first completed iteration.
     for(uint8_t depth = shallowest; depth <= deepest; ++depth) {
         uint16_t left = 0;
         if(budget) {
@@ -842,7 +839,8 @@ RPG_NOINLINE uint16_t battle_ai_budget(BattleState const& state) {
 
 BattleAction battle_enemy_action(BattleState const& state) {
     BattleSearchResult result = battle_think(state, BATTLE_AI_DEPTH, battle_ai_budget(state));
-    if(result.depth && battle_legal(state, result.action))
+    if(result.depth &&
+       (result.action.unit_index == BATTLE_NO_UNIT || battle_legal(state, result.action)))
         return result.action;
     return battle_greedy_action(state);
 }
