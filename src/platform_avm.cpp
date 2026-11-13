@@ -12,12 +12,29 @@ struct SfxTrack {
 static_assert(sizeof(SFX_TRACKS) / sizeof(SFX_TRACKS[0]) == SFX_COUNT);
 
 constexpr uint8_t MUSIC_MASTER_VOLUME = 128;
-static uint8_t music_selection;
+
+void music_play(MUSIC_TRACK track) {
+    auto current = avm_audio_get_music();
+    if(current == MUSIC_TRACKS[track].data)
+        return;
+
+    if(current)
+        avm_audio_play_fade(MUSIC_TRACKS[track].data);
+    else
+        avm_audio_play(MUSIC_TRACKS[track].data);
+}
 
 char const PROGMEM* music_next() {
-    music_selection = (uint8_t)((music_selection + 1) % MUSIC_COUNT);
-    avm_audio_play(MUSIC_TRACKS[music_selection].data);
-    return MUSIC_TRACKS[music_selection].title;
+    auto current = avm_audio_get_music();
+    MUSIC_TRACK next = MUSIC_DEFAULT;
+    for(uint8_t i = 0; i < MUSIC_COUNT; ++i) {
+        if(current == MUSIC_TRACKS[i].data) {
+            next = (MUSIC_TRACK)((i + 1) % MUSIC_COUNT);
+            break;
+        }
+    }
+    music_play(next);
+    return MUSIC_TRACKS[next].title;
 }
 
 RPG_NOINLINE void sfx_play(SFX effect) {
@@ -82,10 +99,9 @@ extern "C" void loop() {
 
     //avm_audio_lowpass(AVM_AUDIO_LOWPASS_MILD);
     avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
-    avm_audio_music_volume(MUSIC_MASTER_VOLUME);
+    avm_audio_volume(MUSIC_MASTER_VOLUME);
     avm_audio_music_loop(1);
-    music_selection = MUSIC_DEFAULT;
-    avm_audio_play(MUSIC_TRACKS[music_selection].data);
+    music_play(MUSIC_DEFAULT);
     
     explore();
 }

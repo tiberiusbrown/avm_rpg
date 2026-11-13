@@ -487,6 +487,42 @@ static void play_grove_battle(Device& d) {
 }
 
 #ifndef RPG_DEVICE_TEST_LIBRARY
+static void press_with_music_fade(Device& d) {
+    struct Trace {
+        Device& device;
+        std::vector<uint8_t> levels;
+        uint8_t previous = 255;
+    } trace{d, {}};
+    d.observer_context = &trace;
+    d.cycle_observer = [](void* context, bool after) {
+        if(!after)
+            return;
+        auto& trace = *static_cast<Trace*>(context);
+        auto const& ram = trace.device.ab->core_state.cpu.data;
+        uint8_t level = ram[0xa71];
+        if(level != trace.previous) {
+            trace.levels.push_back(level);
+            trace.previous = level;
+        }
+        require(ram[0xa17] == 128 && ram[0xa72] == 255, "music fade changed master or SFX gain");
+    };
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    require(d.ab->core_state.cpu.data[0xa73] != 0, "fade did not return while the song was still fading");
+    auto display = d.ab->peripherals.display.ram;
+    d.tap(BTN_RIGHT);
+    require(d.ab->peripherals.display.ram != display, "music fade blocked input or display updates");
+    d.tap(BTN_LEFT); // Restore the menu selection or battle cursor.
+    d.advance(0, 16000000);
+    d.cycle_observer = nullptr;
+    d.observer_context = nullptr;
+    require(trace.levels.size() > 100 && trace.levels.back() == 255 &&
+                d.ab->core_state.cpu.data[0xa73] == 0,
+            "song switch did not complete its fade and restore full volume");
+    for(unsigned i = 1; i + 1 < trace.levels.size(); ++i)
+        require(trace.levels[i] < trace.levels[i - 1], "music fade did not ramp down");
+}
+
 int main(int argc, char** argv) try {
     require(argc == 9, "device_tests package game_address marker_address serial_address "
                        "output_directory normal|fxc|proof dialogue_address phase_address");
@@ -546,7 +582,7 @@ int main(int argc, char** argv) try {
     require(d.prompt() == DIALOGUE_DONE, "advance guard did not ignore an early A press");
     d.capture(out / "sign-dialogue.pgm");
     d.advance(0, 8000000);
-    d.tap(BTN_A);
+    press_with_music_fade(d);
     // Closing the welcome starts the Grove battle, which returns only after its outcome line.
     d.capture(out / "grove-battle.pgm");
     play_grove_battle(d);
@@ -737,7 +773,7 @@ int main(int argc, char** argv) try {
     // to the default while the world remains paused.
     d.tap(BTN_UP);
     for(unsigned song = 0; song < MUSIC_COUNT; ++song) {
-        d.tap(BTN_A);
+        press_with_music_fade(d);
         d.verify_music();
         d.capture(out / ("music-" + std::to_string((song + 1) % MUSIC_COUNT) + ".pgm"));
     }

@@ -200,15 +200,22 @@ A fresh-device restart with the actual exported sector was exercised; see QA log
 
 **Verified:** `runtime/include/avm/audio.h`, `docs/audio.md`, and
 `projects/audio_demo/main.c` expose autonomous three-tonal-plus-noise audio.
-`avm_audio_play` accepts A3 terminating/looping music; `avm_audio_sfx` accepts
-compact one-shot tonal/noise effects on voices 2/3. Assets store raw uint16 phase
+`avm_audio_play` accepts terminating/looping music; `avm_audio_sfx` accepts
+compact one-shot tonal/noise effects on voices 1/3. Assets store raw uint16 phase
 increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
-and Timer1/Timer4 audio operation require no game update call. RPG starts the
-Boss loop after New Game or a successful Continue. The travel menu alternates
-between Boss and Venus, compiled from their editable AVMS scores. The title
-leaves audio disabled; dialogue and menus let playback continue. Full-device
-integration checks both selections, PWM output, and exploration with music enabled.
+and Timer1/Timer4 audio operation require no game update call. RPG starts
+Peaceful Village after New Game or a successful Continue, switches to Steel at
+Dawn for battles, and returns to Peaceful Village at the result. The music menu
+cycles through the two editable AVMS scores. `music_play` leaves the current
+song alone or queues a different song with `avm_audio_play_fade`. The interpreter
+lowers music attenuation by one every 4 ms and restores the request's captured
+gain before starting the queued song (1.02 seconds at gain 255). Input, display
+and gameplay continue during the fade. Shared master gain stays 128 and
+SFX is unaffected. Runtime getters read the existing music start pointer and
+gain bytes directly from RAM; the RPG stores no duplicate song selection.
+The title leaves audio disabled; dialogue and menus let playback continue.
+Full-device integration checks song switching, PWM output, and exploration with music enabled.
 Listening on physical speakers remains **Unverified**.
 
 ## Compilation, resource reporting, debug and replay

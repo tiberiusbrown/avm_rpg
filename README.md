@@ -19,9 +19,7 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
 | Peaceful Village | Original NES-inspired village theme: pulse melody, eighth-note broken chords, saw bass | D major / 4/4 | 96 | 60.000 s |
-| Boss | FamiTracker APU/VRC6 melody, pulse guitar, saw bass, and percussion | Tracker speed 5 | 200 | 34.000 s |
-| Venus | FamiTracker VRC6 melody, APU harmony, saw bass, and percussion | Tracker speed 8 | 200 | 25.600 s |
-| Good Endings | Cleaned MIDI glockenspiel, lute/horn/viola accompaniment, and electric bass | 4/4 | 120 | 172.000 s |
+| Steel at Dawn | Original fantasy battle theme | D minor / 4/4 | 152 | About 12.6 s |
 
 [`peaceful.avms`](assets/music/peaceful.avms) is a 24-bar A-A'-B town theme with
 an original melody inspired by the gentle three-voice texture of NES Final Fantasy.
@@ -52,9 +50,17 @@ Noise carries the impacts.
 
 Press **B**, choose **Switch music** (or press Up twice from Status), and press **A**
 to advance through the scores in filename order, wrapping at the end. The selected
-title appears in the menu footer. Playback starts with `test.avms` when present,
-otherwise the first score; the selection lasts for the current session.
+title appears in the menu footer. Playback starts with Peaceful Village. Battles
+switch to Steel at Dawn and return to Peaceful Village when the result appears.
 Music continues through dialogue and menus.
+
+`music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
+The interpreter lowers music attenuation by one every 4 ms, then restores the
+gain captured by the request and starts the queued song. At the default full
+music gain of 255 the fade lasts 1.02 seconds; lower gains fade at the same slope.
+Input, display animation and gameplay continue during the fade. Requesting the
+current song leaves it playing. The current-song getter avoids extra static RAM
+for selection tracking. Master gain and sound effects are unaffected.
 
 For the synthesis-rate experiment, press **B**, **Up**, **A** to toggle between
 **Audio: 8 kHz** and **Audio: 16 kHz** while the song keeps playing. Repeated
@@ -62,23 +68,12 @@ presses of A compare the two rates; B returns to exploration. The selection
 persists when the menu closes and resets to 16 kHz on restart. It is not saved.
 The exact rates are 7812.5 and 15625 Hz, both without smoothing.
 
-The FamiTracker conversions preserve complete song traversals, all four arranged
-voices, and the tracker's quantized pitch, volume, and pulse-duty changes.
-Millisecond durations retain the 4 ms event timing; constant frequency slides
-preserve fractional pitches used by bends and vibrato. Every song resets all
-four channels on entry and silences them before looping. Good Endings uses
-the cleaned `arduboy_grayscale_rpg/assets/song_peaceful.mid`, which already
-omits the synth pad. It reduces the parts to three pulse voices and keeps noise
-silent. The loop ends at 172 seconds, trimming the MIDI's empty 12.1-second
-tail; the final 8 ms allow the last notes to release before looping.
-See [conversion details](assets/music/imported/README.md) for voice selection,
-the NES/DPCM adaptations, and build commands. CMake invokes the SDK's
+CMake invokes the SDK's
 `avm_music.py` compiler for each editable AVMS file, without rewriting
 the scores. `tools/generate_music_catalog.py` emits `generated/music_ids.h` and
 `generated/music_tracks.h`, used by `src/music_catalog.h` and `src/music.h`.
-`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is 96 (300%). Tests compare the
-AVMS playback against recorded tracker and MIDI-arrangement fingerprints and check complete duration,
-two repeatable loops, channel resets, and headroom at reference master 64.
+`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is the shared gain, 128 (400%).
+Individual music and SFX attenuation defaults to 255 (full volume).
 Physical Arduboy piezo listening and balance checks remain necessary.
 
 The overworld is one 240x248-tile map with a village in its north-west corner, beside
@@ -195,7 +190,8 @@ Map tiles are stored in contiguous rows without padding. Handler chunks cover
 8x4 tiles; a 9x5 cache supports smooth scrolling and uses 108 fewer
 RAM bytes than the previous 17x9 cache.
 
-The installed SDK must include `bin/avm/interp.fxc.hex`. Update an older SDK
+The installed SDK must include `bin/avm/interp.fxc.hex`, independent music/SFX
+attenuation, and the `avm_audio_get_music` / volume getters. Update an older SDK
 with the AVM checkout's `avm_sdk_install` CMake target before building.
 
 From this repository root:

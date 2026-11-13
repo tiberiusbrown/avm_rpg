@@ -229,7 +229,8 @@ if(RPG_BUILD_GUEST)
                 list(APPEND source_dependencies src/music.h src/music_catalog.h src/sfx.h ${MUSIC_OUTPUTS})
             endif()
             if(source STREQUAL "src/battle_screen.cpp")
-                list(APPEND source_dependencies src/sfx.h ${SFX_OUTPUTS})
+                list(APPEND source_dependencies src/sfx.h ${SFX_OUTPUTS}
+                    src/music_catalog.h ${MUSIC_CATALOG_OUTPUTS})
             endif()
             add_custom_command(OUTPUT "${object}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}"

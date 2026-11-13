@@ -2,6 +2,7 @@
 #include "battle_ai.h"
 #include "battle_cursor.h"
 #include "battle_motion.h"
+#include "music_catalog.h"
 #include "sfx.h"
 
 #include <avm.h>
@@ -514,6 +515,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     // A press that led here, such as the one that closed dialogue, must not act in the battle.
     input_wait_release(BTN_ALL);
+    music_play(MUSIC_BATTLE);
 
     // The cursor starts on the first hero, already settled there, so the battle does not open with
     // a sweep across the board.
@@ -539,6 +541,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     draw_result(state.result);
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
+    music_play(MUSIC_PEACEFUL);
     input_wait_press(BTN_A);
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();
