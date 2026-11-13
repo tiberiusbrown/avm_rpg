@@ -143,10 +143,22 @@ returning resumes the caller. Selections, animation position and feedback are lo
 The pause panel eases halfway in from the left each frame while the world fades to 50% black;
 closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Load or Options. Map is
 visible only in the overworld; Load uses the global `save_exists` flag. Party calls status;
-Journal, Map and Options are placeholders. A selects and B resumes. Load eases the panel
+Journal and Map are placeholders. A selects and B resumes. Load eases the panel
 out while fading fully to black, then returns to exploration to restore and refresh the
 saved world while hidden, keeping that work off the menu's stack. The restored world fades
 completely back in before simulation resumes.
+Options returns from the pause loop after its panel eases off the left edge, then enters
+its own loop with an 88-pixel panel easing in from the right. Both use the battle cursor's
+half-distance easing, with a steady half-faded world during handoff. Music and SFX each
+have independent 0..30 volume sliders displayed as 0–200%, mapped to native attenuation
+0..255. Both default to level 15 (100%, native 128), with shared master gain at its maximum
+255. The stored levels retain their prior percentage meaning. Low-pass has
+16 strengths, from bypass to coefficient 1. Up/down selects; left/right adjusts and repeats
+while held. B closes Options directly to gameplay, easing the world back to full brightness.
+The three levels live in `Game::options` and are saved with progress. Startup applies valid
+saved values or defaults; New Game and later loads preserve the current values. Finishing
+an outstanding song fade before a music-volume edit prevents its saved gain undoing the edit.
+
 `Game` contains no mode, pending command, or input/UI bookkeeping.
 `input_wait_press` requires release before a fresh press; `input_wait_frame`
 uses the SDK frame limiter. Exploration uses `input_pressed` for actions and
@@ -169,12 +181,12 @@ A activates the selected pause item. Startup loads and validates the physical re
 and sets the flag immediately, without reading the record back. Menu visibility uses the
 flag without further storage access.
 
-Save version 6 places the entire pointer-free `Game` object in `.saved`; the live state is
+Save version 7 places the entire pointer-free `Game` object in `.saved`; the live state is
 the save storage, so no duplicate static buffer or serialization step is required. A layout
 version is part of `Game`; changes to its byte layout require a version bump. There is no
 checksum. Load checks the version, stats, flags, bounds and NPC residences before entering
 the world, then reconstructs transient NPC/cache state and repairs blocked player positions.
-A rejected load clears the flag and prepares a new game. Existing version-1–5 records are
+A rejected load clears the flag and prepares a new game. Existing version-1–6 records are
 incompatible. The global flag is ordinary `.data` and is never persisted.
 
 ## Future strategic combat boundary (M3)

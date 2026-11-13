@@ -80,7 +80,7 @@ PROGMEM battlefield rather than the chunk cache.
 The generic flags, staged handlers, movement, route and save mechanisms remain.
 There is one reserved flag bit and no current quest state.
 
-SAVE_VERSION is now 6. Versions 1–5 are deliberately rejected. The live pointer-free
+SAVE_VERSION is now 7. Versions 1–6 are deliberately rejected. The live pointer-free
 `Game` object occupies `.saved`, with no duplicate serialization buffer or checksum.
 Startup loads and validates the object before setting `save_exists`, then prepares the title's
 new-game defaults. Saving writes the live object and sets the flag without readback. Loads

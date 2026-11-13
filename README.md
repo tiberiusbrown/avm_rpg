@@ -15,11 +15,22 @@ world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Jou
 **Map**, **Load**, or **Options**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
-immediately after saving. Party opens the traveler status screen. Journal, Map, and
-Options are placeholders. The world stays frozen while the menu is open; music continues.
+immediately after saving. Party opens the traveler status screen. Journal and Map are placeholders. The world stays frozen while the menu is open; music continues.
 Save writes the existing single save slot and immediately sets the save flag, without readback. Selecting Load eases the panel out
 while fading the world completely to black, restores the saved world while hidden, then
 fades it completely back in before play resumes.
+
+Selecting **Options** eases the pause panel out to the left, then immediately eases the
+Options panel in from the right. The world remains frozen at 50% fade throughout the
+handoff. Up/down selects **Music**, **SFX**, or **Low-pass**; left/right adjusts the
+slider, with repeat while held. Volume sliders run from Off to 200% in 31 positions, with a default of 100%.
+The low-pass slider runs from bypass to maximum smoothing; the native filter also
+smooths tonal SFX. B eases Options out and returns directly to gameplay.
+
+Audio settings take effect immediately and are stored alongside progress when **Save** is
+selected. Startup initializes defaults (both stream gains 128, shown as 100%; filter off), then loads valid
+saved settings. New Game, Continue and later Load actions preserve the current settings;
+only the Options menu changes them during play.
 
 The sign's battle is a synchronous prototype. Its controls and rules are described in
 [Battle prototype](#battle-prototype) below.
@@ -69,8 +80,9 @@ Peaceful Village when A dismisses the result screen. Music continues through dia
 The runtime starts it immediately when no song is active.
 The interpreter lowers music attenuation by one every 4 ms, then restores the
 gain captured by the initial fade request and starts the queued song. Further
-requests replace only the queued song, preserving gain and fade progress. At the default full
-music gain of 255 the fade lasts 1.02 seconds; lower gains fade at the same slope.
+requests replace only the queued song, preserving gain and fade progress. At the default
+music gain of 128 the fade lasts 512 ms; the 200% slider setting uses gain 255 and fades
+for 1.02 seconds. Other gains fade at the same slope.
 Input, display animation and gameplay continue during the fade. Requesting the
 current song leaves it playing. The current-song getter avoids extra static RAM
 for selection tracking. Master gain and sound effects are unaffected.
@@ -81,20 +93,22 @@ CMake invokes the SDK's
 `avm_music.py` compiler for each editable AVMS file, without rewriting
 the scores. `tools/generate_music_catalog.py` emits `generated/music_ids.h` and
 `generated/music_tracks.h`, used by `src/music_catalog.h` and `src/music.h`.
-`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is the shared gain, 128 (400%).
-Individual music and SFX attenuation defaults to 255 (full volume).
+`MUSIC_MASTER_VOLUME` in `src/platform_avm.cpp` is the shared gain, 255 (796.875%), the native maximum.
+Individual music and SFX gains default to 128, approximately half their former native
+values. Sliders map 0–200% to native 0–255: 100% is 128 and 200% is 255. Stored slider
+percentages are unchanged by this expanded range.
 Physical Arduboy piezo listening and balance checks remain necessary.
 
 The overworld is one 240x248-tile map with a village in its north-west corner, beside
 a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
 ten houses has its own interior: face a door and press A to enter, and walk out through
-the exit at the bottom of the room to leave. **This development build rejects saves from versions 1–5.** Save version 6 writes the live,
-pointer-free `Game` struct directly from AVM's `.saved` prefix (264 bytes), with no separate
+the exit at the bottom of the room to leave. **This development build rejects saves from versions 1–6.** Save version 7 writes the live,
+pointer-free `Game` struct directly from AVM's `.saved` prefix (267 bytes), with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. New Game preserves the
 flag; Continue and Load restore the saved world. NPC casts, the tile cache and the animation
 tick are rebuilt when a save is loaded. Compared with the pause-menu build, total shipping
-static RAM falls from 499 to 472 bytes, including the new flag.
+static RAM is 475 bytes, including the save flag and three saved audio options.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.

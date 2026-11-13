@@ -24,7 +24,9 @@ uint16_t rng_next() {
 }
 
 void game_start() {
+    AudioOptions options = game.options;
     memset(&game, 0, sizeof(game));
+    game.options = options;
 
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;

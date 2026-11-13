@@ -34,12 +34,12 @@ bool menu_item_visible(PAUSE_ITEM item, bool can_load) {
     return (item != PAUSE_MAP || game.area == AREA_OUTDOOR) && (item != PAUSE_LOAD || can_load);
 }
 
-__attribute__((noinline)) bool menu_screen() {
+__attribute__((noinline)) MENU_EXIT menu_screen() {
     PAUSE_ITEM selection = PAUSE_RESUME;
     uint8_t width = menu_width();
     int16_t revealed = 0;
     bool closing = false;
-    bool load_requested = false;
+    MENU_EXIT action = MENU_RESUME;
     char const PROGMEM* feedback = nullptr;
     input_sync();
 
@@ -47,13 +47,13 @@ __attribute__((noinline)) bool menu_screen() {
         input_wait_frame();
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(width));
         render_menu((uint8_t)cursor_pixel(revealed), width, selection, save_exists, feedback,
-                    load_requested);
+                    action);
         avm_display(true);
         uint8_t pressed = input_pressed();
 
         if(closing) {
-            if(!revealed)
-                return load_requested;
+            if(!revealed || (action == MENU_OPTIONS && !cursor_pixel(revealed)))
+                return action;
             continue;
         }
         if(pressed & BTN_B) {
@@ -81,7 +81,12 @@ __attribute__((noinline)) bool menu_screen() {
                     input_sync();
                     break;
                 case PAUSE_LOAD:
-                    load_requested = true;
+                    action = MENU_LOAD;
+                    closing = true;
+                    feedback = nullptr;
+                    break;
+                case PAUSE_OPTIONS:
+                    action = MENU_OPTIONS;
                     closing = true;
                     feedback = nullptr;
                     break;
@@ -89,6 +94,52 @@ __attribute__((noinline)) bool menu_screen() {
                     break;
             }
         }
+    }
+}
+
+__attribute__((noinline)) void options_screen() {
+    OPTION_ITEM selection = OPTION_MUSIC;
+    int16_t revealed = 0;
+    bool closing = false;
+    uint8_t horizontal = 0, repeat = 0;
+    input_sync();
+
+    for(;;) {
+        input_wait_frame();
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(OPTIONS_WIDTH));
+        render_options((uint8_t)cursor_pixel(revealed), selection, closing);
+        avm_display(true);
+        uint8_t pressed = input_pressed();
+        if(closing) {
+            if(!revealed)
+                return;
+            continue;
+        }
+        if(pressed & BTN_B) {
+            closing = true;
+            continue;
+        }
+        if(pressed & (BTN_UP | BTN_DOWN)) {
+            selection =
+                (OPTION_ITEM)((selection + (pressed & BTN_DOWN ? 1 : OPTION_ITEM_COUNT - 1)) %
+                              OPTION_ITEM_COUNT);
+            horizontal = 0;
+        }
+
+        uint8_t held = input_held() & (BTN_LEFT | BTN_RIGHT);
+        if(held == (BTN_LEFT | BTN_RIGHT))
+            held = 0;
+        bool adjust = false;
+        if(held != horizontal || !held) {
+            horizontal = held;
+            repeat = 12;
+            adjust = held != 0;
+        } else if(repeat && !--repeat) {
+            adjust = true;
+            repeat = 3;
+        }
+        if(adjust)
+            option_adjust(selection, held == BTN_RIGHT);
     }
 }
 
@@ -101,11 +152,13 @@ __attribute__((noinline)) void explore() {
 
         if(pressed & BTN_B) {
             // Refresh after the menu's locals have left the stack: chunk dialogue can enter battle.
-            if(menu_screen()) {
+            MENU_EXIT action = menu_screen();
+            if(action == MENU_LOAD) {
                 game_load();
                 update_visible_world(0, false);
                 fade_world_in();
-            }
+            } else if(action == MENU_OPTIONS)
+                options_screen();
             input_sync();
             continue;
         }

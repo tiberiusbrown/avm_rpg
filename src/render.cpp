@@ -145,10 +145,12 @@ uint8_t menu_width() {
 }
 
 void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
-                 char const PROGMEM* feedback, bool loading) {
+                 char const PROGMEM* feedback, MENU_EXIT action) {
     rpg_render_world();
     uint8_t fade = (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / width);
-    draw_fade(loading ? FADE_STEPS - fade : fade);
+    draw_fade(action == MENU_OPTIONS ? FADE_STEPS / 2
+              : action == MENU_LOAD  ? FADE_STEPS - fade
+                                     : fade);
     if(!revealed)
         return;
 
@@ -169,6 +171,43 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
     }
     if(feedback && revealed == width)
         avm_draw_text(width + 4, 58, feedback);
+}
+
+void render_options(uint8_t revealed, OPTION_ITEM selection, bool closing) {
+    rpg_render_world();
+    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / OPTIONS_WIDTH)
+                      : FADE_STEPS / 2);
+    if(!revealed)
+        return;
+
+    int16_t x = DISPLAY_WIDTH - revealed;
+    avm_draw_filled_rect_black(x, 0, OPTIONS_WIDTH, 64);
+    avm_draw_filled_rect_white(x + 1, 1, OPTIONS_WIDTH - 2, 62);
+    avm_draw_filled_rect_black(x + 2, 2, OPTIONS_WIDTH - 4, 60);
+    avm_draw_text(x + 4, 8, F("Options"));
+    avm_draw_text(x + 51, 8, F("B resume"));
+
+    static char const PROGMEM* const PROGMEM LABELS[] = {F("Music"), F("SFX"), F("Low-pass")};
+    for(uint8_t item = 0; item < OPTION_ITEM_COUNT; ++item) {
+        uint8_t y = 18 + item * 16;
+        uint8_t level = option_level((OPTION_ITEM)item);
+        avm_draw_text(x + 10, y, LABELS[item]);
+        if(item == selection)
+            avm_draw_text(x + 4, y, F(">"));
+        if(!level)
+            avm_draw_text(x + 63, y, F("Off"));
+        else
+            avm_draw_textf(x + 63, y, F("%u%%"),
+                           (level * 100 + OPTION_SLIDER_MAX / 2) / OPTION_SLIDER_MAX);
+
+        constexpr uint8_t TRACK_WIDTH = OPTIONS_WIDTH - 20;
+        avm_draw_filled_rect_white(x + 10, y + 5, TRACK_WIDTH, 1);
+        avm_draw_filled_rect_white(x + 10, y + 3, 1, 5);
+        avm_draw_filled_rect_white(x + 10 + TRACK_WIDTH - 1, y + 3, 1, 5);
+        int16_t knob = x + 10 + (uint16_t)level * (TRACK_WIDTH - 3) / option_max((OPTION_ITEM)item);
+        avm_draw_filled_rect_black(knob - 1, y + 1, 5, 9);
+        avm_draw_filled_rect_white(knob, y + 2, 3, 7);
+    }
 }
 
 void render_status() {

@@ -20,7 +20,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 106 + WorldFlags::BYTE_COUNT + sizeof(NpcPool),
+static_assert(sizeof(Game) == 106 + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -602,13 +602,181 @@ static bool pause_row_visible(Device& d, unsigned row) {
     return false;
 }
 
+static void open_options(Device& d) {
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_UP);
+    d.tap(BTN_A);
+    d.advance(0, 9600000);
+}
+
+static void verify_options_handoff(FadeTrace const& trace) {
+    auto pixel = [](FadeTrace::Frame const& frame, int x, int y) {
+        return (frame.pixels[y / 8 * 128 + x] >> (y % 8)) & 1;
+    };
+    auto left_edge = [&](FadeTrace::Frame const& frame, int visible) {
+        for(int x = 0; x < visible; ++x)
+            if(pixel(frame, x, 0) || pixel(frame, x, 1) != (x < visible - 1))
+                return false;
+        return true;
+    };
+    auto const& source = trace.frames[1];
+    size_t at = 1;
+    while(at < trace.frames.size() && !left_edge(trace.frames[at], 20))
+        ++at;
+    int position = 39 * 16;
+    uint64_t previous = 0;
+    do {
+        position -= position / 2;
+        int visible = (position + 8) / 16;
+        require(at < trace.frames.size() && left_edge(trace.frames[at], visible),
+                "pause did not ease out before Options");
+        auto const& frame = trace.frames[at++];
+        for(unsigned i = 0; i < source.pixels.size(); ++i)
+            if(i % 128 >= 39)
+                require(frame.pixels[i] == source.pixels[i],
+                        "world brightened during Options handoff");
+        require(!previous || frame.cycle - previous < 336000, "pause handoff missed a frame");
+        previous = frame.cycle;
+    } while((position + 8) / 16);
+
+    position = 0;
+    do {
+        bool first_options_frame = position == 0;
+        int distance = OPTIONS_WIDTH * 16 - position;
+        position = distance <= 1 ? OPTIONS_WIDTH * 16 : position + distance / 2;
+        int left = 128 - (position + 8) / 16;
+        require(at < trace.frames.size(), "Options did not ease in immediately");
+        auto const& frame = trace.frames[at++];
+        for(int x = left; x < 128; ++x)
+            require(!pixel(frame, x, 0) &&
+                        pixel(frame, x, 1) == (x > left && x < left + OPTIONS_WIDTH - 1),
+                    "Options did not ease in from the right");
+        for(unsigned page = 0; page < 8; ++page)
+            require(frame.pixels[page * 128 + 39] == source.pixels[page * 128 + 39],
+                    "Options changed the world's half fade");
+        // The first Options image has more drawing work than the outgoing empty pause image.
+        // Subsequent presentations must keep the usual 50 Hz cadence.
+        require(frame.cycle - previous < (first_options_frame ? 480000 : 336000),
+                "Options handoff missed a frame");
+        previous = frame.cycle;
+    } while(position != OPTIONS_WIDTH * 16);
+}
+
+static void verify_audio_options(Device const& d, unsigned music, unsigned sfx, unsigned lowpass) {
+    auto const& ram = d.ab->core_state.cpu.data;
+    require(ram[0xa71] == music && ram[0xa72] == sfx && ram[0xa6e] == lowpass,
+            "Options did not apply independent audio settings");
+    require(ram[0xa17] == 255, "Options changed the shared master gain");
+}
+
+static void verify_options(Device& d, fs::path const& out) {
+    require(d.state().options.music == 15 && d.state().options.sfx == 15 &&
+                !d.state().options.lowpass,
+            "new game did not initialize audio defaults");
+    verify_audio_options(d, 128, 128, 0);
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_UP);
+    auto frozen = d.state();
+    auto serial = d.serial();
+    {
+        FadeTrace trace(d);
+        d.advance(0, 800000);
+        d.tap(BTN_A);
+        d.advance(0, 9600000);
+        verify_options_handoff(trace);
+    }
+    d.capture(out / "options.pgm");
+    d.tap(BTN_LEFT);
+    verify_audio_options(d, 119, 128, 0);
+    auto pixels = pause_frame(d).pixels;
+    int knob = 128 - OPTIONS_WIDTH + 10 + 14 * (OPTIONS_WIDTH - 23) / 30;
+    for(int x = 50; x < 118; ++x)
+        require(((pixels[2 * 128 + x] >> 4) & 1) == (x >= knob && x < knob + 3),
+                "music slider thumb did not move with its volume");
+    for(unsigned i = 0; i < 17; ++i)
+        d.tap(BTN_LEFT);
+    verify_audio_options(d, 0, 128, 0);
+    d.capture(out / "options-music-muted.pgm");
+    d.advance(BTN_RIGHT, 32000000);
+    d.advance(0, 800000);
+    verify_audio_options(d, 255, 128, 0);
+    require(d.state().options.music == 30, "music did not reach 200 percent");
+    d.tap(BTN_RIGHT);
+    verify_audio_options(d, 255, 128, 0);
+    d.capture(out / "options-music-200.pgm");
+
+    d.tap(BTN_DOWN);
+    d.tap(BTN_LEFT);
+    d.tap(BTN_LEFT);
+    verify_audio_options(d, 255, 111, 0);
+    for(unsigned i = 0; i < 17; ++i)
+        d.tap(BTN_LEFT);
+    verify_audio_options(d, 255, 0, 0);
+    d.advance(BTN_RIGHT, 32000000);
+    d.advance(0, 800000);
+    verify_audio_options(d, 255, 255, 0);
+    require(d.state().options.sfx == 30, "SFX did not reach 200 percent");
+
+    d.tap(BTN_DOWN);
+    for(unsigned i = 0; i < 5; ++i)
+        d.tap(BTN_RIGHT);
+    verify_audio_options(d, 255, 255, 64);
+    d.capture(out / "options-lowpass.pgm");
+    d.advance(BTN_RIGHT, 19200000);
+    d.advance(0, 800000);
+    verify_audio_options(d, 255, 255, 1);
+    d.advance(BTN_LEFT, 19200000);
+    d.advance(0, 800000);
+    verify_audio_options(d, 255, 255, 0);
+    d.tap(BTN_DOWN); // Wrap to Music.
+    d.tap(BTN_LEFT);
+    verify_audio_options(d, 247, 255, 0);
+    d.tap(BTN_RIGHT);
+    d.tap(BTN_UP); // Wrap back to Low-pass.
+    d.tap(BTN_RIGHT);
+    verify_audio_options(d, 255, 255, 128);
+    d.tap(BTN_LEFT);
+
+    // Restore the half-scale native defaults (100 percent on the expanded sliders).
+    d.tap(BTN_DOWN);
+    for(unsigned i = 0; i < 15; ++i)
+        d.tap(BTN_LEFT);
+    d.tap(BTN_DOWN);
+    for(unsigned i = 0; i < 15; ++i)
+        d.tap(BTN_LEFT);
+    verify_audio_options(d, 128, 128, 0);
+    d.tap(BTN_A);
+    auto paused = d.state();
+    require(d.serial() == serial && !memcmp(&paused, &frozen, sizeof(Game)),
+            "Options advanced or altered the paused world");
+    d.tap(BTN_B);
+    d.frame();
+    require(d.serial() != serial, "B from Options did not return directly to gameplay");
+}
+
+static void set_test_options(Device& d) {
+    open_options(d);
+    for(unsigned i = 0; i < 3; ++i)
+        d.tap(BTN_LEFT);
+    d.tap(BTN_DOWN);
+    for(unsigned i = 0; i < 5; ++i)
+        d.tap(BTN_LEFT);
+    d.tap(BTN_DOWN);
+    for(unsigned i = 0; i < 5; ++i)
+        d.tap(BTN_RIGHT);
+    verify_audio_options(d, 102, 85, 64);
+    d.tap(BTN_B);
+    d.frame();
+}
+
 static void verify_pause_party(Device& d) {
     d.tap(BTN_B);
     d.advance(0, 1600000);
     auto before = pause_frame(d).pixels;
     Game frozen = d.state();
     d.tap(BTN_UP);
-    d.tap(BTN_A); // Options
     d.tap(BTN_UP);
     d.tap(BTN_A); // Map
     d.tap(BTN_UP);
@@ -766,10 +934,10 @@ static void press_with_music_fade(Device& d) {
     struct Trace {
         Device& device;
         std::vector<uint8_t> levels;
-        uint8_t previous = 255;
+        uint8_t previous = 128;
         void (*observer)(void*, bool);
         void* observer_context;
-    } trace{d, {}, 255, d.cycle_observer, d.observer_context};
+    } trace{d, {}, 128, d.cycle_observer, d.observer_context};
 
     d.observer_context = &trace;
     d.cycle_observer = [](void* context, bool after) {
@@ -784,7 +952,7 @@ static void press_with_music_fade(Device& d) {
             trace.levels.push_back(level);
             trace.previous = level;
         }
-        require(ram[0xa17] == 128 && ram[0xa72] == 255, "music fade changed master or SFX gain");
+        require(ram[0xa17] == 255 && ram[0xa72] == 128, "music fade changed master or SFX gain");
     };
     d.tap(BTN_A);
     // A battle entry also has a 320 ms visual transition; wait for its input loop while the
@@ -800,9 +968,9 @@ static void press_with_music_fade(Device& d) {
     d.advance(0, 16000000);
     d.cycle_observer = trace.observer;
     d.observer_context = trace.observer_context;
-    require(trace.levels.size() > 100 && trace.levels.back() == 255 &&
+    require(trace.levels.size() > 40 && trace.levels.back() == 128 &&
                 d.ab->core_state.cpu.data[0xa73] == 0,
-            "song switch did not complete its fade and restore full volume");
+            "song switch did not complete its fade and restore the configured volume");
     for(unsigned i = 1; i + 1 < trace.levels.size(); ++i)
         require(trace.levels[i] < trace.levels[i - 1], "music fade did not ramp down");
 }
@@ -829,9 +997,10 @@ int main(int argc, char** argv) try {
     d.capture(out / "title.pgm");
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
+    verify_options(d, out);
     verify_pause_party(d);
     if(std::string(argv[6]) == "pause") {
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"pause placeholders and Party redraw\"}\n";
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Options and pause redraw\"}\n";
         return 0;
     }
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "new game did not default to 16 kHz audio");
@@ -1035,6 +1204,7 @@ int main(int argc, char** argv) try {
     for(unsigned i = 0; i < 120; ++i)
         step_villager();
     d.capture(out / "npc-west.pgm");
+    set_test_options(d);
 
     {
         FadeTrace trace(d);
@@ -1055,9 +1225,8 @@ int main(int argc, char** argv) try {
     require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
             "overworld menu did not show Map or hid an invalid save incorrectly");
 
-    // Up wraps to Options. Placeholder entries and horizontal input leave the world alone.
+    // Up wraps to Options. Pass it to exercise the remaining placeholders.
     d.tap(BTN_UP);
-    d.tap(BTN_A);
     d.tap(BTN_UP); // Map
     d.tap(BTN_A);
     d.tap(BTN_UP); // Journal
@@ -1113,6 +1282,15 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     d.advance(0, 4800000);
     require(d.state().area == AREA_INTERIORS, "load fixture did not enter the house");
+    open_options(d);
+    d.tap(BTN_LEFT);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_LEFT);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_RIGHT);
+    verify_audio_options(d, 94, 77, 56);
+    d.tap(BTN_B);
+    d.frame();
     d.tap(BTN_B);
     d.advance(0, 1600000);
     require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
@@ -1131,6 +1309,10 @@ int main(int argc, char** argv) try {
                 menu_loaded.cache.origin_tx == saved.cache.origin_tx &&
                 menu_loaded.cache.origin_ty == saved.cache.origin_ty,
             "pause Load did not restore the saved world");
+    require(menu_loaded.options.music == 11 && menu_loaded.options.sfx == 9 &&
+                menu_loaded.options.lowpass == 6,
+            "Load overwrote options edited during this session");
+    verify_audio_options(d, 94, 77, 56);
     d.capture(out / "menu-loaded.pgm");
 
     Device restarted(package, g, m, s, q);
@@ -1138,6 +1320,10 @@ int main(int argc, char** argv) try {
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
     require(restarted.state().gold == 0, "startup validation did not restore new-game defaults");
+    require(restarted.state().options.music == 12 && restarted.state().options.sfx == 10 &&
+                restarted.state().options.lowpass == 5,
+            "startup did not load saved options");
+    verify_audio_options(restarted, 102, 85, 64);
     require(restarted.serial() == 0, "restart did not show title");
     require(!restarted.music_enabled(), "music started on the continue title");
     restarted.tap(BTN_DOWN);
@@ -1159,6 +1345,10 @@ int main(int argc, char** argv) try {
     new_with_save.import_sector(sector);
     new_with_save.advance(0, 3200000);
     new_with_save.tap(BTN_A);
+    require(new_with_save.state().options.music == 12 && new_with_save.state().options.sfx == 10 &&
+                new_with_save.state().options.lowpass == 5,
+            "New Game reset startup options");
+    verify_audio_options(new_with_save, 102, 85, 64);
     new_with_save.tap(BTN_B);
     new_with_save.advance(0, 1600000);
     require(pause_row_visible(new_with_save, 6),
@@ -1168,6 +1358,7 @@ int main(int argc, char** argv) try {
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
     corrupt.advance(0, 3200000);
+    verify_audio_options(corrupt, 128, 128, 0);
     corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);

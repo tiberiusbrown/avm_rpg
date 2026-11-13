@@ -35,7 +35,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 6;
+inline constexpr uint8_t SAVE_VERSION = 7;
 
 enum {
     BTN_B = 4,
@@ -82,6 +82,15 @@ struct Camera {
     uint16_t x, y;
 };
 
+inline constexpr uint8_t OPTION_SLIDER_MAX = 15;
+inline constexpr uint8_t OPTION_VOLUME_MAX = OPTION_SLIDER_MAX * 2;
+
+struct AudioOptions {
+    uint8_t music = OPTION_SLIDER_MAX;
+    uint8_t sfx = OPTION_SLIDER_MAX;
+    uint8_t lowpass = 0;
+};
+
 struct Game {
     // The live object is AVM's saved prefix. Bump the version when its byte layout changes.
     uint8_t save_version;
@@ -95,6 +104,7 @@ struct Game {
     TilePos previous_player_tile;
     bool can_interact;
     NpcPool npcs;
+    AudioOptions options;
 
     bool get_flag(FLAG flag) const {
         return flags.get_flag(flag);
@@ -214,10 +224,24 @@ enum PAUSE_ITEM : uint8_t {
     PAUSE_ITEM_COUNT
 };
 
+enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_OPTIONS };
+
+enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_LOWPASS, OPTION_ITEM_COUNT };
+
+constexpr uint8_t option_max(OPTION_ITEM item) {
+    return item == OPTION_LOWPASS ? OPTION_SLIDER_MAX : OPTION_VOLUME_MAX;
+}
+
+inline constexpr uint8_t OPTIONS_WIDTH = 88;
+
 bool menu_item_visible(PAUSE_ITEM item, bool can_load);
 uint8_t menu_width();
 void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
-                 char const PROGMEM* feedback, bool loading);
+                 char const PROGMEM* feedback, MENU_EXIT action);
+void render_options(uint8_t revealed, OPTION_ITEM selection, bool closing);
+uint8_t option_level(OPTION_ITEM item);
+void options_apply();
+void option_adjust(OPTION_ITEM item, bool increase);
 void render_status();
 
 void input_sync();
@@ -229,9 +253,9 @@ void input_wait_frame();
 
 void title_screen();
 void explore();
-// Returns true to load a save after easing out to black; exploration restores and fades in the
-// world.
-bool menu_screen();
+// Return to exploration before loading or opening Options, keeping modal frames off its stack.
+MENU_EXIT menu_screen();
+void options_screen();
 void status_screen();
 void game_save();
 bool game_load();

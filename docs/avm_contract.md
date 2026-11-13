@@ -170,23 +170,25 @@ erased, and blocks on flash page programming. LOAD scans matching-size records;
 SAVE_EXISTS only checks the first size word. Changing `.saved` length changes physical
 compatibility. Equal-length new versions still require application validation.
 
-RPG save version 6 stores the complete 264-byte `Game` object directly in `.saved`.
+RPG save version 7 stores the complete 267-byte `Game` object directly in `.saved`.
 It contains no pointers and uses the AVM byte-aligned struct layout; changing that layout
 requires a version bump. There is no separate static save buffer, encoder, decoder or
 checksum. The version byte is the first payload byte. The native host's `sizeof(Game)`
 is not the guest format; device QA reads the packed AVM layout.
 
 Startup calls `avm_load()` and validates the loaded version, area, pixel bounds, facing,
-stats, defined flag bits and NPC residences. The result initializes the ordinary global
+stats, defined flag bits, NPC residences and the three audio slider levels. The result initializes the ordinary global
 `save_exists` flag before new-game defaults are prepared for the title screen. Starting a
-new game preserves that flag. Save calls `avm_save()` and sets the flag to true, without
+new game preserves that flag and the current audio options. Save calls `avm_save()` and sets the flag to true, without
 readback or validation; the UI reports `Saved`. The title and pause menu use the cached
 flag without loading or checking storage again. Continue and Load explicitly load and
 validate the object, reset NPC casts and animation ticks, refresh the area cache and repair
-blocked player positions. A rejected load clears the flag and prepares new-game defaults.
+blocked player positions. Audio options are initialized and applied at startup (native
+music/SFX gains 128, displayed as 100%; filter off unless a valid save supplies other values). Later loads retain
+the current options instead of replacing them with the record's values. A rejected load clears the flag and prepares new-game defaults.
 The absence of a checksum means corruption that passes these field checks is not detected.
 
-Version-1–5 records are incompatible with the new saved size and layout. Full-device QA
+Version-1–6 records are incompatible with the new saved size and layout. Full-device QA
 checks that the physical payload equals the live `Game`, that a fresh restart restores
 progress, and that an invalid version is rejected during startup.
 
@@ -204,10 +206,16 @@ Dawn for battles, and returns to Peaceful Village at the result. `music_play` le
 song alone or queues a different song with `avm_audio_play_fade`. The interpreter
 lowers music attenuation by one every 4 ms and restores the request's captured
 gain before starting the queued song (1.02 seconds at gain 255). Input, display
-and gameplay continue during the fade. Shared master gain stays 128 and
+and gameplay continue during the fade. Shared master gain stays 255 and
 SFX is unaffected. Runtime getters read the existing music start pointer and
 gain bytes directly from RAM; the RPG stores no duplicate song selection.
-The title leaves audio disabled; dialogue and menus let playback continue.
+The title leaves audio disabled; dialogue and menus let playback continue. The Options
+panel adjusts music and SFX attenuation independently in 31 positions, from 0–200%,
+leaving shared gain unchanged. Defaults are native 128 (100%); the maximum is native 255
+(200%). Stored level 15 remains 100%, preserving previous saved slider percentages. Its low-pass strength slider maps bypass and progressively smaller coefficients
+(128 down to 1), using the native tonal filter, which includes tonal SFX and bypasses noise.
+Settings live in the saved `Game`, are loaded once at startup and are changed only in Options
+thereafter; saving writes them alongside progress.
 Full-device integration checks song switching, PWM output, and exploration with music enabled.
 Listening on physical speakers remains **Unverified**.
 
