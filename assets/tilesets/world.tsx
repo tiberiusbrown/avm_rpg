@@ -1,5 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <tileset version="1.10" tiledversion="1.11.2" name="world" tilewidth="16" tileheight="16" tilecount="256" columns="16">
+  <properties>
+    <property name="sky" type="bool" value="true" />
+  </properties>
   <image source="../images/tiles16.png" width="256" height="256" />
   <tile id="0">
     <properties>
@@ -15,6 +18,7 @@
       <property name="symbol" type="string" value="TREE_PLUS_NORTH" />
       <property name="collision" type="int" value="65280" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="2">
@@ -23,6 +27,7 @@
       <property name="symbol" type="string" value="TREE_ROUND" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="3">
@@ -31,6 +36,7 @@
       <property name="symbol" type="string" value="TREE_CLUMP_TOP_LEFT" />
       <property name="collision" type="int" value="65520" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="4">
@@ -39,6 +45,7 @@
       <property name="symbol" type="string" value="TREE_CLUMP_TOP_RIGHT" />
       <property name="collision" type="int" value="65295" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="5">
@@ -55,6 +62,7 @@
       <property name="symbol" type="string" value="GRASS_06" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="7">
@@ -63,6 +71,7 @@
       <property name="symbol" type="string" value="GRASS_07" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="8">
@@ -71,6 +80,7 @@
       <property name="symbol" type="string" value="GRASS_08" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="9">
@@ -79,6 +89,7 @@
       <property name="symbol" type="string" value="GRASS_09" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="10">
@@ -87,6 +98,7 @@
       <property name="symbol" type="string" value="GRASS_0A" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="11">
@@ -111,6 +123,7 @@
       <property name="symbol" type="string" value="BOULDER_TALL" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="14">
@@ -119,6 +132,7 @@
       <property name="symbol" type="string" value="ROCK_PILE" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="15">
@@ -135,6 +149,7 @@
       <property name="symbol" type="string" value="TREE_PLUS_WEST" />
       <property name="collision" type="int" value="61680" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="17">
@@ -143,6 +158,7 @@
       <property name="symbol" type="string" value="TREE_PLUS_CENTER" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="18">
@@ -151,6 +167,7 @@
       <property name="symbol" type="string" value="TREE_PLUS_EAST" />
       <property name="collision" type="int" value="3855" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="19">
@@ -159,6 +176,7 @@
       <property name="symbol" type="string" value="TREE_CLUMP_BOTTOM_LEFT" />
       <property name="collision" type="int" value="61695" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="20">
@@ -167,6 +185,7 @@
       <property name="symbol" type="string" value="TREE_CLUMP_BOTTOM_RIGHT" />
       <property name="collision" type="int" value="4095" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="21">
@@ -183,6 +202,7 @@
       <property name="symbol" type="string" value="GRASS_16" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="23">
@@ -191,6 +211,7 @@
       <property name="symbol" type="string" value="GRASS_17" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="24">
@@ -199,6 +220,7 @@
       <property name="symbol" type="string" value="WATER_TOP_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="25">
@@ -207,6 +229,7 @@
       <property name="symbol" type="string" value="WATER_TOP" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="26">
@@ -215,6 +238,7 @@
       <property name="symbol" type="string" value="WATER_TOP_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="27">
@@ -223,6 +247,7 @@
       <property name="symbol" type="string" value="WATER_INNER_BOTTOM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="28">
@@ -231,6 +256,7 @@
       <property name="symbol" type="string" value="WATER_INNER_BOTTOM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="29">
@@ -239,6 +265,7 @@
       <property name="symbol" type="string" value="WATER_TOP_INNER_BOTTOM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="30">
@@ -247,6 +274,7 @@
       <property name="symbol" type="string" value="WATER_TOP_INNER_BOTTOM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="31">
@@ -255,6 +283,7 @@
       <property name="symbol" type="string" value="WATER_INNER_TOP_RIGHT_BOTTOM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="32">
@@ -263,6 +292,7 @@
       <property name="symbol" type="string" value="TREE" />
       <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="33">
@@ -271,6 +301,7 @@
       <property name="symbol" type="string" value="TREE_PLUS_SOUTH" />
       <property name="collision" type="int" value="255" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="34">
@@ -287,6 +318,7 @@
       <property name="symbol" type="string" value="TREE_SPLIT_HORIZONTAL" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="36">
@@ -295,6 +327,7 @@
       <property name="symbol" type="string" value="TREE_SPLIT_VERTICAL" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="tree" />
     </properties>
   </tile>
   <tile id="37">
@@ -311,6 +344,7 @@
       <property name="symbol" type="string" value="FLOWERS_26" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="flowers" />
     </properties>
   </tile>
   <tile id="39">
@@ -319,6 +353,7 @@
       <property name="symbol" type="string" value="FLOWERS_27" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="flowers" />
     </properties>
   </tile>
   <tile id="40">
@@ -327,6 +362,7 @@
       <property name="symbol" type="string" value="WATER_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="41">
@@ -335,6 +371,7 @@
       <property name="symbol" type="string" value="WATER" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="42">
@@ -343,6 +380,7 @@
       <property name="symbol" type="string" value="WATER_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="43">
@@ -351,6 +389,7 @@
       <property name="symbol" type="string" value="WATER_INNER_TOP_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="44">
@@ -359,6 +398,7 @@
       <property name="symbol" type="string" value="WATER_INNER_TOP_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="45">
@@ -367,6 +407,7 @@
       <property name="symbol" type="string" value="WATER_BOTTOM_INNER_TOP_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="46">
@@ -375,6 +416,7 @@
       <property name="symbol" type="string" value="WATER_BOTTOM_INNER_TOP_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="47">
@@ -383,6 +425,7 @@
       <property name="symbol" type="string" value="WATER_INNER_TOP_LEFT_BOTTOM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="48">
@@ -431,6 +474,7 @@
       <property name="symbol" type="string" value="ROCKS" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="54">
@@ -439,6 +483,7 @@
       <property name="symbol" type="string" value="BOULDER" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="55">
@@ -447,6 +492,7 @@
       <property name="symbol" type="string" value="BOULDER_CRACKED" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="56">
@@ -455,6 +501,7 @@
       <property name="symbol" type="string" value="WATER_BOTTOM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="57">
@@ -463,6 +510,7 @@
       <property name="symbol" type="string" value="WATER_BOTTOM" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="58">
@@ -471,6 +519,7 @@
       <property name="symbol" type="string" value="WATER_BOTTOM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="59">
@@ -479,6 +528,7 @@
       <property name="symbol" type="string" value="WATER_LEFT_INNER_TOP_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="60">
@@ -487,6 +537,7 @@
       <property name="symbol" type="string" value="WATER_LEFT_INNER_BOTTOM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="61">
@@ -495,6 +546,7 @@
       <property name="symbol" type="string" value="WATER_RIGHT_INNER_TOP_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="62">
@@ -503,6 +555,7 @@
       <property name="symbol" type="string" value="WATER_RIGHT_INNER_BOTTOM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="63">
@@ -511,6 +564,7 @@
       <property name="symbol" type="string" value="WATER_CALM" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="64">
@@ -519,6 +573,7 @@
       <property name="symbol" type="string" value="ROAD_NESW_ALT" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="65">
@@ -527,6 +582,7 @@
       <property name="symbol" type="string" value="SIGN" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="66">
@@ -551,6 +607,7 @@
       <property name="symbol" type="string" value="ROAD_PATCH" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="69">
@@ -559,6 +616,7 @@
       <property name="symbol" type="string" value="ROAD_N" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="70">
@@ -567,6 +625,7 @@
       <property name="symbol" type="string" value="ROAD_E" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="71">
@@ -575,6 +634,7 @@
       <property name="symbol" type="string" value="ROAD_NE" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="72">
@@ -628,17 +688,19 @@
   <tile id="78">
     <properties>
       <property name="runtime_id" type="int" value="78" />
-      <property name="symbol" type="string" value="ATLAS_4E" />
+      <property name="symbol" type="string" value="ROOF_FLAT_CHIMNEY" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="steam" />
     </properties>
   </tile>
   <tile id="79">
     <properties>
       <property name="runtime_id" type="int" value="79" />
-      <property name="symbol" type="string" value="ATLAS_4F" />
-      <property name="collision" type="int" value="65535" />
+      <property name="symbol" type="string" value="ROOF_SLOPE_CHIMNEY" />
+      <property name="collision" type="int" value="53004" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="steam" />
     </properties>
   </tile>
   <tile id="80">
@@ -647,6 +709,7 @@
       <property name="symbol" type="string" value="ROAD_INNER_NW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="81">
@@ -655,6 +718,7 @@
       <property name="symbol" type="string" value="ROAD_INNER_NE" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="82">
@@ -663,6 +727,7 @@
       <property name="symbol" type="string" value="ROAD_INNER_SW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="83">
@@ -671,6 +736,7 @@
       <property name="symbol" type="string" value="ROAD_INNER_SE" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="84">
@@ -679,6 +745,7 @@
       <property name="symbol" type="string" value="ROAD_S" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="85">
@@ -687,6 +754,7 @@
       <property name="symbol" type="string" value="ROAD_NS" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="86">
@@ -695,6 +763,7 @@
       <property name="symbol" type="string" value="ROAD_ES" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="87">
@@ -703,6 +772,7 @@
       <property name="symbol" type="string" value="ROAD_NES" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="88">
@@ -719,6 +789,7 @@
       <property name="symbol" type="string" value="GRASS_59" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="grass" />
     </properties>
   </tile>
   <tile id="90">
@@ -759,6 +830,7 @@
       <property name="symbol" type="string" value="BOULDER_WIDE_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="95">
@@ -767,6 +839,7 @@
       <property name="symbol" type="string" value="BOULDER_WIDE_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="perch" />
     </properties>
   </tile>
   <tile id="96">
@@ -807,6 +880,7 @@
       <property name="symbol" type="string" value="ROAD_W" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="101">
@@ -815,6 +889,7 @@
       <property name="symbol" type="string" value="ROAD_NW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="102">
@@ -823,6 +898,7 @@
       <property name="symbol" type="string" value="ROAD_EW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="103">
@@ -831,6 +907,7 @@
       <property name="symbol" type="string" value="ROAD_NEW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="104">
@@ -935,6 +1012,7 @@
       <property name="symbol" type="string" value="ROAD_SW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="117">
@@ -943,6 +1021,7 @@
       <property name="symbol" type="string" value="ROAD_NSW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="118">
@@ -951,6 +1030,7 @@
       <property name="symbol" type="string" value="ROAD_ESW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="119">
@@ -959,6 +1039,7 @@
       <property name="symbol" type="string" value="ROAD_NESW" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="road" />
     </properties>
   </tile>
   <tile id="120">
@@ -988,7 +1069,7 @@
   <tile id="123">
     <properties>
       <property name="runtime_id" type="int" value="123" />
-      <property name="symbol" type="string" value="ATLAS_7B" />
+      <property name="symbol" type="string" value="SCARECROW" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -1076,7 +1157,7 @@
   <tile id="134">
     <properties>
       <property name="runtime_id" type="int" value="134" />
-      <property name="symbol" type="string" value="ATLAS_86" />
+      <property name="symbol" type="string" value="TORCH_POST" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -1084,9 +1165,10 @@
   <tile id="135">
     <properties>
       <property name="runtime_id" type="int" value="135" />
-      <property name="symbol" type="string" value="ATLAS_87" />
+      <property name="symbol" type="string" value="CAMPFIRE" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="steam" />
     </properties>
   </tile>
   <tile id="136">
@@ -1140,15 +1222,15 @@
   <tile id="142">
     <properties>
       <property name="runtime_id" type="int" value="142" />
-      <property name="symbol" type="string" value="ATLAS_8E" />
-      <property name="collision" type="int" value="65535" />
+      <property name="symbol" type="string" value="REEDS" />
+      <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
   <tile id="143">
     <properties>
       <property name="runtime_id" type="int" value="143" />
-      <property name="symbol" type="string" value="ATLAS_8F" />
+      <property name="symbol" type="string" value="FLAG" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>

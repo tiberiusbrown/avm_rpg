@@ -1,7 +1,7 @@
 /* Generated from TMX/TSX; do not edit. */
 
 #include "logic/handlers.h"
-template <HandlerStage STAGE> static void run_chunk_1_4_4() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_4_4() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -11,7 +11,7 @@ template <HandlerStage STAGE> static void run_chunk_1_4_4() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_4_5() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_4_5() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -21,7 +21,7 @@ template <HandlerStage STAGE> static void run_chunk_1_4_5() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_6_5() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_6_5() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -31,7 +31,7 @@ template <HandlerStage STAGE> static void run_chunk_1_6_5() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_1_6() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_1_6() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -41,7 +41,7 @@ template <HandlerStage STAGE> static void run_chunk_1_1_6() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_3_6() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_3_6() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -59,7 +59,7 @@ template <HandlerStage STAGE> static void run_chunk_1_3_6() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_5_6() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_5_6() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -69,7 +69,7 @@ template <HandlerStage STAGE> static void run_chunk_1_5_6() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_1_9() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_1_9() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -79,7 +79,7 @@ template <HandlerStage STAGE> static void run_chunk_1_1_9() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_3_9() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_3_9() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -89,7 +89,7 @@ template <HandlerStage STAGE> static void run_chunk_1_3_9() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_5_9() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_5_9() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -99,7 +99,7 @@ template <HandlerStage STAGE> static void run_chunk_1_5_9() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_6_9() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_6_9() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -109,7 +109,7 @@ template <HandlerStage STAGE> static void run_chunk_1_6_9() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_1_1_11() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_1_11() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -119,7 +119,7 @@ template <HandlerStage STAGE> static void run_chunk_1_1_11() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_0_1() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_0_1() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -129,7 +129,7 @@ template <HandlerStage STAGE> static void run_chunk_2_0_1() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_3_1() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_3_1() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -139,7 +139,7 @@ template <HandlerStage STAGE> static void run_chunk_2_3_1() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_5_1() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_5_1() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -149,7 +149,7 @@ template <HandlerStage STAGE> static void run_chunk_2_5_1() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_7_1() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_7_1() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -159,7 +159,7 @@ template <HandlerStage STAGE> static void run_chunk_2_7_1() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_3_4() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_3_4() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -169,7 +169,7 @@ template <HandlerStage STAGE> static void run_chunk_2_3_4() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_7_4() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_7_4() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -179,7 +179,7 @@ template <HandlerStage STAGE> static void run_chunk_2_7_4() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_0_5() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_0_5() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -189,7 +189,7 @@ template <HandlerStage STAGE> static void run_chunk_2_0_5() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_5_5() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_5_5() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -199,7 +199,7 @@ template <HandlerStage STAGE> static void run_chunk_2_5_5() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_0_7() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_0_7() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
@@ -209,7 +209,7 @@ template <HandlerStage STAGE> static void run_chunk_2_0_7() {
             return;
     }
 }
-template <HandlerStage STAGE> static void run_chunk_2_3_8() {
+template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_3_8() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif

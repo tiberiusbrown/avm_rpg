@@ -51,6 +51,10 @@ uint16_t tile_collision(uint8_t tile) {
     return TILE_COLLISION[(uint16_t)((uint16_t)area_tileset(game.area) << 8 | tile)];
 }
 
+uint8_t tile_ambient(uint8_t tile) {
+    return TILE_AMBIENT[(uint16_t)((uint16_t)area_tileset(game.area) << 8 | tile)];
+}
+
 bool tile_solid(uint8_t tile) {
     return tile_collision(tile) != 0;
 }
@@ -89,6 +93,19 @@ constexpr QuadrantRows make_quadrant_rows() {
 // 128 bytes of flash, computed from quadrant_solid at compile time.
 static constexpr QuadrantRows PROGMEM QUADRANT_ROWS = make_quadrant_rows();
 
+// The same quadrant shapes read down a column, for vertical leading edges.
+static constexpr auto QUADRANT_COLUMNS PROGMEM = [] {
+    struct Columns {
+        uint8_t col[16][8];
+    } columns{};
+    for(uint8_t nibble = 0; nibble < 16; ++nibble)
+        for(uint8_t x = 0; x < 8; ++x)
+            for(uint8_t y = 0; y < 8; ++y)
+                if(quadrant_solid(nibble, x, y))
+                    columns.col[nibble][x] |= (uint8_t)(1u << y);
+    return columns;
+}();
+
 bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y) {
     // Triangles are closed shapes. A pixel center on a quadrant diagonal is solid when either
     // triangle that shares the diagonal is solid, so a diagonal edge rasterizes as one line.
@@ -124,14 +141,15 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
             view_ty = (uint8_t)(camera.y >> TILE_SHIFT);
     cache.origin_tx = view_tx >= CACHE_MARGIN ? (uint8_t)(view_tx - CACHE_MARGIN) : 0;
     cache.origin_ty = view_ty >= CACHE_MARGIN ? (uint8_t)(view_ty - CACHE_MARGIN) : 0;
-    memset(cache.tiles, TILE_OUTSIDE, sizeof(cache.tiles));
-
     uint8_t rows = height - cache.origin_ty;
     if(rows > CACHE_HEIGHT)
         rows = CACHE_HEIGHT;
     uint8_t row_bytes = width - cache.origin_tx;
     if(row_bytes > CACHE_WIDTH)
         row_bytes = CACHE_WIDTH;
+    // Interior windows overwrite every cell. Only map edges need sentinel fill.
+    if(rows < CACHE_HEIGHT || row_bytes < CACHE_WIDTH)
+        memset(cache.tiles, TILE_OUTSIDE, sizeof(cache.tiles));
     if(!rows || !row_bytes)
         return;
     uint8_t* dst = cache.tiles;
@@ -199,31 +217,37 @@ static bool mask_hits(uint16_t mask, uint8_t x0, uint8_t x1, uint8_t y0, uint8_t
     return false;
 }
 
-// Solid at one pixel of a tile's mask. Whole-tile masks skip the table.
-static bool mask_pixel(uint16_t mask, uint8_t x, uint8_t y) {
-    if(!mask)
-        return false;
-    if(mask == 0xFFFF)
-        return true;
-    uint8_t quadrant = (uint8_t)(((y >> 3) << 1) | (x >> 3));
-    uint8_t nibble = (uint8_t)((mask >> (4 * quadrant)) & 0xF);
-    return ((QUADRANT_ROWS.row[nibble][y & 7] >> (x & 7)) & 1) != 0;
-}
-
 __attribute__((noinline)) uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir) {
     static_assert(FOOT_WIDTH == 8 && FOOT_HEIGHT == 8, "sidestep bits cover the 8-pixel edge");
     bool horizontal = dir == EAST || dir == WEST;
     // The column of an east or west step, or the row of a north or south one.
     uint16_t fixed = horizontal ? (uint16_t)(x + (dir == EAST ? FOOT_RIGHT : FOOT_LEFT))
                                 : (uint16_t)(y + (dir == SOUTH ? FOOT_BOTTOM : FOOT_TOP));
+    if(!game.dimensions.pixel_bounds(horizontal ? fixed : 0, horizontal ? 0 : fixed))
+        return 0xFF;
+    uint16_t along = horizontal ? (uint16_t)(y + FOOT_TOP) : (uint16_t)(x + FOOT_LEFT);
+    uint16_t limit =
+        (uint16_t)(horizontal ? game.dimensions.height_tiles : game.dimensions.width_tiles) * TILE -
+        TILE;
+    uint8_t const PROGMEM* lines = horizontal
+                                       ? reinterpret_cast<uint8_t const PROGMEM*>(&QUADRANT_COLUMNS)
+                                       : reinterpret_cast<uint8_t const PROGMEM*>(&QUADRANT_ROWS);
     uint8_t bits = 0;
     uint16_t tile_key = 0, mask = 0;
     bool loaded = false;
-    for(uint8_t i = 0; i < 8; ++i) {
-        uint16_t wx = horizontal ? fixed : (uint16_t)(x + FOOT_LEFT + i);
-        uint16_t wy = horizontal ? (uint16_t)(y + FOOT_TOP + i) : fixed;
-        bool blocked = true;
-        if(game.dimensions.pixel_bounds(wx, wy)) {
+    for(uint8_t i = 0; i < 8;) {
+        // A run ends at the next quadrant, map boundary or end of the edge. One
+        // table byte tests each run; advancing the coordinate preserves 16-bit wrap.
+        uint8_t offset = (uint8_t)(along & 7);
+        uint8_t count = (uint8_t)(8 - offset);
+        if(count > 8 - i)
+            count = (uint8_t)(8 - i);
+        uint8_t line = 0xFF;
+        if(along <= limit) {
+            if(limit - along < count)
+                count = (uint8_t)(limit - along + 1);
+            uint16_t wx = horizontal ? fixed : along;
+            uint16_t wy = horizontal ? along : fixed;
             uint16_t key = (uint16_t)(((wy >> TILE_SHIFT) << 8) | (wx >> TILE_SHIFT));
             if(!loaded || key != tile_key) {
                 tile_key = key;
@@ -231,10 +255,14 @@ __attribute__((noinline)) uint8_t player_leading_edge(uint16_t x, uint16_t y, DI
                 mask = tile_collision(cached_tile(
                     {game.area, (uint8_t)(wx >> TILE_SHIFT), (uint8_t)(wy >> TILE_SHIFT)}));
             }
-            blocked = mask_pixel(mask, (uint8_t)(wx & (TILE - 1)), (uint8_t)(wy & (TILE - 1)));
+            uint8_t shift = horizontal ? (uint8_t)((along & 8) | ((fixed & 8) >> 1))
+                                       : (uint8_t)((fixed & 8) | ((along & 8) >> 1));
+            uint8_t nibble = (uint8_t)((mask >> shift) & 0xF);
+            line = nibble == 0xF ? 0xFF : nibble ? lines[nibble * 8 + (fixed & 7)] : 0;
         }
-        if(blocked)
-            bits = (uint8_t)(bits | (1u << i));
+        bits |= (uint8_t)(((line >> offset) & ((1u << count) - 1)) << i);
+        along = (uint16_t)(along + count);
+        i = (uint8_t)(i + count);
     }
     return bits;
 }

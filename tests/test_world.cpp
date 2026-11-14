@@ -326,6 +326,44 @@ static void random_masks() {
     tile_collision_reset();
 }
 
+static void leading_edge_boundaries() {
+    game_new();
+    game.cache.origin_tx = game.cache.origin_ty = 0;
+    constexpr uint8_t SHAPE = TILE_ATLAS_25;
+    memset(game.cache.tiles, SHAPE, sizeof(game.cache.tiles));
+    constexpr MapDimensions DIMENSIONS[] = {{0, 0}, {1, 1}, {3, 2}, {2, 3}};
+    constexpr uint16_t POINTS[] = {0,  1,  3,  4,  7,  8,     11,    12,    15,    16,    17,   23,
+                                   24, 31, 32, 33, 63, 65520, 65527, 65528, 65531, 65532, 65535};
+    uint32_t seed = 451;
+    for(unsigned trial = 0; trial < 32; ++trial) {
+        seed = seed * 1664525u + 1013904223u;
+        tile_collision_override(SHAPE, (uint16_t)(seed >> 16));
+        for(MapDimensions dimensions : DIMENSIONS) {
+            game.dimensions = dimensions;
+            for(uint16_t y : POINTS) {
+                for(uint16_t x : POINTS) {
+                    for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {
+                        bool horizontal = dir == EAST || dir == WEST;
+                        uint8_t expected = 0;
+                        for(unsigned i = 0; i < 8; ++i) {
+                            uint16_t wx =
+                                (uint16_t)(horizontal ? x + (dir == EAST ? FOOT_RIGHT : FOOT_LEFT)
+                                                      : x + FOOT_LEFT + i);
+                            uint16_t wy = (uint16_t)(horizontal ? y + FOOT_TOP + i
+                                                                : y + (dir == SOUTH ? FOOT_BOTTOM
+                                                                                    : FOOT_TOP));
+                            if(oracle_pixel_blocked(wx, wy))
+                                expected |= (uint8_t)(1u << i);
+                        }
+                        CHECK(player_leading_edge(x, y, dir) == expected);
+                    }
+                }
+            }
+        }
+    }
+    tile_collision_reset();
+}
+
 // Tile edits last only until the next frame's reload. An edit that nothing reapplies resets
 // by itself, even when the camera does not move.
 static void tile_edits_reset_each_frame() {
@@ -394,6 +432,7 @@ int main() {
     player_shapes();
     corner_assist();
     random_masks();
+    leading_edge_boundaries();
     tile_edits_reset_each_frame();
     game_new();
     Area const& area = *world_area(AREA_OUTDOOR);

@@ -85,7 +85,7 @@ The road, bridge, large boulder, water, raised-area and fence cells are named to
 tables are in [Roads](#roads), [Bridges](#bridges), [Rocks](#rocks), [Water](#water),
 [Raised areas](#raised-areas), [Entrances](#entrances) and [Fences](#fences).
 
-Forty-one cells are fully walkable: the eight grass cells (`GRASS_06`, `GRASS_07`,
+Forty-two cells are fully walkable: `REEDS` (`0x8E`, see [Animation](#animation)), the eight grass cells (`GRASS_06`, `GRASS_07`,
 `GRASS_16`, `GRASS_17`, `GRASS_08`, `GRASS_09`, `GRASS_0A` and `GRASS_59`), `FLOWERS_26`,
 `FLOWERS_27`, the twenty-one road cells, the six bridge cells, `HOLE_LADDER` (`0x0B`),
 `CLIFF_RAMP` (`0x78`), `CLIFF_CAVE` (`0x79`) and `CLIFF_MINE` (`0x7A`).
@@ -550,6 +550,77 @@ the player to the cell in front of the door. See
   from the table fails to compile.
 - The cell below the door is where the player returns. Keep it fully walkable.
 
+## Animation
+
+The world moves in three ways. None of them keeps any state: each is computed from the game
+tick and a world position, so the animation needs no RAM and is not saved.
+
+### Animated tiles
+
+Every tile can animate through a cycle of four phases, 160 ms each. Phase 0 is the atlas cell.
+The other phases are drawn in **layer atlases** beside the atlas, so animation frames take no
+atlas cells:
+
+- `assets/images/tiles16_phase1.png`, `tiles16_phase2.png` and `tiles16_phase3.png` have the
+  layout of `tiles16.png`. Draw the tile's art for that phase in the tile's own cell.
+- A layer cell is fully transparent or fully opaque monochrome. A transparent cell repeats
+  the atlas cell in that phase. A tile with two frames draws phases 2 and 3 only, so it shows
+  each frame for 320 ms.
+- The generator emits a whole sprite sheet per phase, and the game draws a phase by selecting
+  its sheet. An animated tile therefore costs nothing per tile at run time, and any number of
+  tiles can animate. A phase with no art at all shares an earlier sheet.
+- An animated tile keeps one collision mask and one symbol. Animation never changes how a
+  tile plays.
+
+Animated tiles so far: all 24 water cells (the ripples rock and glitter), `FLOWERS_26` and
+`FLOWERS_27` (the blossoms sway), the two chimneys (smoke), `TORCH_POST`, `CAMPFIRE`, `FLAG`,
+`REEDS` and `SCARECROW`.
+
+| Hex | Symbol | Passable | Meaning |
+| --- | --- | --- | --- |
+| `0x4E` | `ROOF_FLAT_CHIMNEY` | no | Flat roof center with a smoking chimney. It replaces a `0xb5`. |
+| `0x4F` | `ROOF_SLOPE_CHIMNEY` | partly | Slanted roof top-right edge with a smoking chimney. It replaces a `0x92` and has its collision. |
+| `0x7B` | `SCARECROW` | no | Scarecrow with fluttering sleeves. For pens and fields. |
+| `0x86` | `TORCH_POST` | no | Burning torch on a post. Put it on grass beside a road or a door path, never on the path. |
+| `0x87` | `CAMPFIRE` | no | Burning campfire. |
+| `0x8E` | `REEDS` | yes | Reeds on the bank, swaying. Put it on a land cell that touches water. |
+| `0x8F` | `FLAG` | no | Flag on a pole, waving. |
+
+Give a house one chimney at most. `REEDS` is the one walkable cell that is not grass, so no
+gust bends it and no rabbit sits in it.
+
+### Wind
+
+A gust is a diagonal line of bent grass that rolls across the map toward the south-east.
+`assets/images/tiles16_wind.png` holds the bent frame of each grass and flowers cell, in the
+atlas layout. Exactly the tiles of the ambient classes `grass` and `flowers` have a wind
+frame; the generator rejects anything else.
+
+### Ambient creatures and effects
+
+Each 8x4 chunk picks one of its tiles every 2.56 seconds. The tile's **ambient class**, the
+optional `ambient` string property in `world.tsx`, decides what may appear there:
+
+| Class | Tiles | What appears |
+| --- | --- | --- |
+| `grass` | the eight grass cells | A butterfly, or a rabbit that sits up and looks around |
+| `flowers` | `FLOWERS_26`, `FLOWERS_27` | A butterfly or a bee |
+| `water` | all water cells | A jumping fish, a ripple ring or a glint |
+| `tree` | the round-tree pieces and `TREE` | A falling leaf, or a bird that leaves the crown and returns |
+| `perch` | `SIGN`, the solid rocks and boulders | A bird that flies down, perches, pecks and leaves |
+| `road` | the 21 road cells | A dry leaf skipping along on the wind |
+| `steam` | the chimneys and `CAMPFIRE` | A puff of smoke rising |
+
+Birds also cross the sky above any map whose tileset sets the tileset property `sky`.
+
+- The sprites are the 16x16 frames of `assets/images/ambient16.png`, in rows of eight.
+  `src/ambient.h` names the frames and holds every motion and chance.
+- A new tile takes a class when one of these effects suits it. A `perch` tile is solid and
+  has its top within three pixels of the top of its cell, because the bird stands there.
+  `tree`, `perch` and `water` tiles are never walkable, so no actor stands under an effect
+  that belongs on top of the tile.
+- Keep maps varied. A screen of one tile class shows one kind of effect.
+
 ## Atlas layout
 
 Descriptions of unnamed regions are approximate and come from visual inspection.
@@ -572,7 +643,9 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
 - `0x5E`, `0x5F`, `0x6E`, `0x6F`, `0x7E` and `0x7F`: the wide and large boulders.
 - `0x48` to `0x4D`, `0x58` to `0x5C`, `0x68` to `0x6B` and `0x78` to `0x7A`: raised areas
   and their entrances. `0x59` is sparse grass. See [Raised areas](#raised-areas).
-- `0x80` to `0x87`: building fronts, doors and windows. Solid, except `0x81`, which is a
+- `0x4E`, `0x4F`, `0x7B`, `0x86`, `0x87`, `0x8E` and `0x8F`: the animated scenery tiles. See
+  [Animation](#animation).
+- `0x80` to `0x85`: building fronts, doors and windows. Solid, except `0x81`, which is a
   triangle. `0x80`, `0x82` and `0x83` are decorative roof alternatives. See the shapes list
   and [Buildings](#buildings).
 - `0x88` to `0x8D`, `0x98`, `0x99`, `0xA8` and `0xA9`: fences. See [Fences](#fences).
@@ -782,6 +855,11 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 4. Check every map that uses the cell. Changing `collision` changes how every map plays.
 
 ## Before committing a map
+
+- A new animated tile has its frames in the phase layer atlases, not in atlas cells, and
+  every grass or flowers tile has a wind frame.
+- Chimneys replace `0xb5` or `0x92` only, torches stand beside paths and not on them, and
+  every `REEDS` cell touches water.
 
 - The generator, `test_pipeline.py` and `test_content.py` all pass.
 - Roads touch a building only at its door front. Every road cell uses the piece that its

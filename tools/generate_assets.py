@@ -71,6 +71,54 @@ def pixel_values(image):
     )
 
 
+# A tileset's animation frames live in optional layer atlases beside its atlas, so they take
+# no atlas cells. Each layer has the atlas layout. A cell is either fully transparent, which
+# leaves the tile unchanged in that layer, or fully opaque monochrome.
+#   <atlas>_phase1.png to _phase3.png: the tile's art in phases 1 to 3 of the four-phase
+#       cycle that every animated tile follows. Phase 0 is the atlas cell itself.
+#   <atlas>_wind.png: the tile's art while a gust of wind passes over it.
+TILE_PHASES = 4
+# What the ambient effects may do on a tile, from the optional `ambient` property.
+AMBIENT_CLASSES = ("none", "grass", "flowers", "water", "tree", "floor", "perch", "road", "steam")
+WIND_CLASSES = ("grass", "flowers")
+
+
+def tile_layer(path, where):
+    """Cells of one layer atlas, by cell index, as rows of '#' and '.'. None for no file."""
+    if not path.exists():
+        return None
+    with Image.open(path) as image:
+        require(
+            image.size == (16 * TILE_SIZE, 16 * TILE_SIZE),
+            path,
+            "a layer atlas has the 256x256 layout of its tileset atlas",
+        )
+        pixels = image.convert("RGBA")
+    cells = {}
+    for index in range(256):
+        left, top = index % 16 * TILE_SIZE, index // 16 * TILE_SIZE
+        values = [
+            pixels.getpixel((left + x, top + y))
+            for y in range(TILE_SIZE)
+            for x in range(TILE_SIZE)
+        ]
+        if all(a == 0 for _, _, _, a in values):
+            continue
+        require(
+            index != 255
+            and all(v in ((0, 0, 0, 255), (255, 255, 255, 255)) for v in values),
+            path,
+            f"layer cell 0x{index:02X} must be fully transparent or opaque monochrome, "
+            "and cell 255 is reserved",
+        )
+        cells[index] = [
+            "".join("#" if values[y * TILE_SIZE + x][0] else "." for x in range(TILE_SIZE))
+            for y in range(TILE_SIZE)
+        ]
+    require(bool(cells), path, f"{where}: a layer atlas with no opaque cell must be removed")
+    return cells
+
+
 def tileset(path):
     node = ET.parse(path).getroot()
     require(
@@ -92,6 +140,13 @@ def tileset(path):
         bool(re.fullmatch(r"[a-z][a-z0-9_]*", name)),
         path,
         f"tileset name {name!r} must be a lower-case identifier",
+    )
+    # The one tileset property: `sky` marks an outdoor tileset, where birds fly overhead.
+    options = properties(node, path)
+    require(
+        set(options) <= {"sky"} and type(options.get("sky", False)) is bool,
+        path,
+        "the only tileset property is the bool sky",
     )
     count, columns = integer(node, "tilecount", path), integer(node, "columns", path)
     require(
@@ -129,7 +184,8 @@ def tileset(path):
         require(
             len(tile) == 1 and tile[0].tag == "properties",
             path,
-            "tile animation and per-tile images are unsupported; use the collision property",
+            "Tiled tile animation and per-tile images are unsupported; draw animation "
+            "frames in the phase atlases",
         )
         p = properties(tile, path)
         if local == 255:
@@ -155,7 +211,15 @@ def tileset(path):
             path,
             "each tile needs a bool portal property",
         )
+        ambient = p.get("ambient", "none")
+        require(
+            ambient in AMBIENT_CLASSES,
+            path,
+            f"ambient must be one of {', '.join(AMBIENT_CLASSES)}",
+        )
         records[local] = dict(
+            ambient=ambient,
+            sky=options.get("sky", False),
             runtime=runtime,
             symbol=identifier(p.get("symbol"), path),
             collision=p["collision"],
@@ -170,6 +234,21 @@ def tileset(path):
         path,
         "declare metadata for every usable atlas tile and the reserved cell",
     )
+    stem = image_path.with_suffix("")
+    phases = [
+        tile_layer(stem.with_name(f"{stem.name}_phase{phase}.png"), path)
+        for phase in range(1, TILE_PHASES)
+    ]
+    wind = tile_layer(stem.with_name(f"{stem.name}_wind.png"), path)
+    for local, record in records.items():
+        # One entry per phase after the first: the cell's rows, or None to repeat the atlas.
+        record["phases"] = [layer.get(local) if layer else None for layer in phases]
+        record["wind"] = wind.get(local) if wind else None
+        require(
+            (record["wind"] is not None) == (record["ambient"] in WIND_CLASSES),
+            path,
+            f"tile 0x{local:02X}: exactly the grass and flowers tiles have a wind frame",
+        )
     return records
 
 
@@ -717,10 +796,19 @@ def map_previews(root=ROOT):
 
 
 def read_tileset_frames(root):
-    """Sprite frames of each tileset in use, in runtime index order, keyed by name."""
+    """Sprite frames of each tileset in use, keyed by name: the 255 atlas frames in runtime
+    index order, then the wind block that tile_wind_block describes."""
     maps, _, _ = load_world(root)
     by_name = {m.tileset: m.tiles for m in maps}
-    return {name: tile_frames(by_name[name]) for name in tileset_order(maps)}
+    return {name: tile_sheet(by_name[name]) for name in tileset_order(maps)}
+
+
+def read_tileset_phase_frames(root):
+    """The sprite frames of each tileset in use for phases 1 to TILE_PHASES - 1, keyed by
+    name: one list of 255 frames per phase."""
+    maps, _, _ = load_world(root)
+    by_name = {m.tileset: m.tiles for m in maps}
+    return {name: tile_phase_sheets(by_name[name]) for name in tileset_order(maps)}
 
 
 def tile_frames(metadata):
@@ -742,6 +830,34 @@ def tile_frames(metadata):
                 ]
             )
     return frames
+
+
+def tile_wind_block(metadata):
+    """Where a tileset's wind frames sit in its sprite sheet, as (first, count, base). The
+    block covers the span of tiles `first` to `first + count - 1`, which holds every tile
+    with a wind frame, and it follows the atlas frames from sheet frame `base`. A tileset
+    with no wind frame has (0, 0, 0)."""
+    ids = sorted(i for i, t in metadata.items() if t["wind"] is not None)
+    return (ids[0], ids[-1] - ids[0] + 1, len(metadata)) if ids else (0, 0, 0)
+
+
+def tile_sheet(metadata):
+    frames = tile_frames(metadata)
+    first, count, _ = tile_wind_block(metadata)
+    for index in range(first, first + count):
+        frames.append(metadata[index]["wind"] or frames[index])
+    return frames
+
+
+def tile_phase_sheets(metadata):
+    """A whole sheet per phase after the first, so drawing a phase costs nothing per tile:
+    the renderer selects the phase's sheet and draws every tile by its ID. A tile with no
+    art in a phase repeats its atlas frame."""
+    base = tile_frames(metadata)
+    return [
+        [t["phases"][phase] or base[index] for index, (_, t) in enumerate(sorted(metadata.items()))]
+        for phase in range(TILE_PHASES - 1)
+    ]
 
 
 def export_world(root=ROOT):
@@ -773,6 +889,64 @@ def export_world(root=ROOT):
         ]
     else:
         areas += ["    (void)area;", f"    return TILESET_{order[0].upper()};", "}"]
+    wind_blocks = [(name, tile_wind_block(by_name[name])) for name in order]
+    areas += [
+        "// Extra frames of a tileset's sprite sheet: `count` tiles from tile `first`, stored in",
+        "// tile order from sheet frame `base`. A count of zero means the tileset has none.",
+        "struct TileFrames {",
+        "    uint8_t first, count;",
+        "    uint16_t base;",
+        "};",
+        "// Every animated tile cycles through this many phases. Phase 0 is its atlas cell, and",
+        "// tileset_phase_sprites() returns a whole sprite sheet for each phase.",
+        f"inline constexpr uint8_t TILE_PHASES = {TILE_PHASES};",
+        "// The frame each tile shows while a gust passes over it.",
+        "constexpr TileFrames tile_wind_frames(uint8_t tileset) {",
+    ]
+    if any(block[1] for _, block in wind_blocks):
+        areas.append("    switch(tileset) {")
+        areas += [
+            f"        case TILESET_{name.upper()}: return {{{first}, {count}, {base}}};"
+            for name, (first, count, base) in wind_blocks
+            if count
+        ]
+        areas += ["        default: return {0, 0, 0};", "    }", "}"]
+    else:
+        areas += ["    (void)tileset;", "    return {0, 0, 0};", "}"]
+    areas += [
+        "// What the ambient effects may do on a tile. Tiles of the first two classes have a",
+        "// wind frame.",
+        "enum AMBIENT_CLASS : uint8_t {",
+    ]
+    areas += [f"    AMBIENT_{name.upper()}," for name in AMBIENT_CLASSES]
+    areas += ["};"]
+    ambient_tilesets = [
+        name
+        for name in order
+        if any(t["ambient"] != "none" for t in by_name[name].values())
+    ]
+    def tileset_predicate(function, comment, members):
+        lines = [comment, f"constexpr bool {function}(uint8_t tileset) {{"]
+        if members:
+            lines.append(
+                "    return "
+                + " || ".join(f"tileset == TILESET_{name.upper()}" for name in members)
+                + ";"
+            )
+        else:
+            lines += ["    (void)tileset;", "    return false;"]
+        return lines + ["}"]
+
+    areas += tileset_predicate(
+        "tileset_has_ambient",
+        "// False for a tileset whose tiles all have the class AMBIENT_NONE.",
+        ambient_tilesets,
+    )
+    areas += tileset_predicate(
+        "tileset_has_sky",
+        "// True for an outdoor tileset, where birds fly overhead.",
+        [name for name in order if next(iter(by_name[name].values()))["sky"]],
+    )
     positions = [
         prologue,
         "#pragma once",
@@ -840,6 +1014,8 @@ def export_world(root=ROOT):
         '#include "tile_ids.h"',
         "extern uint16_t const PROGMEM TILE_COLLISION[];",
         "extern uint8_t const PROGMEM TILE_PORTALS[];",
+        "// One AMBIENT_CLASS per tile, in 256-entry blocks like TILE_COLLISION.",
+        "extern uint8_t const PROGMEM TILE_AMBIENT[];",
     ]
     assets = [prologue, '#include "world_assets.h"', '#include "chunk.h"']
     for m in maps:
@@ -867,14 +1043,16 @@ def export_world(root=ROOT):
         )
     # One 256-entry block per tileset, indexed by (tileset << 8) | tile. Entry 255 of each
     # block is the outside sentinel.
-    collision, portals = [], []
+    collision, portals, ambient = [], [], []
     for name in order:
         tiles = sorted(by_name[name].items())
         require(len(tiles) == 255, root, f"tileset {name} must declare 255 usable tiles")
         collision += [t["collision"] for _, t in tiles] + [0xFFFF]
         portals += [t["portal"] for _, t in tiles] + [0]
+        ambient += [AMBIENT_CLASSES.index(t["ambient"]) for _, t in tiles] + [0]
     assets += array_lines("constexpr uint16_t PROGMEM TILE_COLLISION[]", collision)
     assets += array_lines("constexpr uint8_t PROGMEM TILE_PORTALS[]", portals)
+    assets += array_lines("constexpr uint8_t PROGMEM TILE_AMBIENT[]", ambient)
     if not any(portals):
         assets += ["bool tile_portal(uint8_t tile) {", "    (void)tile;", "    return false;", "}"]
     else:
@@ -962,7 +1140,7 @@ def export_world(root=ROOT):
                 if not points:
                     continue
                 fn = f"run_chunk_{m.area}_{cx}_{cy}"
-                dispatch.append(f"template <HandlerStage STAGE> static void {fn}() {{")
+                dispatch.append(f"template <HandlerStage STAGE> RPG_NOINLINE static void {fn}() {{")
                 for o, point in points:
                     dispatch += [
                         "#ifndef RPG_AVM",
@@ -1201,6 +1379,27 @@ def read_battle_damage_frames(root=ROOT):
     return frames, masks
 
 
+# The ambient creatures and effects, ambient16.png: 16x16 plus-mask frames in rows of eight.
+# The frames are numbered row by row, and the blank cells after the last one are dropped.
+AMBIENT_COLUMNS = 8
+
+
+def read_ambient_frames(root=ROOT):
+    """Read the ambient frames, without the blank cells that end the sheet."""
+    frames, masks = read_sprite_sheet("ambient16.png", AMBIENT_COLUMNS, root)
+    count = len(frames)
+    while count and all("#" not in row for row in masks[count - 1]):
+        count -= 1
+    path = root / "assets" / "images" / "ambient16.png"
+    require(count > 0, path, "the ambient sheet holds no frame")
+    require(
+        all(any("#" in row for row in mask) for mask in masks[:count]),
+        path,
+        "leave no blank frame between ambient frames",
+    )
+    return frames[:count], masks[:count]
+
+
 def frame_bytes(rows, size=TILE_SIZE):
     # Page-major bytes. Bits below the frame's last row are padding and stay zero.
     return [
@@ -1245,21 +1444,36 @@ def sprite_lines(name, frames, masks=None, size=TILE_SIZE):
 def generate(root=ROOT):
     world = export_world(root)
     sheets = read_tileset_frames(root)
+    phase_sheets = read_tileset_phase_frames(root)
     actor_frames, actor_masks = read_sprite_sheet("actors16.png", ACTOR_COLUMNS, root)
     actor_rows = len(actor_frames) // ACTOR_COLUMNS
     cursor_frames, cursor_masks = read_cursor_frames(root)
     target_frames, target_masks = read_battle_target_frames(root)
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
     damage_frames, damage_masks = read_battle_damage_frames(root)
+    ambient_frames, ambient_masks = read_ambient_frames(root)
     art = [
-        "/* Generated; 16x16 tiles, alpha-derived actor, battle target, arrow, and damage plus masks, and the 22x22 cursor plus masks. */",
+        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, and the 22x22 cursor plus masks. */",
         '#include "rpg.h"',
+        '#include "ambient.h"',
         "",
         "// clang-format off: preserve frame byte groups.",
     ]
+    # A phase whose frames all match an earlier sheet of its tileset shares that sheet.
+    phase_names = {}
     for name, frames in sheets.items():
-        art += sprite_lines(tileset_prefix(name) + "TILE_SPRITES", frames)
+        base_name = tileset_prefix(name) + "TILE_SPRITES"
+        art += sprite_lines(base_name, frames)
         art.append("")
+        emitted = [(frames[: len(phase_sheets[name][0])], base_name)]
+        for phase, phase_frames in enumerate(phase_sheets[name], 1):
+            match = next((symbol for known, symbol in emitted if known == phase_frames), None)
+            if match is None:
+                match = f"{base_name}_PHASE{phase}"
+                art += sprite_lines(match, phase_frames)
+                art.append("")
+                emitted.append((phase_frames, match))
+            phase_names[name, phase] = match
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
     art.append("")
     art += sprite_lines("CURSOR_SPRITES", cursor_frames, cursor_masks, CURSOR_SIZE)
@@ -1269,6 +1483,8 @@ def generate(root=ROOT):
     art += sprite_lines("BATTLE_ARROW_SPRITES", arrow_frames, arrow_masks)
     art.append("")
     art += sprite_lines("BATTLE_DAMAGE_SPRITES", damage_frames, damage_masks)
+    art.append("")
+    art += sprite_lines("AMBIENT_SPRITES", ambient_frames, ambient_masks)
     art.append("// clang-format on")
     art += [
         "",
@@ -1284,6 +1500,8 @@ def generate(root=ROOT):
         '"BATTLE_ARROW_FRAMES must match the frames in battle_arrows16.png");',
         f"static_assert(BATTLE_DAMAGE_FRAMES == {DAMAGE_FRAMES}, "
         '"BATTLE_DAMAGE_FRAMES must match the frames in battle_damage16.png");',
+        f"static_assert(AMBIENT_FRAME_COUNT == {len(ambient_frames)}, "
+        '"AMBIENT_FRAME_COUNT must match the frames in ambient16.png");',
     ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]
@@ -1296,6 +1514,18 @@ def generate(root=ROOT):
         art += [f"        default: return {tileset_prefix(names[0])}TILE_SPRITES;", "    }", "}"]
     else:
         art += ["    (void)tileset;", f"    return {tileset_prefix(names[0])}TILE_SPRITES;", "}"]
+    art += [
+        "",
+        "uint8_t const PROGMEM* tileset_phase_sprites(uint8_t tileset, uint8_t phase) {",
+        "    switch((uint8_t)(tileset * TILE_PHASES + phase)) {",
+    ]
+    for index, name in enumerate(names):
+        art += [
+            f"        case {index * TILE_PHASES + phase}: return {phase_names[name, phase]};"
+            for phase in range(1, TILE_PHASES)
+            if phase_names[name, phase] != tileset_prefix(name) + "TILE_SPRITES"
+        ]
+    art += ["        default: return tileset_sprites(tileset);", "    }", "}"]
     return {**world, "sprites.cpp": "\n".join(art) + "\n"}
 
 

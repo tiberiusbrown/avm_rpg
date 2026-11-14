@@ -99,6 +99,18 @@ values. Sliders map 0–200% to native 0–255: 100% is 128 and 200% is 255. Sto
 percentages are unchanged by this expanded range.
 Physical Arduboy piezo listening and balance checks remain necessary.
 
+## Environment animation
+
+The world is never still. Water ripples and glitters, flowers sway, chimneys smoke, torches,
+campfires and the lights in the houses flicker, a flag waves, and gusts of wind roll through
+the grass. Butterflies, bees, rabbits, falling leaves, jumping fish, perching birds, moths and
+drifting dust appear on the tiles that suit them, and flocks of birds cross the sky.
+
+All of it is a pure function of the game tick and a world position (`src/ambient.h`), so it
+adds no static RAM, nothing to the save, and stays frozen with the world behind menus and
+dialogue. Animated tiles cost nothing per tile: each of the four phases has its own sprite
+sheet. The tile and map rules are in `assets/maps/AUTHORING.md`.
+
 The overworld is one 240x248-tile map with a village in its north-west corner, beside
 a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
 ten houses has its own interior: face a door and press A to enter, and walk out through
@@ -107,12 +119,15 @@ pointer-free `Game` struct directly from AVM's `.saved` prefix (267 bytes), with
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. New Game preserves the
 flag; Continue and Load restore the saved world. NPC casts, the tile cache and the animation
-tick are rebuilt when a save is loaded. Compared with the pause-menu build, total shipping
-static RAM is 475 bytes, including the save flag and three saved audio options.
+tick are rebuilt when a save is loaded. Total shipping static RAM is 477 bytes,
+including the save flag and three saved audio options.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.
 - `assets/images/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
+- `assets/images/tiles16_phase1.png` to `_phase3.png`, `tiles16_wind.png` and the matching
+  `tiles16_house_phase*.png`: the animation frames of the tiles. `assets/images/ambient16.png`:
+  the ambient creatures. See [Environment animation](#environment-animation).
 - `assets/maps/interiors.tmx`: the inside of every house, entered through the house doors.
 - `assets/tilesets/house.tsx`, `cave.tsx` and `dungeon.tsx`, with `tiles16_house.png`,
   `tiles16_cave.png` and `tiles16_dungeon.png`: the interior tilesets. Each map uses one

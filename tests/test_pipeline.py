@@ -25,7 +25,9 @@ from generate_assets import (
     generate,
     load_world,
     map_previews,
+    tile_wind_block,
     tileset_overlays,
+    TILE_PHASES,
 )
 
 
@@ -107,13 +109,19 @@ class Pipeline(unittest.TestCase):
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
             ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 9, True),
+            ("AMBIENT_SPRITES", "ambient16.png", 35, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
             data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
             self.assertEqual(data[:2], [16, 16])
             stride = 64 if masked else 32
-            self.assertEqual(len(data), 2 + frames * stride)
+            # A tile sheet may continue with wind frames, which test_phase_sheets_and_wind_frames
+            # checks.
+            if masked:
+                self.assertEqual(len(data), 2 + frames * stride)
+            else:
+                self.assertGreaterEqual(len(data), 2 + frames * stride)
             image = Image.open(self.root / "assets" / "images" / file).convert("RGBA")
             columns = image.width // 16
             opaque_black, transparent = False, False
@@ -136,6 +144,139 @@ class Pipeline(unittest.TestCase):
             elif name == "TILE_SPRITES":
                 # Cell 0x0F of the world atlas is blank.
                 self.assertEqual(data[2 + 0x0F * 32 : 2 + 0x10 * 32], [0] * 32)
+
+    def sheet(self, source, name):
+        body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
+        body = re.sub(r"//[^\n]*", "", body)
+        data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
+        self.assertEqual(data[:2], [16, 16])
+        self.assertEqual((len(data) - 2) % 32, 0)
+        return [data[2 + i : 2 + i + 32] for i in range(0, len(data) - 2, 32)]
+
+    def layer_cell(self, file, index):
+        """Sheet bytes of one cell of a layer atlas, or None when the cell is transparent."""
+        path = self.root / "assets" / "images" / file
+        if not path.exists():
+            return None
+        image = Image.open(path).convert("RGBA")
+        left, top = index % 16 * 16, index // 16 * 16
+        if image.getpixel((left, top))[3] == 0:
+            return None
+        return [
+            sum(
+                1 << bit
+                for bit in range(8)
+                if image.getpixel((left + x, top + page + bit))[0]
+            )
+            for page in (0, 8)
+            for x in range(16)
+        ]
+
+    def test_phase_sheets_and_wind_frames(self):
+        out = generate(self.root)
+        maps, _, _ = load_world(self.root)
+        by_name = {m.tileset: m.tiles for m in maps}
+        for index, (name, sprites, atlas) in enumerate([
+            ("world", "TILE_SPRITES", "tiles16"),
+            ("house", "HOUSE_TILE_SPRITES", "tiles16_house"),
+        ]):
+            frames = self.sheet(out["sprites.cpp"], sprites)
+            wind_first, wind_count, wind_base = tile_wind_block(by_name[name])
+            self.assertEqual(len(frames), 255 + wind_count)
+            # Each later phase has a whole sheet of the 255 atlas frames, so a phase is drawn
+            # by selecting its sheet. A transparent layer cell repeats the atlas frame.
+            animated = set()
+            for phase in range(1, TILE_PHASES):
+                phase_frames = self.sheet(out["sprites.cpp"], f"{sprites}_PHASE{phase}")
+                self.assertEqual(len(phase_frames), 255)
+                for tile in range(255):
+                    cell = self.layer_cell(f"{atlas}_phase{phase}.png", tile)
+                    self.assertEqual(phase_frames[tile], cell or frames[tile])
+                    if cell:
+                        animated.add(tile)
+                self.assertIn(
+                    f"case {index * TILE_PHASES + phase}: return {sprites}_PHASE{phase};",
+                    out["sprites.cpp"],
+                )
+            self.assertTrue(animated)
+            for tile in range(wind_first, wind_first + wind_count):
+                cell = self.layer_cell(f"{atlas}_wind.png", tile)
+                self.assertEqual(frames[wind_base + tile - wind_first], cell or frames[tile])
+                self.assertEqual(
+                    cell is not None, by_name[name][tile]["ambient"] in ("grass", "flowers")
+                )
+            if wind_count:
+                self.assertEqual(wind_base, 255)
+                self.assertIn(
+                    f"case TILESET_{name.upper()}: return {{{wind_first}, {wind_count}, {wind_base}}};",
+                    out["area_ids.h"],
+                )
+        # Water, the flowers and the village scenery animate outdoors, and the lights indoors.
+        world, house = by_name["world"], by_name["house"]
+        symbols = lambda tiles: {
+            t["symbol"] for t in tiles.values() if any(rows is not None for rows in t["phases"])
+        }
+        self.assertLessEqual(
+            {"WATER", "WATER_CALM", "WATER_TOP", "FLOWERS_26", "ROOF_FLAT_CHIMNEY",
+             "ROOF_SLOPE_CHIMNEY", "TORCH_POST", "CAMPFIRE", "REEDS", "FLAG", "SCARECROW"},
+            symbols(world),
+        )
+        self.assertLessEqual(
+            {"SCONCE", "FIREPLACE_LIT", "CANDELABRA", "CLOCK", "STOVE", "WINDOW_CURTAINS"},
+            symbols(house),
+        )
+        self.assertIn("constexpr bool tileset_has_sky(uint8_t tileset) {\n    return tileset == TILESET_WORLD;", out["area_ids.h"])
+
+    def test_a_phase_without_art_shares_an_earlier_sheet(self):
+        # With no phase 3 layer, phase 3 of the house tileset draws the atlas frames again.
+        (self.root / "assets/images/tiles16_house_phase3.png").unlink()
+        sprites = generate(self.root)["sprites.cpp"]
+        self.assertNotIn("HOUSE_TILE_SPRITES_PHASE3", sprites)
+        self.assertNotIn(f"case {TILE_PHASES + 3}:", sprites)
+        self.assertIn(f"case {TILE_PHASES + 2}: return HOUSE_TILE_SPRITES_PHASE2;", sprites)
+
+    def test_layer_atlas_validation(self):
+        path = self.root / "assets/images/tiles16_phase1.png"
+        original = Image.open(path).convert("RGBA")
+        # A layer cell is all or nothing: one transparent pixel in an opaque cell is rejected.
+        image = original.copy()
+        left, top = 0x29 % 16 * 16, 0x29 // 16 * 16
+        self.assertEqual(image.getpixel((left, top))[3], 255)
+        image.putpixel((left, top), (0, 0, 0, 0))
+        image.save(path)
+        with self.assertRaisesRegex(ValueError, "fully transparent or opaque monochrome"):
+            export_world(self.root)
+        image = original.copy()
+        image.putpixel((left, top), (128, 128, 128, 255))
+        image.save(path)
+        with self.assertRaisesRegex(ValueError, "fully transparent or opaque monochrome"):
+            export_world(self.root)
+        original.save(path)
+        # Only grass and flowers tiles take a wind frame, and each of them needs one.
+        path = self.root / "assets/images/tiles16_wind.png"
+        original = Image.open(path).convert("RGBA")
+        image = original.copy()
+        image.paste((0, 0, 0, 255), (0x41 % 16 * 16, 0x41 // 16 * 16, 0x41 % 16 * 16 + 16, 0x41 // 16 * 16 + 16))
+        image.save(path)
+        with self.assertRaisesRegex(ValueError, "exactly the grass and flowers tiles have a wind frame"):
+            export_world(self.root)
+        image = original.copy()
+        image.paste((0, 0, 0, 0), (0x06 * 16, 0, 0x06 * 16 + 16, 16))
+        image.save(path)
+        with self.assertRaisesRegex(ValueError, "exactly the grass and flowers tiles have a wind frame"):
+            export_world(self.root)
+        original.save(path)
+        # The ambient class is one of the known names, and sky is the only tileset property.
+        path = self.root / "assets/tilesets/world.tsx"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace('name="ambient" type="string" value="water"', 'name="ambient" type="string" value="lava"', 1), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "ambient must be one of"):
+            export_world(self.root)
+        path.write_text(text.replace('<property name="sky" type="bool" value="true" />', '<property name="sky" type="string" value="yes" />'), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "only tileset property is the bool sky"):
+            export_world(self.root)
+        path.write_text(text, encoding="utf-8")
+        export_world(self.root)
 
     def test_each_area_selects_its_tileset(self):
         maps, world, _ = load_world(self.root)

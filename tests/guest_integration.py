@@ -62,8 +62,10 @@ def main():
         "avm button set DOWN",
         "avm run-for 400ms",
         "expr (int)game.player.y",
-        "expr (int)game.ticks",
+        # Let an in-flight exploration frame finish before checking paused ticks.
         "avm button set B",
+        "avm run-for 100ms",
+        "expr (int)game.ticks",
         "avm run-for 100ms",
         "expr (int)game.ticks",
         "thread backtrace",

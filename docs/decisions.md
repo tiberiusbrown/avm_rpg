@@ -376,3 +376,107 @@ Verification. `tests/test_npc_detour.cpp` (1,815 checks): a villager goes around
 fails, and a wanderer goes under a tree within its leash. The continuity property test still
 passes (5,447 moves in 16,120 frames). The AVM probes pass, and the NPC probe's stack bound is
 243 bytes against 256.
+
+## Animated rendering optimization (2026-11-13)
+
+Select the terrain tileset and animation phase before entering the tile loop. Template
+specializations make each phase's bounds and frame offset constants, and phase zero omits the
+animation test. The ambient pass computes its camera/cache view and flash class-table pointer
+once, then shares them with its slots. Birds outside the horizontal view return before their
+second hash. Animation formulas, drawing order, assets and gameplay stay unchanged.
+
+Compile-time lookup tables add 896 flash bytes for visible gust runs and 128 bytes for
+transposed collision quadrants. Each gust plan is copied as one small block before drawing;
+the collision probe reads runs of pixels from a row or column instead of testing each pixel.
+Slot-index specialization folds constant seed arithmetic. Keeping generated chunk handlers
+out of line avoids cold handler locals on empty chunk visits, and complete cache windows skip
+the sentinel clear before copying every cell. Seed-table and chunk-dispatch LUT trials
+increased cycles, so only the small gust and collision tables remain.
+
+Measured on the normal and FXC packages with identical initial state and five consecutive
+256-frame input sequences. The last sequence crosses the 16-bit animation tick wrap. Values
+are average emulated cycles per frame, including audio interrupt costs:
+
+| Workload | Frame before | Frame after | Render/display before | Render/display after |
+|---|---:|---:|---:|---:|
+| Idle | 338,264 | 296,360 | 233,555 | 195,170 |
+| Scroll down | 336,047 | 293,724 | 222,560 | 184,954 |
+| Scroll right | 337,919 | 271,968 | 215,768 | 176,385 |
+| Scroll up | 319,366 | 279,821 | 220,529 | 183,970 |
+| Idle across tick wrap | 304,274 | 264,135 | 222,116 | 184,290 |
+
+Across these equally sized workloads, total frame work falls 14.1% and render/display work
+falls 17.0%. The LUT/specialization follow-up cuts total work another 5.5% relative to the
+initial optimization pass. Frames above 320,000 cycles fall from 777 to 48 out of 1,280.
+The worst observed frame falls from 402,358 to 368,356 cycles (25.15 to 23.02 ms); the strict 20 ms full-device
+budget still fails. Profiling measurements retain these misses instead of relaxing that test.
+The shipping ELF uses the same 477 static RAM bytes and has a complete 243-byte maximum stack
+bound against 256 bytes. Text grows by 3,210 bytes and read-only data by 1,024 bytes.
+
+Verification compares all ordered drawing commands for 1,665,024 synthetic frames, covering
+both tilesets, every tile ID and camera pixel alignment, chunk boundaries, all tick values at
+eight locations, ambient effects and actor layering. All 857,148,438 command bytes match.
+Full-device hashes of the Game and OLED RAM frame sequences also match in both packages.
+Source profiles, ELF/resource snapshots, comparison harnesses and frame measurements
+are retained under ignored `build/animation-optimization/`.
+
+QA waits for completed frame markers and the following serial update, rather than polling a
+16-bit serial that the guest writes one byte at a time. At a carry, serial polling could count
+the same frame twice; returning before the update could also expose the previous serial.
+The SDK pause check samples frozen ticks after the pause input has been consumed, allowing
+an in-flight exploration frame to finish first. The world and NPC guest probes pass (18,538
+and 4,264 checks), as do all 17 native/content tests. The native world checks include random
+collision masks, map edges, quadrant boundaries and coordinate wrapping. Full-device QA passes
+the Audio, pause and initial battle UI checks before stopping at the strict exploration frame budget.
+
+## Environment animation design (2026-11-14)
+
+Goal: atmospheric animation wherever the player goes, with no static RAM and a bounded
+per-frame cost. `src/ambient.h` holds every rule as a constant expression of the game tick and a
+world position, so nothing is stored or saved and a frozen tick shows a frozen scene.
+
+- **Tile phases use one sheet per phase.** The first version kept the phase frames of a span of
+  tiles in the tileset's sheet and tested every drawn tile against that span (specialized per
+  tileset and phase in the pass above). The test still cost about 13,000 cycles a frame. Each
+  phase now has a whole sheet and the tile loop is the pre-animation loop: 66,600 cycles
+  against 65,500 measured before animation. The price is read-only data: three 8,162-byte
+  sheets per tileset, 48,972 bytes for the two tilesets in use. A phase with no art shares an
+  earlier sheet.
+- **One ambient slot per chunk, found by a short loop.** Three slots per chunk with two hash
+  rounds each cost about 54,000 cycles a frame. Each chunk in view now has one slot whose pick
+  is one add, one shift, one multiply and a fold, with the seed stepped from chunk to chunk.
+  Only a slot whose tile is in view calls the out-of-line function that reads the tile's class
+  and computes the effect.
+- **One bird lane per frame.** Lanes are bands at the top of every 128 pixels of world height,
+  so a 64-pixel view shows at most one, and the test for a bird in view is one multiply and a
+  few adds before any hash.
+- **Gusts are one tile wide and slow.** A line redraws at most five tiles in a frame. The
+  renderer rejects a frame with no gust in view from the camera's tile alone, before the call.
+- **Organic motion.** Fliers follow two slow waves with per-instance speeds and phases under an
+  envelope that pins both ends of the flight to the tile, plus a small quick orbit (the flutter
+  of a butterfly, the spiral of a moth, the shiver of a bee). The waves are parabolic arcs, not
+  triangles, so turns ease. Birds flap and climb, then glide and sink, and followers repeat
+  the leader's rise and fall a little later. A bird that visits a perch arrives as a distant
+  speck on a swooping path, so nothing pops into view.
+- **Stack.** The render passes are separate out-of-line functions so that only one pass's
+  locals are live, and the status screen draws only terrain and actors under its panel. The
+  bound is 243 bytes, unchanged by this round.
+
+Measured with full-device QA on the QA guest (average and worst cycles per frame, budget
+320,000; "before" is the build without animation):
+
+| Workload | Frame before | Frame now | Render and display before | Render and display now |
+|---|---:|---:|---:|---:|
+| Idle grove | 207,701 / 236,442 | 246,312 / 278,634 | 105,047 | 147,554 |
+| Pixel scroll | 211,580 / 227,802 | 254,830 / 281,052 | 105,294 | 151,988 |
+| Dense collision | 210,534 / 221,368 | 250,616 / 263,116 | 101,421 | 145,449 |
+
+Full-device QA passes in the normal and FX-C packages. The remaining cost is mostly drawn
+sprites, not selection: a 16x16 plus-mask sprite costs 5,000 to 8,000 cycles, the same as an
+actor, and the measured scenes show one or two ambient sprites and often a flock of two or
+three birds. The idle ambient loop is about 7,000 cycles and the idle gust and bird tests
+under 2,000. The clearest remaining saving is an 8x8 sheet for the small creatures.
+
+Resources of the shipping guest against the build without animation: static RAM 477 bytes
+(unchanged), stack bound 243 (was 240), code 37,857 bytes (was 34,764), read-only data 178,827
+bytes (was 123,901).

@@ -519,6 +519,7 @@
       <property name="symbol" type="string" value="FLOOR_WOOD_A" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="65">
@@ -527,6 +528,7 @@
       <property name="symbol" type="string" value="FLOOR_WOOD_B" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="66">
@@ -535,6 +537,7 @@
       <property name="symbol" type="string" value="FLOOR_WOOD_C" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="67">
@@ -543,6 +546,7 @@
       <property name="symbol" type="string" value="FLOOR_TILE_A" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="68">
@@ -551,6 +555,7 @@
       <property name="symbol" type="string" value="FLOOR_TILE_B" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="69">
@@ -559,6 +564,7 @@
       <property name="symbol" type="string" value="FLOOR_CHECKER" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="70">
@@ -567,6 +573,7 @@
       <property name="symbol" type="string" value="FLOOR_STONE_A" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="71">
@@ -575,6 +582,7 @@
       <property name="symbol" type="string" value="FLOOR_STONE_B" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="72">
@@ -583,6 +591,7 @@
       <property name="symbol" type="string" value="FLOOR_PLAIN_A" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="73">
@@ -591,6 +600,7 @@
       <property name="symbol" type="string" value="FLOOR_PLAIN_B" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="74">
@@ -631,6 +641,7 @@
       <property name="symbol" type="string" value="FLOOR_WOOD_D" />
       <property name="collision" type="int" value="0" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="floor" />
     </properties>
   </tile>
   <tile id="79">
@@ -839,6 +850,7 @@
       <property name="symbol" type="string" value="STOVE" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="steam" />
     </properties>
   </tile>
   <tile id="105">
@@ -1007,6 +1019,7 @@
       <property name="symbol" type="string" value="CAULDRON" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="steam" />
     </properties>
   </tile>
   <tile id="126">

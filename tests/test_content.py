@@ -139,7 +139,9 @@ for index, name, mask in (
     (0x47, "ROAD_NE", 0x0000), (0x48, "CLIFF_TOP_LEFT", 0x0FFF),
     (0x49, "CLIFF_TOP", 0x00FF), (0x4A, "CLIFF_TOP_RIGHT", 0xF0FF),
     (0x4B, "CLIFF_INNER_TOP_LEFT", 0x000F), (0x4C, "CLIFF_INNER_TOP_RIGHT", 0x00F0),
-    (0x4D, "CLIFF_LEFT_RIGHT", 0xFFFF), (0x50, "ROAD_INNER_NW", 0x0000),
+    (0x4D, "CLIFF_LEFT_RIGHT", 0xFFFF),
+    (0x4E, "ROOF_FLAT_CHIMNEY", 0xFFFF), (0x4F, "ROOF_SLOPE_CHIMNEY", 0xCF0C),
+    (0x50, "ROAD_INNER_NW", 0x0000),
     (0x51, "ROAD_INNER_NE", 0x0000), (0x52, "ROAD_INNER_SW", 0x0000),
     (0x53, "ROAD_INNER_SE", 0x0000), (0x54, "ROAD_S", 0x0000),
     (0x55, "ROAD_NS", 0x0000), (0x56, "ROAD_ES", 0x0000),
@@ -168,7 +170,7 @@ for index, name, mask in (
 ):
     assert tiles[index]["symbol"] == name and tiles[index]["collision"] == mask, name
     assert not tiles[index]["portal"]
-assert sum(not t["symbol"].startswith("ATLAS_") for t in tiles.values()) == 123
+assert sum(not t["symbol"].startswith("ATLAS_") for t in tiles.values()) == 130
 # Unnamed cells are solid, except the shaped roof pieces.
 SHAPED_UNNAMED = {0x81: 0xC600, 0x90: 0xF660, 0x92: 0xCF0C}
 for index, tile in tiles.items():
@@ -324,6 +326,63 @@ for name, room in room_cells.items():
                 assert owner.get((x + dx, y + dy), name) == name, f"{name} can see another interior"
 spawn = names[interiors.spawn]
 assert house[inside(spawn["tx"], spawn["ty"])]["collision"] == 0
+
+# Animation. Something moves wherever the player goes: every house has an animated light and
+# a floor for moths, and outdoors every grass, flowers, water and tree cell takes an ambient effect.
+def world_symbol_of(symbol):
+    return next(index for index, tile in m.tiles.items() if tile["symbol"] == symbol)
+
+
+animated_house = {index for index, tile in house.items() if any(rows is not None for rows in tile["phases"])}
+for name in doors:
+    cells = {cell for cell, owned in owner.items() if owned == name}
+    assert any(inside(x, y) in animated_house for x, y in cells), f"{name} has no animated tile"
+    assert any(house[inside(x, y)]["ambient"] == "floor" for x, y in room_cells[name]), f"{name} has no bare floor"
+ambient_of = {index: tile["ambient"] for index, tile in m.tiles.items()}
+# A bird lands on tall solid scenery whose top is near the top of its cell.
+PERCHES = {
+    "SIGN", "BOULDER_TALL", "ROCK_PILE", "ROCKS", "BOULDER", "BOULDER_CRACKED",
+    "BOULDER_WIDE_LEFT", "BOULDER_WIDE_RIGHT",
+}
+for index, tile in m.tiles.items():
+    symbol = tile["symbol"]
+    expected = (
+        "water" if symbol.startswith("WATER")
+        else "grass" if symbol.startswith("GRASS_")
+        else "flowers" if symbol.startswith("FLOWERS_")
+        else "tree" if symbol.startswith("TREE")
+        else "road" if symbol.startswith("ROAD_")
+        else "perch" if symbol in PERCHES
+        else "steam" if symbol in ("ROOF_FLAT_CHIMNEY", "ROOF_SLOPE_CHIMNEY", "CAMPFIRE")
+        else "none"
+    )
+    assert ambient_of[index] == expected, f"{symbol} has ambient class {ambient_of[index]}"
+    if expected == "water":
+        assert any(rows is not None for rows in tile["phases"]), f"{symbol} does not animate"
+    if expected in ("perch", "tree"):
+        assert tile["collision"] != 0, f"{symbol} is walkable, so an actor could stand under its bird"
+# The animated scenery tiles. Each is on the map, animates, and blocks as its art suggests.
+for symbol, solid in (("TORCH_POST", True), ("CAMPFIRE", True), ("FLAG", True), ("SCARECROW", True), ("REEDS", False)):
+    index = world_symbol_of(symbol)
+    tile = m.tiles[index]
+    assert (tile["collision"] == 0xFFFF) == solid and (tile["collision"] == 0) != solid, symbol
+    assert any(rows is not None for rows in tile["phases"]), f"{symbol} does not animate"
+    assert index in m.data, f"the map has no {symbol}"
+# Reeds grow on the bank: every one touches water.
+REEDS = world_symbol_of("REEDS")
+for y in range(m.height):
+    for x in range(m.width):
+        if at(x, y) == REEDS:
+            assert any(wet(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))), (x, y)
+house_ambient = {tile["symbol"]: tile["ambient"] for tile in house.values()}
+assert house_ambient["STOVE"] == house_ambient["CAULDRON"] == "steam"
+# A chimney replaces a roof piece with the same collision, and every chimney smokes.
+world_symbol = {tile["symbol"]: index for index, tile in m.tiles.items()}
+for chimney, roof in (("ROOF_FLAT_CHIMNEY", 0xB5), ("ROOF_SLOPE_CHIMNEY", 0x92)):
+    tile = m.tiles[world_symbol[chimney]]
+    assert tile["collision"] == m.tiles[roof]["collision"]
+    assert all(rows is not None for rows in tile["phases"])
+    assert world_symbol[chimney] in m.data, f"no house uses {chimney}"
 
 # Interior tileset semantics from assets/maps/AUTHORING_INTERIOR.md. Only the house tileset
 # is used by a map so far. The three tilesets share their room pieces, cell for cell.

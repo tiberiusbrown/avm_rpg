@@ -39,7 +39,8 @@ width and destination stride equal to CACHE_WIDTH. All consumers read through
    handler explicitly refreshes the cache.
 7. Move the player two pixels per update, checking every intermediate pixel
    against terrain and NPCs. Fresh A or a teleport pauses movement/time.
-8. Advance the tick and render opaque terrain, then all alpha-masked actors
+8. Advance the tick and render opaque terrain from the sheet of the current animation phase,
+   then the wind gust and the ambient effects that lie on the terrain, then all alpha-masked actors
    in ascending foot Y, from the fixed camera/cache. Lower actors cover higher
    actors, including the player. The next frame follows the updated player.
 

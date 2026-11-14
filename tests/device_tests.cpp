@@ -230,14 +230,23 @@ struct Device {
             require(ab->core_state.cpu.cycle_count < deadline, "boot timeout");
         }
 
-        unsigned old = serial();
+        // The guest writes the serial one byte at a time. At a carry, observing each
+        // byte separately can count the same frame twice; the completed marker cannot.
+        auto old_frames = frames.size();
         uint8_t previous_area = proof ? 0 : state().area;
         do {
             step();
             require(ab->core_state.cpu.cycle_count < deadline, "frame timeout");
             if(prompt() != DIALOGUE_CLOSED)
                 return;
-        } while(serial() == old);
+        } while(frames.size() == old_frames);
+        // Marker zero precedes the serial increment. Return only after its full
+        // value is visible, so callers also observe the completed frame's serial.
+        unsigned completed_serial = (serial() + 1) & 0xFFFF;
+        while(serial() != completed_serial) {
+            step();
+            require(ab->core_state.cpu.cycle_count < deadline, "frame serial timeout");
+        }
         if(!proof && previous_area != state().area)
             transitions.push_back(last);
     }

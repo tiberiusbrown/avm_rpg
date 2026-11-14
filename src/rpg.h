@@ -160,6 +160,8 @@ bool tile_solid(uint8_t tile);
 // Sixteen triangles: four per 8x8 quadrant (top-left, top-right, bottom-left,
 // bottom-right), each nibble ordered north, east, south, west. Player movement only.
 uint16_t tile_collision(uint8_t tile);
+// The AMBIENT_CLASS of a tile in the active area's tileset.
+uint8_t tile_ambient(uint8_t tile);
 bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y);
 #ifndef RPG_AVM
 // Host tests substitute masks for tiles that the shipped tileset does not use.
@@ -269,9 +271,15 @@ bool game_load();
 char const PROGMEM* music_next();
 
 extern uint8_t const PROGMEM TILE_SPRITES[];
-// The sprite sheet of a tileset. Each area draws with the tileset from area_tileset().
+// The sprite sheet of a tileset. Each area draws with the tileset from area_tileset(). After the
+// atlas frames it holds the wind frames that tile_wind_frames describes.
 uint8_t const PROGMEM* tileset_sprites(uint8_t tileset);
+// The sheet that draws a tileset's atlas frames in one phase of the tile cycle. Phase 0 is
+// tileset_sprites(). Selecting the sheet is the whole cost of the animation.
+uint8_t const PROGMEM* tileset_phase_sprites(uint8_t tileset, uint8_t phase);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
+// The ambient creatures and effects, ambient16.png: 16x16 plus-mask frames that ambient.h names.
+extern uint8_t const PROGMEM AMBIENT_SPRITES[];
 // The battle cursor: 22x22 plus-mask frames, one per dash phase. The generated sheet asserts the
 // count.
 inline constexpr uint8_t CURSOR_FRAME_COUNT = 4;

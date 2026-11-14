@@ -540,6 +540,24 @@ Rules for dungeons:
 - **A tomb is two cells tall.** `TOMB_HEAD` goes above `TOMB_FOOT`.
 - A dungeon reached through `CLIFF_MINE` outdoors has an `EDGE_TOP_EXIT` that leads back.
 
+## Animation
+
+Interiors animate as the world does. See [AUTHORING.md](AUTHORING.md#animation) for the
+phase layer atlases and the ambient classes. The house tileset's layers are
+`tiles16_house_phase1.png` to `tiles16_house_phase3.png`.
+
+- Animated house tiles: `SCONCE`, `FIREPLACE_LIT`, `TABLE_CANDLE`, `CANDELABRA` (flames),
+  `CLOCK` (pendulum), `CAULDRON` (bubbles), `STOVE` (steam) and `WINDOW_CURTAINS` (curtains).
+- The floor cells of the wood, tile, checker, stone and plain families have the ambient class
+  `floor`: a moth or a drifting speck of dust appears over them. Rugs and the doormat have no
+  class.
+- `STOVE` and `CAULDRON` have the class `steam`: a puff rises from them.
+- **Every house has an animated tile and some bare floor.** The view is four rows high, so
+  the wall row is often out of sight. The floor effects keep the room alive then. The
+  content test checks both.
+- The cave and dungeon tilesets have no layers yet. Add them when a map uses the tileset:
+  torches, braziers, the campfire and the candelabra are the cells to animate.
+
 ## Solidity
 
 - `EMPTY`, edge cells, wall faces, wall decorations, furniture, pools, pits and raised

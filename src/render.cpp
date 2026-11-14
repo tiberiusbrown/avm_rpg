@@ -2,8 +2,11 @@
 #include "tile_ids.h"
 #include "npc.h"
 #include "actor_draw_order.h"
+#include "ambient.h"
+#include "world_assets.h"
 
 #include <avm.h>
+#include <string.h>
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
 
@@ -61,19 +64,188 @@ static void panel() {
     avm_draw_filled_rect_white(2, 61, 124, 1);
 }
 
-void rpg_render_world() {
-    int16_t left = -(int16_t)(game.camera.x & (TILE - 1));
-    int16_t top = -(int16_t)(game.camera.y & (TILE - 1));
+// The view's first cache entry, its world tile and its screen position.
+struct View {
+    uint8_t const* tiles;
+    uint8_t tx, ty;
+    int16_t left, top;
+};
+
+static View world_view() {
+    uint8_t tx = (uint8_t)(game.camera.x >> TILE_SHIFT),
+            ty = (uint8_t)(game.camera.y >> TILE_SHIFT);
     // The cache trails the view by its margin, so the view starts inside the window.
-    uint8_t view_x = (uint8_t)((game.camera.x >> TILE_SHIFT) - game.cache.origin_tx);
-    uint8_t view_y = (uint8_t)((game.camera.y >> TILE_SHIFT) - game.cache.origin_ty);
-    uint8_t const* tiles = game.cache.tiles + view_y * CACHE_WIDTH + view_x;
+    return {game.cache.tiles + (uint8_t)(ty - game.cache.origin_ty) * CACHE_WIDTH +
+                (uint8_t)(tx - game.cache.origin_tx),
+            tx, ty, (int16_t) - (int16_t)(game.camera.x & (TILE - 1)),
+            (int16_t) - (int16_t)(game.camera.y & (TILE - 1))};
+}
+
+static constexpr uint8_t GUST_VISIBLE_LINES = [] {
+    uint8_t maximum = 0;
+    for(uint8_t origin = 0; origin < GUST_SPACING; ++origin) {
+        uint8_t count = 0;
+        for(GustBand band : GUST_BANDS)
+            for(uint8_t line = 0; line < band.width; ++line)
+                if(((origin - band.behind - line) & (GUST_SPACING - 1)) <=
+                   VIEW_SPAN_WIDTH + VIEW_SPAN_HEIGHT - 2)
+                    ++count;
+        if(count > maximum)
+            maximum = count;
+    }
+    return maximum;
+}();
+
+struct GustLine {
+    uint8_t position, count;
+};
+
+struct GustPlan {
+    uint8_t count;
+    GustLine lines[GUST_VISIBLE_LINES];
+};
+
+static_assert(VIEW_SPAN_WIDTH <= 16 && VIEW_SPAN_HEIGHT <= 16,
+              "gust positions pack a row and column into one byte");
+
+// For every front position, retain only the diagonals intersecting the view and
+// their visible runs, in the original band/line/row order.
+static constexpr auto GUST_PLANS PROGMEM = [] {
+    struct Plans {
+        GustPlan front[GUST_SPACING];
+    } plans{};
+    for(uint8_t origin = 0; origin < GUST_SPACING; ++origin) {
+        GustPlan& plan = plans.front[origin];
+        for(GustBand band : GUST_BANDS) {
+            for(uint8_t line = 0; line < band.width; ++line) {
+                uint8_t diagonal = (uint8_t)((origin - band.behind - line) & (GUST_SPACING - 1));
+                if(diagonal > VIEW_SPAN_WIDTH + VIEW_SPAN_HEIGHT - 2)
+                    continue;
+                uint8_t row = diagonal < VIEW_SPAN_WIDTH ? 0 : diagonal - VIEW_SPAN_WIDTH + 1;
+                uint8_t last_row = diagonal < VIEW_SPAN_HEIGHT ? diagonal : VIEW_SPAN_HEIGHT - 1;
+                plan.lines[plan.count++] = {(uint8_t)((row << 4) | (diagonal - row)),
+                                            (uint8_t)(last_row - row + 1)};
+            }
+        }
+    }
+    return plans;
+}();
+
+// Redraws the grass under a passing gust with its wind frame.
+// How far the view's top-left tile lies behind the gust front.
+static uint8_t gust_origin() {
+    return gust_distance(gust_front(game.ticks), (uint8_t)(game.camera.x >> TILE_SHIFT),
+                         (uint8_t)(game.camera.y >> TILE_SHIFT));
+}
+
+RPG_NOINLINE static void draw_gusts() {
+    TileFrames wind = tile_wind_frames(area_tileset(game.area));
+    if(!wind.count)
+        return;
+    uint8_t origin = gust_origin();
+    // The wind frames follow the atlas frames in the tileset's first sheet.
     avm_set_sprite(tileset_sprites(area_tileset(game.area)));
-    for(int16_t y = top; y < DISPLAY_TILE_HEIGHT * TILE; y += TILE) {
+    View view = world_view();
+    GustPlan plan;
+    uint16_t offset = (uint16_t)(origin * sizeof(GustPlan));
+    memcpy_P(&plan, reinterpret_cast<uint8_t const PROGMEM*>(&GUST_PLANS) + offset, sizeof(plan));
+    for(uint8_t index = 0; index < plan.count; ++index) {
+        GustLine line = plan.lines[index];
+        uint8_t row = line.position >> 4, column = line.position & 15;
+        uint8_t const* tiles = view.tiles + row * CACHE_WIDTH + column;
+        int16_t x = view.left + column * TILE, y = view.top + row * TILE;
+        for(uint8_t count = line.count; count; --count) {
+            uint8_t tile = *tiles;
+            uint8_t ambient = tile_ambient(tile);
+            if(ambient == AMBIENT_GRASS || ambient == AMBIENT_FLOWERS)
+                avm_draw_overwrite(x, y, (uint16_t)(wind.base + (uint8_t)(tile - wind.first)));
+            tiles += CACHE_WIDTH - 1;
+            x -= TILE;
+            y += TILE;
+        }
+    }
+}
+
+// One slot whose tile is in view, at a column and row of the view packed into one byte: looks up
+// the tile's class and draws what the slot shows there. Out of line and with few arguments, so
+// that little is on the stack unless a slot's tile is in view.
+RPG_NOINLINE static void draw_ambient_effect(uint8_t position, uint16_t seed, uint16_t pick) {
+    uint8_t column = position & 15, row = position >> 4;
+    // The cache trails the view by its margin, so the view starts inside the window.
+    uint8_t tile =
+        game.cache
+            .tiles[(uint8_t)((uint8_t)(game.camera.y >> TILE_SHIFT) - game.cache.origin_ty + row) *
+                       CACHE_WIDTH +
+                   (uint8_t)((uint8_t)(game.camera.x >> TILE_SHIFT) - game.cache.origin_tx +
+                             column)];
+    uint8_t ambient_class = tile_ambient(tile);
+    if(ambient_class == AMBIENT_NONE)
+        return;
+    AmbientSprite sprite =
+        ambient_sprite(ambient_class, ambient_slot_of(seed, pick, game.ticks), game.ticks);
+    if(sprite.visible)
+        avm_draw_plus_mask(column * TILE - (int16_t)(game.camera.x & (TILE - 1)) + sprite.dx,
+                           row * TILE - (int16_t)(game.camera.y & (TILE - 1)) + sprite.dy,
+                           sprite.frame);
+}
+
+// A creature or a small effect on the tile that the slot of each chunk in view picked. The loop
+// only finds the picked tile; a chunk whose tile is out of view costs nothing more. Selects the
+// ambient sheet.
+RPG_NOINLINE static void draw_ambient_tiles() {
+    avm_set_sprite(AMBIENT_SPRITES);
+    uint8_t view_tx = (uint8_t)(game.camera.x >> TILE_SHIFT);
+    uint8_t view_ty = (uint8_t)(game.camera.y >> TILE_SHIFT);
+    uint8_t chunk_x = view_tx / CHUNK_WIDTH, chunk_y = view_ty / CHUNK_HEIGHT;
+    // The first chunk's first tile, as a column and row of the view: zero or negative.
+    uint8_t first_column = (uint8_t)(chunk_x * CHUNK_WIDTH - view_tx);
+    uint8_t row = (uint8_t)(chunk_y * CHUNK_HEIGHT - view_ty);
+    uint16_t row_seed = ambient_seed(chunk_x, chunk_y);
+    // At most two chunks each way: the view is no larger than a chunk plus one tile.
+    static_assert(VIEW_SPAN_WIDTH <= CHUNK_WIDTH + 1 && VIEW_SPAN_HEIGHT <= CHUNK_HEIGHT + 1);
+    for(; row < VIEW_SPAN_HEIGHT || row >= (uint8_t)-CHUNK_HEIGHT; row += CHUNK_HEIGHT) {
+        uint16_t seed = row_seed;
+        for(uint8_t column = first_column;
+            column < VIEW_SPAN_WIDTH || column >= (uint8_t)-CHUNK_WIDTH; column += CHUNK_WIDTH) {
+            uint16_t pick = ambient_pick(seed, game.ticks);
+            uint8_t tile_column = (uint8_t)(column + (pick & (CHUNK_WIDTH - 1)));
+            uint8_t tile_row = (uint8_t)(row + ((pick >> 3) & (CHUNK_HEIGHT - 1)));
+            if(tile_column < VIEW_SPAN_WIDTH && tile_row < VIEW_SPAN_HEIGHT)
+                draw_ambient_effect((uint8_t)(tile_row << 4 | tile_column), seed, pick);
+            seed += AMBIENT_SEED_X;
+        }
+        row_seed += AMBIENT_SEED_Y;
+    }
+}
+
+// Birds fly over everything, actors included. Only one lane can show in the view, and its test
+// is cheap, so the ambient sheet is selected only for a bird in view.
+RPG_NOINLINE static void draw_birds() {
+    AmbientBird bird = ambient_bird(bird_lane(game.camera.y), game.ticks, game.camera.x);
+    if(!bird.visible)
+        return;
+    avm_set_sprite(AMBIENT_SPRITES);
+    int16_t x = bird.x, y = (int16_t)(bird.y - game.camera.y);
+    // The leader, then its followers behind it on either side, each a little later in its rise
+    // and fall.
+    for(uint8_t index = 0; index <= bird.followers; ++index) {
+        BirdPose pose = ambient_bird_pose((uint8_t)(bird.clock - index * BIRD_TRAIL_CLOCK));
+        int16_t side = index == 1 ? BIRD_TRAIL_Y : index == 2 ? -BIRD_TRAIL_Y : 0;
+        avm_draw_plus_mask(index ? x + bird.trail : x, y + side + pose.dy, pose.frame);
+    }
+}
+
+// The terrain. Each phase of the tile cycle has its own sheet, so every animated tile shows its
+// current frame at the cost of selecting that sheet.
+RPG_NOINLINE static void draw_tiles() {
+    View view = world_view();
+    uint8_t const* tiles = view.tiles;
+    avm_set_sprite(tileset_phase_sprites(area_tileset(game.area), tile_phase(game.ticks)));
+    for(int16_t y = view.top; y < DISPLAY_TILE_HEIGHT * TILE; y += TILE) {
         // A fixed row span preserves unrolling. Native drawing clips the
         // extra column when the camera is tile-aligned.
         uint8_t const* row_end = tiles + VIEW_SPAN_WIDTH;
-        for(int16_t x = left; tiles != row_end; x += TILE) {
+        for(int16_t x = view.left; tiles != row_end; x += TILE) {
             uint8_t tile = *tiles++;
             if(tile == TILE_OUTSIDE)
                 continue;
@@ -81,7 +253,10 @@ void rpg_render_world() {
         }
         tiles += CACHE_WIDTH - VIEW_SPAN_WIDTH;
     }
+}
 
+// Actors in ascending foot order, so a lower actor covers a higher one.
+RPG_NOINLINE static void draw_actors() {
     Camera c = game.camera;
     avm_set_sprite(ACTOR_SPRITES);
     uint8_t order[NPC_CAPACITY + 1];
@@ -94,6 +269,22 @@ void rpg_render_world() {
         avm_draw_plus_mask((int16_t)actor.x - (int16_t)c.x, (int16_t)actor.y - (int16_t)c.y,
                            actor_frame(actor, row, game.ticks));
     }
+}
+
+// Terrain, the effects that lie on it, the actors, and then the birds above them. Each pass is
+// out of line, so only one pass's locals are on the stack at a time.
+void rpg_render_world() {
+    draw_tiles();
+    uint8_t tileset = area_tileset(game.area);
+    if(tileset_has_ambient(tileset)) {
+        // Most frames have no gust in view, and that test needs only the camera's tile.
+        if(gust_in_view(gust_origin()))
+            draw_gusts();
+        draw_ambient_tiles();
+    }
+    draw_actors();
+    if(tileset_has_sky(tileset))
+        draw_birds();
 
     if(game.can_interact)
         avm_draw_text(110, 7, F("A"));
@@ -234,7 +425,9 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
 }
 
 void render_status() {
-    rpg_render_world();
+    // The panel covers all but a two-pixel rim, so the terrain and the actors are enough.
+    draw_tiles();
+    draw_actors();
     panel();
     avm_draw_text(6, 11, F("TRAVELER"));
 

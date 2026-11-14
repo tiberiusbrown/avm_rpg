@@ -5,6 +5,8 @@
 #include "tile_ids.h"
 extern uint16_t const PROGMEM TILE_COLLISION[];
 extern uint8_t const PROGMEM TILE_PORTALS[];
+// One AMBIENT_CLASS per tile, in 256-entry blocks like TILE_COLLISION.
+extern uint8_t const PROGMEM TILE_AMBIENT[];
 inline constexpr uint8_t OUTDOOR_WIDTH = 240;
 inline constexpr uint8_t OUTDOOR_HEIGHT = 248;
 inline constexpr uint8_t OUTDOOR_CHUNK_COLUMNS = 30;
