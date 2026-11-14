@@ -480,3 +480,119 @@ under 2,000. The clearest remaining saving is an 8x8 sheet for the small creatur
 Resources of the shipping guest against the build without animation: static RAM 477 bytes
 (unchanged), stack bound 243 (was 240), code 37,857 bytes (was 34,764), read-only data 178,827
 bytes (was 123,901).
+
+## Further animation optimization (2026-11-14)
+
+This pass starts from `ccfb2ad` with the new phase sheets, wandering flights and bird
+flocks already present. It preserves the animation rules, drawing commands, gameplay,
+capacities and static RAM. Builds use RelWithDebInfo and full LTO.
+
+The source profiles and guest disassemblies led to these changes:
+
+- Pass the three chunk-coordinate bytes separately inside generated dispatch. Keep the
+  `ChunkCoord` overload as an inline interface. This removes aggregate packing, unpacking,
+  saved registers and the dispatcher epilogue; handler calls become tail jumps. Stored
+  coordinates and code pointers retain their existing representations.
+- Filter NPC interaction geometry before fetching the NPC definition from flash. Compute
+  facing axes once per interaction pass, preserving range boundaries and nearest/tie rules.
+- Clamp the camera once when reloading the game cache. Retain clamping for the public
+  arbitrary-window helper. Unroll the common complete-window copy; partial map windows
+  retain their sentinel fill and bounded copy.
+- Keep partial-mask collision work outside the common empty/full-tile path. A constexpr
+  23 by 23 table stores the triangles intersected by every prefix, suffix and full foot
+  span. Direct tile-relative offsets select a 16-bit entry without clipping or a row scan.
+  The table occupies 1,058 flash bytes. Leading-edge collision probes retain their existing
+  row/column tables and behavior.
+- Precompute the 256 bird poses as packed vertical offset/frame words, using 512 flash
+  bytes. This removes pose arithmetic and lowers the bird pass's local stack use.
+
+A general sine LUT, scaled leaf-wave LUT, manually shifted signed flight divisions,
+outlined packed shader returns, packed ambient positions, broader generated handler
+shortcuts and redundant-gust calculations were also measured. They increased cost,
+regressed some workloads or saved too little to justify the change. In particular, the
+first collision LUT formulation increased hot-function spills. The retained formulation
+indexes the table directly inside the cold helper and improves both ordinary movement
+and repeated shaped collisions.
+
+Timing uses completed QA frame markers and a host instruction-boundary observer, with
+no additional guest markers or RAM. Every frame's component cycle counts must sum exactly
+to its measured frame work. Native drawing, display transfer and audio interrupt costs are
+included; waiting for the next 50 Hz frame boundary is excluded. An independent eight-second
+shipping-guest replay profile (after one second of warmup) identifies source hotspots.
+Before/after shipping disassemblies and targeted function disassemblies are retained.
+
+Each workload below has 1,024 frames, covering a complete gust period. The first eight are
+representative workloads weighted equally in the headline average. Scrolling sequences run
+consecutively; the tick-wrap sequence starts at tick 65,400. The field and interior sequences
+reset to the same archived initial state and generated map markers. The last row is a
+separate forced stress test: reset the player beside an authored shaped tree before every
+frame and hold east. This repeatedly exercises collision resolution rather than allowing
+the player to walk away. Results are emulated milliseconds at 16 MHz:
+
+| Workload | Mean before | Mean after | Worst before | Worst after |
+|---|---:|---:|---:|---:|
+| Idle grove | 15.120 | 14.383 | 17.765 | 16.963 |
+| Scroll down | 15.674 | 14.616 | 18.750 | 17.863 |
+| Scroll right | 14.519 | 13.634 | 16.130 | 15.277 |
+| Scroll up | 14.047 | 13.239 | 15.999 | 15.110 |
+| Tick wrap | 12.555 | 11.948 | 14.608 | 13.994 |
+| Remote field | 13.381 | 12.615 | 15.119 | 14.381 |
+| Interior idle | 11.610 | 11.197 | 12.510 | 12.088 |
+| Interior scroll | 13.384 | 12.740 | 14.018 | 13.370 |
+| Forced shaped collision | 21.085 | 19.349 | 23.233 | 21.550 |
+
+Average frame work over the eight representative workloads falls from **13.7864 to
+13.0466 ms (5.37%)**, saving 0.7398 ms. Their worst observed frame falls from 18.750 to
+17.863 ms, and both versions have zero frames over 20 ms in these workloads. The
+start-to-start period remains 19.9999 ms: the game still runs at its 50 Hz cap.
+The forced collision workload improves 8.23%; frames above 20 ms fall from **987 to 165
+out of 1,024**, so that stress workload still has budget misses. Normal and FXC packages
+were measured independently and produce the same rounded timings and miss counts.
+
+Average frame-time breakdown for the eight representative workloads, in milliseconds:
+
+| Component | Before | After |
+|---|---:|---:|
+| Other update work | 0.3739 | 0.3741 |
+| Tile cache reload | 0.7484 | 0.6090 |
+| Chunk handler stages | 2.4562 | 2.0138 |
+| Movement, collision and NPCs | 2.1389 | 1.9836 |
+| Terrain drawing | 4.0957 | 4.0993 |
+| Gusts | 0.1395 | 0.1397 |
+| Ambient tile effects | 1.4151 | 1.4171 |
+| Actors | 0.5832 | 0.5832 |
+| Birds | 0.1947 | 0.1877 |
+| Other rendering | 0.2081 | 0.2088 |
+| OLED display | 1.4328 | 1.4303 |
+| **Total** | **13.7864** | **13.0466** |
+
+Remaining cost is concentrated in the native sprite drawing and display services.
+The shipping profile's terrain pass remains approximately 65,000 cycles per frame.
+Gameplay chunk dispatch falls from approximately 12,200 to 7,300 cycles per frame,
+cache refresh from 14,700 to 11,900, and the common player terrain check from 8,800 to
+6,900. These profile figures use the replay's workload mix; the table above uses the
+fixed frame workloads instead.
+
+Shipping resources: static RAM **477 to 477 bytes**, complete maximum stack bound **243 to
+241 bytes**, text **37,857 to 37,556 bytes**, read-only data **178,827 to 180,397 bytes**.
+The lookup tables add 1,570 read-only bytes while text shrinks by 301 bytes. Full LTO
+checks retain one global Game, no game-reference helper arguments and no map tile-position
+storage. Both playable root packages are updated.
+
+Verification includes all 17 native/content tests, 1,231,526 world checks, 9,227,197
+ambient checks and 9,686 NPC dialogue checks. The world checks cover every individual
+triangle against all 529 foot windows, random combined masks, map edges and coordinate
+wrapping. All ordered render commands match over **1,665,024 synthetic frames and
+850,874,601 command bytes**, including both tilesets, all tile IDs, camera alignments,
+all tick values at eight locations, ambient effects and actor layering. Game and OLED
+sequence hashes match across all nine 1,024-frame workloads in both normal and FXC
+packages. Full-device SDK integration also checks world/NPC probes, pause, sign dialogue,
+menus, battles, save/restart and scrolling without relaxing its frame-budget assertions.
+
+The archived ELFs, resources, source profiles, disassemblies, observer source and fixtures,
+raw frame breakdowns, exact command comparison and `comparison.json`/`comparison.md` are
+under ignored `build/exhaustive-optimization/`. Baseline measurements use
+`baseline-shipping/`; final measurements use `direct-foot-lut/`. The frame observer can be
+rerun with `python3 build/exhaustive-optimization/measure.py LABEL --frames 1024`, adding
+`--mode fxc` for FXC. `summarize.py` reconciles components and checks sequence hashes before
+writing the comparison.

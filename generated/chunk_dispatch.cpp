@@ -219,14 +219,14 @@ template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_2_3_8() {
             return;
     }
 }
-template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(ChunkCoord coord) {
+template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(uint8_t area, uint8_t x, uint8_t y) {
 #ifndef RPG_AVM
     if(chunk_trace_count[STAGE] < CHUNK_TRACE_CAPACITY)
-        chunk_trace[STAGE][chunk_trace_count[STAGE]++] = (uint16_t)coord.y * world_area(coord.area)->chunk_columns + coord.x;
+        chunk_trace[STAGE][chunk_trace_count[STAGE]++] = (uint16_t)y * world_area(area)->chunk_columns + x;
 #endif
-    switch(coord.area) {
+    switch(area) {
         case 1:
-            switch((uint16_t)coord.y * 30 + coord.x) {
+            switch((uint16_t)y * 30 + x) {
                 case 124: run_chunk_1_4_4<STAGE>(); break;
                 case 154: run_chunk_1_4_5<STAGE>(); break;
                 case 156: run_chunk_1_6_5<STAGE>(); break;
@@ -242,7 +242,7 @@ template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(ChunkCoord coord) {
             }
             break;
         case 2:
-            switch((uint16_t)coord.y * 9 + coord.x) {
+            switch((uint16_t)y * 9 + x) {
                 case 9: run_chunk_2_0_1<STAGE>(); break;
                 case 12: run_chunk_2_3_1<STAGE>(); break;
                 case 14: run_chunk_2_5_1<STAGE>(); break;
@@ -259,6 +259,6 @@ template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(ChunkCoord coord) {
         default: break;
     }
 }
-template void run_chunk<STAGE_GAMEPLAY>(ChunkCoord);
-template void run_chunk<STAGE_TILES>(ChunkCoord);
-template void run_chunk<STAGE_DIALOGUE>(ChunkCoord);
+template void run_chunk<STAGE_GAMEPLAY>(uint8_t, uint8_t, uint8_t);
+template void run_chunk<STAGE_TILES>(uint8_t, uint8_t, uint8_t);
+template void run_chunk<STAGE_DIALOGUE>(uint8_t, uint8_t, uint8_t);

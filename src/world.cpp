@@ -120,23 +120,21 @@ uint8_t chunk_trace_count[3];
 unsigned feature_trace_count[3];
 #endif
 
-void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimensions dimensions,
-                        Camera camera) {
+template <uint8_t ROW = 0>
+static void copy_full_tile_rows(uint8_t* dst, uint8_t const PROGMEM* src, uint8_t width) {
+    memcpy_P(dst, src, CACHE_WIDTH);
+    if constexpr(ROW + 1 < CACHE_HEIGHT)
+        copy_full_tile_rows<ROW + 1>(dst + CACHE_WIDTH, src + width, width);
+}
+
+static void reload_tile_window_clamped(TileCache& cache, uint8_t const PROGMEM* tiles,
+                                      MapDimensions dimensions, Camera camera) {
     if(!tiles) {
         memset(&cache, TILE_OUTSIDE, sizeof(cache));
         cache.origin_tx = cache.origin_ty = 0;
         return;
     }
     uint8_t width = dimensions.width_tiles, height = dimensions.height_tiles;
-    // Clamp the view to the map, as game_camera does. The cache then trails the view by the
-    // margin; its far edge may extend past the map, where the sentinel tile remains.
-    uint16_t max_x = width > DISPLAY_TILE_WIDTH ? (uint16_t)(width - DISPLAY_TILE_WIDTH) * TILE : 0;
-    uint16_t max_y =
-        height > DISPLAY_TILE_HEIGHT ? (uint16_t)(height - DISPLAY_TILE_HEIGHT) * TILE : 0;
-    if(camera.x > max_x)
-        camera.x = max_x;
-    if(camera.y > max_y)
-        camera.y = max_y;
     uint8_t view_tx = (uint8_t)(camera.x >> TILE_SHIFT),
             view_ty = (uint8_t)(camera.y >> TILE_SHIFT);
     cache.origin_tx = view_tx >= CACHE_MARGIN ? (uint8_t)(view_tx - CACHE_MARGIN) : 0;
@@ -155,6 +153,11 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
     uint8_t* dst = cache.tiles;
     uint8_t const PROGMEM* src = tiles + (uint16_t)cache.origin_ty * width + cache.origin_tx;
 
+    if(rows == CACHE_HEIGHT && row_bytes == CACHE_WIDTH) {
+        copy_full_tile_rows(dst, src, width);
+        return;
+    }
+
     // Map rows are contiguous. Uncopied right/bottom cells retain the sentinel.
     for(uint8_t row = 0; row < rows; ++row) {
         memcpy_P(dst, src, row_bytes);
@@ -163,13 +166,28 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
     }
 }
 
+void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimensions dimensions,
+                        Camera camera) {
+    uint8_t width = dimensions.width_tiles, height = dimensions.height_tiles;
+    // Clamp the view to the map, as game_camera does. The cache then trails the view by the
+    // margin; its far edge may extend past the map, where the sentinel tile remains.
+    uint16_t max_x = width > DISPLAY_TILE_WIDTH ? (uint16_t)(width - DISPLAY_TILE_WIDTH) * TILE : 0;
+    uint16_t max_y =
+        height > DISPLAY_TILE_HEIGHT ? (uint16_t)(height - DISPLAY_TILE_HEIGHT) * TILE : 0;
+    if(camera.x > max_x)
+        camera.x = max_x;
+    if(camera.y > max_y)
+        camera.y = max_y;
+    reload_tile_window_clamped(cache, tiles, dimensions, camera);
+}
+
 void reload_tile_cache() {
     game.camera = game_camera();
     if(cache_edited) {
         foot_clear_known = false;
         cache_edited = false;
     }
-    reload_tile_window(game.cache, world_area(game.area)->tiles, game.dimensions, game.camera);
+    reload_tile_window_clamped(game.cache, world_area(game.area)->tiles, game.dimensions, game.camera);
 }
 
 void set_tile(TilePos pos, uint8_t tile) {
@@ -194,27 +212,59 @@ uint8_t cached_tile(TilePos pos) {
     return TILE_OUTSIDE;
 }
 
-// True when any pixel of [x0,x1] x [y0,y1] is solid in one tile's mask. A row crosses at most
-// two quadrants, and each crossing is one window over that quadrant's row byte.
-static bool mask_hits(uint16_t mask, uint8_t x0, uint8_t x1, uint8_t y0, uint8_t y1) {
-    for(uint8_t y = y0; y <= y1; ++y) {
-        uint8_t left = (uint8_t)((y >> 3) << 1), qy = (uint8_t)(y & 7);
-        if(x0 < 8) {
-            uint8_t nibble = (uint8_t)((mask >> (4 * left)) & 0xF);
-            uint8_t hi = x1 < 7 ? x1 : 7;
-            uint8_t window = (uint8_t)(((2u << hi) - 1) & ~((1u << x0) - 1));
-            if(QUADRANT_ROWS.row[nibble][qy] & window)
-                return true;
-        }
-        if(x1 >= 8) {
-            uint8_t nibble = (uint8_t)((mask >> (4 * (left + 1))) & 0xF);
-            uint8_t lo = x0 > 8 ? (uint8_t)(x0 - 8) : 0;
-            uint8_t window = (uint8_t)(((2u << (x1 - 8)) - 1) & ~((1u << lo) - 1));
-            if(QUADRANT_ROWS.row[nibble][qy] & window)
-                return true;
+// Each part of the foot box in one tile is either the full span, a prefix or
+// a suffix. Encode those TILE + width - 1 spans, separately for each axis.
+static constexpr uint8_t FOOT_X_SPANS = TILE + FOOT_WIDTH - 1;
+static constexpr uint8_t FOOT_Y_SPANS = TILE + FOOT_HEIGHT - 1;
+
+static constexpr auto FOOT_TRIANGLES PROGMEM = [] {
+    struct Rectangles {
+        uint16_t mask[FOOT_X_SPANS * FOOT_Y_SPANS];
+    } rectangles{};
+    for(uint8_t yi = 0; yi < FOOT_Y_SPANS; ++yi) {
+        uint8_t y0 = yi < FOOT_HEIGHT ? 0 : yi - FOOT_HEIGHT + 1;
+        uint8_t y1 = yi < FOOT_HEIGHT ? yi : y0 + FOOT_HEIGHT - 1;
+        if(y1 >= TILE)
+            y1 = TILE - 1;
+        for(uint8_t xi = 0; xi < FOOT_X_SPANS; ++xi) {
+            uint8_t x0 = xi < FOOT_WIDTH ? 0 : xi - FOOT_WIDTH + 1;
+            uint8_t x1 = xi < FOOT_WIDTH ? xi : x0 + FOOT_WIDTH - 1;
+            if(x1 >= TILE)
+                x1 = TILE - 1;
+            uint16_t mask = 0;
+            for(uint8_t qy = 0; qy < 2; ++qy) {
+                for(uint8_t qx = 0; qx < 2; ++qx) {
+                    uint8_t ox = qx * 8, oy = qy * 8;
+                    if(x1 < ox || x0 >= ox + 8 || y1 < oy || y0 >= oy + 8)
+                        continue;
+                    uint8_t left = x0 > ox ? x0 - ox : 0;
+                    uint8_t right = x1 < ox + 7 ? x1 - ox : 7;
+                    uint8_t top = y0 > oy ? y0 - oy : 0;
+                    uint8_t bottom = y1 < oy + 7 ? y1 - oy : 7;
+                    uint8_t flags = 0;
+                    if(top < 4 && right >= top && left + top <= 7)
+                        flags |= 1;
+                    if(right >= 4 && bottom >= 7 - right && top <= right)
+                        flags |= 2;
+                    if(bottom >= 4 && right >= 7 - bottom && left <= bottom)
+                        flags |= 4;
+                    if(left < 4 && bottom >= left && top + left <= 7)
+                        flags |= 8;
+                    mask |= (uint16_t)flags << (qy * 8 + qx * 4);
+                }
+            }
+            rectangles.mask[(uint16_t)yi * FOOT_X_SPANS + xi] = mask;
         }
     }
-    return false;
+    return rectangles;
+}();
+
+// Each intersected tile sees a prefix, a suffix, or the full foot span.
+// The same offset encodes all three, avoiding clipping and per-row scans.
+RPG_NOINLINE static bool foot_hits_mask(uint16_t mask, uint16_t left, uint16_t top, uint16_t tile) {
+    uint8_t xi = (uint8_t)(left + FOOT_WIDTH - 1 - (uint16_t)(uint8_t)tile * TILE);
+    uint8_t yi = (uint8_t)(top + FOOT_HEIGHT - 1 - (uint16_t)(tile >> 8) * TILE);
+    return (mask & FOOT_TRIANGLES.mask[(uint16_t)yi * FOOT_X_SPANS + xi]) != 0;
 }
 
 __attribute__((noinline)) uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir) {
@@ -280,13 +330,7 @@ bool player_terrain_clear(uint16_t x, uint16_t y) {
                 continue;
             if(mask == 0xFFFF)
                 return false;
-            uint16_t ox = tx << TILE_SHIFT, oy = ty << TILE_SHIFT;
-            uint16_t lo_x = left > ox ? left : ox,
-                     hi_x = right < ox + TILE - 1 ? right : ox + TILE - 1;
-            uint16_t lo_y = top > oy ? top : oy,
-                     hi_y = bottom < oy + TILE - 1 ? bottom : oy + TILE - 1;
-            if(mask_hits(mask, (uint8_t)(lo_x - ox), (uint8_t)(hi_x - ox), (uint8_t)(lo_y - oy),
-                         (uint8_t)(hi_y - oy)))
+            if(foot_hits_mask(mask, left, top, (uint16_t)(ty << 8 | tx)))
                 return false;
         }
     }

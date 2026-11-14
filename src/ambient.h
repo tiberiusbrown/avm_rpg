@@ -392,10 +392,22 @@ struct BirdPose {
 
 // A bird beats its wings and climbs, then holds them level and sinks: one smooth rise and fall
 // per turn of the clock.
+inline constexpr auto BIRD_POSES PROGMEM = [] {
+    struct Poses {
+        uint16_t value[256];
+    } poses{};
+    for(uint16_t clock = 0; clock < 256; ++clock) {
+        uint8_t dy = (uint8_t)(ambient_sine((uint8_t)(clock + 64)) / (64 / BIRD_SWING));
+        uint8_t frame = (uint8_t)(FRAME_BIRD +
+            (clock < BIRD_FLAP_CLOCK ? ambient_flap((uint8_t)(clock >> 3)) : 1));
+        poses.value[clock] = (uint16_t)(dy | (uint16_t)frame << 8);
+    }
+    return poses;
+}();
+
 constexpr BirdPose ambient_bird_pose(uint8_t clock) {
-    return {(int8_t)(ambient_sine((uint8_t)(clock + 64)) / (64 / BIRD_SWING)),
-            (uint8_t)(FRAME_BIRD +
-                      (clock < BIRD_FLAP_CLOCK ? ambient_flap((uint8_t)(clock >> 3)) : 1))};
+    uint16_t pose = BIRD_POSES.value[clock];
+    return {(int8_t)pose, (uint8_t)(pose >> 8)};
 }
 
 constexpr AmbientBird ambient_bird(uint8_t lane, uint16_t ticks, uint16_t camera_x) {

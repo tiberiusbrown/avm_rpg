@@ -264,6 +264,9 @@ static void birds() {
     for(uint16_t clock = 0; clock < 256; ++clock) {
         BirdPose pose = ambient_bird_pose((uint8_t)clock),
                  next = ambient_bird_pose((uint8_t)(clock + 1));
+        CHECK(pose.dy == ambient_sine((uint8_t)(clock + 64)) / (64 / BIRD_SWING));
+        CHECK(pose.frame == FRAME_BIRD +
+                  (clock < BIRD_FLAP_CLOCK ? ambient_flap((uint8_t)(clock >> 3)) : 1));
         CHECK(pose.dy >= -BIRD_SWING && pose.dy <= BIRD_SWING && next.dy - pose.dy <= 1 &&
               pose.dy - next.dy <= 1);
         CHECK(pose.frame >= FRAME_BIRD && pose.frame < FRAME_LEAF);

@@ -703,37 +703,25 @@ bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir) {
 }
 
 void npc_interact() {
+    DIRECTION facing = game.player.facing;
+    if(facing > WEST)
+        return;
+    bool horizontal = facing == EAST || facing == WEST;
+    bool reverse = facing == NORTH || facing == WEST;
     Npc* best = nullptr;
     uint16_t nearest = 65535;
     for(auto& n : game.npcs.actors) {
         if(!n.id)
             break;
-        if(!npc_definition(n.id)->talkable)
-            continue;
         int16_t dx = (int16_t)n.actor.x - (int16_t)game.player.x;
         int16_t dy = (int16_t)n.actor.y - (int16_t)game.player.y;
-        int16_t forward = 0, side = 0;
-        switch(game.player.facing) {
-            case NORTH:
-                forward = -dy;
-                side = dx;
-                break;
-            case EAST:
-                forward = dx;
-                side = dy;
-                break;
-            case SOUTH:
-                forward = dy;
-                side = dx;
-                break;
-            case WEST:
-                forward = -dx;
-                side = dy;
-                break;
-            case STILL:
-                continue;
-        }
+        int16_t forward = horizontal ? dx : dy;
+        int16_t side = horizontal ? dy : dx;
+        if(reverse)
+            forward = (int16_t)-forward;
         if(forward < 1 || forward > 24 || side < -10 || side > 10)
+            continue;
+        if(!npc_definition(n.id)->talkable)
             continue;
         uint16_t distance = (uint16_t)forward * TILE + (uint16_t)(side < 0 ? -side : side);
         if(distance < nearest || (distance == nearest && best && n.id < best->id)) {

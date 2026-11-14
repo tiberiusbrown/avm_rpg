@@ -326,6 +326,28 @@ static void random_masks() {
     tile_collision_reset();
 }
 
+// Every prefix, suffix and full foot span against each individual triangle.
+// Checking one bit at a time covers every table bit; combined masks use their union.
+static void foot_triangle_windows() {
+    game_new();
+    game.cache.origin_tx = positions::TestField.x;
+    game.cache.origin_ty = positions::TestField.y;
+    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    constexpr uint8_t SHAPE = TILE_ATLAS_25;
+    set_tile(field_tile(2, 1), SHAPE);
+    for(uint8_t bit = 0; bit < 16; ++bit) {
+        tile_collision_override(SHAPE, (uint16_t)(1u << bit));
+        for(int16_t y = 1 - FOOT_HEIGHT; y < TILE; ++y) {
+            for(int16_t x = 1 - FOOT_WIDTH; x < TILE; ++x) {
+                uint16_t px = field_x(2 * TILE + x - FOOT_LEFT);
+                uint16_t py = field_y(TILE + y - FOOT_TOP);
+                CHECK(player_terrain_clear(px, py) == oracle_clear(px, py));
+            }
+        }
+    }
+    tile_collision_reset();
+}
+
 static void leading_edge_boundaries() {
     game_new();
     game.cache.origin_tx = game.cache.origin_ty = 0;
@@ -428,6 +450,7 @@ int main() {
     house_doors();
     window_edges();
     terrain_footprints();
+    foot_triangle_windows();
     collision_triangles();
     player_shapes();
     corner_assist();

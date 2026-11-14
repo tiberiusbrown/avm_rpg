@@ -92,7 +92,11 @@ template <TilePos TARGET> bool teleport_player(DIRECTION facing = STILL) {
     return true;
 }
 
-template <HandlerStage STAGE> void run_chunk(ChunkCoord coord);
+template <HandlerStage STAGE> void run_chunk(uint8_t area, uint8_t x, uint8_t y);
+
+template <HandlerStage STAGE> inline void run_chunk(ChunkCoord coord) {
+    run_chunk<STAGE>(coord.area, coord.x, coord.y);
+}
 template <HandlerStage STAGE> void process_all_chunks();
 void refresh_tile_cache();
 

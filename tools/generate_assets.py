@@ -1158,20 +1158,20 @@ def export_world(root=ROOT):
                     ]
                 dispatch.append("}")
     dispatch += [
-        "template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(ChunkCoord coord) {",
+        "template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(uint8_t area, uint8_t x, uint8_t y) {",
         "#ifndef RPG_AVM",
         "    if(chunk_trace_count[STAGE] < CHUNK_TRACE_CAPACITY)",
         "        chunk_trace[STAGE][chunk_trace_count[STAGE]++] = "
-        "(uint16_t)coord.y * world_area(coord.area)->chunk_columns + coord.x;",
+        "(uint16_t)y * world_area(area)->chunk_columns + x;",
         "#endif",
-        "    switch(coord.area) {",
+        "    switch(area) {",
     ]
     for m in maps:
         if not any(o["handler"] for o in m.objects):
             continue
         dispatch += [
             f"        case {m.area}:",
-            f"            switch((uint16_t)coord.y * {m.columns} + coord.x) {{",
+            f"            switch((uint16_t)y * {m.columns} + x) {{",
         ]
         for cy in range(m.rows):
             for cx in range(m.columns):
@@ -1188,9 +1188,9 @@ def export_world(root=ROOT):
         "        default: break;",
         "    }",
         "}",
-        "template void run_chunk<STAGE_GAMEPLAY>(ChunkCoord);",
-        "template void run_chunk<STAGE_TILES>(ChunkCoord);",
-        "template void run_chunk<STAGE_DIALOGUE>(ChunkCoord);",
+        "template void run_chunk<STAGE_GAMEPLAY>(uint8_t, uint8_t, uint8_t);",
+        "template void run_chunk<STAGE_TILES>(uint8_t, uint8_t, uint8_t);",
+        "template void run_chunk<STAGE_DIALOGUE>(uint8_t, uint8_t, uint8_t);",
     ]
     return {
         name: "\n".join(lines) + "\n"
