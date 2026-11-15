@@ -25,7 +25,10 @@ white bands, and the north wall shows a face of stone blocks one tile tall. The 
 flagstones, shown only by a small mark where three stones meet. Objects show their top as well
 as their front: a top that faces up is lit white, and a front is dark inside its outline. A
 column shows its capital and its plinth, a brazier shows the rim of its bowl, and a raised
-block shows its whole top face. Draw new pieces the same way.
+block shows its whole top face. The light comes from the top left, so a rounded piece takes a
+second line inside its rim, or a few hatch strokes, on its right and lower side. Draw new
+pieces the same way. No piece is filled with a checkerboard stipple, which flickers when the
+view scrolls.
 
 ## Wall row pieces
 
@@ -153,19 +156,20 @@ swaps in.
 
 ## Objects
 
-Objects stand on room cells. Each blocks where its art is, so its collision mask is a shape,
-not the whole cell.
+Objects stand on room cells. Each takes the simple convex collision shape that roughly covers
+its art: the whole cell, the diamond, or the cell without two of its corners. States and pieces
+of one thing take the same shape. See [AUTHORING.md](AUTHORING.md#what-solidity-means).
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x30` | `COLUMN` | partly | Stone column. |
+| `0x30` | `COLUMN` | no | Stone column. |
 | `0x31` | `STATUE` | partly | Statue on a pedestal. |
 | `0x5E` | `STATUE_BROKEN` | partly | Pedestal with the stump of a statue. |
 | `0x32` | `BRAZIER` | partly | Burning brazier. |
-| `0x33` | `ALTAR` | partly | Stone altar with a cross and a candle. |
+| `0x33` | `ALTAR` | no | Stone altar with a cross and a candle. |
 | `0x34` | `TOMB_HEAD` | no | Head of a stone tomb. `TOMB_FOOT` goes directly below it. |
 | `0x44` | `TOMB_FOOT` | no | Foot of a stone tomb. |
-| `0x58` | `THRONE` | partly | Stone throne. |
+| `0x58` | `THRONE` | no | Stone throne. |
 | `0x59` | `PEDESTAL` | partly | Empty pedestal. |
 | `0x5C` | `CAGE` | partly | Iron cage. |
 | `0x3F` | `URN` | partly | Urn with a lid. |
@@ -175,8 +179,8 @@ not the whole cell.
 | `0x39` | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. |
 | `0x3A` | `CHEST_CLOSED` | partly | Closed chest. Collectible. |
 | `0x3B` | `CHEST_OPEN` | partly | Opened chest. The collected state of `CHEST_CLOSED`. |
-| `0x3C` | `BARREL` | partly | Barrel. |
-| `0x3D` | `CRATE` | partly | Crate. |
+| `0x3C` | `BARREL` | no | Barrel. |
+| `0x3D` | `CRATE` | no | Crate. |
 
 ## Animation
 

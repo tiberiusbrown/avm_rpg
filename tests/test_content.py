@@ -141,17 +141,17 @@ for index, name, mask in (
     (0x29, "WATER", 0xFFFF), (0x2A, "WATER_RIGHT", 0xFFFF),
     (0x2B, "WATER_INNER_TOP_RIGHT", 0xFFFF), (0x2C, "WATER_INNER_TOP_LEFT", 0xFFFF),
     (0x2D, "WATER_BOTTOM_INNER_TOP_LEFT", 0xFFFF), (0x2E, "WATER_BOTTOM_INNER_TOP_RIGHT", 0xFFFF),
-    (0x2F, "WATER_INNER_TOP_LEFT_BOTTOM_RIGHT", 0xFFFF), (0x30, "SWITCH_RIGHT", 0x93C0),
-    (0x31, "SWITCH_LEFT", 0x9304), (0x32, "POT", 0x93C6),
-    (0x33, "POT_BROKEN", 0xC700), (0x34, "ROCK_SMALL", 0xD600),
+    (0x2F, "WATER_INNER_TOP_LEFT_BOTTOM_RIGHT", 0xFFFF), (0x30, "SWITCH_RIGHT", 0x93C6),
+    (0x31, "SWITCH_LEFT", 0x93C6), (0x32, "POT", 0xFFC6),
+    (0x33, "POT_BROKEN", 0xFF00), (0x34, "ROCK_SMALL", 0xFF00),
     (0x35, "ROCKS", 0xFFFF), (0x36, "BOULDER", 0xFFFF),
     (0x37, "BOULDER_CRACKED", 0xFFFF), (0x38, "WATER_BOTTOM_LEFT", 0xFFFF),
     (0x39, "WATER_BOTTOM", 0xFFFF), (0x3A, "WATER_BOTTOM_RIGHT", 0xFFFF),
     (0x3B, "WATER_LEFT_INNER_TOP_RIGHT", 0xFFFF), (0x3C, "WATER_LEFT_INNER_BOTTOM_RIGHT", 0xFFFF),
     (0x3D, "WATER_RIGHT_INNER_TOP_LEFT", 0xFFFF), (0x3E, "WATER_RIGHT_INNER_BOTTOM_LEFT", 0xFFFF),
     (0x3F, "WATER_CALM", 0xFFFF), (0x40, "ROAD_NESW_ALT", 0x0000),
-    (0x41, "SIGN", 0xFFFF), (0x42, "CHEST_CLOSED", 0xBBC6),
-    (0x43, "CHEST_OPEN", 0xBBC6), (0x44, "ROAD_PATCH", 0x0000),
+    (0x41, "SIGN", 0xFFFF), (0x42, "CHEST_CLOSED", 0xFFC6),
+    (0x43, "CHEST_OPEN", 0xFFC6), (0x44, "ROAD_PATCH", 0x0000),
     (0x45, "ROAD_N", 0x0000), (0x46, "ROAD_E", 0x0000),
     (0x47, "ROAD_NE", 0x0000), (0x48, "CLIFF_TOP_LEFT", 0x0FFF),
     (0x49, "CLIFF_TOP", 0x00FF), (0x4A, "CLIFF_TOP_RIGHT", 0xF0FF),
@@ -471,7 +471,7 @@ for name, expected in INTERIOR_TILESETS.items():
     assert sum(not s.startswith("ATLAS_") and s != "EMPTY" for s in masks) == expected["named"], name
     assert not any(tile["portal"] for tile in records.values())
     for solid in ("CHEST_CLOSED", "CHEST_OPEN", "POT", "POT_BROKEN", "BARREL", "CRATE"):
-        assert masks[solid] not in (0, 0xFFFF), (name, solid)
+        assert masks[solid] != 0, (name, solid)
     # A gate that crosses a passage blocks the whole way across while it is closed.
     if name != "house":
         assert masks["GATE_FRONT"] == 0xFFFF and masks["GATE_SIDE"] == 0x0F0F
@@ -480,46 +480,64 @@ for name, expected in INTERIOR_TILESETS.items():
 assert tileset(ROOT / "assets/tilesets/house.tsx") == {t["frame"]: t for t in house.values()}
 
 
-def solid_pixel(mask, x, y):
-    quadrant = ((y >> 3) << 1) | (x >> 3)
-    u, v = 2 * (x & 7) - 7, 2 * (y & 7) - 7
-    across = (mask >> (quadrant * 4 + (1 if u > 0 else 3))) & 1
-    along = (mask >> (quadrant * 4 + (2 if v > 0 else 0))) & 1
-    return bool(across if abs(u) > abs(v) else along if abs(v) > abs(u) else across or along)
+# Collision shapes. A mask follows its art roughly, as one of a few simple convex shapes: the
+# whole cell, a half, a quadrant, the diamond, the cell with two corners cut, or a half diamond.
+CONVEX = {
+    0xFFFF, 0x00FF, 0xFF00, 0x0F0F, 0xF0F0, 0x000F, 0x00F0, 0x0F00, 0xF000, 0x93C6,
+    0xFFC6, 0x93FF, 0xF3F6, 0x9FCF, 0xC600, 0x0093, 0x090C, 0x3060,
+}
+# Terrain that crosses cell corners is the exception: three quadrants of a tree clump, a cliff
+# corner or a fence corner, and the two roof slopes.
+TERRAIN_SHAPES = {0xFFF0, 0xFF0F, 0xF0FF, 0x0FFF, 0xF660, 0xCF0C}
+world_records = tileset(ROOT / "assets/tilesets/world.tsx")
+for name, records in {**interior_records, "world": world_records}.items():
+    for tile in records.values():
+        allowed = CONVEX | {0} | (TERRAIN_SHAPES if name == "world" else set())
+        assert tile["collision"] in allowed, (name, tile["symbol"], hex(tile["collision"]))
+# States and pieces of one thing block alike, in every tileset that has them.
+ALIKE = (
+    ("SWITCH_LEFT", "SWITCH_RIGHT"), ("CHEST_CLOSED", "CHEST_OPEN"), ("BARREL", "CRATE"),
+    ("MINECART", "MINECART_FULL"), ("PEDESTAL", "ORB_DARK", "ORB_LIT"), ("STATUE", "STATUE_BROKEN"),
+    ("TABLE", "TABLE_SET", "TABLE_CANDLE", "TABLE_LEFT", "TABLE_MIDDLE", "TABLE_RIGHT"),
+    ("COUNTER_LEFT", "COUNTER_MIDDLE", "COUNTER_RIGHT", "COUNTER_SINK"),
+    ("CHAIR_SOUTH", "CHAIR_NORTH", "CHAIR_EAST", "CHAIR_WEST"),
+    ("ROCK_SMALL", "ROCK_FLAT"), ("TORCH_POST", "FLAG"),
+    ("PRESSURE_PLATE", "PRESSURE_PLATE_DOWN"),
+)
+shared_masks = {}
+for name, records in {**interior_records, "world": world_records}.items():
+    masks = {tile["symbol"]: tile["collision"] for tile in records.values()}
+    for group in ALIKE:
+        found = {masks[member] for member in group if member in masks}
+        assert len(found) <= 1, (name, group)
+    for member in ("POT", "POT_BROKEN", "CHEST_CLOSED", "BARREL", "CRATE", "SWITCH_LEFT", "CANDELABRA", "RUBBLE"):
+        if member in masks:
+            assert shared_masks.setdefault(member, masks[member]) == masks[member], (name, member)
+# An obstacle is not fully solid when its art leaves much of the cell bare.
+for name, records in interior_records.items():
+    masks = {tile["symbol"]: tile["collision"] for tile in records.values()}
+    for member in ("POT", "POT_BROKEN", "CHEST_CLOSED", "SWITCH_LEFT", "STOOL", "PLANT", "LANTERN", "BRAZIER", "URN"):
+        assert masks.get(member, 1) != 0xFFFF, (name, member)
 
-
-# A shaped mask lines up with its art: what it blocks is drawn there, in every tileset. Drawn
-# means the tile's white pixels and the black that they enclose. Open pieces such as chair legs
-# and candle stems enclose little, so the bound is two fifths.
+# No tile holds a block of checkerboard stipple, in any frame: it flickers when the view scrolls
+# one pixel at a time. Shade is a second line inside a rim or a few hatch strokes.
 from PIL import Image
 
-
-def drawn_cells(atlas, index):
-    left, top = index % 16 * 16, index // 16 * 16
-    white = {(x, y) for y in range(16) for x in range(16) if atlas.getpixel((left + x, top + y)) > 127}
-    outside, stack = set(), [(x, y) for x in range(16) for y in (0, 15)] + [(x, y) for y in range(16) for x in (0, 15)]
-    while stack:
-        cell = stack.pop()
-        if cell in outside or cell in white or not (0 <= cell[0] < 16 and 0 <= cell[1] < 16):
-            continue
-        outside.add(cell)
-        stack += [(cell[0] + 1, cell[1]), (cell[0] - 1, cell[1]), (cell[0], cell[1] + 1), (cell[0], cell[1] - 1)]
-    return {(x, y) for y in range(16) for x in range(16)} - outside
-
-
-HALVES = {0xFF00, 0x00FF, 0x0F0F, 0xF0F0}
-for name, records in {**interior_records, "world": tileset(ROOT / "assets/tilesets/world.tsx")}.items():
-    atlas = Image.open(next(iter(records.values()))["image"]).convert("L")
-    for index, tile in records.items():
-        mask = tile["collision"]
-        # Trees, cliffs, fences and roofs follow their halves and quadrants, not their outlines.
-        if mask in (0, 0xFFFF) or mask in HALVES or all((mask >> shift) & 0xF in (0, 0xF) for shift in (0, 4, 8, 12)):
-            continue
-        if name == "world" and not any(tile["symbol"].startswith(p) for p in ("POT", "CHEST", "ROCK_", "SWITCH", "CAMPFIRE", "FLAG", "SCARECROW", "TREE_ROUND")):
-            continue
-        drawn = drawn_cells(atlas, index)
-        blocked = {(x, y) for y in range(16) for x in range(16) if solid_pixel(mask, x, y)}
-        assert len(blocked & drawn) * 10 >= len(blocked) * 4, (name, tile["symbol"], hex(mask))
+for path in sorted((ROOT / "assets/images").glob("*.png")):
+    if not path.name.startswith(("tiles16", "ambient16")) or "collision" in path.name:
+        continue
+    pixels = Image.open(path).convert("RGBA")
+    data = pixels.load()
+    for top in range(0, pixels.height, 16):
+        for left in range(0, pixels.width, 16):
+            for y in range(top, top + 13):
+                for x in range(left, left + 13):
+                    first = data[x, y]
+                    assert not all(
+                        data[x + i, y + j][3] and (data[x + i, y + j][0] > 127) == ((first[0] > 127) ^ ((i + j) & 1 == 1))
+                        for j in range(4)
+                        for i in range(4)
+                    ), f"{path.name}: checkerboard stipple in cell {(left // 16, top // 16)}"
 
 # The cave and the dungeon. Each is one map with its own tileset, built on the room model.
 logic = (ROOT / "src/logic/handlers.h").read_text()

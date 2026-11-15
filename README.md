@@ -116,6 +116,8 @@ The world is never still. Water ripples and glitters, flowers sway, chimneys smo
 campfires and the lights in the houses flicker, a flag waves, and gusts of wind roll through
 the grass. Butterflies, bees, rabbits, falling leaves, jumping fish, perching birds, moths and
 drifting dust appear on the tiles that suit them, and flocks of birds cross the sky.
+Underground, torches and braziers throw sparks, pools ripple, crystals glint, water drips from
+the roof, bats wheel through the caves and pale wisps drift over the dungeon's flagstones.
 
 All of it is a pure function of the game tick and a world position (`src/ambient.h`), so it
 adds no static RAM, nothing to the save, and stays frozen with the world behind menus and
@@ -125,12 +127,21 @@ sheet. The tile and map rules are in `assets/maps/AUTHORING.md`.
 The overworld is one 240x248-tile map with a village in its north-west corner, beside
 a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
 ten houses has its own interior: face a door and press A to enter, and walk out through
-the exit at the bottom of the room to leave. **This development build rejects saves from versions 1–6.** Save version 7 writes the live,
-pointer-free `Game` struct directly from AVM's `.saved` prefix (267 bytes), with no separate
+the exit at the bottom of the room to leave.
+
+Two more places lie under the cliff north of the village. A cave mouth north of the green
+leads into Hollow Mine, and a mine door at the end of the path from the north street leads
+into the Old Vault. Walk into either to enter. Both are built around mechanisms: levers,
+gates that draw down into the floor, pressure plates, spikes, sinking blocks, a bridge over a
+chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
+the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
+
+**This development build rejects saves from versions 1–7.** Save version 8 writes the live,
+pointer-free `Game` struct directly from AVM's `.saved` prefix (268 bytes), with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. New Game preserves the
 flag; Continue and Load restore the saved world. NPC casts, the tile cache and the animation
-tick are rebuilt when a save is loaded. Total shipping static RAM is 477 bytes,
+tick are rebuilt when a save is loaded. Total shipping static RAM is 479 bytes,
 including the save flag and three saved audio options.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
@@ -140,10 +151,11 @@ including the save flag and three saved audio options.
   `tiles16_house_phase*.png`: the animation frames of the tiles. `assets/images/ambient16.png`:
   the ambient creatures. See [Environment animation](#environment-animation).
 - `assets/maps/interiors.tmx`: the inside of every house, entered through the house doors.
+- `assets/maps/cave.tmx` and `dungeon.tmx`: Hollow Mine and the Old Vault.
 - `assets/tilesets/house.tsx`, `cave.tsx` and `dungeon.tsx`, with `tiles16_house.png`,
   `tiles16_cave.png` and `tiles16_dungeon.png`: the interior tilesets. Each map uses one
   tileset, and the game draws each area with its own. See
-  `assets/maps/AUTHORING_INTERIOR.md`.
+  `assets/maps/AUTHORING_INTERIOR.md`, `AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md`.
 - `assets/images/actors16.png`: 32 character rows (16 people, then 16 creatures and
   enemies), 12 frames per row, binary alpha.
 - `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle

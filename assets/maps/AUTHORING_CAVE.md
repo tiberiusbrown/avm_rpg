@@ -22,9 +22,11 @@ objects and handlers. This guide covers what is particular to caves.
 A cave is seen from the front and slightly above, as every map is. Rock walls are rough white
 bands, and the north wall shows its face one tile tall. The floor is black with pebbles.
 Objects show their top as well as their front: a barrel shows its lid, a mine cart shows its
-open box, and a boulder shows the ridge between its top and its front, with a dither on the
-side away from the light. Draw new pieces the same way. A piece that shows only its side does
-not belong in this view.
+open box, and a boulder shows the ridge between its top and its front. The light comes from
+the top left, so a rounded piece takes a second line inside its rim on its right and lower
+side, and a few hatch strokes. Draw new pieces the same way. A piece that shows only its side
+does not belong in this view, and no piece is filled with a checkerboard stipple, which
+flickers when the view scrolls.
 
 ## Wall row pieces
 
@@ -155,12 +157,13 @@ swaps in.
 
 ## Objects
 
-Objects stand on room cells. Each blocks where its art is, so its collision mask is a shape,
-not the whole cell.
+Objects stand on room cells. Each takes the simple convex collision shape that roughly covers
+its art: the whole cell, the diamond, or the cell without two of its corners. States and pieces
+of one thing take the same shape. See [AUTHORING.md](AUTHORING.md#what-solidity-means).
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x30` | `BOULDER` | partly | Boulder. |
+| `0x30` | `BOULDER` | no | Boulder. |
 | `0x31` | `RUBBLE` | partly | Pile of small rocks. |
 | `0x32` | `STALAGMITE` | partly | One tall stalagmite. |
 | `0x33` | `STALAGMITES` | partly | Two stalagmites. |
@@ -180,8 +183,8 @@ not the whole cell.
 | `0x39` | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. |
 | `0x3A` | `CHEST_CLOSED` | partly | Closed chest. Collectible. |
 | `0x3B` | `CHEST_OPEN` | partly | Opened chest. The collected state of `CHEST_CLOSED`. |
-| `0x3C` | `BARREL` | partly | Barrel. |
-| `0x3D` | `CRATE` | partly | Crate. |
+| `0x3C` | `BARREL` | no | Barrel. |
+| `0x3D` | `CRATE` | no | Crate. |
 | `0x3E` | `SACK` | partly | Sack. |
 
 ## Animation

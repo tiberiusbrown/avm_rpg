@@ -53,7 +53,9 @@ void.
 **Everything that stands on the floor shows its top as well as its front.** A top that faces
 up is lit: it is filled white. A front is dark inside a white outline. A table is a white top
 over an apron and legs, a barrel is a white lid over a banded body, and a stove is a white
-hob over its oven door. Round dark surfaces take a dither on the side away from the light.
+hob over its oven door. The light comes from the top left, so a round dark surface takes a
+second line inside its rim, or a few hatch strokes, on its right and lower side. No piece is
+filled with a checkerboard stipple, which flickers when the view scrolls.
 Pieces on the north wall face the viewer, so they are drawn from the front. No piece shows
 only its side.
 
@@ -254,7 +256,7 @@ Floors. All are fully walkable.
 | `0x4E` | `FLOOR_WOOD_D` | yes | Floorboards, with the seams and the board end elsewhere. |
 | `0x43` | `FLOOR_TILE_A` | yes | Floor tiles marked by small crosses where tiles meet. It tiles with itself. |
 | `0x44` | `FLOOR_TILE_B` | yes | Small floor tiles marked by a grid of dots. It tiles with itself. |
-| `0x45` | `FLOOR_CHECKER` | yes | Checkered tiles. Dense. It tiles with itself. |
+| `0x45` | `FLOOR_CHECKER` | yes | Checkered tiles eight pixels square: whole lit squares and dark squares. Dense. It tiles with itself. |
 | `0x46` | `FLOOR_STONE_A` | yes | Flagstones in a running bond, shown by a mark where three stones meet. Mix the two stone cells. |
 | `0x47` | `FLOOR_STONE_B` | yes | Flagstones with two specks. |
 | `0x48` | `FLOOR_PLAIN_A` | yes | Bare floor with a few specks. Mix the two plain cells. |
@@ -278,8 +280,8 @@ place in the rug, as for flat roofs outdoors.
 | `0x72` | `RUG_BOTTOM_RIGHT` | bottom-right corner | yes |
 | `0x53` | `RUG_CENTER_PLAIN` | interior, plain | yes |
 
-Tables and seats. Furniture stands on room cells and blocks where its art is. See
-[Solidity](#solidity).
+Tables and seats. Furniture stands on room cells. See [Solidity](#solidity) for how it
+blocks.
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
@@ -395,14 +397,18 @@ phase layer atlases and the ambient classes. The house tileset's layers are
 - **The room's structure blocks its whole cell.** `EMPTY`, edge cells, wall faces and every
   wall row piece are fully solid (`65535`), except the doorways.
 - **Floors, rugs and every exit are fully walkable (`0`).** Closed doors are solid.
-- **Everything that stands on the floor blocks where its art is.** Its mask is the set of
-  collision triangles that the piece covers, so a table blocks its top and not the space
-  between its legs, and a chair, a vase or a pot blocks less than its cell. The player walks
-  around a piece, close to its outline. The shaped masks of the house tileset:
-  `TABLE` (`0x39EE`), `TABLE_LEFT` (`0x19EE`), `TABLE_MIDDLE` (`0x11EE`), `TABLE_RIGHT` (`0x31EE`), `TABLE_SET` (`0x39EE`), `TABLE_CANDLE` (`0x39EE`), `CHAIR_SOUTH` (`0x93C6`), `CHAIR_NORTH` (`0x93C6`), `CHAIR_WEST` (`0x9350`), `CHAIR_EAST` (`0x9305`), `STOOL` (`0x9344`), `BENCH` (`0xBB44`), `DRESSER` (`0xD7D7`), `CABINET` (`0xFFC6`), `SHELF_LOW` (`0xFFEE`), `STOVE` (`0xFFEE`), `COUNTER_LEFT` (`0xFFEE`), `COUNTER_MIDDLE` (`0xFFEE`), `COUNTER_RIGHT` (`0xFFEE`), `COUNTER_SINK` (`0xFFEE`), `BARREL` (`0xD7C6`), `CRATE` (`0xD7C6`), `SACK` (`0x9382`), `PLANT` (`0x82C6`), `VASE` (`0x9382`), `CANDELABRA` (`0x8293`), `POT` (`0x93C6`), `POT_BROKEN` (`0xC600`), `CHEST_CLOSED` (`0xBBC6`), `CHEST_OPEN` (`0xBBC6`), `BUCKET` (`0x9300`), `CAULDRON` (`0x93C6`).
-- **Fit the mask when you draw a piece.** Open `tiles16_house_collision.png` and check that
-  the red area matches the art. A piece that fills its cell, such as a bed, takes `65535`. A
-  piece always blocks somewhere: no object has the mask `0`.
+- **Everything that stands on the floor takes a simple convex shape** that roughly covers
+  its art: the whole cell for a piece that fills it, the cell without its top corners for a
+  piece with a rounded top, the cell without its bottom corners for a piece that narrows to
+  its feet, or the diamond for a small round piece.
+  [AUTHORING.md](AUTHORING.md#what-solidity-means) lists the shapes. The shaped masks of the
+  house tileset: `CHAIR_SOUTH` (`0x93FF`), `CHAIR_NORTH` (`0x93FF`), `CHAIR_WEST` (`0x93FF`), `CHAIR_EAST` (`0x93FF`), `STOOL` (`0x93FF`), `BENCH` (`0xFFC6`), `CABINET` (`0xFFC6`), `SACK` (`0xFFC6`), `PLANT` (`0x93C6`), `VASE` (`0xFFC6`), `CANDELABRA` (`0x93FF`), `POT` (`0xFFC6`), `POT_BROKEN` (`0xFF00`), `CHEST_CLOSED` (`0xFFC6`), `CHEST_OPEN` (`0xFFC6`), `BUCKET` (`0xFFC6`), `CAULDRON` (`0xFFC6`).
+- **Pieces and states of one thing take one mask.** Every piece of a long table or a counter,
+  the four chairs, and a chest shut or open block alike. Never use a concave mask for an
+  object.
+- **A piece always blocks somewhere.** No object has the mask `0`. A piece that leaves much
+  of its cell bare, such as a stool or a plant, is not fully solid. Check
+  `tiles16_house_collision.png` after you set a mask.
 - NPCs treat any nonzero mask as solid. NPCs can step onto exit cells, so keep routes and
   roaming areas away from them.
 - The player's sprite overlaps the wall face above it and the side bands beside it by a

@@ -23,8 +23,13 @@ in optimized IR:
 
 | Guest | .saved | ordinary .data | total static / 1024 | code | read-only data | stack / 256 |
 |---|---:|---:|---:|---:|---:|---:|
-| rpg | 267 | 210 | 477 | 34764 | 123901 | 240 |
-| rpg_qa | 267 | 216 | 483 | 34876 | 123901 | 240 |
+| rpg | 268 | 211 | 479 | 44441 | 253075 | 242 |
+| rpg_qa | 268 | 217 | 485 | 44582 | 253075 | 244 |
+
+The cave and the dungeon add two bytes of static RAM: a second byte of world flags for their
+ten mechanism flags, and the `cache_edited` byte, which the linker kept out while no handler
+edited tiles. Their tilesets, phase sheets and maps are read-only data, and their handlers and
+ambient effects are code.
 
 The earlier M1 baseline below predates the current world, battle and save implementations:
 

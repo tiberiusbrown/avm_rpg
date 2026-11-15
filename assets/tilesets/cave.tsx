@@ -397,7 +397,7 @@
     <properties>
       <property name="runtime_id" type="int" value="48" />
       <property name="symbol" type="string" value="BOULDER" />
-      <property name="collision" type="int" value="65518" />
+      <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -405,7 +405,7 @@
     <properties>
       <property name="runtime_id" type="int" value="49" />
       <property name="symbol" type="string" value="RUBBLE" />
-      <property name="collision" type="int" value="48070" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -413,7 +413,7 @@
     <properties>
       <property name="runtime_id" type="int" value="50" />
       <property name="symbol" type="string" value="STALAGMITE" />
-      <property name="collision" type="int" value="55170" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -421,7 +421,7 @@
     <properties>
       <property name="runtime_id" type="int" value="51" />
       <property name="symbol" type="string" value="STALAGMITES" />
-      <property name="collision" type="int" value="65476" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -429,7 +429,7 @@
     <properties>
       <property name="runtime_id" type="int" value="52" />
       <property name="symbol" type="string" value="CRYSTALS" />
-      <property name="collision" type="int" value="39878" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
       <property name="ambient" type="string" value="crystal" />
     </properties>
@@ -438,7 +438,7 @@
     <properties>
       <property name="runtime_id" type="int" value="53" />
       <property name="symbol" type="string" value="MUSHROOMS" />
-      <property name="collision" type="int" value="12678" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -446,7 +446,7 @@
     <properties>
       <property name="runtime_id" type="int" value="54" />
       <property name="symbol" type="string" value="CAMPFIRE" />
-      <property name="collision" type="int" value="33670" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
       <property name="ambient" type="string" value="ember" />
     </properties>
@@ -455,7 +455,7 @@
     <properties>
       <property name="runtime_id" type="int" value="55" />
       <property name="symbol" type="string" value="MINECART" />
-      <property name="collision" type="int" value="37830" />
+      <property name="collision" type="int" value="37887" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -463,7 +463,7 @@
     <properties>
       <property name="runtime_id" type="int" value="56" />
       <property name="symbol" type="string" value="POT" />
-      <property name="collision" type="int" value="37830" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -471,7 +471,7 @@
     <properties>
       <property name="runtime_id" type="int" value="57" />
       <property name="symbol" type="string" value="POT_BROKEN" />
-      <property name="collision" type="int" value="50688" />
+      <property name="collision" type="int" value="65280" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -479,7 +479,7 @@
     <properties>
       <property name="runtime_id" type="int" value="58" />
       <property name="symbol" type="string" value="CHEST_CLOSED" />
-      <property name="collision" type="int" value="48070" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -487,7 +487,7 @@
     <properties>
       <property name="runtime_id" type="int" value="59" />
       <property name="symbol" type="string" value="CHEST_OPEN" />
-      <property name="collision" type="int" value="48070" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -495,7 +495,7 @@
     <properties>
       <property name="runtime_id" type="int" value="60" />
       <property name="symbol" type="string" value="BARREL" />
-      <property name="collision" type="int" value="55238" />
+      <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -503,7 +503,7 @@
     <properties>
       <property name="runtime_id" type="int" value="61" />
       <property name="symbol" type="string" value="CRATE" />
-      <property name="collision" type="int" value="55238" />
+      <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -511,7 +511,7 @@
     <properties>
       <property name="runtime_id" type="int" value="62" />
       <property name="symbol" type="string" value="SACK" />
-      <property name="collision" type="int" value="37762" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -519,7 +519,7 @@
     <properties>
       <property name="runtime_id" type="int" value="63" />
       <property name="symbol" type="string" value="CRYSTAL_TALL" />
-      <property name="collision" type="int" value="48002" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
       <property name="ambient" type="string" value="crystal" />
     </properties>
@@ -555,7 +555,7 @@
     <properties>
       <property name="runtime_id" type="int" value="67" />
       <property name="symbol" type="string" value="SWITCH_LEFT" />
-      <property name="collision" type="int" value="37636" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -563,7 +563,7 @@
     <properties>
       <property name="runtime_id" type="int" value="68" />
       <property name="symbol" type="string" value="SWITCH_RIGHT" />
-      <property name="collision" type="int" value="37824" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -687,7 +687,7 @@
     <properties>
       <property name="runtime_id" type="int" value="83" />
       <property name="symbol" type="string" value="ORE_PILE" />
-      <property name="collision" type="int" value="48070" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
       <property name="ambient" type="string" value="crystal" />
     </properties>
@@ -696,7 +696,7 @@
     <properties>
       <property name="runtime_id" type="int" value="84" />
       <property name="symbol" type="string" value="TOOLS" />
-      <property name="collision" type="int" value="4160" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -704,7 +704,7 @@
     <properties>
       <property name="runtime_id" type="int" value="85" />
       <property name="symbol" type="string" value="LANTERN" />
-      <property name="collision" type="int" value="33410" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
       <property name="ambient" type="string" value="ember" />
     </properties>
@@ -721,7 +721,7 @@
     <properties>
       <property name="runtime_id" type="int" value="87" />
       <property name="symbol" type="string" value="MINECART_FULL" />
-      <property name="collision" type="int" value="37847" />
+      <property name="collision" type="int" value="37887" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -737,7 +737,7 @@
     <properties>
       <property name="runtime_id" type="int" value="89" />
       <property name="symbol" type="string" value="SKELETON" />
-      <property name="collision" type="int" value="12550" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>

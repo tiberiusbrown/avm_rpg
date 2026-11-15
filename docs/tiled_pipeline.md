@@ -33,7 +33,7 @@ the only property on cell 255. The exporter excludes that cell from runtime tile
 sprite frames; TMX GID 256 with firstgid=1 is rejected. Usable cells have explicit
 `runtime_id` 0..254, unique `symbol`, an int `collision` mask from 0 to 65535, and a bool
 `portal` property. `assets/maps/AUTHORING.md` describes the mask: terrain that fills its
-cell is fully solid, and an object takes the triangles that its art covers. Blank black cells
+cell is fully solid, and an object takes a simple convex shape that roughly covers its art. Blank black cells
 remain valid indexed frames and are not deduplicated or removed. Unused cells
 default to full collision (65535); mark new terrain deliberately when authoring.
 

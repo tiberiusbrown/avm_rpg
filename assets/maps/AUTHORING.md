@@ -46,7 +46,7 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 | --- | --- | --- | --- | --- |
 | `0x00` | 0 | `EMPTY` | no | Blank placeholder. Never paint it. |
 | `0x01` | 1 | `TREE_PLUS_NORTH` | partly | Top arm of the round-tree plus. Solid on the bottom half. |
-| `0x02` | 2 | `TREE_ROUND` | partly | One isolated round tree. Do not clump it. Open at its two top corners. |
+| `0x02` | 2 | `TREE_ROUND` | partly | One isolated round tree. Do not clump it. Blocks its cell without the bottom corners. |
 | `0x03` | 3 | `TREE_CLUMP_TOP_LEFT` | partly | Clump piece. The tree continues down and to the right. The top-left quadrant is open. |
 | `0x04` | 4 | `TREE_CLUMP_TOP_RIGHT` | partly | Clump piece. The tree continues left and down. The top-right quadrant is open. |
 | `0x06` | 6 | `GRASS_06` | yes | Grass floor. Mix it with the other grass cells. |
@@ -71,16 +71,16 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 | `0x24` | 36 | `TREE_SPLIT_VERTICAL` | no | Two half trees in one tile: the bottom half of a tree on the top side, and the top half of a tree on the bottom side. |
 | `0x26` | 38 | `FLOWERS_26` | yes | Flowers on grass. Use sparingly among the grass. |
 | `0x27` | 39 | `FLOWERS_27` | yes | Flowers on grass. Use sparingly among the grass. |
-| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Blocks where it is drawn. |
-| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Blocks where it is drawn. |
-| `0x32` | 50 | `POT` | partly | Unbroken pot. Collectible. Blocks where it is drawn. |
-| `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Blocks the shards in the bottom half. |
-| `0x34` | 52 | `ROCK_SMALL` | partly | Small rock in the bottom half of its cell. Blocks where it is drawn. |
+| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Blocks the diamond, as `SWITCH_LEFT` does. |
+| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Blocks the diamond. |
+| `0x32` | 50 | `POT` | partly | Unbroken pot. Collectible. Blocks its cell without the top corners. |
+| `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Solid on the bottom half. |
+| `0x34` | 52 | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
 | `0x35` | 53 | `ROCKS` | no | Two rocks. |
 | `0x36` | 54 | `BOULDER` | no | Round boulder. |
 | `0x37` | 55 | `BOULDER_CRACKED` | no | Split boulder. |
 | `0x41` | 65 | `SIGN` | no | Signpost. The `read_sign` handler belongs on it. |
-| `0x42` | 66 | `CHEST_CLOSED` | partly | Closed chest with a lit lid and a lock. Collectible. Blocks where it is drawn. |
+| `0x42` | 66 | `CHEST_CLOSED` | partly | Closed chest with a lit lid and a lock. Collectible. Blocks its cell without the top corners. |
 | `0x43` | 67 | `CHEST_OPEN` | partly | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 | `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
 
@@ -326,13 +326,14 @@ Rocks and boulders stand on grass. Use them as obstacles, as scenery beside road
 water, and as barriers along the map border.
 
 A rock is drawn as a solid seen from above and in front: an outline, a ridge line between
-its top and its front, and a dither on the part of the front that faces away from the light.
-Cracks are short lines on the top or the front. The large boulders reach the edges of their
-cells, so a band of them reads as one mass of rock.
+its top and its front, and a second line inside the rim on its right and lower side, away
+from the light. The outline is lumpy, never straight: it is the union of a few overlapping
+rounded lumps. A few short strokes that run down to the left mark the front. The large
+boulders reach the edges of their cells, so a band of them reads as one mass of rock.
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x34` | `ROCK_SMALL` | partly | Small rock. Solid where it is drawn, in the bottom half. |
+| `0x34` | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
 | `0x0C` | `ROCK_FLAT` | partly | Low flat rock. Solid on the bottom half. |
 | `0x35` | `ROCKS` | no | Two rocks. |
 | `0x36` | `BOULDER` | no | Round boulder. |
@@ -518,7 +519,9 @@ or different y-levels, and one building can mix roof types.
 
 ### Slanted roofs
 
-Slanted roofs are only for 3-wide base walls, `0xc0` to `0xc2`.
+Slanted roofs are only for 3-wide base walls, `0xc0` to `0xc2`. The ridge runs from front to
+back. The west slope is lit and the east slope is in shade, because the light comes from the
+top left.
 
 - The bottom roof tiles `0xb0`, `0xb1` and `0xb2` sit directly above the base wall.
 - `0xa1` sits above `0xb1`.
@@ -598,11 +601,11 @@ Animated tiles so far: all 24 water cells (the ripples rock and glitter), `FLOWE
 | --- | --- | --- | --- |
 | `0x4E` | `ROOF_FLAT_CHIMNEY` | no | Flat roof center with a smoking chimney. It replaces a `0xb5`. |
 | `0x4F` | `ROOF_SLOPE_CHIMNEY` | partly | Slanted roof top-right edge with a smoking chimney. It replaces a `0x92` and has its collision. |
-| `0x7B` | `SCARECROW` | partly | Scarecrow with fluttering sleeves. For pens and fields. Blocks where it is drawn. |
+| `0x7B` | `SCARECROW` | partly | Scarecrow with fluttering sleeves. For pens and fields. Blocks the diamond. |
 | `0x86` | `TORCH_POST` | partly | Burning torch on a post. It stands on the left of its cell, and only the left half blocks. Put it on grass beside a road or a door path, never on the path. |
-| `0x87` | `CAMPFIRE` | partly | Burning campfire. Blocks where it is drawn. |
+| `0x87` | `CAMPFIRE` | partly | Burning campfire. Blocks the diamond. |
 | `0x8E` | `REEDS` | yes | Reeds on the bank, swaying. Put it on a land cell that touches water. |
-| `0x8F` | `FLAG` | partly | Flag on a pole, waving. Blocks where it is drawn. |
+| `0x8F` | `FLAG` | partly | Flag on a pole, waving. The pole stands on the left of its cell, and only the left half blocks. |
 
 Give a house one chimney at most. `REEDS` is the one walkable cell that is not grass, so no
 gust bends it and no rabbit sits in it.
@@ -723,13 +726,32 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   - `0x4A` and `0x5C`: bottom-left quadrant open (`0xF0FF`).
   - `0x4B`: solid on the top-left quadrant (`0x000F`).
   - `0x4C`: solid on the top-right quadrant (`0x00F0`).
-  - `0x86`: solid on the left half (`0x0F0F`), where the torch stands.
-- **Objects block where their art is.** A mask can be any set of the sixteen triangles, and
-  an object takes the triangles that its art covers, so the player walks close around it.
-  These are fitted to their art: `0x02` `TREE_ROUND` (`0x93FF`), `0x30` `SWITCH_RIGHT` (`0x93C0`), `0x31` `SWITCH_LEFT` (`0x9304`), `0x32` `POT` (`0x93C6`), `0x33` `POT_BROKEN` (`0xC700`), `0x34` `ROCK_SMALL` (`0xD600`), `0x42` `CHEST_CLOSED` (`0xBBC6`), `0x43` `CHEST_OPEN` (`0xBBC6`), `0x7B` `SCARECROW` (`0x02C6`), `0x87` `CAMPFIRE` (`0x9302`), `0x8F` `FLAG` (`0x0086`).
-  Terrain that fills its cell stays fully solid: water, cliff walls, buildings and the large
-  boulders. A tile is not fully solid only because it is an obstacle. Give a new object the
-  triangles that it covers, and check the red area in `tiles16_collision.png` against the art.
+- **Objects take a simple convex shape.** A mask only needs to follow its art roughly. An
+  object takes one of these shapes, the one that covers its art best:
+
+  | Mask | Shape | For |
+  | --- | --- | --- |
+  | `0xFFFF` | the whole cell | A piece that fills its cell: a boulder, a table, a crate |
+  | `0x93C6` | the diamond, with its points at the middle of each side | A small round piece: a lever, a campfire, a lantern |
+  | `0xFFC6` | the cell without its top corners | A piece with a rounded or narrow top: a pot, a chest, a sack |
+  | `0x93FF` | the cell without its bottom corners | A piece that narrows to a foot: a round tree, a chair |
+  | `0xFF00`, `0x00FF`, `0x0F0F`, `0xF0F0` | a half | A low piece, or a post that stands on one side |
+  | `0x0F00`, `0xF000`, `0x000F`, `0x00F0` | a quadrant | A piece in one corner |
+  | `0xC600`, `0x0093`, `0x090C`, `0x3060` | half of the diamond, on the bottom, top, left or right edge | A small heap against one edge |
+  | `0xF3F6`, `0x9FCF` | the cell without its left or right corners | A piece that narrows to one side |
+
+  - **Avoid concave shapes.** Only terrain that crosses cell corners uses one: the three
+    quadrants of a tree clump, a cliff corner or a fence corner. An object never does.
+  - **States and pieces of one thing take the same mask.** A lever blocks the same way thrown
+    or not, a chest shut or open, and every piece of a long table. A state changes the mask
+    only when it changes what is physically there: a gate that opens, a pot that breaks.
+  - **A tile is not fully solid only because it is an obstacle.** A piece that leaves much of
+    its cell bare takes a smaller shape. Terrain that fills its cell stays fully solid: water,
+    cliff walls, buildings and the large boulders.
+  - **A post stands on one side of its cell.** `TORCH_POST` and `FLAG` stand on the left, and
+    only the left half blocks.
+  - The world's objects: `TREE_ROUND` (cell without its bottom corners), `SWITCH_RIGHT` (diamond), `SWITCH_LEFT` (diamond), `POT` (cell without its top corners), `POT_BROKEN` (bottom half), `ROCK_SMALL` (bottom half), `ROCK_FLAT` (bottom half), `CHEST_CLOSED` (cell without its top corners), `CHEST_OPEN` (cell without its top corners), `SCARECROW` (diamond), `CAMPFIRE` (diamond), `TORCH_POST` (left half), `FLAG` (left half).
+  - Check the red area in `tiles16_collision.png` against the art after you set a mask.
 - **Pixel rule.** A pixel is solid when its center lies in a solid triangle. A center on a
   quadrant diagonal lies on the edge of two triangles, and it is solid when either one is.
 - **Corners slide.** When terrain blocks the player's next pixel, the player takes one pixel
@@ -739,7 +761,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   stays blocked, and NPCs never sidestep.
 - **Unpainted cells are outside, not ground.** An empty CSV cell (GID `0`) becomes the
   sentinel, which is not walkable. Paint every cell that should be playable.
-- **Interactive tiles block.** Pots, chests and levers block where they are drawn, and
+- **Interactive tiles block.** Pots, chests and levers take the shapes above, and
   `SIGN` blocks its whole cell. The player interacts by standing next to one and facing it,
   so its handler point goes on the tile itself, as `read_sign` does on `SIGN`. The cave and
   the dungeon use levers and chests: see their guides.
@@ -854,8 +876,14 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   rock shows the ridge between its top and its front. Do not draw an object from the side
   only.
 - **Shade the same way everywhere.** A flat top that faces up is lit, so it is filled white.
-  A front is dark inside its outline. A round dark surface takes a dither, or a second line
-  inside its rim, on the side away from the light, which comes from the top left.
+  A front is dark inside its outline. A round dark surface takes a second line inside its
+  rim, or a few hatch strokes, on the side away from the light.
+- **The light comes from the top left, for everything.** Trees and rocks are shaded on their
+  right and lower side. A slanted roof is lit on its west slope and dark on its east slope.
+  Draw every new piece, buildings included, under the same light.
+- **Never fill an area with a checkerboard stipple.** The view scrolls one pixel at a time,
+  and a stipple inverts at every step, so it flickers. The content test rejects a 4x4 block
+  of it in any tile or animation frame.
 - **Black is the background.** A drawn tile overwrites what is beneath it. White
   carries the detail.
 - **Make silhouettes read at 16 pixels.** Use bold shapes. Keep outlines one pixel wide
@@ -917,7 +945,9 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - Every fence arm meets a matching arm, every run ends in an end piece or a corner, and
   every pen has an opening.
 - Every cave, mine and hole has a `take_passage` point on its cell and a row in `PASSAGES`.
-- Every object's mask covers its art and no more, and a torch stands clear of the path.
+- Every object's mask is one of the convex shapes, states of one thing share a mask, and a
+  torch stands clear of the path.
+- No tile holds a checkerboard stipple, and every piece is lit from the top left.
 - No unpainted cell lies inside the playable area.
 - Every handler point sits on the tile it describes, and it does not share a cell with
   the spawn.
