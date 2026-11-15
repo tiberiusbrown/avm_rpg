@@ -103,7 +103,11 @@ enum AMBIENT_FRAME : uint8_t {
     FRAME_STEAM = 28,    // puff, cloud, wisp
     FRAME_DUST = 31,     // speck, twinkle
     FRAME_FAR_BIRD = 33, // far away, nearer
-    AMBIENT_FRAME_COUNT = 35
+    FRAME_BAT = 35,      // wings up, level, down
+    FRAME_DROP = 38,     // one falling drop
+    FRAME_EMBER = 39,    // bright, dim
+    FRAME_WISP = 41,     // two flickers
+    AMBIENT_FRAME_COUNT = 43
 };
 
 // Every 8x4 chunk has one slot. Once per epoch the slot picks one tile of its chunk, and the
@@ -195,11 +199,19 @@ inline constexpr uint8_t WATER_FISH = 44, WATER_RIPPLE = 110, WATER_GLINT = 190;
 inline constexpr uint8_t TREE_LEAF = 96, TREE_BIRD = 150;
 inline constexpr uint8_t FLOOR_MOTH = 80, FLOOR_DUST = 150;
 inline constexpr uint8_t PERCH_BIRD = 120, ROAD_LEAF = 56, STEAM_PUFF = 210;
+inline constexpr uint8_t CAVE_BAT = 72, CAVE_DRIP = 168;
+inline constexpr uint8_t CRYPT_WISP = 64, CRYPT_DUST = 160;
+inline constexpr uint8_t DRIP_DROP = 208, POOL_RIPPLE = 96, POOL_GLINT = 184;
+inline constexpr uint8_t CRYSTAL_GLINT = 216, EMBER_SPARK = 224;
 
 inline constexpr uint8_t FISH_FRAMES = 6, FISH_FRAME_TICKS = 8;
 inline constexpr uint8_t RIPPLE_FRAMES = 3, RIPPLE_FRAME_TICKS = 12;
 inline constexpr uint8_t GLINT_TICKS = 40, RABBIT_TICKS = 96, LEAF_TICKS = 64;
 inline constexpr uint8_t SKITTER_TICKS = 96, DUST_TICKS = 96, STEAM_TICKS = 60;
+// A drop falls for DRIP_FALL_TICKS, two pixels a tick, and its splash rings for DRIP_SPLASH_TICKS.
+inline constexpr uint8_t DRIP_FALL_TICKS = 12, DRIP_SPLASH_TICKS = 20;
+// A crystal glints twice in an epoch, and a flame throws four sparks.
+inline constexpr uint8_t CRYSTAL_GLINT_TICKS = 24, EMBER_TICKS = 24;
 // A visiting bird flies in for this long, perches, and takes as long to leave.
 inline constexpr uint8_t VISIT_FLIGHT_TICKS = 36;
 // Where a perched bird stands: its feet are on the top of a rock or a sign.
@@ -233,6 +245,18 @@ constexpr AmbientSprite ambient_visit(AmbientSlot slot, uint16_t ticks) {
     int8_t across = (int8_t)((away * 3) / 4);
     return {true, frame, (int8_t)(west ? -across : across),
             (int8_t)(PERCH_DY - (uint8_t)((uint16_t)(away * away) / 48))};
+}
+
+// A drop of water falls from the roof onto the tile and rings where it lands.
+constexpr AmbientSprite ambient_drip(AmbientSlot slot) {
+    uint8_t age = slot.age;
+    int8_t dx = (int8_t)(((slot.vary >> 3) & 7) - 4), dy = (int8_t)(((slot.vary >> 6) & 3) + 1);
+    if(age < DRIP_FALL_TICKS)
+        return {true, FRAME_DROP, dx, (int8_t)(dy - 2 * (DRIP_FALL_TICKS - age))};
+    if(age < DRIP_FALL_TICKS + DRIP_SPLASH_TICKS)
+        return {true, (uint8_t)(FRAME_RIPPLE + (age - DRIP_FALL_TICKS) / (DRIP_SPLASH_TICKS / 2)),
+                dx, dy};
+    return AMBIENT_HIDDEN;
 }
 
 // What a slot shows on a tile of the given class. A flight starts and ends on its tile. The
@@ -271,16 +295,19 @@ ambient_sprite(uint8_t ambient_class, AmbientSlot slot, uint16_t ticks) {
                 return {true, (uint8_t)(FRAME_RABBIT + frame), 0, 0};
             }
             break;
-        case AMBIENT_WATER: {
+        case AMBIENT_WATER:
+        case AMBIENT_POOL: {
             // Rings and glints sit a little off the middle of the tile. A fish stays on it.
             int8_t dx = (int8_t)(((vary >> 3) & 3) - 2), dy = (int8_t)(((vary >> 5) & 3) - 2);
-            if(roll < WATER_FISH) {
+            // Still water underground holds no fish: it only rings and glints.
+            bool pool = ambient_class == AMBIENT_POOL;
+            if(!pool && roll < WATER_FISH) {
                 if(age < FISH_FRAMES * FISH_FRAME_TICKS)
                     return {true, (uint8_t)(FRAME_FISH + age / FISH_FRAME_TICKS), 0, 0};
-            } else if(roll < WATER_RIPPLE) {
+            } else if(roll < (pool ? POOL_RIPPLE : WATER_RIPPLE)) {
                 if(age < RIPPLE_FRAMES * RIPPLE_FRAME_TICKS)
                     return {true, (uint8_t)(FRAME_RIPPLE + age / RIPPLE_FRAME_TICKS), dx, dy};
-            } else if(roll < WATER_GLINT) {
+            } else if(roll < (pool ? POOL_GLINT : WATER_GLINT)) {
                 if(age < GLINT_TICKS)
                     return {true, (uint8_t)(FRAME_GLINT + ((age >> 3) & 1)), (int8_t)(dx * 2),
                             (int8_t)(dy * 2)};
@@ -342,6 +369,58 @@ ambient_sprite(uint8_t ambient_class, AmbientSlot slot, uint16_t ticks) {
                 return {true, (uint8_t)(FRAME_STEAM + age / (STEAM_TICKS / 3)),
                         (int8_t)(ambient_sine((uint8_t)(age * 4)) / 32), (int8_t)(-6 - age / 6)};
             return AMBIENT_HIDDEN;
+        case AMBIENT_CAVE:
+            if(roll < CAVE_BAT) {
+                // A bat drops from the dark, wheels about the chamber and goes back up.
+                flight = {
+                    (uint8_t)(FRAME_BAT +
+                              (ambient_resting(age) ? 1 : ambient_flap((uint8_t)(ticks >> 1)))),
+                    24,
+                    (uint8_t)(2 + (vary >> 7)),
+                    (uint8_t)(4 + ((vary >> 4) & 3)),
+                    3,
+                    9};
+                break;
+            }
+            if(roll >= CAVE_DRIP)
+                return AMBIENT_HIDDEN;
+            return ambient_drip(slot);
+        case AMBIENT_DRIP:
+            if(roll >= DRIP_DROP)
+                return AMBIENT_HIDDEN;
+            return ambient_drip(slot);
+        case AMBIENT_CRYPT:
+            if(roll < CRYPT_WISP) {
+                // A pale light drifts over the flagstones in slow loops, flickering.
+                flight = {
+                    (uint8_t)(FRAME_WISP + ((ticks >> 3) & 1)), 16, (uint8_t)(1 + (vary >> 7)),
+                    (uint8_t)(2 + ((vary >> 4) & 1)),           2,  5};
+                break;
+            }
+            // Grit sifts down from the vault and twinkles in the torchlight.
+            if(roll < CRYPT_DUST && age < DUST_TICKS)
+                return {true, (uint8_t)(FRAME_DUST + (((age >> 3) & 3) == 2)),
+                        (int8_t)((vary >> 5) - age / 32), (int8_t)(age / 8 - 10)};
+            return AMBIENT_HIDDEN;
+        case AMBIENT_CRYSTAL: {
+            // A facet catches the light: small, large, small. Twice an epoch, at a new place.
+            uint8_t beat = age & 63;
+            if(roll >= CRYSTAL_GLINT || beat >= CRYSTAL_GLINT_TICKS)
+                return AMBIENT_HIDDEN;
+            uint8_t place = (uint8_t)(vary + (age >> 6) * 5);
+            return {true, (uint8_t)(FRAME_GLINT + ((beat >> 3) == 1)), (int8_t)((place & 7) - 4),
+                    (int8_t)(((place >> 3) & 7) - 6)};
+        }
+        case AMBIENT_EMBER: {
+            // A spark leaves the flame, wavers upward and dims.
+            uint8_t beat = age & 31;
+            if(roll >= EMBER_SPARK || beat >= EMBER_TICKS)
+                return AMBIENT_HIDDEN;
+            uint8_t side = (uint8_t)(vary + (age >> 5) * 3);
+            return {true, (uint8_t)(FRAME_EMBER + (beat >= EMBER_TICKS / 2)),
+                    (int8_t)((side & 3) - 2 + ambient_sine((uint8_t)(beat * 8 + side)) / 32),
+                    (int8_t)(-4 - beat / 2)};
+        }
         default:
             return AMBIENT_HIDDEN;
     }

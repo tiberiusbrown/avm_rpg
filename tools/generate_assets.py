@@ -79,7 +79,10 @@ def pixel_values(image):
 #   <atlas>_wind.png: the tile's art while a gust of wind passes over it.
 TILE_PHASES = 4
 # What the ambient effects may do on a tile, from the optional `ambient` property.
-AMBIENT_CLASSES = ("none", "grass", "flowers", "water", "tree", "floor", "perch", "road", "steam")
+AMBIENT_CLASSES = (
+    "none", "grass", "flowers", "water", "tree", "floor", "perch", "road", "steam",
+    "cave", "crypt", "drip", "pool", "crystal", "ember",
+)
 WIND_CLASSES = ("grass", "flowers")
 
 

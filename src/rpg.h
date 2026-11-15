@@ -35,7 +35,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 7;
+inline constexpr uint8_t SAVE_VERSION = 8;
 
 enum {
     BTN_B = 4,

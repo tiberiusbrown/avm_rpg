@@ -3,6 +3,7 @@
 #include "world_assets.h"
 #include "map_positions.h"
 #include "npc.h"
+#include "logic/handlers.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -445,9 +446,283 @@ static void house_doors() {
     CHECK(game.area == AREA_OUTDOOR);
 }
 
+static void stand(TilePos cell, DIRECTION facing) {
+    world_enter(cell.area, (uint16_t)(cell.x * TILE), (uint16_t)(cell.y * TILE), facing);
+}
+
+static TilePos below(TilePos cell, uint8_t rows = 1) {
+    return {cell.area, cell.x, (uint8_t)(cell.y + rows)};
+}
+
+static bool player_at(TilePos cell, DIRECTION facing) {
+    return game.area == cell.area && game.player.x == cell.x * TILE &&
+           game.player.y == cell.y * TILE && game.player.facing == facing;
+}
+
+// Walks until the area changes, for two tiles at most.
+static void walk_through(uint8_t button) {
+    uint8_t area = game.area;
+    for(unsigned i = 0; i < 2 * TILE && game.area == area; ++i)
+        game_update(button, 0);
+    CHECK(game.area != area);
+}
+
+// The cave mouth, the mine door and the ladder hole are walked into, and each interior doorway
+// leads back to the ground below its entrance.
+static void passages() {
+    using namespace handler_impl;
+    game_new();
+    CHECK(area_tileset(AREA_CAVE) == TILESET_CAVE && area_tileset(AREA_DUNGEON) == TILESET_DUNGEON);
+    for(Passage const& passage : PASSAGES) {
+        bool wall_row = passage.inside_step > 0;
+        TilePos floor{passage.inside.area, passage.inside.x,
+                      (uint8_t)(passage.inside.y + passage.inside_step)};
+        // Both ends are walkable, and so is the floor on each side.
+        stand(below(passage.outside), NORTH);
+        CHECK(!tile_solid(cached_tile(passage.outside)) &&
+              !tile_portal(cached_tile(passage.outside)));
+        CHECK(player_terrain_clear(game.player.x, game.player.y));
+        game_update(0, 0);
+        CHECK(game.area == passage.outside.area && !game.can_interact);
+        walk_through(BTN_UP);
+        CHECK(player_at(floor, wall_row ? SOUTH : NORTH));
+        CHECK(!tile_solid(cached_tile(passage.inside)) && !tile_solid(cached_tile(floor)));
+        CHECK(player_terrain_clear(game.player.x, game.player.y));
+        // Standing still does nothing. Walking back onto the doorway leaves.
+        game_update(0, 0);
+        CHECK(game.area == passage.inside.area);
+        walk_through(wall_row ? BTN_UP : BTN_DOWN);
+        CHECK(player_at(below(passage.outside), SOUTH));
+        game_update(0, 0);
+        CHECK(game.area == passage.outside.area);
+    }
+    static_assert(
+        passage_arrival(positions::CaveExit) ==
+        TilePos{AREA_OUTDOOR, positions::CaveMouth.x, (uint8_t)(positions::CaveMouth.y + 1)});
+    static_assert(passage_facing(positions::CaveMouth) == NORTH &&
+                  passage_facing(positions::CaveHole) == SOUTH &&
+                  passage_facing(positions::CaveLadder) == SOUTH);
+}
+
+// Every mechanism cell shows the map's tile while its flag is clear and its own tile while the
+// flag is set, from the tile pass alone: the cache holds no state between frames.
+static void mechanism_states() {
+    using namespace handler_impl;
+    for(Mechanism const& entry : MECHANISMS) {
+        Area const& area = *world_area(entry.cells.origin.area);
+        for(uint8_t dy = 0; dy < entry.cells.height; ++dy) {
+            for(uint8_t dx = 0; dx < entry.cells.width; ++dx) {
+                TilePos cell{entry.cells.origin.area, (uint8_t)(entry.cells.origin.x + dx),
+                             (uint8_t)(entry.cells.origin.y + dy)};
+                game_new();
+                stand(below(cell, 2), SOUTH);
+                CHECK(!game.get_flag(entry.flag));
+                CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
+                CHECK(cached_tile(cell) != entry.tile);
+                game.set_flag(entry.flag);
+                update_visible_world(0, false);
+                CHECK(cached_tile(cell) == entry.tile);
+                update_visible_world(0, false);
+                CHECK(cached_tile(cell) == entry.tile);
+                game.clear_flag(entry.flag);
+                update_visible_world(0, false);
+                CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
+            }
+        }
+    }
+}
+
+static void press_a() {
+    game_update(0, 0);
+    CHECK(game.can_interact);
+    game_update(0, BTN_A);
+}
+
+// The cave: a lever and its gate, the latching plate and its bridge, the chest and the vent.
+static void cave_mechanisms() {
+    using namespace handler_impl;
+    game_new();
+    // The lever opens the vault gate, and throwing it back closes the gate.
+    stand(below(positions::CaveLever), NORTH);
+    CHECK(cached_tile(positions::CaveLever) == CAVE_TILE_SWITCH_LEFT);
+    press_a();
+    CHECK(game.get_flag(FLAG_CAVE_GATE) &&
+          cached_tile(positions::CaveLever) == CAVE_TILE_SWITCH_RIGHT);
+    stand(below(positions::CaveGate), NORTH);
+    CHECK(cached_tile(positions::CaveGate) == CAVE_TILE_GATE_FRONT_OPEN);
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == (positions::CaveGate.y - 1) * TILE);
+    stand(below(positions::CaveLever), NORTH);
+    press_a();
+    CHECK(!game.get_flag(FLAG_CAVE_GATE) &&
+          cached_tile(positions::CaveLever) == CAVE_TILE_SWITCH_LEFT);
+    stand(below(positions::CaveGate), NORTH);
+    CHECK(cached_tile(positions::CaveGate) == CAVE_TILE_GATE_FRONT &&
+          tile_solid(CAVE_TILE_GATE_FRONT));
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y > positions::CaveGate.y * TILE);
+
+    // The plate goes down under the player and stays down, and the bridge spans the chasm.
+    TilePos plate = positions::CavePlate;
+    stand({plate.area, (uint8_t)(plate.x + 1), plate.y}, WEST);
+    CHECK(!game.get_flag(FLAG_CAVE_BRIDGE) && cached_tile(plate) == CAVE_TILE_PRESSURE_PLATE);
+    for(unsigned i = 0; i < TILE; ++i)
+        game_update(BTN_LEFT, 0);
+    CHECK(game.get_flag(FLAG_CAVE_BRIDGE) && cached_tile(plate) == CAVE_TILE_PRESSURE_PLATE_DOWN);
+    for(unsigned i = 0; i < TILE; ++i)
+        game_update(BTN_RIGHT, 0);
+    CHECK(game.get_flag(FLAG_CAVE_BRIDGE) && cached_tile(plate) == CAVE_TILE_PRESSURE_PLATE_DOWN);
+    TilePos near_side = below(positions::CaveBridge_1);
+    stand(near_side, NORTH);
+    CHECK(cached_tile(positions::CaveBridge_0) == CAVE_TILE_BRIDGE_VERTICAL &&
+          cached_tile(positions::CaveBridge_1) == CAVE_TILE_BRIDGE_VERTICAL);
+    for(unsigned i = 0; i < 3 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == (positions::CaveBridge_0.y - 1) * TILE);
+    game.clear_flag(FLAG_CAVE_BRIDGE);
+    stand(near_side, NORTH);
+    CHECK(cached_tile(positions::CaveBridge_0) == CAVE_TILE_CHASM_EDGE &&
+          cached_tile(positions::CaveBridge_1) == CAVE_TILE_CHASM_RIM);
+    for(unsigned i = 0; i < 3 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == near_side.y * TILE);
+
+    // The chest pays once.
+    uint16_t gold = game.gold;
+    stand(below(positions::CaveChest), NORTH);
+    CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_CLOSED);
+    press_a();
+    CHECK(game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold + CHEST_GOLD);
+    CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
+    press_a();
+    CHECK(game.gold == gold + CHEST_GOLD);
+
+    // The vent blows by the clock alone and blocks its passage while it blows.
+    static_assert(vent_blows(0) && vent_blows(VENT_BLOW_TICKS - 1) &&
+                  !vent_blows(VENT_BLOW_TICKS) && !vent_blows(255) && vent_blows(256) &&
+                  65536 % 256 == 0);
+    stand(below(positions::CaveVent), NORTH);
+    game.ticks = VENT_BLOW_TICKS;
+    update_visible_world(0, false);
+    CHECK(cached_tile(positions::CaveVent) == CAVE_TILE_VENT && !tile_solid(CAVE_TILE_VENT));
+    game.ticks = 256;
+    update_visible_world(0, false);
+    CHECK(cached_tile(positions::CaveVent) == CAVE_TILE_VENT_ACTIVE &&
+          tile_solid(CAVE_TILE_VENT_ACTIVE));
+    // A player caught on the vent when it blows is moved off it, not trapped.
+    game.ticks = VENT_BLOW_TICKS;
+    stand(positions::CaveVent, NORTH);
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+    game.ticks = 256;
+    update_visible_world(0, false);
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+    CHECK(game.player.y != positions::CaveVent.y * TILE);
+}
+
+// The dungeon: the four seals in order, then the vault chest.
+static void dungeon_mechanisms() {
+    using namespace handler_impl;
+    game_new();
+    // The hall lever lowers the spikes.
+    stand(below(positions::DungeonSpikes_1), NORTH);
+    CHECK(cached_tile(positions::DungeonSpikes_0) == DUNGEON_TILE_SPIKES &&
+          cached_tile(positions::DungeonSpikes_1) == DUNGEON_TILE_SPIKES);
+    for(unsigned i = 0; i < TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == (positions::DungeonSpikes_1.y + 1) * TILE);
+    stand(below(positions::DungeonLever), NORTH);
+    press_a();
+    CHECK(game.get_flag(FLAG_DUNGEON_SPIKES));
+    stand(below(positions::DungeonSpikes_1), NORTH);
+    CHECK(cached_tile(positions::DungeonSpikes_0) == DUNGEON_TILE_SPIKES_DOWN &&
+          cached_tile(positions::DungeonSpikes_1) == DUNGEON_TILE_SPIKES_DOWN);
+    for(unsigned i = 0; i < 3 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == (positions::DungeonSpikes_0.y - 1) * TILE);
+
+    // The cell door opens once, and the plate behind it opens the east gate.
+    TilePos door = positions::DungeonCellDoor;
+    stand(below(door), NORTH);
+    CHECK(cached_tile(door) == DUNGEON_TILE_BARS_DOOR && tile_solid(DUNGEON_TILE_BARS_DOOR));
+    press_a();
+    CHECK(game.get_flag(FLAG_DUNGEON_CELL) && cached_tile(door) == DUNGEON_TILE_BARS_DOOR_OPEN);
+    // The open door takes no more presses.
+    game_update(0, 0);
+    CHECK(!game.can_interact);
+    CHECK(positions::DungeonPlate == TilePos{door.area, door.x, (uint8_t)(door.y - 1)});
+    CHECK(!game.get_flag(FLAG_DUNGEON_GATE));
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == positions::DungeonPlate.y * TILE && game.get_flag(FLAG_DUNGEON_GATE));
+    CHECK(cached_tile(positions::DungeonPlate) == DUNGEON_TILE_PRESSURE_PLATE_DOWN);
+    TilePos gate = positions::DungeonGate;
+    stand({gate.area, (uint8_t)(gate.x - 1), gate.y}, EAST);
+    CHECK(cached_tile(gate) == DUNGEON_TILE_GATE_SIDE_OPEN);
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_RIGHT, 0);
+    CHECK(game.player.x == (gate.x + 1) * TILE);
+
+    // The east wing's lever sinks the blocks.
+    stand(below(positions::DungeonBlocks_0), NORTH);
+    CHECK(cached_tile(positions::DungeonBlocks_0) == DUNGEON_TILE_BLOCK_RAISED &&
+          cached_tile(positions::DungeonBlocks_1) == DUNGEON_TILE_BLOCK_RAISED);
+    TilePos lever = positions::DungeonBlockLever;
+    stand({lever.area, (uint8_t)(lever.x + 1), lever.y}, WEST);
+    press_a();
+    CHECK(game.get_flag(FLAG_DUNGEON_BLOCKS));
+    stand(below(positions::DungeonBlocks_0), NORTH);
+    CHECK(cached_tile(positions::DungeonBlocks_0) == DUNGEON_TILE_BLOCK_LOWERED &&
+          cached_tile(positions::DungeonBlocks_1) == DUNGEON_TILE_BLOCK_LOWERED);
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == (positions::DungeonBlocks_0.y - 1) * TILE);
+
+    // The orb lights the runes and opens the vault.
+    TilePos orb = positions::DungeonOrb, vault = positions::DungeonVaultDoor;
+    stand(below(orb), NORTH);
+    CHECK(cached_tile(orb) == DUNGEON_TILE_ORB_DARK);
+    press_a();
+    CHECK(game.get_flag(FLAG_DUNGEON_ORB) && cached_tile(orb) == DUNGEON_TILE_ORB_LIT);
+    game_update(0, 0);
+    CHECK(cached_tile(positions::DungeonRuneWest) == DUNGEON_TILE_RUNE_LIT &&
+          cached_tile(positions::DungeonRuneEast) == DUNGEON_TILE_RUNE_LIT);
+    stand(below(vault), NORTH);
+    CHECK(cached_tile(vault) == DUNGEON_TILE_ARCHWAY);
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_UP, 0);
+    CHECK(game.player.y == (vault.y - 1) * TILE);
+    game.clear_flag(FLAG_DUNGEON_ORB);
+    stand(below(vault), NORTH);
+    CHECK(cached_tile(vault) == DUNGEON_TILE_PORTCULLIS && tile_solid(DUNGEON_TILE_PORTCULLIS));
+
+    uint16_t gold = game.gold;
+    stand(below(positions::DungeonChest), NORTH);
+    press_a();
+    CHECK(game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold + CHEST_GOLD);
+    CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
+}
+
+// Each notice answers a press from the cell in front of it.
+static void notices() {
+    for(TilePos notice : {positions::CaveSign, positions::CaveNotice, positions::DungeonPlaque}) {
+        game_new();
+        stand(below(notice), NORTH);
+        CHECK(tile_solid(cached_tile(notice)));
+        game_update(0, 0);
+        CHECK(game.can_interact);
+    }
+}
+
 int main() {
     run_world_scenarios();
     house_doors();
+    passages();
+    mechanism_states();
+    cave_mechanisms();
+    dungeon_mechanisms();
+    notices();
     window_edges();
     terrain_footprints();
     foot_triangle_windows();

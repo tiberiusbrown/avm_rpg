@@ -42,8 +42,12 @@ static void tile_sheets() {
         CHECK((uint16_t)wind.first + wind.count <= 255);
     }
     CHECK(tile_wind_frames(TILESET_WORLD).count && !tile_wind_frames(TILESET_HOUSE).count);
+    CHECK(!tile_wind_frames(TILESET_CAVE).count && !tile_wind_frames(TILESET_DUNGEON).count);
     CHECK(tileset_has_sky(TILESET_WORLD) && !tileset_has_sky(TILESET_HOUSE));
+    // No birds fly underground.
+    CHECK(!tileset_has_sky(TILESET_CAVE) && !tileset_has_sky(TILESET_DUNGEON));
     CHECK(tileset_has_ambient(TILESET_WORLD) && tileset_has_ambient(TILESET_HOUSE));
+    CHECK(tileset_has_ambient(TILESET_CAVE) && tileset_has_ambient(TILESET_DUNGEON));
 }
 
 static void ambient_classes() {
@@ -71,6 +75,33 @@ static void ambient_classes() {
     CHECK(tile_ambient(HOUSE_TILE_STOVE) == AMBIENT_STEAM);
     CHECK(tile_ambient(HOUSE_TILE_EMPTY) == AMBIENT_NONE &&
           tile_ambient(HOUSE_TILE_RUG_CENTER) == AMBIENT_NONE);
+    game.area = AREA_CAVE;
+    CHECK(tile_ambient(CAVE_TILE_FLOOR_A) == AMBIENT_CAVE &&
+          tile_ambient(CAVE_TILE_FLOOR_MOSS) == AMBIENT_CAVE);
+    CHECK(tile_ambient(CAVE_TILE_PUDDLE) == AMBIENT_DRIP &&
+          tile_ambient(CAVE_TILE_POOL_CENTER) == AMBIENT_POOL);
+    CHECK(tile_ambient(CAVE_TILE_CRYSTALS) == AMBIENT_CRYSTAL &&
+          tile_ambient(CAVE_TILE_WALL_ORE) == AMBIENT_CRYSTAL);
+    CHECK(tile_ambient(CAVE_TILE_WALL_TORCH) == AMBIENT_EMBER &&
+          tile_ambient(CAVE_TILE_CAMPFIRE) == AMBIENT_EMBER);
+    CHECK(tile_ambient(CAVE_TILE_VENT_ACTIVE) == AMBIENT_STEAM &&
+          tile_ambient(CAVE_TILE_VENT) == AMBIENT_NONE);
+    CHECK(tile_ambient(CAVE_TILE_EMPTY) == AMBIENT_NONE &&
+          tile_ambient(CAVE_TILE_CHASM) == AMBIENT_NONE &&
+          tile_ambient(CAVE_TILE_RAIL_HORIZONTAL) == AMBIENT_NONE);
+    game.area = AREA_DUNGEON;
+    CHECK(tile_ambient(DUNGEON_TILE_FLOOR_A) == AMBIENT_CRYPT &&
+          tile_ambient(DUNGEON_TILE_FLOOR_CRACKED) == AMBIENT_CRYPT);
+    CHECK(tile_ambient(DUNGEON_TILE_PUDDLE) == AMBIENT_DRIP &&
+          tile_ambient(DUNGEON_TILE_FLOOR_GRATE) == AMBIENT_DRIP);
+    CHECK(tile_ambient(DUNGEON_TILE_TORCH) == AMBIENT_EMBER &&
+          tile_ambient(DUNGEON_TILE_BRAZIER) == AMBIENT_EMBER);
+    CHECK(tile_ambient(DUNGEON_TILE_CHANNEL_VERTICAL) == AMBIENT_POOL &&
+          tile_ambient(DUNGEON_TILE_ORB_LIT) == AMBIENT_CRYSTAL);
+    CHECK(tile_ambient(DUNGEON_TILE_ORB_DARK) == AMBIENT_NONE &&
+          tile_ambient(DUNGEON_TILE_CARPET_CENTER) == AMBIENT_NONE &&
+          tile_ambient(DUNGEON_TILE_SPIKES) == AMBIENT_NONE);
+    game.area = AREA_OUTDOOR;
 }
 
 static void gusts() {
@@ -118,11 +149,12 @@ static void gusts() {
 
 static bool flier(uint8_t frame) {
     return frame < FRAME_LEAF || (frame >= FRAME_MOTH && frame < FRAME_GLINT) ||
-           (frame >= FRAME_BEE && frame < FRAME_STEAM) || frame >= FRAME_FAR_BIRD;
+           (frame >= FRAME_BEE && frame < FRAME_STEAM) ||
+           (frame >= FRAME_FAR_BIRD && frame < FRAME_DROP) || frame >= FRAME_WISP;
 }
 
 static void slots() {
-    constexpr uint8_t CLASSES = AMBIENT_STEAM + 1;
+    constexpr uint8_t CLASSES = AMBIENT_EMBER + 1;
     unsigned shown[CLASSES] = {}, frames[AMBIENT_FRAME_COUNT] = {},
              tiles[CHUNK_WIDTH * CHUNK_HEIGHT] = {};
     unsigned epochs = 0;
@@ -163,7 +195,9 @@ static void slots() {
                         // A wandering flight starts and ends on its tile, so it does not pop in.
                         bool wanders = ambient == AMBIENT_FLOWERS ||
                                        (ambient == AMBIENT_GRASS && slot.roll < GRASS_BUTTERFLY) ||
-                                       (ambient == AMBIENT_FLOOR && slot.roll < FLOOR_MOTH);
+                                       (ambient == AMBIENT_FLOOR && slot.roll < FLOOR_MOTH) ||
+                                       (ambient == AMBIENT_CAVE && slot.roll < CAVE_BAT) ||
+                                       (ambient == AMBIENT_CRYPT && slot.roll < CRYPT_WISP);
                         if(wanders && (age == 0 || age == AMBIENT_EPOCH_TICKS - 1))
                             CHECK(sprite.dx == 0 && sprite.dy == 0 && flier(sprite.frame));
                         // A visiting bird is a far speck when it appears and when it goes.
@@ -172,6 +206,39 @@ static void slots() {
                         if(ambient == AMBIENT_PERCH && age == AMBIENT_EPOCH_TICKS / 2)
                             CHECK(sprite.dx == 0 && sprite.dy == PERCH_DY &&
                                   sprite.frame >= FRAME_PERCHED && sprite.frame < FRAME_STEAM);
+                        // Still water underground rings and glints, and holds no fish.
+                        if(ambient == AMBIENT_POOL)
+                            CHECK(sprite.dx >= -4 && sprite.dx <= 2 && sprite.dy >= -4 &&
+                                  sprite.dy <= 2 &&
+                                  ((sprite.frame >= FRAME_RIPPLE && sprite.frame < FRAME_MOTH) ||
+                                   (sprite.frame >= FRAME_GLINT && sprite.frame < FRAME_RABBIT)));
+                        // A drop falls straight down onto its tile, then rings where it landed.
+                        bool drips = ambient == AMBIENT_DRIP ||
+                                     (ambient == AMBIENT_CAVE && slot.roll >= CAVE_BAT);
+                        if(drips) {
+                            CHECK(sprite.frame == FRAME_DROP || (sprite.frame >= FRAME_RIPPLE &&
+                                                                 sprite.frame < FRAME_RIPPLE + 2));
+                            CHECK((sprite.frame == FRAME_DROP) == (age < DRIP_FALL_TICKS));
+                            CHECK(sprite.dx >= -4 && sprite.dx <= 3 && sprite.dy <= 4);
+                            if(before.visible)
+                                CHECK(sprite.dx == before.dx && sprite.dy >= before.dy);
+                        }
+                        // A glint stays on its crystal, and a spark only rises from its flame.
+                        if(ambient == AMBIENT_CRYSTAL)
+                            CHECK(sprite.dx >= -4 && sprite.dx <= 3 && sprite.dy >= -6 &&
+                                  sprite.dy <= 1 && sprite.frame >= FRAME_GLINT &&
+                                  sprite.frame < FRAME_RABBIT);
+                        if(ambient == AMBIENT_EMBER) {
+                            CHECK(sprite.frame >= FRAME_EMBER && sprite.frame < FRAME_WISP);
+                            CHECK(sprite.dx >= -4 && sprite.dx <= 3 && sprite.dy <= -4 &&
+                                  sprite.dy >= -TILE);
+                            if(before.visible)
+                                CHECK(sprite.dy <= before.dy);
+                        }
+                        // Grit falls in the dungeon, where dust rises in a house.
+                        if(ambient == AMBIENT_CRYPT && slot.roll >= CRYPT_WISP && before.visible)
+                            CHECK(sprite.dy >= before.dy && sprite.frame >= FRAME_DUST &&
+                                  sprite.frame < FRAME_FAR_BIRD);
                         // Water effects stay on their tile, clear of the bank.
                         if(ambient == AMBIENT_WATER)
                             CHECK(sprite.dx >= -4 && sprite.dx <= 2 && sprite.dy >= -4 &&
