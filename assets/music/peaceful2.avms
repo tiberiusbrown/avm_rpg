@@ -1,0 +1,121 @@
+// Hearthlight Village — original NES-inspired peaceful town theme.
+// D major | 96 BPM | 24 measures (60.0 seconds), form A - A' - B.
+// A sings over a stepwise descending bass; A' lifts the same tune to a full
+// cadence; B answers higher and ends on the dominant, which resolves into
+// the first D chord on loop restart.
+// Loop at runtime with avm_audio_music_loop(1). Channel 3 stays free.
+
+title "Peaceful Village"
+description "A warm, unhurried town theme: singing pulse lead over harp-like broken chords"
+tempo 96
+meter 4/4
+volume max
+automation 8ms
+
+envelope song_env {
+    points 0ms:0%, 16ms:100%, 240ms:86%, 620ms:70%
+    release 48ms:0%
+}
+envelope harp_env {
+    points 0ms:100%, 80ms:66%, 220ms:40%
+    release 24ms:0%
+}
+envelope bass_env {
+    points 0ms:100%, 200ms:80%, 700ms:58%
+    release 56ms:0%
+}
+
+instrument song { wave pulse duty 25% volume 14 envelope song_env gate 92% }
+instrument harp { wave pulse duty 50% volume 6 envelope harp_env gate 95% }
+instrument bass { wave saw volume 9 envelope bass_env gate 88% }
+
+// Lead: long-short "sighing" cells (dotted quarter + eighth) that rise a
+// little further each phrase.
+channel 0 song octave 5 {
+    // A
+    f#4. e8  d4   a4   | // D
+    g4.  f#8 e2        | // A/C#
+    d4.  e8  f#4  b4   | // Bm
+    a2.       f#4      | // F#m/A
+    g4.  a8  b4   g4   | // G
+    a4.  f#8 d2        | // D/F#
+    e4.  f#8 g4   b4   | // Em
+    a2        e4   a4  | // A
+
+    // A'
+    f#4. e8  d4   a4   | // D
+    g4.  f#8 e2        | // A/C#
+    d4.  e8  f#4  b4   | // Bm
+    a2.       b8  c#'8 | // F#m/A
+    d'4. c#'8 b4  g4   | // G
+    a4.  b8  c#'4 a4   | // A
+    d'2       a4  f#4  | // D
+    d2.            r4  | // D
+
+    // B
+    b4   g8  b8  d'4.  b8   | // G
+    c#'4 a8  c#'8 e'4. c#'8 | // A
+    a4.  f#8 a4   c#'4      | // F#m
+    b2.       f#4           | // Bm
+    g4   b8  a8  g4   d4    | // G
+    f#4  a8  g8  f#4  d4    | // D/F#
+    e4.  f#8 g4   b4        | // Em
+    a2        e8  a8  g4    | // A7 -> D
+}
+
+// Harp: unbroken eighth-note broken chords below the tune.
+phrase harp_d    { a8 d'8  f#'8 d'8  a8 d'8  f#'8 d'8  | }
+phrase harp_a    { a8 c#'8 e'8  c#'8 a8 c#'8 e'8  c#'8 | }
+phrase harp_a7   { a8 c#'8 e'8  c#'8 a8 c#'8 g'8  e'8  | }
+phrase harp_bm   { b8 d'8  f#'8 d'8  b8 d'8  f#'8 d'8  | }
+phrase harp_fsm  { a8 c#'8 f#'8 c#'8 a8 c#'8 f#'8 c#'8 | }
+phrase harp_g    { b8 d'8  g'8  d'8  b8 d'8  g'8  d'8  | }
+phrase harp_em   { b8 e'8  g'8  e'8  b8 e'8  g'8  e'8  | }
+phrase harp_rest { a8 d'8  f#'8 a'8  f#'8 d'8 a4       | }
+
+channel 1 harp octave 3 {
+    // A
+    harp_d harp_a harp_bm harp_fsm
+    harp_g harp_d harp_em harp_a7
+
+    // A'
+    harp_d harp_a harp_bm harp_fsm
+    harp_g harp_a harp_d harp_rest
+
+    // B
+    harp_g harp_a harp_fsm harp_bm
+    harp_g harp_d harp_em harp_a7
+}
+
+// Bass: one sustained root per bar with a quiet pickup on beat four.
+channel 2 bass octave 2 {
+    // A: D - C# - B - A - G - F# - E - A
+    d'2.  a4   |
+    c#'2. a4   |
+    b2.   f#'4 |
+    a2.   c#'4 |
+    g2.   d'4  |
+    f#'2. d'4  |
+    e'2.  b4   |
+    a2    e'4 c#'4 |
+
+    // A'
+    d'2.  a4   |
+    c#'2. a4   |
+    b2.   f#'4 |
+    a2.   c#'4 |
+    g2.   b4   |
+    a2.   c#'4 |
+    d'2   a4  f#'4 |
+    d'2.  r4   |
+
+    // B
+    g2.   d'4  |
+    a2.   e'4  |
+    f#'2. c#'4 |
+    b2.   f#'4 |
+    g2.   d'4  |
+    f#'2. d'4  |
+    e'2.  b4   |
+    a2    e'4 c#'4 |
+}

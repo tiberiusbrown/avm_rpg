@@ -57,7 +57,10 @@ beats against the bass's two. A'' brings the hook back, sings the climax as two 
 notes, and rises to D6 so the loop re-enters on the hook. Held notes use a slight
 vibrato. The bird calls are short rising frequency slides on the harmony voice. The
 score uses 16 ms automation, channels 0/1/2, and leaves noise free; channels 0 and 2
-carry the tune if an effect borrows channel 1. The lead never rests for a full beat,
+carry the tune if an effect borrows channel 1. The score needs no manual detuning: the
+compiler tunes every note five cents flat and corrects each by at most six cents more (see
+[`docs/audio.md`](../../docs/audio.md#note-tuning)), which keeps the tonic G5, G6 and C6 off the
+pitches where a plain pulse beats at the 15.6 kHz synthesis rate. The lead never rests for a full beat,
 because the synthesis interrupt costs more per frame with each sounding voice and the
 pause animation's frame-timing check tolerates only small steps in that load. The generated catalog exposes it as `MUSIC_PEACEFUL` with the title
 **Glade and Hearth**.
