@@ -75,7 +75,18 @@ All are fully walkable.
 ## Pools
 
 A pool of two or more cells in each direction uses its 3x3 block. Choose each cell by its
-place in the pool. Pools are solid, and their ripples drift.
+place in the pool. Pools are solid.
+
+Cave water is still, so a pool is quieter than water outdoors:
+
+- **The rim wanders.** It steps in and out by a pixel and rounds the corners, as a shore
+  does outdoors. It is never a straight line.
+- **The surface lies a little below the rim.** Under the north rim, which faces the viewer,
+  a dark row and a broken line show the water's edge.
+- **The ripples barely move.** Every cell has two short ripples. For one phase of the four,
+  one of them stands a pixel to the east, and for another phase the other stands a pixel to
+  the west, so the two move in opposite directions.
+- **The rim does not move.** Water does not lap at a pool's edge.
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
@@ -94,20 +105,46 @@ place in the pool. Pools are solid, and their ripples drift.
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
 | `0x2C` | `PIT` | no | One deep pit with a rim. Solid, so nothing walks into it. |
-| `0x4D` | `CHASM_EDGE` | no | North row of a chasm: the rock face that drops away below the floor. |
-| `0x4E` | `CHASM` | no | Middle rows of a chasm. |
-| `0x4F` | `CHASM_RIM` | no | South row of a chasm: the near lip. |
+| `0x4D` | `CHASM_EDGE` | no | North row of a chasm: the far wall's face under a ragged lip. Its cracks thin out downward, so it fades into the dark. |
+| `0x4E` | `CHASM` | no | Middle rows of a chasm: darkness. A black cell. |
+| `0x4F` | `CHASM_RIM` | no | South row of a chasm: darkness, with the near lip as one ragged line along the bottom. |
+| `0x5A` | `CHASM_LEFT` | no | West column of a chasm: the west lip, a rough edge with darkness beyond it. |
+| `0x5B` | `CHASM_RIGHT` | no | East column of a chasm: the east lip, a rough edge with darkness beyond it. |
+| `0x5C` | `CHASM_EDGE_LEFT` | no | North-west corner: the far wall's face and the west lip. |
+| `0x5D` | `CHASM_EDGE_RIGHT` | no | North-east corner: the far wall's face and the east lip. |
+| `0x5E` | `CHASM_RIM_LEFT` | no | South-west corner: the near lip and the west lip. |
+| `0x5F` | `CHASM_RIM_RIGHT` | no | South-east corner: the near lip and the east lip. |
 | `0x4B` | `BRIDGE_HORIZONTAL` | yes | Plank bridge that runs west to east. |
 | `0x4C` | `BRIDGE_VERTICAL` | yes | Plank bridge that runs north to south. |
 
-- **A chasm is at least two rows deep and runs wall to wall.** Its north row is `CHASM_EDGE`,
-  its south row is `CHASM_RIM`, and any rows between are `CHASM`. Chasm cells are room cells,
-  so the walls beside them take their edge pieces as they do beside floor.
+- **A chasm is darkness.** Only its lips and the fading face of its far wall are drawn. The
+  far wall is the one wall that faces the viewer, so it alone shows a face. The side walls
+  are not seen, so a side lip is a rough edge and nothing more. Do not texture the dark.
+- **A chasm is a block of cells at least two rows deep and two columns wide.** Choose each
+  cell by the sides on which floor lies, as for a pool:
+
+  | Floor lies | Piece |
+  | --- | --- |
+  | north | `CHASM_EDGE` |
+  | south | `CHASM_RIM` |
+  | west | `CHASM_LEFT` |
+  | east | `CHASM_RIGHT` |
+  | north and west, north and east | `CHASM_EDGE_LEFT`, `CHASM_EDGE_RIGHT` |
+  | south and west, south and east | `CHASM_RIM_LEFT`, `CHASM_RIM_RIGHT` |
+  | on no side | `CHASM` |
+
+- **A side with a wall beside it takes no lip.** A chasm that runs west to east from wall to
+  wall is a row of `CHASM_EDGE` over a row of `CHASM_RIM`. A chasm that runs north to south
+  from wall to wall is a column of `CHASM_LEFT` beside a column of `CHASM_RIGHT`, with `CHASM`
+  between them when it is wider. A chasm in the middle of a floor uses the corners too.
+- Chasm cells are room cells, so the walls beside them take their edge pieces as they do
+  beside floor, and the cell above a chasm that touches the north wall is a wall face.
 - **A bridge replaces chasm cells in a straight line**, from the floor on one side to the floor
   on the other. A north-to-south bridge is a column of `BRIDGE_VERTICAL`, and a west-to-east
   bridge is a row of `BRIDGE_HORIZONTAL` across a chasm that runs north to south.
 - **A bridge can be a mechanism.** Paint the chasm, put a rectangle on the bridge's cells with
-  the handler `show_state`, and the bridge appears while its flag is set. See
+  the handler `show_state`, and the bridge appears while its flag is set. The rectangle may
+  cover any chasm pieces. See
   [Mechanisms](#mechanisms).
 
 ## Mechanisms
@@ -192,8 +229,8 @@ of one thing take the same shape. See [AUTHORING.md](AUTHORING.md#what-solidity-
 Something moves on every screen of a cave. Animated tiles cost nothing per tile, and the
 ambient effects keep no state. [AUTHORING.md](AUTHORING.md#animation) explains both.
 
-- **Animated tiles.** `WALL_TORCH`, `CAMPFIRE` and `LANTERN` flicker. The nine pool cells and
-  `PUDDLE` ripple. `WALL_WATERFALL` runs. `CRYSTALS`, `CRYSTAL_TALL`, `WALL_CRYSTAL`,
+- **Animated tiles.** `WALL_TORCH`, `CAMPFIRE` and `LANTERN` flicker. The nine pool cells
+  ripple very slightly, and `PUDDLE` shimmers. `WALL_WATERFALL` runs. `CRYSTALS`, `CRYSTAL_TALL`, `WALL_CRYSTAL`,
   `WALL_ORE` and `ORE_PILE` glint. `MUSHROOMS` shed spores, and `VENT_ACTIVE` blows.
 - **Ambient classes.** The `ambient` property of a tile decides what may appear on it.
 

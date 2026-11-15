@@ -218,9 +218,43 @@ IDs. `06` is any grass cell and `DD` is the door.
 
 ## Water
 
-Water is solid. It uses the 24 cells `0x18` to `0x3F` in columns `8` to `F` of the atlas.
-The bank is drawn inside the water cell, four pixels in from each side that faces land. The
-land cells around water stay ordinary tiles, so water tiles cleanly against every grass cell.
+Water is solid. It uses the 24 cells `0x18` to `0x3F` in columns `8` to `F` of the atlas, and
+the three pile cells under a bridge (see [Bridges](#bridges)).
+The bank is drawn inside the water cell, one or two pixels in from each side that faces
+land, so a water cell is mostly water. The land cells around water stay ordinary tiles, so
+water tiles cleanly against every grass cell.
+
+The water lies lower than the ground, and the view shows it:
+
+- **The shoreline wanders.** The edge of the ground is a white line that steps in and out by
+  a pixel. Every side uses the same profile, and it repeats every sixteen pixels, so shores
+  join from cell to cell. Where two banks meet, the shore rounds the corner.
+- **A north bank shows its face.** It faces the viewer, so two dark rows of earth show below
+  the ground's edge, and a broken line below them is the water's edge.
+- **A west or east bank shows a narrow face**: one dark column, then a broken waterline.
+- **A south bank shows no face.** The viewer looks over it from behind, so its edge is the
+  ground's edge alone.
+- **The water laps against the shore, very quietly.** The waterline is a broken line of
+  dashes. On each side of a cell, the two middle pixels of one dash stand one pixel further
+  from the bank for one phase of the four, then return. The move is toward the shore and
+  back, never along it. North banks, side banks and south banks each take a different phase,
+  so the whole shore never moves at once. Against a south bank the line is short dashes of
+  foam. Keep this far quieter than the ripples. Use the same idea for anything that stands
+  in water: at the foot of a bridge pile the water steps a pixel out on one side, then on
+  the other.
+- Ripples are dashes on open water, never shorter than three pixels. Each has its own motion
+  through the four phases: some drift east and back, some drift west and back, and some grow
+  and shrink in place. Their rows are spread evenly over the cell, and two ripples run off
+  one side of the cell and continue on the other, so a body of water shows no grid of cells.
+  **Every water cell holds the same two crossing ripples, at the same place and with the
+  same motion**, so the part that leaves one cell always meets the part that enters the
+  next, in every phase. A ripple shows whole or not at all, so a shore leaves no stray
+  pixels, and it shows only where it has room through its whole motion: a ripple that would
+  reach the bank in any phase is left out of that cell in every phase, so none vanishes on
+  its way to the shore. The ambient effects supply the glints.
+
+Draw a new water cell from these rules, not by hand: every piece must share the profile and
+the ripples of the others.
 
 **Every water cell must be part of a 2x2 block of water cells.** Water is never one tile
 wide. Every shape that follows this rule has a piece for each of its cells. Lakes can take
@@ -285,8 +319,23 @@ Rules for water:
 
 ## Bridges
 
-A bridge carries a road across water. Bridge cells are fully walkable. Each one is all
-deck, with railings along both sides, and it replaces a water cell.
+A bridge carries a road across water. Bridge cells are fully walkable, and each replaces a
+water cell. The water cell that it replaces shows under and beside it, so the banks appear at
+its two ends.
+
+The two directions are drawn differently, because the view is from the front and above:
+
+- **A bridge that runs east to west** shows its deck from above, with plank seams that run
+  north to south. The deck lies in the lower part of its cell: the water behind it shows
+  along the top, then the far rail, the planks, and the near rail along the bottom. Its piles
+  stand in the row of cells below it, the three `WATER_PILES` cells: the deck's front edge
+  runs along their top, and two short piles per cell stand in the water, each lit on its
+  left. The piles are eight pixels apart, so they are evenly spaced along the whole bridge.
+  The water laps against the foot of each pile.
+- **A bridge that runs north to south** shows its deck as a column of planks with seams that
+  run west to east. A rail runs down each side, the east one broken because it is in shade.
+  At every post a pile descends into the water beside the deck.
+- The deck is lit: it faces up, so it is white.
 
 | Hex | Symbol | Place |
 | --- | --- | --- |
@@ -296,6 +345,9 @@ deck, with railings along both sides, and it replaces a water cell.
 | `0x70` | `BRIDGE_NORTH` | North end of a bridge that runs north to south |
 | `0x71` | `BRIDGE_VERTICAL` | Middle of a bridge that runs north to south |
 | `0x72` | `BRIDGE_SOUTH` | South end of a bridge that runs north to south |
+| `0x9A` | `WATER_PILES_WEST` | Water with the piles of a bridge. It goes directly below `BRIDGE_WEST` and replaces a `WATER_LEFT`. |
+| `0x9B` | `WATER_PILES` | Water with the piles of a bridge. It goes directly below `BRIDGE_HORIZONTAL` and replaces a `WATER` or `WATER_CALM`. |
+| `0x9C` | `WATER_PILES_EAST` | Water with the piles of a bridge. It goes directly below `BRIDGE_EAST` and replaces a `WATER_RIGHT`. |
 
 Rules for bridges:
 
@@ -305,6 +357,12 @@ Rules for bridges:
 - **A bridge spans the whole river.** Replace every water cell in the row or column,
   bank to bank: the two end pieces, with middle pieces between them on a river three or
   more cells wide. A river two cells wide takes the two end pieces alone.
+- **An east-to-west bridge takes a row of piles.** Directly below each of its deck cells goes
+  the matching `WATER_PILES` cell. The pile cells are water: solid, and they count as water
+  for the pieces around them. They exist for a west bank, open water and an east bank only,
+  so the river must run straight for the row below the bridge, with no corner and no inner
+  corner there. A pile cell appears nowhere else. A north-to-south bridge needs none: its
+  piles are drawn beside its deck.
 - **Bridges count as water for the water around them.** Choose the pieces of the
   neighboring water cells as if the bridge cells were water, so no bank is drawn against
   the deck.
@@ -317,6 +375,7 @@ A bridge over a river three cells wide, as runtime IDs, with the road on both si
 ```text
 06 28 29 2A 06
 66 60 61 62 66
+06 9A 9B 9C 06
 06 28 29 2A 06
 ```
 
@@ -506,6 +565,10 @@ or different y-levels, and one building can mix roof types.
 
 ### Base walls
 
+- A wall faces the viewer, so it is dark inside its outline, with a few bricks marked. It
+  stands on a plinth whose top is a lit line. The west corner post is lit, and the east one
+  is hollow, because it is in shade. Windows have a lit sill, and a door has a lit lintel and
+  a lit step.
 - Empty base walls are 3 wide: `0xc0` is the left end, `0xc1` is interior, and `0xc2` is
   the right end.
 - Decorated base walls with windows are 4 wide: `0x93` is the left end, `0x94` and `0x95`
@@ -519,9 +582,29 @@ or different y-levels, and one building can mix roof types.
 
 ### Slanted roofs
 
-Slanted roofs are only for 3-wide base walls, `0xc0` to `0xc2`. The ridge runs from front to
-back. The west slope is lit and the east slope is in shade, because the light comes from the
-top left.
+Slanted roofs are only for 3-wide base walls, `0xc0` to `0xc2`. The house shows its gable.
+A ridge runs from the back peak down to the gable's peak, with a slope on each side of it,
+and the wall shows below the gable's two rakes.
+
+A slanted roof is drawn as the trees and rocks are: dark inside white outlines, never filled
+white. Both slopes carry shingles: short slanted strokes, single or in pairs, at irregular
+places with a gap around each. A stroke leans the way its slope runs, so the west slope's
+lean up to the right and the east slope's lean up to the left. The east slope is in shade:
+a second line runs inside its east rim and its back edge.
+
+- **A rake is two pixels thick, thickened toward the wall.** Its inner line ends on the
+  corner pixel of the wall cell below it, `0xb1` or `0x80`, so the gable's front edge runs
+  unbroken from cell to cell.
+- **A window nook stands out of the slope.** Its window faces along the roof, so it is not
+  seen. `0x82` and `0x83` show the nook's own small roof from above and, below it, the end
+  wall as a triangle, because the wall's foot follows the slope. A nook sits toward the
+  ridge, clear of the roof's rim, so `0x83` keeps the east rim's second line as `0xa2` has it.
+- **The east slope's second line is unbroken.** It runs two pixels inside the back edge,
+  from `0x81` across the top-right corner of the cell below the peak (`0x91` or `0xa1`),
+  through `0x92`, and down the inside of the east rim.
+- **A chimney's foot follows the slope.** On the east slope its east side meets the tiles
+  lower than its west side, on a line that runs parallel to the rake. On a flat roof its foot
+  is level.
 
 - The bottom roof tiles `0xb0`, `0xb1` and `0xb2` sit directly above the base wall.
 - `0xa1` sits above `0xb1`.
@@ -546,6 +629,12 @@ set from `0xa4` to `0xc6`:
 
 The outline sits on the outside of the roof, so choose each tile by the sides that face
 outside the roof, as for roads.
+
+A flat roof is dark inside a white outline, and its covering is small slabs of several
+sizes: squares, short bars and single pixels, set at irregular places with a gap around each.
+Keep the placing natural. A perfect pattern reads as a grid, not as a roof, and a white fill
+is too heavy. Its east edge and its front edge take a second line inside the rim, because
+they face away from the light.
 
 ### One-wide roofs
 
@@ -593,7 +682,8 @@ atlas cells:
 - An animated tile keeps one collision mask and one symbol. Animation never changes how a
   tile plays.
 
-Animated tiles so far: all 24 water cells (the ripples rock and glitter), `FLOWERS_26` and
+Animated tiles so far: all 24 water cells and the three pile cells (the ripples move and the
+water laps at the shore and the piles), `FLOWERS_26` and
 `FLOWERS_27` (the blossoms sway), the two chimneys (smoke), `TORCH_POST`, `CAMPFIRE`, `FLAG`,
 `REEDS` and `SCARECROW`.
 
@@ -675,6 +765,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   triangle. `0x80`, `0x82` and `0x83` are decorative roof alternatives. See the shapes list
   and [Buildings](#buildings).
 - `0x88` to `0x8D`, `0x98`, `0x99`, `0xA8` and `0xA9`: fences. See [Fences](#fences).
+- `0x9A` to `0x9C`: the piles under an east-to-west bridge. Solid. See [Bridges](#bridges).
 - `0x90` to `0x97`: wall and window panels, and signboards. Solid, except the ramps `0x90`
   and `0x92`. Decorated base walls and roof edges: see [Buildings](#buildings).
 - `0xA0` to `0xA7`, `0xB0` to `0xB7` and `0xC0` to `0xC7`: roofs, hatching, paving and
@@ -875,11 +966,14 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   shows its top as well as its front: a chest shows its lid, a pot shows its mouth, and a
   rock shows the ridge between its top and its front. Do not draw an object from the side
   only.
-- **Shade the same way everywhere.** A flat top that faces up is lit, so it is filled white.
+- **Shade the same way everywhere.** A small flat top that faces up, such as a chest's lid or
+  a bridge's deck, is lit, so it is filled white. A large surface, such as a roof, stays dark
+  inside its outline.
   A front is dark inside its outline. A round dark surface takes a second line inside its
   rim, or a few hatch strokes, on the side away from the light.
 - **The light comes from the top left, for everything.** Trees and rocks are shaded on their
-  right and lower side. A slanted roof is lit on its west slope and dark on its east slope.
+  right and lower side. A roof takes a second line inside its east rim and, on a slanted
+  roof, inside the back edge of its east slope.
   Draw every new piece, buildings included, under the same light.
 - **Never fill an area with a checkerboard stipple.** The view scrolls one pixel at a time,
   and a stipple inverts at every step, so it flickers. The content test rejects a 4x4 block
@@ -926,6 +1020,7 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - The generator, `test_pipeline.py` and `test_content.py` all pass.
 - Roads touch a building only at its door front. Every road cell uses the piece that its
   four neighbors select in [Roads](#roads), and roads wind gently.
+- Every east-to-west bridge has its row of `WATER_PILES` cells directly below it.
 - Every bridge spans its river from bank to bank, over straight water, with a road at
   each end.
 - No cell on the map edge can be reached from the spawn, and the border uses several kinds

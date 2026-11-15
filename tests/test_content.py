@@ -187,7 +187,7 @@ for index, name, mask in (
 ):
     assert tiles[index]["symbol"] == name and tiles[index]["collision"] == mask, name
     assert not tiles[index]["portal"]
-assert sum(not t["symbol"].startswith("ATLAS_") for t in tiles.values()) == 130
+assert sum(not t["symbol"].startswith("ATLAS_") for t in tiles.values()) == 133
 # Unnamed cells are solid, except the shaped roof pieces.
 SHAPED_UNNAMED = {0x81: 0xC600, 0x90: 0xF660, 0x92: 0xCF0C}
 for index, tile in tiles.items():
@@ -236,6 +236,20 @@ for y in range(m.height):
             else:
                 assert wet(x - 1, y) and wet(x + 1, y), f"bridge at {(x, y)} is not over water"
 assert BRIDGES & set(m.data) and ROADS & set(m.data) and WATER & set(m.data)
+# The piles of an east-to-west bridge stand in the water cell below each of its deck cells, and
+# nowhere else. They are water: solid, and part of the river for the pieces around them.
+PILES = {"BRIDGE_WEST": "WATER_PILES_WEST", "BRIDGE_HORIZONTAL": "WATER_PILES", "BRIDGE_EAST": "WATER_PILES_EAST"}
+pile_tiles = {symbol[name] for name in PILES.values()}
+assert all(tiles[index]["collision"] == 0xFFFF for index in pile_tiles)
+for y in range(m.height):
+    for x in range(m.width):
+        deck = tiles[at(x, y)]["symbol"]
+        if deck in PILES:
+            assert at(x, y + 1) == symbol[PILES[deck]], f"no piles under the bridge at {(x, y)}"
+        if at(x, y) in pile_tiles:
+            above = tiles[at(x, y - 1)]["symbol"]
+            assert PILES.get(above) == tiles[at(x, y)]["symbol"], f"piles at {(x, y)} stand under no bridge"
+assert pile_tiles & set(m.data)
 # TREE_ROUND is for isolated single trees. Groups use the tiling pieces.
 round_trees = {
     (x, y) for y in range(m.height) for x in range(m.width) if at(x, y) == 0x02
@@ -419,7 +433,7 @@ INTERIOR_TILESETS = {
         },
     },
     "cave": {
-        "named": 92,
+        "named": 98,
         "walkable": {
             "BONES", "BRIDGE_HORIZONTAL", "BRIDGE_VERTICAL", "EDGE_LEFT_EXIT",
             "EDGE_LEFT_RIGHT_EXIT", "EDGE_RIGHT_EXIT", "EDGE_TOP_EXIT", "FLOOR_A",
@@ -570,7 +584,11 @@ HANDLER_TILES = {
     "open_door": {"BARS_DOOR"},
     "light_orb": {"ORB_DARK"},
     "steam_vent": {"VENT"},
-    "show_state": {"GATE_FRONT", "GATE_SIDE", "CHASM_EDGE", "CHASM_RIM", "SPIKES", "BLOCK_RAISED", "RUNE", "PORTCULLIS"},
+    "show_state": {
+        "GATE_FRONT", "GATE_SIDE", "SPIKES", "BLOCK_RAISED", "RUNE", "PORTCULLIS",
+        "CHASM", "CHASM_EDGE", "CHASM_RIM", "CHASM_LEFT", "CHASM_RIGHT",
+        "CHASM_EDGE_LEFT", "CHASM_EDGE_RIGHT", "CHASM_RIM_LEFT", "CHASM_RIM_RIGHT",
+    },
 }
 OPENS = {"show_state", "open_door", "steam_vent"}
 for map_symbol in ("CAVE", "DUNGEON"):
@@ -617,6 +635,21 @@ for map_symbol in ("CAVE", "DUNGEON"):
                 assert want == "EDGE_TOP", where
             else:
                 assert value == index_of[want], (where, sheet[value]["symbol"], want)
+    # A chasm cell takes the piece that the floor around it selects: a lip on each side where
+    # floor lies, and none against a wall or more chasm.
+    if kind == "cave":
+        chasm_of = {index_of[n]: n for n in index_of if n.startswith("CHASM")}
+        floor_at = lambda x, y: is_room(x, y) and cell(x, y) not in chasm_of
+        for y in range(area.height):
+            for x in range(area.width):
+                if cell(x, y) not in chasm_of:
+                    continue
+                row = "EDGE" if floor_at(x, y - 1) else "RIM" if floor_at(x, y + 1) else ""
+                side = "LEFT" if floor_at(x - 1, y) else "RIGHT" if floor_at(x + 1, y) else ""
+                want = "_".join(part for part in ("CHASM", row, side) if part)
+                assert chasm_of[cell(x, y)] == want, (map_symbol, x, y, want)
+        assert all(sheet[index]["collision"] == 0xFFFF for index in chasm_of)
+        assert len(chasm_of) == 9
     # Handlers sit on the tiles that show what they do, and every mechanism is in the tables.
     opening = set()
     for o in area.objects:

@@ -744,7 +744,7 @@
   <tile id="90">
     <properties>
       <property name="runtime_id" type="int" value="90" />
-      <property name="symbol" type="string" value="ATLAS_5A" />
+      <property name="symbol" type="string" value="CHASM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -752,7 +752,7 @@
   <tile id="91">
     <properties>
       <property name="runtime_id" type="int" value="91" />
-      <property name="symbol" type="string" value="ATLAS_5B" />
+      <property name="symbol" type="string" value="CHASM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -760,7 +760,7 @@
   <tile id="92">
     <properties>
       <property name="runtime_id" type="int" value="92" />
-      <property name="symbol" type="string" value="ATLAS_5C" />
+      <property name="symbol" type="string" value="CHASM_EDGE_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -768,7 +768,7 @@
   <tile id="93">
     <properties>
       <property name="runtime_id" type="int" value="93" />
-      <property name="symbol" type="string" value="ATLAS_5D" />
+      <property name="symbol" type="string" value="CHASM_EDGE_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -776,7 +776,7 @@
   <tile id="94">
     <properties>
       <property name="runtime_id" type="int" value="94" />
-      <property name="symbol" type="string" value="ATLAS_5E" />
+      <property name="symbol" type="string" value="CHASM_RIM_LEFT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -784,7 +784,7 @@
   <tile id="95">
     <properties>
       <property name="runtime_id" type="int" value="95" />
-      <property name="symbol" type="string" value="ATLAS_5F" />
+      <property name="symbol" type="string" value="CHASM_RIM_RIGHT" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>

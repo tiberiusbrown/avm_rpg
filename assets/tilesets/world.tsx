@@ -1318,25 +1318,28 @@
   <tile id="154">
     <properties>
       <property name="runtime_id" type="int" value="154" />
-      <property name="symbol" type="string" value="ATLAS_9A" />
+      <property name="symbol" type="string" value="WATER_PILES_WEST" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="155">
     <properties>
       <property name="runtime_id" type="int" value="155" />
-      <property name="symbol" type="string" value="ATLAS_9B" />
+      <property name="symbol" type="string" value="WATER_PILES" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="156">
     <properties>
       <property name="runtime_id" type="int" value="156" />
-      <property name="symbol" type="string" value="ATLAS_9C" />
+      <property name="symbol" type="string" value="WATER_PILES_EAST" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
+      <property name="ambient" type="string" value="water" />
     </properties>
   </tile>
   <tile id="157">
