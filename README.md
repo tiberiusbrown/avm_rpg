@@ -44,15 +44,23 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
-| Peaceful Village | Original NES-inspired village theme: pulse melody, eighth-note broken chords, saw bass | D major / 4/4 | 96 | 60.000 s |
+| Glade and Hearth | Original woodland-village theme: breathy pulse flute, lute and rolled chords, saw bass, two bird calls | G major / 6/8 | 96 | 60.000 s |
 | Steel at Dawn | Original fantasy battle theme | D minor / 4/4 | 152 | About 12.6 s |
 
-[`peaceful.avms`](assets/music/peaceful.avms) is a 24-bar A-A'-B town theme with
-an original melody inspired by the gentle three-voice texture of NES Final Fantasy.
-The A phrases sing over a stepwise descending bass, and A' lifts the tune to a full
-cadence on D. The last eight bars answer higher and end on the dominant, which
-resolves into the first bar of the next loop. It uses channels 0/1/2 and leaves
-noise free. The generated catalog exposes it as `MUSIC_PEACEFUL` with the title **Peaceful Village**.
+[`peaceful.avms`](assets/music/peaceful.avms) is a 32-bar A-A'-B-A'' theme in 6/8,
+two dotted-quarter beats per bar. A breathy flute states a four-note hook over a
+lilting lute that plays two chord tones after each beat, with a saw bass walking
+root and fifth stepwise (G D E B C G D A). The first A closes on the dominant and
+the answer on a held G, with a bird calling above it. A' lifts the hook a fifth and climbs
+to G6. B is a shaded glade: sighing long notes over rolled chords in three quarter-note
+beats against the bass's two. A'' brings the hook back, sings the climax as two long
+notes, and rises to D6 so the loop re-enters on the hook. Held notes use a slight
+vibrato. The bird calls are short rising frequency slides on the harmony voice. The
+score uses 16 ms automation, channels 0/1/2, and leaves noise free; channels 0 and 2
+carry the tune if an effect borrows channel 1. The lead never rests for a full beat,
+because the synthesis interrupt costs more per frame with each sounding voice and the
+pause animation's frame-timing check tolerates only small steps in that load. The generated catalog exposes it as `MUSIC_PEACEFUL` with the title
+**Glade and Hearth**.
 
 Battles have sound effects. Each `assets/sfx/*.avms` score is a one-shot effect, and the
 build compiles them all with `tools/compile_sfx.py` into `generated/sfx_ids.h` and
@@ -73,8 +81,8 @@ Noise carries the impacts.
 | `fall` | A unit is defeated, after the blow that defeated it |
 | `enemy_turn` | The enemy's turn starts |
 
-Playback starts with Peaceful Village. Battles switch to Steel at Dawn and return to
-Peaceful Village when A dismisses the result screen. Music continues through dialogue and menus.
+Playback starts with Glade and Hearth. Battles switch to Steel at Dawn and return to
+Glade and Hearth when A dismisses the result screen. Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
 The runtime starts it immediately when no song is active.

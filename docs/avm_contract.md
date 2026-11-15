@@ -201,8 +201,8 @@ compact one-shot tonal/noise effects on voices 1/3. Assets store raw uint16 phas
 increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
 and Timer1/Timer4 audio operation require no game update call. RPG starts
-Peaceful Village after New Game or a successful Continue, switches to Steel at
-Dawn for battles, and returns to Peaceful Village at the result. `music_play` leaves the current
+Glade and Hearth after New Game or a successful Continue, switches to Steel at
+Dawn for battles, and returns to Glade and Hearth at the result. `music_play` leaves the current
 song alone or queues a different song with `avm_audio_play_fade`. The interpreter
 lowers music attenuation by one every 4 ms and restores the request's captured
 gain before starting the queued song (1.02 seconds at gain 255). Input, display

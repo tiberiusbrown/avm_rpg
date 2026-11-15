@@ -4,7 +4,7 @@
 #include "music_peaceful.h"
 
 constexpr char AVM_PROGMEM MUSIC_BATTLE_TITLE[] = "Steel at Dawn";
-constexpr char AVM_PROGMEM MUSIC_PEACEFUL_TITLE[] = "Peaceful Village";
+constexpr char AVM_PROGMEM MUSIC_PEACEFUL_TITLE[] = "Glade and Hearth";
 
 constexpr MusicTrack AVM_PROGMEM MUSIC_TRACKS[] = {
     {MUSIC_BATTLE_DATA, MUSIC_BATTLE_TITLE},

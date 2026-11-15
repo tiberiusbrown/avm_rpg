@@ -1,121 +1,200 @@
-// Hearthlight Village — original NES-inspired peaceful town theme.
-// D major | 96 BPM | 24 measures (60.0 seconds), form A - A' - B.
-// A sings over a stepwise descending bass; A' lifts the same tune to a full
-// cadence; B answers higher and ends on the dominant, which resolves into
-// the first D chord on loop restart.
+// Glade and Hearth — original woodland-village theme for a fantasy RPG.
+// G major | 6/8 at 96 BPM (dotted quarter = 64) | 32 measures (60.0 seconds).
+// Form A - A' - B - A''. Each bar is two dotted-quarter beats.
+//   A   (1-8)   A breathy flute states a four-note hook over a lilting
+//               "oom-pa-pa" lute. The first four bars close on the dominant;
+//               the answer closes on a held G while a bird calls above it.
+//   A'  (9-16)  The hook lifts a fifth and climbs to G6, then settles home.
+//   B   (17-24) A shaded glade: Em-C-G-D twice. Sighing long notes sit over
+//               rolled chords in three quarter-note beats against the bass's
+//               two, which gives a gentle 3-against-2 drift.
+//   A'' (25-32) The hook returns, the climax sings in two long notes, and the
+//               last bar rises to D6 so the loop re-enters on the hook.
 // Loop at runtime with avm_audio_music_loop(1). Channel 3 stays free.
+// Channel 0 and 2 carry the song by themselves if an effect borrows channel 1.
+// The lead never rests for a whole beat: each sounding voice adds synthesis
+// interrupt time to every 50 Hz frame, and the device test's pause-animation
+// timing check tolerates only small frame-to-frame steps in that load. A beat
+// of silence in the lead and lute, then both entering together, tripped it.
 
-title "Peaceful Village"
-description "A warm, unhurried town theme: singing pulse lead over harp-like broken chords"
+title "Glade and Hearth"
+description "A warm woodland-village theme: flute lead, lute and rolled chords, saw bass, distant birds"
 tempo 96
-meter 4/4
+meter 6/8
 volume max
-automation 8ms
+// 16 ms steps keep the vibrato smooth while all channels' fades land on one shared
+// grid, so the audio service sees fewer, fuller events.
+automation 16ms
 
-envelope song_env {
-    points 0ms:0%, 16ms:100%, 240ms:86%, 620ms:70%
-    release 48ms:0%
-}
-envelope harp_env {
-    points 0ms:100%, 80ms:66%, 220ms:40%
-    release 24ms:0%
-}
-envelope bass_env {
-    points 0ms:100%, 200ms:80%, 700ms:58%
+envelope flute_env {
+    points 0ms:0%, 20ms:100%, 220ms:84%, 640ms:68%
     release 56ms:0%
 }
-
-instrument song { wave pulse duty 25% volume 14 envelope song_env gate 92% }
-instrument harp { wave pulse duty 50% volume 6 envelope harp_env gate 95% }
-instrument bass { wave saw volume 9 envelope bass_env gate 88% }
-
-// Lead: long-short "sighing" cells (dotted quarter + eighth) that rise a
-// little further each phrase.
-channel 0 song octave 5 {
-    // A
-    f#4. e8  d4   a4   | // D
-    g4.  f#8 e2        | // A/C#
-    d4.  e8  f#4  b4   | // Bm
-    a2.       f#4      | // F#m/A
-    g4.  a8  b4   g4   | // G
-    a4.  f#8 d2        | // D/F#
-    e4.  f#8 g4   b4   | // Em
-    a2        e4   a4  | // A
-
-    // A'
-    f#4. e8  d4   a4   | // D
-    g4.  f#8 e2        | // A/C#
-    d4.  e8  f#4  b4   | // Bm
-    a2.       b8  c#'8 | // F#m/A
-    d'4. c#'8 b4  g4   | // G
-    a4.  b8  c#'4 a4   | // A
-    d'2       a4  f#4  | // D
-    d2.            r4  | // D
-
-    // B
-    b4   g8  b8  d'4.  b8   | // G
-    c#'4 a8  c#'8 e'4. c#'8 | // A
-    a4.  f#8 a4   c#'4      | // F#m
-    b2.       f#4           | // Bm
-    g4   b8  a8  g4   d4    | // G
-    f#4  a8  g8  f#4  d4    | // D/F#
-    e4.  f#8 g4   b4        | // Em
-    a2        e8  a8  g4    | // A7 -> D
+envelope sing_env {
+    points 0ms:0%, 24ms:100%, 360ms:86%, 940ms:72%
+    release 64ms:0%
+}
+envelope lute_env {
+    points 0ms:100%, 70ms:60%, 200ms:32%
+    release 24ms:0%
+}
+envelope roll_env {
+    points 0ms:100%, 120ms:72%, 420ms:42%
+    release 48ms:0%
+}
+envelope bass_env {
+    points 0ms:100%, 160ms:78%, 600ms:56%
+    release 48ms:0%
+}
+envelope chirp_env {
+    points 0ms:100%, 40ms:70%
+    release 10ms:0%
 }
 
-// Harp: unbroken eighth-note broken chords below the tune.
-phrase harp_d    { a8 d'8  f#'8 d'8  a8 d'8  f#'8 d'8  | }
-phrase harp_a    { a8 c#'8 e'8  c#'8 a8 c#'8 e'8  c#'8 | }
-phrase harp_a7   { a8 c#'8 e'8  c#'8 a8 c#'8 g'8  e'8  | }
-phrase harp_bm   { b8 d'8  f#'8 d'8  b8 d'8  f#'8 d'8  | }
-phrase harp_fsm  { a8 c#'8 f#'8 c#'8 a8 c#'8 f#'8 c#'8 | }
-phrase harp_g    { b8 d'8  g'8  d'8  b8 d'8  g'8  d'8  | }
-phrase harp_em   { b8 e'8  g'8  e'8  b8 e'8  g'8  e'8  | }
-phrase harp_rest { a8 d'8  f#'8 a'8  f#'8 d'8 a4       | }
+// A rounder, softer pulse than the battle lead. `sing` adds vibrato for notes
+// that are held for a full dotted-quarter beat.
+instrument flute { wave pulse duty 37.5% volume 14 envelope flute_env gate 92% }
+instrument sing {
+    wave pulse duty 37.5% volume 14 envelope sing_env gate 96%
+    lfo { target pitch depth 12cents period 190ms }
+}
+instrument lute  { wave pulse duty 50% volume 6 envelope lute_env gate 82% }
+instrument roll  { wave pulse duty 50% volume 6 envelope roll_env gate 96% }
+instrument bass  { wave saw volume 9 envelope bass_env gate 90% }
 
-channel 1 harp octave 3 {
-    // A
-    harp_d harp_a harp_bm harp_fsm
-    harp_g harp_d harp_em harp_a7
-
-    // A'
-    harp_d harp_a harp_bm harp_fsm
-    harp_g harp_a harp_d harp_rest
-
-    // B
-    harp_g harp_a harp_fsm harp_bm
-    harp_g harp_d harp_em harp_a7
+// Two rising bird calls. The slide sets the pitch, so the written note only
+// sets when the call starts and how long it lasts.
+instrument chirp_a {
+    wave pulse duty 25% volume 5 envelope chirp_env gate 90%
+    frequency_slide { from 1800Hz to 2600Hz over 60ms curve linear }
+}
+instrument chirp_b {
+    wave pulse duty 25% volume 5 envelope chirp_env gate 90%
+    frequency_slide { from 2300Hz to 3100Hz over 120ms curve linear }
 }
 
-// Bass: one sustained root per bar with a quiet pickup on beat four.
+channel 0 flute octave 5 {
+    // A: antecedent, half cadence on the held A over D
+    b4  a8  g4  a8   |  // G
+    b4  d'8 e'4.@sing |  // Em
+    d'4 c'8 b4  a8   |  // C
+    f#4 g8  a4.@sing  |  // D
+    // A: consequent, hook stepped up in bar 6, full cadence on G
+    b4  a8  g4  a8   |  // G
+    c'4 b8  a4  b8   |  // Am7
+    d'4 c'8 b4  a8   |  // D7
+    g2.@sing         |  // G, held while a bird calls above it
+
+    // A': the hook lifted a fifth, climax on G6, then home
+    d'4 c'8 b4  c'8  |  // G
+    d'4 g'8 e'4.@sing |  // Em
+    g'4 f#'8 e'4 c'8 |  // C (F# gives the chord a Lydian shimmer)
+    d'4 c'8 a4.@sing |  // D
+    b4  a8  g4  a8   |  // G
+    c'4 b8  a4  b8   |  // Am7
+    a4  b8  c'4 b8   |  // D7
+    g2.@sing         |  // G, held while a bird calls above it
+
+    // B: sighing sequence falls, then rises toward E6
+    g4.@sing f#4 e8  |  // Em
+    e4.@sing d4  c8  |  // C
+    d4  g8  b4.@sing |  // G
+    a4.@sing f#4 d8  |  // D
+    g4.@sing a4  b8  |  // Em
+    c'4.@sing b4 g8  |  // C
+    a4  c'8 e'4.@sing |  // Am7
+    d'4 c'8 a4  f#8  |  // D7
+
+    // A'': return, then the climax as two long notes
+    b4  a8  g4  a8   |  // G
+    b4  d'8 e'4.@sing |  // Em
+    g'4 f#'8 e'4 c'8 |  // C
+    d'4 c'8 a4.@sing |  // D
+    e'4.@sing g'4.@sing |  // C
+    g'4 e'8 d'4 c'8  |  // Am7
+    d'4 c'8 b4  a8   |  // D7
+    g4  b8  d'4.@sing |  // G, open on D so the hook re-enters
+}
+
+// Lute: the first eighth of each beat is left to the bass, then two chord tones.
+phrase lute_g  { r8 g8 b8  r8 d8 g8      | }
+phrase lute_em { r8 g8 b8  r8 e8 g8      | }
+phrase lute_c  { r8 e8 g8  r8 c8 e8      | }  // also Am7 over the A bass
+// Bar 9 keeps the lute off B4 while the lead passes through C6; bars 11 and 27
+// keep it off G4 while the lead passes through F#6.
+phrase lute_g_up { r8 b8 g8 r8 d8 g8     | }
+phrase lute_c_lyd { r8 c8 e8 r8 c8 g8    | }
+phrase lute_d  { r8 f#8 a8 r8 d8 f#8     | }
+phrase lute_d7 { r8 f#8 a8 r8 a8 c'8     | }
+
+channel 1 lute octave 4 {
+    // A
+    lute_g lute_em lute_c lute_d
+    lute_g lute_c  lute_d7
+    r8 g8 b8  r8 c32@chirp_a r32 c16@chirp_b r8 |
+
+    // A'
+    lute_g_up lute_em lute_c_lyd lute_d
+    lute_g lute_c  lute_d
+    r8 g8 b8  r4 c16@chirp_b r32 c32@chirp_a |
+
+    // B: three rolled quarter notes per bar, mostly alternating rising and falling
+    use roll
+    e4  b4  e4  |  // Em (open; the lead's G5 supplies the third)
+    c'4 g4  e4  |  // C
+    d4  g4  b4  |  // G
+    a4  f#4 d4  |  // D
+    e4  g4  b4  |  // Em
+    c'4 g4  e4  |  // C
+    a,4 c4  e4  |  // Am7
+    c'4 a4  f#4 |  // D7
+    use lute
+
+    // A''
+    lute_g lute_em lute_c_lyd lute_d
+    lute_c lute_c  lute_d7 lute_g
+}
+
+// Bass: root and fifth, one per dotted-quarter beat. The roots walk stepwise
+// (G D E B C G D A | G ...), so the line sings even by itself.
 channel 2 bass octave 2 {
-    // A: D - C# - B - A - G - F# - E - A
-    d'2.  a4   |
-    c#'2. a4   |
-    b2.   f#'4 |
-    a2.   c#'4 |
-    g2.   d'4  |
-    f#'2. d'4  |
-    e'2.  b4   |
-    a2    e'4 c#'4 |
+    // A
+    g4.  d'4. |
+    e'4. b4.  |
+    c'4. g4.  |
+    d'4. a4.  |
+    g4.  d'4. |
+    a4.  e'4. |
+    d'4. a4.  |
+    g4.  d'4. |
 
     // A'
-    d'2.  a4   |
-    c#'2. a4   |
-    b2.   f#'4 |
-    a2.   c#'4 |
-    g2.   b4   |
-    a2.   c#'4 |
-    d'2   a4  f#'4 |
-    d'2.  r4   |
+    g4.  d'4. |
+    e'4. b4.  |
+    c'4. g4.  |
+    d'4. a4.  |
+    g4.  d'4. |
+    a4.  e'4. |
+    d'4. a4.  |
+    g4.  d'4. |
 
     // B
-    g2.   d'4  |
-    a2.   e'4  |
-    f#'2. c#'4 |
-    b2.   f#'4 |
-    g2.   d'4  |
-    f#'2. d'4  |
-    e'2.  b4   |
-    a2    e'4 c#'4 |
+    e'4. b4.  |
+    c'4. g4.  |
+    g4.  d'4. |
+    d'4. a4.  |
+    e'4. b4.  |
+    c'4. g4.  |
+    a4.  e'4. |
+    d'4. a4.  |
+
+    // A''
+    g4.  d'4. |
+    e'4. b4.  |
+    c'4. g4.  |
+    d'4. a4.  |
+    c'4. g4.  |
+    a4.  e'4. |
+    d'4. a4.  |
+    g4.  d'4. |
 }
