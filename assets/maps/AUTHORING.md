@@ -71,8 +71,8 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 | `0x24` | 36 | `TREE_SPLIT_VERTICAL` | no | Two half trees in one tile: the bottom half of a tree on the top side, and the top half of a tree on the bottom side. |
 | `0x26` | 38 | `FLOWERS_26` | yes | Flowers on grass. Use sparingly among the grass. |
 | `0x27` | 39 | `FLOWERS_27` | yes | Flowers on grass. Use sparingly among the grass. |
-| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Blocks the diamond, as `SWITCH_LEFT` does. |
-| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Blocks the diamond. |
+| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Blocks its cell without the top corners, as `SWITCH_LEFT` does. |
+| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Blocks its cell without the top corners, as `POT` does. |
 | `0x32` | 50 | `POT` | partly | Unbroken pot. Collectible. Blocks its cell without the top corners. |
 | `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Solid on the bottom half. |
 | `0x34` | 52 | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
@@ -841,7 +841,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
     cliff walls, buildings and the large boulders.
   - **A post stands on one side of its cell.** `TORCH_POST` and `FLAG` stand on the left, and
     only the left half blocks.
-  - The world's objects: `TREE_ROUND` (cell without its bottom corners), `SWITCH_RIGHT` (diamond), `SWITCH_LEFT` (diamond), `POT` (cell without its top corners), `POT_BROKEN` (bottom half), `ROCK_SMALL` (bottom half), `ROCK_FLAT` (bottom half), `CHEST_CLOSED` (cell without its top corners), `CHEST_OPEN` (cell without its top corners), `SCARECROW` (diamond), `CAMPFIRE` (diamond), `TORCH_POST` (left half), `FLAG` (left half).
+  - The world's objects: `TREE_ROUND` (cell without its bottom corners), `SWITCH_RIGHT` (cell without its top corners), `SWITCH_LEFT` (cell without its top corners), `POT` (cell without its top corners), `POT_BROKEN` (bottom half), `ROCK_SMALL` (bottom half), `ROCK_FLAT` (bottom half), `CHEST_CLOSED` (cell without its top corners), `CHEST_OPEN` (cell without its top corners), `SCARECROW` (diamond), `CAMPFIRE` (diamond), `TORCH_POST` (left half), `FLAG` (left half).
   - Check the red area in `tiles16_collision.png` against the art after you set a mask.
 - **Pixel rule.** A pixel is solid when its center lies in a solid triangle. A center on a
   quadrant diagonal lies on the edge of two triangles, and it is solid when either one is.

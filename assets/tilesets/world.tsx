@@ -432,7 +432,7 @@
     <properties>
       <property name="runtime_id" type="int" value="48" />
       <property name="symbol" type="string" value="SWITCH_RIGHT" />
-      <property name="collision" type="int" value="37830" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
@@ -440,7 +440,7 @@
     <properties>
       <property name="runtime_id" type="int" value="49" />
       <property name="symbol" type="string" value="SWITCH_LEFT" />
-      <property name="collision" type="int" value="37830" />
+      <property name="collision" type="int" value="65478" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
