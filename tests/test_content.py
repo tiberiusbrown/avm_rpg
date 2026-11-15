@@ -13,20 +13,33 @@ from generate_assets import load_world, tileset
 
 maps, tiles, names = load_world(ROOT)
 by_symbol = {m.symbol: m for m in maps}
-assert set(by_symbol) == {"OUTDOOR", "INTERIORS"}
+assert set(by_symbol) == {"OUTDOOR", "INTERIORS", "CAVE", "DUNGEON"}
 m, interiors = by_symbol["OUTDOOR"], by_symbol["INTERIORS"]
 assert m.tileset == "world" and interiors.tileset == "house"
+assert by_symbol["CAVE"].tileset == "cave" and by_symbol["DUNGEON"].tileset == "dungeon"
 assert len(tiles) == 255 and 255 not in tiles and m.tiles is tiles
 start = names[m.spawn]["tx"], names[m.spawn]["ty"]
 symbol = {tile["symbol"]: index for index, tile in tiles.items()}
+symbol_index = dict(symbol)
 
 
 def at(x, y):
     return m.data[y * m.width + x]
 
 
+# Walking onto an entrance teleports, so nothing walks through a cave mouth or a mine door onto
+# the ground behind it. The floods below treat those cells as closed.
+passages = {
+    (point["tx"], point["ty"])
+    for o in m.objects
+    if o["handler"] == "take_passage"
+    for point in o["points"]
+}
+assert len(passages) == 3
+
+
 def clear(x, y):
-    return tiles[at(x, y)]["collision"] == 0
+    return tiles[at(x, y)]["collision"] == 0 and (x, y) not in passages
 
 
 def flood(passable):
@@ -53,7 +66,7 @@ cliff_outline = {
     for index, tile in tiles.items()
     if tile["symbol"].startswith("CLIFF_") and tile["collision"]
 }
-unsealed = flood(lambda x, y: at(x, y) not in cliff_outline)
+unsealed = flood(lambda x, y: at(x, y) not in cliff_outline and (x, y) not in passages)
 assert all(
     (x, y) in seen
     for y in range(m.height)
@@ -64,6 +77,8 @@ assert all(
 # quadrant on the outermost ring of the map can be reached from the spawn.
 def quadrant_open(qx, qy):
     if not (0 <= qx < 2 * m.width and 0 <= qy < 2 * m.height):
+        return False
+    if (qx // 2, qy // 2) in passages:
         return False
     mask = tiles[at(qx // 2, qy // 2)]["collision"]
     return (mask >> (4 * ((qy % 2) * 2 + qx % 2))) & 0xF != 0xF
@@ -94,6 +109,8 @@ assert {o["handler"] for o in m.objects if o["handler"]} == {
     "read_sign",
     "update_wanderer",
     "enter_house",
+    "take_passage",
+    "read_notice",
 }
 assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house"}
 # Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
@@ -104,7 +121,7 @@ assert 255 not in m.data, "every outdoor cell is painted"
 # BL 8-11, BR 12-15.
 for index, name, mask in (
     (0x00, "EMPTY", 0xFFFF), (0x01, "TREE_PLUS_NORTH", 0xFF00),
-    (0x02, "TREE_ROUND", 0xFFFF), (0x03, "TREE_CLUMP_TOP_LEFT", 0xFFF0),
+    (0x02, "TREE_ROUND", 0x93FF), (0x03, "TREE_CLUMP_TOP_LEFT", 0xFFF0),
     (0x04, "TREE_CLUMP_TOP_RIGHT", 0xFF0F), (0x06, "GRASS_06", 0x0000),
     (0x07, "GRASS_07", 0x0000), (0x08, "GRASS_08", 0x0000),
     (0x09, "GRASS_09", 0x0000), (0x0A, "GRASS_0A", 0x0000),
@@ -124,17 +141,17 @@ for index, name, mask in (
     (0x29, "WATER", 0xFFFF), (0x2A, "WATER_RIGHT", 0xFFFF),
     (0x2B, "WATER_INNER_TOP_RIGHT", 0xFFFF), (0x2C, "WATER_INNER_TOP_LEFT", 0xFFFF),
     (0x2D, "WATER_BOTTOM_INNER_TOP_LEFT", 0xFFFF), (0x2E, "WATER_BOTTOM_INNER_TOP_RIGHT", 0xFFFF),
-    (0x2F, "WATER_INNER_TOP_LEFT_BOTTOM_RIGHT", 0xFFFF), (0x30, "SWITCH_RIGHT", 0xFF00),
-    (0x31, "SWITCH_LEFT", 0xFF00), (0x32, "POT", 0xFFFF),
-    (0x33, "POT_BROKEN", 0xFF00), (0x34, "ROCK_SMALL", 0xFF00),
+    (0x2F, "WATER_INNER_TOP_LEFT_BOTTOM_RIGHT", 0xFFFF), (0x30, "SWITCH_RIGHT", 0x93C0),
+    (0x31, "SWITCH_LEFT", 0x9304), (0x32, "POT", 0x93C6),
+    (0x33, "POT_BROKEN", 0xC700), (0x34, "ROCK_SMALL", 0xD600),
     (0x35, "ROCKS", 0xFFFF), (0x36, "BOULDER", 0xFFFF),
     (0x37, "BOULDER_CRACKED", 0xFFFF), (0x38, "WATER_BOTTOM_LEFT", 0xFFFF),
     (0x39, "WATER_BOTTOM", 0xFFFF), (0x3A, "WATER_BOTTOM_RIGHT", 0xFFFF),
     (0x3B, "WATER_LEFT_INNER_TOP_RIGHT", 0xFFFF), (0x3C, "WATER_LEFT_INNER_BOTTOM_RIGHT", 0xFFFF),
     (0x3D, "WATER_RIGHT_INNER_TOP_LEFT", 0xFFFF), (0x3E, "WATER_RIGHT_INNER_BOTTOM_LEFT", 0xFFFF),
     (0x3F, "WATER_CALM", 0xFFFF), (0x40, "ROAD_NESW_ALT", 0x0000),
-    (0x41, "SIGN", 0xFFFF), (0x42, "CHEST_CLOSED", 0xFFFF),
-    (0x43, "CHEST_OPEN", 0xFFFF), (0x44, "ROAD_PATCH", 0x0000),
+    (0x41, "SIGN", 0xFFFF), (0x42, "CHEST_CLOSED", 0xBBC6),
+    (0x43, "CHEST_OPEN", 0xBBC6), (0x44, "ROAD_PATCH", 0x0000),
     (0x45, "ROAD_N", 0x0000), (0x46, "ROAD_E", 0x0000),
     (0x47, "ROAD_NE", 0x0000), (0x48, "CLIFF_TOP_LEFT", 0x0FFF),
     (0x49, "CLIFF_TOP", 0x00FF), (0x4A, "CLIFF_TOP_RIGHT", 0xF0FF),
@@ -365,7 +382,7 @@ for index, tile in m.tiles.items():
 for symbol, solid in (("TORCH_POST", True), ("CAMPFIRE", True), ("FLAG", True), ("SCARECROW", True), ("REEDS", False)):
     index = world_symbol_of(symbol)
     tile = m.tiles[index]
-    assert (tile["collision"] == 0xFFFF) == solid and (tile["collision"] == 0) != solid, symbol
+    assert (tile["collision"] != 0) == solid, symbol
     assert any(rows is not None for rows in tile["phases"]), f"{symbol} does not animate"
     assert index in m.data, f"the map has no {symbol}"
 # Reeds grow on the bank: every one touches water.
@@ -384,12 +401,11 @@ for chimney, roof in (("ROOF_FLAT_CHIMNEY", 0xB5), ("ROOF_SLOPE_CHIMNEY", 0x92))
     assert all(rows is not None for rows in tile["phases"])
     assert world_symbol[chimney] in m.data, f"no house uses {chimney}"
 
-# Interior tileset semantics from assets/maps/AUTHORING_INTERIOR.md. Only the house tileset
-# is used by a map so far. The three tilesets share their room pieces, cell for cell.
+# Interior tileset semantics from assets/maps/AUTHORING_INTERIOR.md, AUTHORING_CAVE.md and
+# AUTHORING_DUNGEON.md. The three tilesets share their room pieces, cell for cell.
 INTERIOR_TILESETS = {
     "house": {
         "named": 110,
-        "bottom_half": {"POT_BROKEN"},
         "walkable": {
             "ARCHWAY", "DOORMAT", "DOOR_OPEN", "EDGE_LEFT_EXIT",
             "EDGE_LEFT_RIGHT_EXIT", "EDGE_RIGHT_EXIT", "EDGE_TOP_EXIT", "FLOOR_CHECKER",
@@ -403,25 +419,29 @@ INTERIOR_TILESETS = {
         },
     },
     "cave": {
-        "named": 65,
-        "bottom_half": {"POT_BROKEN"},
+        "named": 92,
         "walkable": {
-            "BONES", "EDGE_LEFT_EXIT", "EDGE_LEFT_RIGHT_EXIT", "EDGE_RIGHT_EXIT",
-            "EDGE_TOP_EXIT", "FLOOR_A", "FLOOR_B", "FLOOR_C",
-            "LADDER_DOWN", "LADDER_UP", "PUDDLE", "RAIL_EAST_NORTH",
-            "RAIL_EAST_SOUTH", "RAIL_HORIZONTAL", "RAIL_VERTICAL", "RAIL_WEST_NORTH",
-            "RAIL_WEST_SOUTH", "TUNNEL",
+            "BONES", "BRIDGE_HORIZONTAL", "BRIDGE_VERTICAL", "EDGE_LEFT_EXIT",
+            "EDGE_LEFT_RIGHT_EXIT", "EDGE_RIGHT_EXIT", "EDGE_TOP_EXIT", "FLOOR_A",
+            "FLOOR_B", "FLOOR_C", "FLOOR_MOSS", "GATE_FRONT_OPEN",
+            "GATE_SIDE_OPEN", "LADDER_DOWN", "LADDER_UP", "PRESSURE_PLATE",
+            "PRESSURE_PLATE_DOWN", "PUDDLE", "RAIL_EAST_NORTH", "RAIL_EAST_SOUTH",
+            "RAIL_HORIZONTAL", "RAIL_VERTICAL", "RAIL_WEST_NORTH", "RAIL_WEST_SOUTH",
+            "TUNNEL", "VENT",
         },
     },
     "dungeon": {
-        "named": 62,
-        "bottom_half": {"POT_BROKEN", "SWITCH_LEFT", "SWITCH_RIGHT"},
+        "named": 99,
         "walkable": {
-            "ARCHWAY", "BARS_DOOR_OPEN", "BONES", "DUNGEON_DOOR_OPEN",
-            "EDGE_LEFT_EXIT", "EDGE_LEFT_RIGHT_EXIT", "EDGE_RIGHT_EXIT", "EDGE_TOP_EXIT",
-            "FLOOR_A", "FLOOR_B", "FLOOR_CRACKED", "FLOOR_GRATE",
-            "LADDER_UP", "PRESSURE_PLATE", "PUDDLE", "SPIKES_DOWN",
-            "STAIRS_DOWN", "STAIRS_UP", "TRAPDOOR",
+            "ARCHWAY", "BARS_DOOR_OPEN", "BLOCK_LOWERED", "BONES",
+            "CARPET_BOTTOM", "CARPET_BOTTOM_LEFT", "CARPET_BOTTOM_RIGHT", "CARPET_CENTER",
+            "CARPET_LEFT", "CARPET_RIGHT", "CARPET_TOP", "CARPET_TOP_LEFT",
+            "CARPET_TOP_RIGHT", "DUNGEON_DOOR_OPEN", "EDGE_LEFT_EXIT", "EDGE_LEFT_RIGHT_EXIT",
+            "EDGE_RIGHT_EXIT", "EDGE_TOP_EXIT", "FLOOR_A", "FLOOR_B",
+            "FLOOR_CRACKED", "FLOOR_GRATE", "GATE_FRONT_OPEN", "GATE_SIDE_OPEN",
+            "LADDER_UP", "PRESSURE_PLATE", "PRESSURE_PLATE_DOWN", "PUDDLE",
+            "RUNE", "RUNE_LIT", "SPIKES_DOWN", "STAIRS_DOWN",
+            "STAIRS_UP", "TRAPDOOR",
         },
     },
 }
@@ -431,8 +451,11 @@ SHARED = [
     "EDGE_RIGHT_DOT_LEFT", "EDGE_TOP_EXIT", "EDGE_LEFT_EXIT", "EDGE_RIGHT_EXIT",
     "WALL", "WALL_END_LEFT", "WALL_END_RIGHT", "WALL_PILLAR",
 ]
+EXITS = {"EDGE_TOP_EXIT", "EDGE_LEFT_EXIT", "EDGE_RIGHT_EXIT", "EDGE_LEFT_RIGHT_EXIT"}
+interior_records = {}
 for name, expected in INTERIOR_TILESETS.items():
     records = tileset(ROOT / f"assets/tilesets/{name}.tsx")
+    interior_records[name] = records
     assert len(records) == 255 and all(index == tile["runtime"] for index, tile in records.items())
     assert records[0]["symbol"] == "EMPTY" and records[0]["collision"] == 0xFFFF
     masks = {tile["symbol"]: tile["collision"] for tile in records.values()}
@@ -440,13 +463,204 @@ for name, expected in INTERIOR_TILESETS.items():
     assert [index_of[piece] for piece in SHARED] == list(range(0x01, 0x14)), name
     assert index_of["EDGE_LEFT_RIGHT_EXIT"] == 0x1C
     assert {s for s, mask in masks.items() if mask == 0} == expected["walkable"], name
-    assert {s for s, mask in masks.items() if mask == 0xFF00} == expected["bottom_half"], name
-    assert all(mask in (0, 0xFF00, 0xFFFF) for mask in masks.values())
+    # The room's structure blocks its whole cell. Everything that stands on the floor blocks
+    # where its art is, and it always blocks somewhere.
+    for piece in SHARED:
+        assert masks[piece] == (0 if piece in EXITS else 0xFFFF), (name, piece)
+    assert all(s.startswith("ATLAS_") is False or mask == 0xFFFF for s, mask in masks.items())
     assert sum(not s.startswith("ATLAS_") and s != "EMPTY" for s in masks) == expected["named"], name
     assert not any(tile["portal"] for tile in records.values())
-    for chest in ("CHEST_CLOSED", "CHEST_OPEN", "POT"):
-        assert masks[chest] == 0xFFFF
+    for solid in ("CHEST_CLOSED", "CHEST_OPEN", "POT", "POT_BROKEN", "BARREL", "CRATE"):
+        assert masks[solid] not in (0, 0xFFFF), (name, solid)
+    # A gate that crosses a passage blocks the whole way across while it is closed.
+    if name != "house":
+        assert masks["GATE_FRONT"] == 0xFFFF and masks["GATE_SIDE"] == 0x0F0F
+        assert masks["GATE_FRONT_OPEN"] == masks["GATE_SIDE_OPEN"] == 0
+        assert masks["PRESSURE_PLATE"] == masks["PRESSURE_PLATE_DOWN"] == 0
 assert tileset(ROOT / "assets/tilesets/house.tsx") == {t["frame"]: t for t in house.values()}
+
+
+def solid_pixel(mask, x, y):
+    quadrant = ((y >> 3) << 1) | (x >> 3)
+    u, v = 2 * (x & 7) - 7, 2 * (y & 7) - 7
+    across = (mask >> (quadrant * 4 + (1 if u > 0 else 3))) & 1
+    along = (mask >> (quadrant * 4 + (2 if v > 0 else 0))) & 1
+    return bool(across if abs(u) > abs(v) else along if abs(v) > abs(u) else across or along)
+
+
+# A shaped mask lines up with its art: what it blocks is drawn there, in every tileset. Drawn
+# means the tile's white pixels and the black that they enclose. Open pieces such as chair legs
+# and candle stems enclose little, so the bound is two fifths.
+from PIL import Image
+
+
+def drawn_cells(atlas, index):
+    left, top = index % 16 * 16, index // 16 * 16
+    white = {(x, y) for y in range(16) for x in range(16) if atlas.getpixel((left + x, top + y)) > 127}
+    outside, stack = set(), [(x, y) for x in range(16) for y in (0, 15)] + [(x, y) for y in range(16) for x in (0, 15)]
+    while stack:
+        cell = stack.pop()
+        if cell in outside or cell in white or not (0 <= cell[0] < 16 and 0 <= cell[1] < 16):
+            continue
+        outside.add(cell)
+        stack += [(cell[0] + 1, cell[1]), (cell[0] - 1, cell[1]), (cell[0], cell[1] + 1), (cell[0], cell[1] - 1)]
+    return {(x, y) for y in range(16) for x in range(16)} - outside
+
+
+HALVES = {0xFF00, 0x00FF, 0x0F0F, 0xF0F0}
+for name, records in {**interior_records, "world": tileset(ROOT / "assets/tilesets/world.tsx")}.items():
+    atlas = Image.open(next(iter(records.values()))["image"]).convert("L")
+    for index, tile in records.items():
+        mask = tile["collision"]
+        # Trees, cliffs, fences and roofs follow their halves and quadrants, not their outlines.
+        if mask in (0, 0xFFFF) or mask in HALVES or all((mask >> shift) & 0xF in (0, 0xF) for shift in (0, 4, 8, 12)):
+            continue
+        if name == "world" and not any(tile["symbol"].startswith(p) for p in ("POT", "CHEST", "ROCK_", "SWITCH", "CAMPFIRE", "FLAG", "SCARECROW", "TREE_ROUND")):
+            continue
+        drawn = drawn_cells(atlas, index)
+        blocked = {(x, y) for y in range(16) for x in range(16) if solid_pixel(mask, x, y)}
+        assert len(blocked & drawn) * 10 >= len(blocked) * 4, (name, tile["symbol"], hex(mask))
+
+# The cave and the dungeon. Each is one map with its own tileset, built on the room model.
+logic = (ROOT / "src/logic/handlers.h").read_text()
+WALL_ROWS = {
+    "cave": set(range(0x10, 0x20)),
+    "dungeon": (set(range(0x10, 0x24)) | set(range(0x40, 0x4A))) - {0x1C, 0x44},
+}
+EDGE_CELLS = set(range(0x01, 0x10)) | {0x1C}
+EDGE_OF = {
+    (True, False, False, False, False): "EDGE_TOP",
+    (False, True, False, False, False): "EDGE_LEFT",
+    (False, False, True, False, False): "EDGE_RIGHT",
+    (True, True, False, False, False): "EDGE_TOP_LEFT",
+    (True, False, True, False, False): "EDGE_TOP_RIGHT",
+    (False, True, True, False, False): "EDGE_LEFT_RIGHT",
+    (True, True, True, False, False): "EDGE_TOP_LEFT_RIGHT",
+    (False, False, False, True, False): "EDGE_DOT_LEFT",
+    (False, False, False, False, True): "EDGE_DOT_RIGHT",
+    (False, False, False, True, True): "EDGE_DOT_BOTH",
+    (False, True, False, False, True): "EDGE_LEFT_DOT_RIGHT",
+    (False, False, True, True, False): "EDGE_RIGHT_DOT_LEFT",
+}
+# The tile that each handler belongs on, and the handlers whose cells open during play.
+HANDLER_TILES = {
+    "take_passage": {"EDGE_TOP_EXIT", "LADDER_UP"},
+    "read_notice": {"SIGN", "PLAQUE"},
+    "use_lever": {"SWITCH_LEFT"},
+    "press_plate": {"PRESSURE_PLATE"},
+    "open_chest": {"CHEST_CLOSED"},
+    "open_door": {"BARS_DOOR"},
+    "light_orb": {"ORB_DARK"},
+    "steam_vent": {"VENT"},
+    "show_state": {"GATE_FRONT", "GATE_SIDE", "CHASM_EDGE", "CHASM_RIM", "SPIKES", "BLOCK_RAISED", "RUNE", "PORTCULLIS"},
+}
+OPENS = {"show_state", "open_door", "steam_vent"}
+for map_symbol in ("CAVE", "DUNGEON"):
+    area = by_symbol[map_symbol]
+    kind = area.tileset
+    sheet = area.tiles
+    index_of = {tile["symbol"]: index for index, tile in sheet.items()}
+    assert 255 not in area.data, f"{map_symbol}: void is painted with EMPTY (0x00)"
+
+    def cell(x, y):
+        return area.data[y * area.width + x] if 0 <= x < area.width and 0 <= y < area.height else 0
+
+    def is_room(x, y):
+        value = cell(x, y)
+        return value != 0 and value not in EDGE_CELLS and value not in WALL_ROWS[kind]
+
+    def wallish(x, y):
+        return is_room(x, y) or is_room(x, y + 1)
+
+    faces = {index_of[n] for n in ("WALL", "WALL_END_LEFT", "WALL_END_RIGHT", "WALL_PILLAR")}
+    plain = faces | {index_of[n] for n in ("WALL_ALT", "WALL_MOSS")}
+    for y in range(area.height):
+        for x in range(area.width):
+            value, where = cell(x, y), (map_symbol, x, y)
+            if is_room(x, y):
+                continue
+            left, right = is_room(x - 1, y), is_room(x + 1, y)
+            if is_room(x, y + 1):
+                # The wall row: a face, or a decorated piece that stands clear of room cells.
+                assert value in WALL_ROWS[kind], where
+                if value in plain:
+                    want = "WALL_PILLAR" if left and right else "WALL_END_LEFT" if left else "WALL_END_RIGHT" if right else None
+                    assert (value == index_of[want]) if want else (value not in faces or value == index_of["WALL"]), where
+                else:
+                    assert not left and not right, where
+                continue
+            top = is_room(x, y - 1)
+            band_left, band_right = wallish(x - 1, y), wallish(x + 1, y)
+            key = (top, band_left, band_right,
+                   not top and not band_left and is_room(x - 1, y - 1),
+                   not top and not band_right and is_room(x + 1, y - 1))
+            want = EDGE_OF.get(key, "EMPTY")
+            if sheet[value]["symbol"] == "EDGE_TOP_EXIT":
+                assert want == "EDGE_TOP", where
+            else:
+                assert value == index_of[want], (where, sheet[value]["symbol"], want)
+    # Handlers sit on the tiles that show what they do, and every mechanism is in the tables.
+    opening = set()
+    for o in area.objects:
+        if not o["handler"]:
+            continue
+        assert o["handler"] in HANDLER_TILES, o["handler"]
+        for point in o["points"]:
+            symbol_here = sheet[cell(point["tx"], point["ty"])]["symbol"]
+            assert symbol_here in HANDLER_TILES[o["handler"]], (o["name"], symbol_here)
+            if o["handler"] in OPENS:
+                opening.add((point["tx"], point["ty"]))
+        marker = o["name"] + ("Region" if o["rectangle"] else "")
+        if o["handler"] not in ("read_notice", "steam_vent"):
+            assert f"positions::{marker}" in logic, f"{o['name']} is missing from the tables in handlers.h"
+    # Every walkable cell can be reached once the mechanisms are open. A barred cell that no
+    # handler opens is scenery, and the flood passes its door.
+    spawn_point = names[area.spawn]
+    first = (spawn_point["tx"], spawn_point["ty"])
+    assert sheet[cell(*first)]["collision"] == 0
+    doors = {index_of[n] for n in ("BARS_DOOR",) if n in index_of}
+    reached, queue = {first}, deque([first])
+    while queue:
+        x, y = queue.popleft()
+        for step in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            value = cell(*step)
+            if step not in reached and (sheet[value]["collision"] == 0 or step in opening or value in doors):
+                reached.add(step)
+                queue.append(step)
+    for y in range(area.height):
+        for x in range(area.width):
+            if sheet[cell(x, y)]["collision"] == 0:
+                assert (x, y) in reached, f"{map_symbol}: walkable cell {(x, y)} cannot be reached"
+    for o in area.objects:
+        for point in o["points"]:
+            near = [(point["tx"] + dx, point["ty"] + dy) for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1))]
+            assert any(step in reached for step in near), f"{o['name']} cannot be reached"
+    # Something moves wherever the player stands: every chunk with floor in it holds a tile that
+    # takes an ambient effect, and the map uses many animated tiles.
+    animated = {index for index, tile in sheet.items() if any(rows is not None for rows in tile["phases"])}
+    assert len(animated & set(area.data)) >= 6, f"{map_symbol} uses few animated tiles"
+    classes = {sheet[value]["ambient"] for value in area.data}
+    assert {"drip", "ember", "crystal", "pool"} <= classes, (map_symbol, classes)
+    for cy in range(0, area.height, 4):
+        for cx in range(0, area.width, 8):
+            chunk = [cell(x, y) for y in range(cy, cy + 4) for x in range(cx, cx + 8)]
+            if any(sheet[value]["collision"] == 0 for value in chunk):
+                assert any(sheet[value]["ambient"] != "none" for value in chunk), (map_symbol, cx, cy)
+    # A light burns in sight of every floor cell: the view is 8x4 tiles around the player.
+    lights = {index for index, tile in sheet.items() if tile["ambient"] == "ember"}
+    for x, y in reached:
+        if sheet[cell(x, y)]["ambient"] in ("cave", "crypt"):
+            assert any(cell(x + dx, y + dy) in animated for dx in range(-5, 6) for dy in range(-3, 4)), (
+                f"{map_symbol}: no animated tile near {(x, y)}"
+            )
+    assert lights & set(area.data)
+# Both ends of every passage are in the table, and the outdoor ends are the right entrances.
+for name, tile_name in (("CaveMouth", "CLIFF_CAVE"), ("MineEntrance", "CLIFF_MINE"), ("CaveHole", "HOLE_LADDER")):
+    o = names[name]
+    assert o["handler"] == "take_passage" and at(o["tx"], o["ty"]) == symbol_index[tile_name]
+    assert (o["tx"], o["ty"] + 1) in seen, f"the ground below {name} is not reachable"
+    assert f"positions::{name}" in logic
+assert "positions::CaveExit" in logic and "positions::CaveLadder" in logic and "positions::DungeonExit" in logic
 
 for path in (ROOT / "assets/maps").glob("*.tmx"):
     node = ET.parse(path).getroot()

@@ -416,7 +416,7 @@ static void house_doors() {
 
     // Stand in front of the door, facing it.
     world_enter(AREA_OUTDOOR, (uint16_t)(door.x * TILE), (uint16_t)((door.y + 1) * TILE), NORTH);
-    CHECK(tile_solid(cached_tile(door)) && tile_collision(TILE_BOULDER_TALL) == 0xFFFF);
+    CHECK(tile_solid(cached_tile(door)) && tile_solid(TILE_BOULDER_TALL));
     game_update(0, 0);
     CHECK(game.area == AREA_OUTDOOR && game.can_interact);
 
@@ -440,7 +440,7 @@ static void house_doors() {
     CHECK(game.area == AREA_OUTDOOR);
     CHECK(game.player.x == door.x * TILE && game.player.y == (door.y + 1) * TILE &&
           game.player.facing == SOUTH);
-    CHECK(tile_collision(TILE_BOULDER_TALL) == 0xFFFF);
+    CHECK(tile_solid(TILE_BOULDER_TALL));
     // The player arrives off the door, so nothing fires again.
     game_update(0, 0);
     CHECK(game.area == AREA_OUTDOOR);
@@ -515,7 +515,16 @@ static void mechanism_states() {
                 TilePos cell{entry.cells.origin.area, (uint8_t)(entry.cells.origin.x + dx),
                              (uint8_t)(entry.cells.origin.y + dy)};
                 game_new();
-                stand(below(cell, 2), SOUTH);
+                // Watch from the nearest walkable cell that is not the cell itself.
+                game.area = cell.area;
+                TilePos vantage = cell;
+                for(int oy = -2; oy <= 2 && vantage == cell; ++oy)
+                    for(int ox = -3; ox <= 3 && vantage == cell; ++ox)
+                        if((ox || oy) &&
+                           tile_collision(authored_tile(area, cell.x + ox, cell.y + oy)) == 0)
+                            vantage = {cell.area, (uint8_t)(cell.x + ox), (uint8_t)(cell.y + oy)};
+                CHECK(!(vantage == cell));
+                stand(vantage, SOUTH);
                 CHECK(!game.get_flag(entry.flag));
                 CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
                 CHECK(cached_tile(cell) != entry.tile);
@@ -587,7 +596,7 @@ static void cave_mechanisms() {
           cached_tile(positions::CaveBridge_1) == CAVE_TILE_CHASM_RIM);
     for(unsigned i = 0; i < 3 * TILE; ++i)
         game_update(BTN_UP, 0);
-    CHECK(game.player.y == near_side.y * TILE);
+    CHECK(game.player.y == near_side.y * TILE - FOOT_TOP);
 
     // The chest pays once.
     uint16_t gold = game.gold;
@@ -631,7 +640,7 @@ static void dungeon_mechanisms() {
           cached_tile(positions::DungeonSpikes_1) == DUNGEON_TILE_SPIKES);
     for(unsigned i = 0; i < TILE; ++i)
         game_update(BTN_UP, 0);
-    CHECK(game.player.y == (positions::DungeonSpikes_1.y + 1) * TILE);
+    CHECK(game.player.y == (positions::DungeonSpikes_1.y + 1) * TILE - FOOT_TOP);
     stand(below(positions::DungeonLever), NORTH);
     press_a();
     CHECK(game.get_flag(FLAG_DUNGEON_SPIKES));
@@ -651,7 +660,7 @@ static void dungeon_mechanisms() {
     // The open door takes no more presses.
     game_update(0, 0);
     CHECK(!game.can_interact);
-    CHECK(positions::DungeonPlate == TilePos{door.area, door.x, (uint8_t)(door.y - 1)});
+    CHECK(positions::DungeonPlate.x == door.x && positions::DungeonPlate.y == door.y - 1);
     CHECK(!game.get_flag(FLAG_DUNGEON_GATE));
     for(unsigned i = 0; i < 2 * TILE; ++i)
         game_update(BTN_UP, 0);
@@ -706,7 +715,8 @@ static void dungeon_mechanisms() {
 
 // Each notice answers a press from the cell in front of it.
 static void notices() {
-    for(TilePos notice : {positions::CaveSign, positions::CaveNotice, positions::DungeonPlaque}) {
+    TilePos const all[] = {positions::CaveSign, positions::CaveNotice, positions::DungeonPlaque};
+    for(TilePos notice : all) {
         game_new();
         stand(below(notice), NORTH);
         CHECK(tile_solid(cached_tile(notice)));

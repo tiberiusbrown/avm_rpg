@@ -136,7 +136,7 @@ and target reached/failed. Retirement is reported only at scene exit. Independen
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Saved state includes each dynamic NPC's residence. Save version 7 writes the complete
+Saved state includes each dynamic NPC's residence. Save version 8 writes the complete
 pointer-free live `Game` object, including NPC slots, directly from `.saved`, without a
 separate buffer or checksum. The slots, timers and stuck counts are reset and rebuilt by
 casting when a save is loaded; residences persist. Version-1–6 records are rejected.

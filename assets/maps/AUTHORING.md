@@ -5,12 +5,15 @@ look right. The file format itself (TMX/TSX rules, CSV layout, exporter errors) 
 specified in `docs/tiled_pipeline.md`. Read that first when you need an exact rule.
 
 This guide covers the world tileset and outdoor maps. Houses, caves and dungeons each
-have their own tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md).
+have their own tileset. [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.md) describes the room
+model that all three share, and the house tileset. [AUTHORING_CAVE.md](AUTHORING_CAVE.md)
+and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 
 ## Files
 
 - `assets/maps/*.tmx`: one finite orthogonal Tiled map per area. `outdoor.tmx` is the
-  overworld. `interiors.tmx` holds the inside of every house.
+  overworld. `interiors.tmx` holds the inside of every house. `cave.tmx` is Hollow Mine,
+  and `dungeon.tmx` is the Old Vault.
 - **Each map uses exactly one tileset**, and the game draws and collides each area with
   the tileset of its map. Outdoor maps use `world.tsx`. Tile IDs belong to a tileset, so
   the same ID is a different tile in another tileset.
@@ -43,7 +46,7 @@ have their own tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.
 | --- | --- | --- | --- | --- |
 | `0x00` | 0 | `EMPTY` | no | Blank placeholder. Never paint it. |
 | `0x01` | 1 | `TREE_PLUS_NORTH` | partly | Top arm of the round-tree plus. Solid on the bottom half. |
-| `0x02` | 2 | `TREE_ROUND` | no | One isolated round tree. Do not clump it. |
+| `0x02` | 2 | `TREE_ROUND` | partly | One isolated round tree. Do not clump it. Open at its two top corners. |
 | `0x03` | 3 | `TREE_CLUMP_TOP_LEFT` | partly | Clump piece. The tree continues down and to the right. The top-left quadrant is open. |
 | `0x04` | 4 | `TREE_CLUMP_TOP_RIGHT` | partly | Clump piece. The tree continues left and down. The top-right quadrant is open. |
 | `0x06` | 6 | `GRASS_06` | yes | Grass floor. Mix it with the other grass cells. |
@@ -68,17 +71,17 @@ have their own tileset, described in [AUTHORING_INTERIOR.md](AUTHORING_INTERIOR.
 | `0x24` | 36 | `TREE_SPLIT_VERTICAL` | no | Two half trees in one tile: the bottom half of a tree on the top side, and the top half of a tree on the bottom side. |
 | `0x26` | 38 | `FLOWERS_26` | yes | Flowers on grass. Use sparingly among the grass. |
 | `0x27` | 39 | `FLOWERS_27` | yes | Flowers on grass. Use sparingly among the grass. |
-| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Solid on the bottom half. |
-| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Solid on the bottom half. |
-| `0x32` | 50 | `POT` | no | Unbroken pot. Collectible. |
-| `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Solid on the bottom half. |
-| `0x34` | 52 | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
+| `0x30` | 48 | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Blocks where it is drawn. |
+| `0x31` | 49 | `SWITCH_LEFT` | partly | Interactive lever pointing left. Blocks where it is drawn. |
+| `0x32` | 50 | `POT` | partly | Unbroken pot. Collectible. Blocks where it is drawn. |
+| `0x33` | 51 | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Blocks the shards in the bottom half. |
+| `0x34` | 52 | `ROCK_SMALL` | partly | Small rock in the bottom half of its cell. Blocks where it is drawn. |
 | `0x35` | 53 | `ROCKS` | no | Two rocks. |
 | `0x36` | 54 | `BOULDER` | no | Round boulder. |
 | `0x37` | 55 | `BOULDER_CRACKED` | no | Split boulder. |
 | `0x41` | 65 | `SIGN` | no | Signpost. The `read_sign` handler belongs on it. |
-| `0x42` | 66 | `CHEST_CLOSED` | no | Closed chest with a rounded lid and a lock. Collectible. |
-| `0x43` | 67 | `CHEST_OPEN` | no | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
+| `0x42` | 66 | `CHEST_CLOSED` | partly | Closed chest with a lit lid and a lock. Collectible. Blocks where it is drawn. |
+| `0x43` | 67 | `CHEST_OPEN` | partly | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 | `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
 
 The road, bridge, large boulder, water, raised-area and fence cells are named too. Their
@@ -111,6 +114,12 @@ exported map looks the same every time.
 
 `TREE_ROUND` (`0x02`) is for isolated single trees. Every other round-tree piece is part
 of a tree that crosses a tile edge, so it must join matching pieces across that edge.
+
+Every piece is drawn from one tree: a crown with a lumpy rim, leaf marks inside it, a
+second line inside the rim on the side away from the light, and a trunk with a root flare. A
+piece holds the trees that cross its sides, each shifted by half a cell, and a tree further
+south covers the one behind it. Draw a new piece the same way, from the same tree, so that
+its halves meet the halves in the neighboring cells.
 
 Each piece has a side for every edge a tree crosses. A side is empty, `H` (a horizontal
 half tree that continues across a left or right edge), or `V` (a vertical half tree that
@@ -316,9 +325,14 @@ A bridge over a river three cells wide, as runtime IDs, with the road on both si
 Rocks and boulders stand on grass. Use them as obstacles, as scenery beside roads and
 water, and as barriers along the map border.
 
+A rock is drawn as a solid seen from above and in front: an outline, a ridge line between
+its top and its front, and a dither on the part of the front that faces away from the light.
+Cracks are short lines on the top or the front. The large boulders reach the edges of their
+cells, so a band of them reads as one mass of rock.
+
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x34` | `ROCK_SMALL` | partly | Small rock. Solid on the bottom half. |
+| `0x34` | `ROCK_SMALL` | partly | Small rock. Solid where it is drawn, in the bottom half. |
 | `0x0C` | `ROCK_FLAT` | partly | Low flat rock. Solid on the bottom half. |
 | `0x35` | `ROCKS` | no | Two rocks. |
 | `0x36` | `BOULDER` | no | Round boulder. |
@@ -332,8 +346,8 @@ water, and as barriers along the map border.
 - The wide and large boulders must be complete: both cells of the wide one, and all four
   of the large one.
 - Mix several kinds. A field of one rock repeats visibly.
-- `ROCK_SMALL` and `ROCK_FLAT` block only their bottom half. Do not rely on them alone to
-  close a gap.
+- `ROCK_SMALL` and `ROCK_FLAT` block only their bottom half, or less. Do not rely on them
+  alone to close a gap. Every other rock blocks its whole cell.
 
 ## Raised areas
 
@@ -422,9 +436,13 @@ Three cells mark a way in or down. All three are fully walkable.
   `CLIFF_WALL` or `CLIFF_WALL_ALT`, with raised cells on both sides and walkable lower
   ground below. They exist on the south side only.
 - `HOLE_LADDER` goes on open ground, with at least one walkable cell beside it.
-- Entering is content code. Put a handler point on the cell. The handler calls
-  `player_is_walking_onto<POS>()` and then `teleport_player<TARGET>()`. No tile sets
-  `portal`.
+- Entering is content code. Put a point with the handler `take_passage` on the cell and on
+  the doorway inside, and add the pair to `PASSAGES` in `src/logic/handlers.h`. The handler
+  calls `player_is_walking_onto<POS>()` and then `teleport_player<TARGET>()`. No tile sets
+  `portal`. A marker that is missing from the table fails to compile.
+- The outdoor map has three: `CaveMouth` and `CaveHole` lead into `cave.tmx`, and
+  `MineEntrance` leads into `dungeon.tmx`. [AUTHORING_CAVE.md](AUTHORING_CAVE.md#exits)
+  describes both ends of a passage.
 - **Give every entrance a handler that teleports.** The cells have no collision. A cave
   or mine with no handler acts as a ramp, and the player walks through it onto the floor
   above. A hole with no handler is walked over like grass. NPCs can also step onto an
@@ -580,11 +598,11 @@ Animated tiles so far: all 24 water cells (the ripples rock and glitter), `FLOWE
 | --- | --- | --- | --- |
 | `0x4E` | `ROOF_FLAT_CHIMNEY` | no | Flat roof center with a smoking chimney. It replaces a `0xb5`. |
 | `0x4F` | `ROOF_SLOPE_CHIMNEY` | partly | Slanted roof top-right edge with a smoking chimney. It replaces a `0x92` and has its collision. |
-| `0x7B` | `SCARECROW` | no | Scarecrow with fluttering sleeves. For pens and fields. |
-| `0x86` | `TORCH_POST` | no | Burning torch on a post. Put it on grass beside a road or a door path, never on the path. |
-| `0x87` | `CAMPFIRE` | no | Burning campfire. |
+| `0x7B` | `SCARECROW` | partly | Scarecrow with fluttering sleeves. For pens and fields. Blocks where it is drawn. |
+| `0x86` | `TORCH_POST` | partly | Burning torch on a post. It stands on the left of its cell, and only the left half blocks. Put it on grass beside a road or a door path, never on the path. |
+| `0x87` | `CAMPFIRE` | partly | Burning campfire. Blocks where it is drawn. |
 | `0x8E` | `REEDS` | yes | Reeds on the bank, swaying. Put it on a land cell that touches water. |
-| `0x8F` | `FLAG` | no | Flag on a pole, waving. |
+| `0x8F` | `FLAG` | partly | Flag on a pole, waving. Blocks where it is drawn. |
 
 Give a house one chimney at most. `REEDS` is the one walkable cell that is not grass, so no
 gust bends it and no rabbit sits in it.
@@ -613,6 +631,11 @@ optional `ambient` string property in `world.tsx`, decides what may appear there
 
 Birds also cross the sky above any map whose tileset sets the tileset property `sky`.
 
+The interior tilesets have classes of their own. `floor` is the house's. `cave`, `crypt`,
+`drip`, `pool`, `crystal` and `ember` belong to caves and dungeons: bats, wisps, falling
+drops, glints and sparks. [AUTHORING_CAVE.md](AUTHORING_CAVE.md#animation) and
+[AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md#animation) list them.
+
 - The sprites are the 16x16 frames of `assets/images/ambient16.png`, in rows of eight.
   `src/ambient.h` names the frames and holds every motion and chance.
 - A new tile takes a class when one of these effects suits it. A `perch` tile is solid and
@@ -626,10 +649,10 @@ Birds also cross the sky above any map whose tileset sets the tileset property `
 Descriptions of unnamed regions are approximate and come from visual inspection.
 Check a cell before you rely on it. A cell with no entry here is solid by default.
 
-- `0x01` to `0x05`, `0x10` to `0x15` and `0x21` to `0x24`: round trees and their
+- `0x01` to `0x04`, `0x10` to `0x14`, `0x21`, `0x23` and `0x24`: round trees and their
   pieces. Solid, except where a shape in [What solidity means](#what-solidity-means)
   opens part of the cell. The named cells are in the table. `0x05`, `0x15` and `0x22` are
-  unnamed pieces of the same family.
+  blank black cells, and solid.
 - `0x08` to `0x0A`: sparse grass, walkable. `0x0B`: the hole with a ladder, walkable. See
   [Entrances](#entrances).
 - `0x0C` to `0x0E`: rocks. See [Rocks](#rocks). `0x0F`: a blank black cell. Solid.
@@ -676,8 +699,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   corner solid below the diagonal that runs from the bottom-left to the top-right corner.
 - **Shapes assigned so far.** Each mask is written in decimal in `world.tsx`, and the hex
   values here show the quadrant bits.
-  - `0x01`: solid on the bottom half (`0xFF00`).
-  - `0x0C` and `0x34`: solid on the bottom half (`0xFF00`).
+  - `0x01` and `0x0C`: solid on the bottom half (`0xFF00`).
   - `0x03`: top-left quadrant open (`0xFFF0`).
   - `0x04`: top-right quadrant open (`0xFF0F`).
   - `0x13`: bottom-left quadrant open (`0xF0FF`).
@@ -687,9 +709,6 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   - `0x20`: solid except a house roof at the top, with 45-degree slopes from the peak at
     top center to both top corners (`0xFFC6`).
   - `0x21`: solid on the top half (`0x00FF`).
-  - `0x30`: solid on the bottom half (`0xFF00`).
-  - `0x31`: solid on the bottom half (`0xFF00`).
-  - `0x33`: solid on the bottom half (`0xFF00`).
   - `0x81`: solid triangle with vertices at the two bottom corners and the center (`0xC600`).
   - `0x90`: ramp, solid below the diagonal from bottom-left to top-right (`0xF660`).
   - `0x92`: ramp, solid below the diagonal from top-left to bottom-right (`0xCF0C`).
@@ -704,6 +723,13 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   - `0x4A` and `0x5C`: bottom-left quadrant open (`0xF0FF`).
   - `0x4B`: solid on the top-left quadrant (`0x000F`).
   - `0x4C`: solid on the top-right quadrant (`0x00F0`).
+  - `0x86`: solid on the left half (`0x0F0F`), where the torch stands.
+- **Objects block where their art is.** A mask can be any set of the sixteen triangles, and
+  an object takes the triangles that its art covers, so the player walks close around it.
+  These are fitted to their art: `0x02` `TREE_ROUND` (`0x93FF`), `0x30` `SWITCH_RIGHT` (`0x93C0`), `0x31` `SWITCH_LEFT` (`0x9304`), `0x32` `POT` (`0x93C6`), `0x33` `POT_BROKEN` (`0xC700`), `0x34` `ROCK_SMALL` (`0xD600`), `0x42` `CHEST_CLOSED` (`0xBBC6`), `0x43` `CHEST_OPEN` (`0xBBC6`), `0x7B` `SCARECROW` (`0x02C6`), `0x87` `CAMPFIRE` (`0x9302`), `0x8F` `FLAG` (`0x0086`).
+  Terrain that fills its cell stays fully solid: water, cliff walls, buildings and the large
+  boulders. A tile is not fully solid only because it is an obstacle. Give a new object the
+  triangles that it covers, and check the red area in `tiles16_collision.png` against the art.
 - **Pixel rule.** A pixel is solid when its center lies in a solid triangle. A center on a
   quadrant diagonal lies on the edge of two triangles, and it is solid when either one is.
 - **Corners slide.** When terrain blocks the player's next pixel, the player takes one pixel
@@ -713,10 +739,10 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   stays blocked, and NPCs never sidestep.
 - **Unpainted cells are outside, not ground.** An empty CSV cell (GID `0`) becomes the
   sentinel, which is not walkable. Paint every cell that should be playable.
-- **Interactive tiles are solid.** Pots and chests block movement fully. `SWITCH_LEFT` is
-  solid on its bottom half, like `SWITCH_RIGHT` and `POT_BROKEN`. The player
-  interacts by standing next to one and facing it, so its handler point goes on the
-  tile itself, as `read_sign` does on `SIGN`. No handler uses these tiles yet.
+- **Interactive tiles block.** Pots, chests and levers block where they are drawn, and
+  `SIGN` blocks its whole cell. The player interacts by standing next to one and facing it,
+  so its handler point goes on the tile itself, as `read_sign` does on `SIGN`. The cave and
+  the dungeon use levers and chests: see their guides.
 - **Each area has its own tileset.** Collision comes from the tileset of the active area,
   so the masks here apply on maps that use `world.tsx`.
 - **Collectibles change state.** A collected `POT` becomes `POT_BROKEN`, and a collected
@@ -823,6 +849,13 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 
 - **Use 1-bit art.** Pixels are pure black or pure white. Use no grey and no
   anti-aliasing. Cells are opaque.
+- **Keep the one view.** Everything is seen from the front and slightly above. An object
+  shows its top as well as its front: a chest shows its lid, a pot shows its mouth, and a
+  rock shows the ridge between its top and its front. Do not draw an object from the side
+  only.
+- **Shade the same way everywhere.** A flat top that faces up is lit, so it is filled white.
+  A front is dark inside its outline. A round dark surface takes a dither, or a second line
+  inside its rim, on the side away from the light, which comes from the top left.
 - **Black is the background.** A drawn tile overwrites what is beneath it. White
   carries the detail.
 - **Make silhouettes read at 16 pixels.** Use bold shapes. Keep outlines one pixel wide
@@ -849,7 +882,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 1. Draw the cell in `assets/images/tiles16.png`, in an empty cell or in an existing
    cell you are replacing. Keep the cell index equal to the runtime ID.
 2. In `world.tsx`, set `runtime_id` to the cell index and give the cell its symbol,
-   `collision` mask and `portal` value. Symbols must be unique.
+   `collision` mask and `portal` value. Symbols must be unique. Fit the mask to the art:
+   see [What solidity means](#what-solidity-means).
 3. Regenerate. Renaming a symbol changes its `TILE_<symbol>` constant, so update any
    code that refers to it.
 4. Check every map that uses the cell. Changing `collision` changes how every map plays.
@@ -882,7 +916,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   [Raised areas](#raised-areas) selects. Ramps, caves and mines replace a `CLIFF_WALL`.
 - Every fence arm meets a matching arm, every run ends in an end piece or a corner, and
   every pen has an opening.
-- Every cave, mine and hole has a handler point on its cell, and its handler teleports.
+- Every cave, mine and hole has a `take_passage` point on its cell and a row in `PASSAGES`.
+- Every object's mask covers its art and no more, and a torch stands clear of the path.
 - No unpainted cell lies inside the playable area.
 - Every handler point sits on the tile it describes, and it does not share a cell with
   the spawn.

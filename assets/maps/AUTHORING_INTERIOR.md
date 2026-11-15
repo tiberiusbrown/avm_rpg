@@ -1,17 +1,18 @@
 # Interior map and tile authoring guide
 
-This guide tells agents how to build houses, caves and dungeons. It sits beside
+This guide tells agents how to build rooms, and houses in particular. It sits beside
 [AUTHORING.md](AUTHORING.md), which covers the world tileset and outdoor maps. The rules
 there for collision masks, objects, handlers and routes apply here too. Read it first.
 
-There are three interior tilesets. They share one room model and the same wall edge cells,
-so most of this guide applies to all three.
+There are three interior tilesets. They share one room model and the same wall edge cells.
+This guide covers the room model and the house tileset. Caves and dungeons have their own
+guides, which build on this one.
 
-| Tileset | Atlas | For | Used by |
-| --- | --- | --- | --- |
-| `house.tsx` | `tiles16_house.png` | Houses, shops and cellars | `interiors.tmx` |
-| `cave.tsx` | `tiles16_cave.png` | Caves and mines | no map yet |
-| `dungeon.tsx` | `tiles16_dungeon.png` | Dungeons, crypts and halls | no map yet |
+| Tileset | Atlas | For | Used by | Guide |
+| --- | --- | --- | --- | --- |
+| `house.tsx` | `tiles16_house.png` | Houses, shops and cellars | `interiors.tmx` | this guide |
+| `cave.tsx` | `tiles16_cave.png` | Caves and mines | `cave.tmx` | [AUTHORING_CAVE.md](AUTHORING_CAVE.md) |
+| `dungeon.tsx` | `tiles16_dungeon.png` | Dungeons, crypts and halls | `dungeon.tmx` | [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) |
 
 ## Files
 
@@ -20,12 +21,13 @@ so most of this guide applies to all three.
   256x256 monochrome atlases.
 - `assets/images/tiles16_<name>_collision.png`: each atlas with solid collision pixels
   tinted red. The generator writes them on every run.
-- `assets/maps/interiors.tmx`: the inside of every house, in one map.
+- `assets/maps/interiors.tmx`: the inside of every house, in one map. `cave.tmx` and
+  `dungeon.tmx` are one cave and one dungeon.
 - **Each map uses exactly one tileset.** The game draws and collides an area with the
   tileset of its map. A house map uses `house.tsx`, a cave map uses `cave.tsx`, and a
   dungeon map uses `dungeon.tsx`. Pieces from two tilesets cannot share a map.
 - The generator emits tile constants per tileset: `HOUSE_TILE_<symbol>`,
-  `CAVE_TILE_<symbol>` and `DUNGEON_TILE_<symbol>`, once a map uses that tileset.
+  `CAVE_TILE_<symbol>` and `DUNGEON_TILE_<symbol>`.
 
 ## Tile IDs
 
@@ -47,6 +49,13 @@ A room is seen from the front and slightly above. The floor is black with a few 
 Walls are white bands three pixels thick around it. The north wall also shows its face,
 one tile tall, which carries windows, pictures and tall furniture. Everything outside is
 void.
+
+**Everything that stands on the floor shows its top as well as its front.** A top that faces
+up is lit: it is filled white. A front is dark inside a white outline. A table is a white top
+over an apron and legs, a barrel is a white lid over a banded body, and a stove is a white
+hob over its oven door. Round dark surfaces take a dither on the side away from the light.
+Pieces on the north wall face the viewer, so they are drawn from the front. No piece shows
+only its side.
 
 Every cell of an interior map is one of four kinds:
 
@@ -81,6 +90,9 @@ The cottage from `interiors.tmx`, as house tileset IDs. `00` is void.
 Its wall row holds a window, a bookcase and a sconce on wood panelling. A bed, a dresser,
 a plant, a round rug, a chair and a set table stand on a wood floor. A doormat lies above
 the exit in the south wall.
+
+Do not box a floor cell in. Furniture blocks most of its cell, so a floor cell with furniture
+or walls on all four sides cannot be reached.
 
 ## Edges
 
@@ -123,7 +135,7 @@ blocks in the dungeon tileset.
 
 | Hex | Symbol | Room cell on its left or right | Meaning |
 | --- | --- | --- | --- |
-| `0x10` | `WALL` | neither | Plain wall face. |
+| `0x10` | `WALL` | neither | Plain wall face. In a house it is plaster over a panelled dado. |
 | `0x11` | `WALL_END_LEFT` | left | Wall face with its left end exposed. |
 | `0x12` | `WALL_END_RIGHT` | right | Wall face with its right end exposed. |
 | `0x13` | `WALL_PILLAR` | both | Wall face one cell wide. |
@@ -187,11 +199,11 @@ Two more wall styles, with their end pieces. Use one style for all the walls of 
 
 | Hex | Symbol | Room cell on its left or right | Meaning |
 | --- | --- | --- | --- |
-| `0x14` | `WALL_WOOD` | neither | Wood-panelled wall. |
+| `0x14` | `WALL_WOOD` | neither | Wall of upright boards. |
 | `0x15` | `WALL_WOOD_END_LEFT` | left | Wood-panelled wall with its left end exposed. |
 | `0x16` | `WALL_WOOD_END_RIGHT` | right | Wood-panelled wall with its right end exposed. |
 | `0x17` | `WALL_WOOD_PILLAR` | both | Wood-panelled wall one cell wide. |
-| `0x18` | `WALL_STONE` | neither | Stone block wall, for cellars. |
+| `0x18` | `WALL_STONE` | neither | Wall of stone blocks in courses, for cellars. |
 | `0x19` | `WALL_STONE_END_LEFT` | left | Stone wall with its left end exposed. |
 | `0x1A` | `WALL_STONE_END_RIGHT` | right | Stone wall with its right end exposed. |
 | `0x1B` | `WALL_STONE_PILLAR` | both | Stone wall one cell wide. |
@@ -236,19 +248,19 @@ Floors. All are fully walkable.
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x40` | `FLOOR_WOOD_A` | yes | Wood planks, with a board end. Mix the four wood cells. |
-| `0x41` | `FLOOR_WOOD_B` | yes | Wood planks, with two seam fragments. |
-| `0x42` | `FLOOR_WOOD_C` | yes | Wood planks, with a board end. |
-| `0x4E` | `FLOOR_WOOD_D` | yes | Wood planks, with two seam fragments. |
+| `0x40` | `FLOOR_WOOD_A` | yes | Floorboards eight pixels wide: a stretch of each seam and one board end. Mix the four wood cells. |
+| `0x41` | `FLOOR_WOOD_B` | yes | Floorboards, with the seams and the board end elsewhere. |
+| `0x42` | `FLOOR_WOOD_C` | yes | Floorboards, with the seams and the board end elsewhere. |
+| `0x4E` | `FLOOR_WOOD_D` | yes | Floorboards, with the seams and the board end elsewhere. |
 | `0x43` | `FLOOR_TILE_A` | yes | Floor tiles marked by small crosses where tiles meet. It tiles with itself. |
 | `0x44` | `FLOOR_TILE_B` | yes | Small floor tiles marked by a grid of dots. It tiles with itself. |
 | `0x45` | `FLOOR_CHECKER` | yes | Checkered tiles. Dense. It tiles with itself. |
-| `0x46` | `FLOOR_STONE_A` | yes | Flagstones, with one joint. Mix the two stone cells. |
-| `0x47` | `FLOOR_STONE_B` | yes | Flagstones, with one joint. |
+| `0x46` | `FLOOR_STONE_A` | yes | Flagstones in a running bond, shown by a mark where three stones meet. Mix the two stone cells. |
+| `0x47` | `FLOOR_STONE_B` | yes | Flagstones with two specks. |
 | `0x48` | `FLOOR_PLAIN_A` | yes | Bare floor with a few specks. Mix the two plain cells. |
 | `0x49` | `FLOOR_PLAIN_B` | yes | Bare floor. |
-| `0x4C` | `DOORMAT` | yes | Doormat. Put it on the floor cell above an `EDGE_TOP_EXIT`. |
-| `0x4D` | `RUG_SMALL` | yes | Round rug, one cell. |
+| `0x4C` | `DOORMAT` | yes | Striped doormat. Put it on the floor cell above an `EDGE_TOP_EXIT`. |
+| `0x4D` | `RUG_SMALL` | yes | Oval rug with a border, one cell. |
 
 A rug of two or more cells in each direction uses the 3x3 block. Choose each cell by its
 place in the rug, as for flat roofs outdoors.
@@ -266,22 +278,23 @@ place in the rug, as for flat roofs outdoors.
 | `0x72` | `RUG_BOTTOM_RIGHT` | bottom-right corner | yes |
 | `0x53` | `RUG_CENTER_PLAIN` | interior, plain | yes |
 
-Tables and seats. Furniture is solid and stands on room cells.
+Tables and seats. Furniture stands on room cells and blocks where its art is. See
+[Solidity](#solidity).
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x54` | `TABLE` | no | Table, one cell. |
-| `0x55` | `TABLE_LEFT` | no | Left end of a long table. |
-| `0x56` | `TABLE_MIDDLE` | no | Middle of a long table. Repeat it for longer tables. |
-| `0x57` | `TABLE_RIGHT` | no | Right end of a long table. |
-| `0x58` | `TABLE_SET` | no | One-cell table set with a plate and a mug. |
-| `0x59` | `TABLE_CANDLE` | no | One-cell table with a candle. |
-| `0x5A` | `CHAIR_SOUTH` | no | Chair that faces south, toward the viewer. It goes north of a table. |
-| `0x5B` | `CHAIR_NORTH` | no | Chair that faces north, seen from behind. It goes south of a table. |
-| `0x5C` | `CHAIR_WEST` | no | Chair that faces west. It goes east of a table. |
-| `0x5D` | `CHAIR_EAST` | no | Chair that faces east. It goes west of a table. |
-| `0x5E` | `STOOL` | no | Round stool. |
-| `0x5F` | `BENCH` | no | Short bench. |
+| `0x54` | `TABLE` | partly | Table, one cell. |
+| `0x55` | `TABLE_LEFT` | partly | Left end of a long table. |
+| `0x56` | `TABLE_MIDDLE` | partly | Middle of a long table. Repeat it for longer tables. |
+| `0x57` | `TABLE_RIGHT` | partly | Right end of a long table. |
+| `0x58` | `TABLE_SET` | partly | One-cell table set with a plate and a mug. |
+| `0x59` | `TABLE_CANDLE` | partly | One-cell table with a candle. |
+| `0x5A` | `CHAIR_SOUTH` | partly | Chair that faces south, toward the viewer. It goes north of a table. |
+| `0x5B` | `CHAIR_NORTH` | partly | Chair that faces north, seen from behind. It goes south of a table. |
+| `0x5C` | `CHAIR_WEST` | partly | Chair that faces west. It goes east of a table. |
+| `0x5D` | `CHAIR_EAST` | partly | Chair that faces east. It goes west of a table. |
+| `0x5E` | `STOOL` | partly | Round stool. |
+| `0x5F` | `BENCH` | partly | Short bench. |
 
 Bedroom and storage:
 
@@ -289,47 +302,47 @@ Bedroom and storage:
 | --- | --- | --- | --- |
 | `0x64` | `BED_HEAD` | no | Head of a bed, with the pillow. `BED_FOOT` goes directly below it. |
 | `0x74` | `BED_FOOT` | no | Foot of a bed. |
-| `0x65` | `DRESSER` | no | Chest of drawers. |
-| `0x66` | `CABINET` | no | Low cabinet with two doors. |
-| `0x67` | `SHELF_LOW` | no | Low bookshelf that stands on the floor. |
+| `0x65` | `DRESSER` | partly | Chest of drawers. |
+| `0x66` | `CABINET` | partly | Low cabinet with two doors. |
+| `0x67` | `SHELF_LOW` | partly | Low bookshelf that stands on the floor. |
 
 Kitchen and stores:
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x68` | `STOVE` | no | Cooking stove with a pot. |
-| `0x69` | `COUNTER_LEFT` | no | Left end of a counter. |
-| `0x6A` | `COUNTER_MIDDLE` | no | Middle of a counter. Repeat it for longer counters. |
-| `0x6B` | `COUNTER_RIGHT` | no | Right end of a counter. |
-| `0x6C` | `COUNTER_SINK` | no | Counter middle with a basin and a tap. |
-| `0x6D` | `BARREL` | no | Barrel. |
-| `0x6E` | `CRATE` | no | Crate. |
-| `0x6F` | `SACK` | no | Sack. |
-| `0x7C` | `BUCKET` | no | Bucket. |
-| `0x7D` | `CAULDRON` | no | Cauldron on legs. |
+| `0x68` | `STOVE` | partly | Cooking stove with a pot. |
+| `0x69` | `COUNTER_LEFT` | partly | Left end of a counter. |
+| `0x6A` | `COUNTER_MIDDLE` | partly | Middle of a counter. Repeat it for longer counters. |
+| `0x6B` | `COUNTER_RIGHT` | partly | Right end of a counter. |
+| `0x6C` | `COUNTER_SINK` | partly | Counter middle with a basin and a tap. |
+| `0x6D` | `BARREL` | partly | Barrel. |
+| `0x6E` | `CRATE` | partly | Crate. |
+| `0x6F` | `SACK` | partly | Sack. |
+| `0x7C` | `BUCKET` | partly | Open bucket with a handle. |
+| `0x7D` | `CAULDRON` | partly | Open cauldron on legs. Its brew bubbles. |
 
 Other objects:
 
 | Hex | Symbol | Passable | Meaning |
 | --- | --- | --- | --- |
-| `0x75` | `PLANT` | no | Potted plant. |
-| `0x76` | `VASE` | no | Vase. |
-| `0x77` | `CANDELABRA` | no | Standing candelabra. |
-| `0x78` | `POT` | no | Unbroken pot. Collectible, as outdoors. |
-| `0x79` | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. Solid on the bottom half. |
-| `0x7A` | `CHEST_CLOSED` | no | Closed chest with a rounded lid and a lock. Collectible, as outdoors. |
-| `0x7B` | `CHEST_OPEN` | no | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
+| `0x75` | `PLANT` | partly | Potted plant. |
+| `0x76` | `VASE` | partly | Vase. |
+| `0x77` | `CANDELABRA` | partly | Standing candelabra. |
+| `0x78` | `POT` | partly | Unbroken pot. Collectible, as outdoors. |
+| `0x79` | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. |
+| `0x7A` | `CHEST_CLOSED` | partly | Closed chest with a rounded lid and a lock. Collectible, as outdoors. |
+| `0x7B` | `CHEST_OPEN` | partly | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 
 Rules for houses:
 
 - **Floors are quiet on purpose.** Wood, tile, stone and plain floors are a few marks on
   black. Furniture cells are opaque and carry their own black background, so they sit on
-  these floors without a visible edge.
+  these floors without a visible edge. A new floor keeps to about twenty lit pixels.
 - **Use one floor family per room:** wood for living rooms and bedrooms, tile for kitchens
   and shops, stone for cellars, plain for sheds and storerooms.
 - **Mix the cells of the wood, stone and plain families,** because a run of one cell
-  repeats visibly. Wood planks run left to right, and the marks are pieces of the seams
-  between boards.
+  repeats visibly. Floorboards run left to right, and the marks are stretches of the seams
+  between boards. The two stone cells share one grid of stones, so they join without a seam.
 - **Do not mix the tile cells.** `FLOOR_TILE_A` and `FLOOR_TILE_B` are two patterns. Fill a
   room with one of them.
 - **`FLOOR_CHECKER` is the one dense floor.** A piece that does not fill its cell, such
@@ -348,197 +361,16 @@ Rules for houses:
 - **Chairs face their table.** Choose the chair by the side of the table it stands on.
 - **A rug is at least 2x2.** For one cell, use `RUG_SMALL` or `DOORMAT`. Furniture hides
   the rug cell under it, so keep a rug's outline cells free.
-- **Interactive tiles are solid.** A pot or chest takes its handler point on its own
+- **Interactive tiles block.** A pot or chest takes its handler point on its own
   cell, and the player interacts from the next cell while facing it. Content code records
   the collected state, as outdoors.
 
-## Cave tileset
+## Cave and dungeon tilesets
 
-A cave uses the room model above. Its edge cells and wall faces show rough rock.
-
-Cave wall row pieces. All are solid except the two doorways.
-
-| Hex | Symbol | Passable | Meaning |
-| --- | --- | --- | --- |
-| `0x14` | `WALL_ALT` | no | Rock face with different cracks. Mix it with `WALL`. |
-| `0x15` | `WALL_ORE` | no | Rock face with ore nuggets. |
-| `0x16` | `WALL_CRYSTAL` | no | Rock face with crystals. |
-| `0x17` | `WALL_CRACKED` | no | Rock face with a deep crack. A weak wall that content code can open. |
-| `0x18` | `WALL_TIMBER` | no | Mine support frame of two posts and a beam. |
-| `0x19` | `WALL_TORCH` | no | Rock face with a lit torch. |
-| `0x1A` | `TUNNEL` | yes | Tunnel mouth in the rock face. A doorway. |
-| `0x1B` | `LADDER_UP` | yes | Ladder up through the rock. A doorway. It pairs with `HOLE_LADDER` outdoors. |
-
-Cave floor pieces. All are fully walkable.
-
-| Hex | Symbol | Passable | Meaning |
-| --- | --- | --- | --- |
-| `0x20` | `FLOOR_A` | yes | Bare ground with pebbles. Mix the three floor cells. |
-| `0x21` | `FLOOR_B` | yes | Bare ground with pebbles. |
-| `0x22` | `FLOOR_C` | yes | Bare ground with pebbles. |
-| `0x29` | `PUDDLE` | yes | Shallow puddle. Decoration. |
-| `0x2A` | `BONES` | yes | Skull and bone. Decoration. |
-| `0x2B` | `LADDER_DOWN` | yes | Hole with the top of a ladder. A doorway to a lower level. |
-| `0x23` | `RAIL_HORIZONTAL` | yes | Mine rails that run west to east. |
-| `0x24` | `RAIL_VERTICAL` | yes | Mine rails that run north to south. |
-| `0x25` | `RAIL_WEST_SOUTH` | yes | Rail curve that joins the west and south sides. |
-| `0x26` | `RAIL_EAST_SOUTH` | yes | Rail curve that joins the east and south sides. |
-| `0x27` | `RAIL_WEST_NORTH` | yes | Rail curve that joins the west and north sides. |
-| `0x28` | `RAIL_EAST_NORTH` | yes | Rail curve that joins the east and north sides. |
-
-Cave objects. All are solid, except `POT_BROKEN`.
-
-| Hex | Symbol | Passable | Meaning |
-| --- | --- | --- | --- |
-| `0x30` | `BOULDER` | no | Boulder. |
-| `0x31` | `RUBBLE` | no | Pile of small rocks. |
-| `0x32` | `STALAGMITE` | no | One tall stalagmite. |
-| `0x33` | `STALAGMITES` | no | Cluster of stalagmites. |
-| `0x34` | `CRYSTALS` | no | Crystal cluster. |
-| `0x35` | `MUSHROOMS` | no | Cave mushrooms. |
-| `0x36` | `CAMPFIRE` | no | Burning campfire. |
-| `0x37` | `MINECART` | no | Mine cart on west-to-east rails. |
-| `0x2C` | `PIT` | no | Deep pit. Solid, so nothing walks into it. |
-| `0x38` | `POT` | no | Unbroken pot. Collectible. |
-| `0x39` | `POT_BROKEN` | partly | Broken pot. Solid on the bottom half. |
-| `0x3A` | `CHEST_CLOSED` | no | Closed chest. Collectible. |
-| `0x3B` | `CHEST_OPEN` | no | Opened chest. |
-| `0x3C` | `BARREL` | no | Barrel. |
-| `0x3D` | `CRATE` | no | Crate. |
-| `0x3E` | `SACK` | no | Sack. |
-
-A pool of two or more cells in each direction uses its 3x3 block, as a rug does. Pools are
-solid.
-
-| Hex | Symbol | Place in the pool | Passable |
-| --- | --- | --- | --- |
-| `0x40` | `POOL_TOP_LEFT` | top-left corner | no |
-| `0x41` | `POOL_TOP` | top edge | no |
-| `0x42` | `POOL_TOP_RIGHT` | top-right corner | no |
-| `0x50` | `POOL_LEFT` | left edge | no |
-| `0x51` | `POOL_CENTER` | interior | no |
-| `0x52` | `POOL_RIGHT` | right edge | no |
-| `0x60` | `POOL_BOTTOM_LEFT` | bottom-left corner | no |
-| `0x61` | `POOL_BOTTOM` | bottom edge | no |
-| `0x62` | `POOL_BOTTOM_RIGHT` | bottom-right corner | no |
-
-A small cave, as cave tileset IDs. `00` is void.
-
-```text
-00 00 03 10 15 14 02 00
-03 1B 12 21 21 21 11 02
-03 22 22 22 22 32 22 02
-03 20 30 20 20 20 04 08
-09 05 21 21 21 04 08 00
-00 09 01 0D 01 08 00 00
-```
-
-It has a ladder up at its west end, ore in the north wall, a boulder, a stalagmite and
-an exit in its south side.
-
-Rules for caves:
-
-- **Irregular outlines.** Step the outline in or out by one or two cells every two to
-  four cells. Avoid straight runs longer than four cells and avoid rectangles.
-- **Wall faces follow the outline.** Every non-room cell above a room cell is a wall row
-  piece. Where the outline steps, the face next to a room cell is `WALL_END_LEFT`,
-  `WALL_END_RIGHT` or `WALL_PILLAR`.
-- **Mix the plain faces.** Paint about one `WALL` in three as `WALL_ALT`.
-- **Chambers and passages.** Make a cave from a few chambers joined by passages one or two
-  cells wide. Use two cells where an NPC walks.
-- **Rails join by their sides.** A straight rail joins the two sides it runs between. A
-  curve joins the two sides in its name. Every rail end meets another rail, a wall, or an
-  exit. `MINECART` stands on a west-to-east run, between `RAIL_HORIZONTAL` cells.
-- **Mines.** A mine is a cave with rails, `WALL_TIMBER` frames every few cells of wall and
-  `WALL_TORCH` for light.
-- **Exits.** `TUNNEL`, `LADDER_UP`, `LADDER_DOWN` and the edge exits follow
-  [Exits](#exits). A cave reached through `CLIFF_CAVE` outdoors has an `EDGE_TOP_EXIT` that
-  leads back. A cave reached through `HOLE_LADDER` has a `LADDER_UP`.
-
-## Dungeon tileset
-
-A dungeon is built like a house, with straight edges and stone block walls.
-
-Dungeon wall row pieces. Each replaces a `WALL` face and cannot stand next to a room cell.
-
-| Hex | Symbol | Passable | Meaning |
-| --- | --- | --- | --- |
-| `0x14` | `WALL_CRACKED` | no | Stone wall with a deep crack. A weak wall that content code can open. |
-| `0x15` | `TORCH` | no | Wall torch with a flame. |
-| `0x16` | `GRATE_WINDOW` | no | Small barred window high in the wall. |
-| `0x17` | `CHAINS` | no | Two hanging shackles. |
-| `0x18` | `BANNER` | no | Hanging banner. |
-| `0x19` | `BARS` | no | Iron bars across the wall row. The front of a cell. |
-| `0x1A` | `BARS_DOOR` | no | Closed cell door of iron bars. |
-| `0x1B` | `BARS_DOOR_OPEN` | yes | Opened cell door. The open state of `BARS_DOOR`. A doorway. |
-| `0x1D` | `DUNGEON_DOOR` | no | Closed heavy double door in an arch. |
-| `0x1E` | `DUNGEON_DOOR_LOCKED` | no | Closed arched door with a lock plate. |
-| `0x1F` | `DUNGEON_DOOR_OPEN` | yes | Open arch. The open state of both dungeon doors. A doorway. |
-| `0x20` | `ARCHWAY` | yes | Open passage through the north wall to the room directly above. It breaks the wall top band. |
-| `0x21` | `STAIRS_UP` | yes | Stairs that climb into the north wall. A doorway. |
-| `0x22` | `LADDER_UP` | yes | Ladder up through a hatch in the ceiling. A doorway. |
-
-Dungeon floor pieces:
-
-| Hex | Symbol | Passable | Meaning |
-| --- | --- | --- | --- |
-| `0x24` | `FLOOR_A` | yes | Flagstones, with one joint. Mix the two floor cells. |
-| `0x25` | `FLOOR_B` | yes | Flagstones, with one joint. |
-| `0x26` | `FLOOR_CRACKED` | yes | Cracked flagstones. An accent: use it for about one floor cell in ten. |
-| `0x27` | `FLOOR_GRATE` | yes | Drain grate in the floor. Decoration. |
-| `0x28` | `PRESSURE_PLATE` | yes | Pressure plate. Its handler reacts to the player standing on it. |
-| `0x2A` | `SPIKES_DOWN` | yes | Retracted spikes. The safe state of `SPIKES`. |
-| `0x29` | `SPIKES` | no | Raised spikes. Solid. |
-| `0x2B` | `STAIRS_DOWN` | yes | Stairwell down through the floor. A doorway. |
-| `0x2C` | `TRAPDOOR` | yes | Trapdoor with a ring pull. A doorway. |
-| `0x2D` | `PIT` | no | Deep pit. Solid, so nothing walks into it. |
-| `0x2E` | `PUDDLE` | yes | Shallow puddle. Decoration. |
-| `0x2F` | `BONES` | yes | Skull and bone. Decoration. |
-
-Dungeon objects:
-
-| Hex | Symbol | Passable | Meaning |
-| --- | --- | --- | --- |
-| `0x30` | `COLUMN` | no | Stone column. |
-| `0x31` | `STATUE` | no | Statue on a pedestal. |
-| `0x32` | `BRAZIER` | no | Burning brazier. |
-| `0x33` | `ALTAR` | no | Stone altar with a candle. |
-| `0x34` | `TOMB_HEAD` | no | Head of a stone tomb. `TOMB_FOOT` goes directly below it. |
-| `0x44` | `TOMB_FOOT` | no | Foot of a stone tomb. |
-| `0x35` | `SWITCH_LEFT` | partly | Interactive lever pointing left. Solid on the bottom half, as outdoors. |
-| `0x36` | `SWITCH_RIGHT` | partly | Interactive lever pointing right. Solid on the bottom half, as outdoors. |
-| `0x37` | `RUBBLE` | no | Pile of small rocks. |
-| `0x38` | `POT` | no | Unbroken pot. Collectible. |
-| `0x39` | `POT_BROKEN` | partly | Broken pot. Solid on the bottom half. |
-| `0x3A` | `CHEST_CLOSED` | no | Closed chest. Collectible. |
-| `0x3B` | `CHEST_OPEN` | no | Opened chest. |
-| `0x3C` | `BARREL` | no | Barrel. |
-| `0x3D` | `CRATE` | no | Crate. |
-| `0x3E` | `CANDELABRA` | no | Standing candelabra. |
-
-Rules for dungeons:
-
-- **Rooms and corridors.** Dungeon rooms are rectangles joined by corridors one or two
-  cells wide. `ARCHWAY` and `EDGE_LEFT_RIGHT_EXIT` join rooms through walls one cell thick.
-- **Light the rooms.** Put a `TORCH` every three to five cells of wall, or a `BRAZIER` on
-  the floor.
-- **Columns in pairs.** Place `COLUMN` cells in a regular pattern, and leave two walkable
-  cells between columns.
-- **Cells.** A cell is a small room whose wall row holds `BARS` on both sides of a
-  `BARS_DOOR`. The cell lies above the corridor.
-- **State changes are content code.** `BARS_DOOR` opens to `BARS_DOOR_OPEN`. `DUNGEON_DOOR`
-  and `DUNGEON_DOOR_LOCKED` open to `DUNGEON_DOOR_OPEN`. `SPIKES` lower to `SPIKES_DOWN`.
-  A cracked wall opens to `ARCHWAY`. The handler swaps the tile with `set_tile<POS>()` and
-  records the state in a world flag, because the cache is rebuilt from the map when it
-  reloads. The map shows the initial state.
-- **Levers and plates.** `SWITCH_LEFT` and `SWITCH_RIGHT` are interactive, and the handler
-  uses `player_just_interacted<POS>()`. A `PRESSURE_PLATE` handler uses
-  `game.player_is_on_tile<POS>()`.
-- **Open doors are exits.** `BARS_DOOR_OPEN` and `DUNGEON_DOOR_OPEN` are walkable. If the
-  room behind is on another map, the handler teleports. If the room is directly above on
-  the same map, use `ARCHWAY` as the open state so the wall top band is broken.
-- **A tomb is two cells tall.** `TOMB_HEAD` goes above `TOMB_FOOT`.
-- A dungeon reached through `CLIFF_MINE` outdoors has an `EDGE_TOP_EXIT` that leads back.
+[AUTHORING_CAVE.md](AUTHORING_CAVE.md) and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md)
+describe the cave and dungeon tilesets: their wall row pieces, floors, objects, animation and
+the mechanisms for puzzles, such as levers, gates, pressure plates, spikes and bridges. Both
+use the room model, the edge pieces, the wall faces and the exits of this guide.
 
 ## Animation
 
@@ -555,16 +387,22 @@ phase layer atlases and the ambient classes. The house tileset's layers are
 - **Every house has an animated tile and some bare floor.** The view is four rows high, so
   the wall row is often out of sight. The floor effects keep the room alive then. The
   content test checks both.
-- The cave and dungeon tilesets have no layers yet. Add them when a map uses the tileset:
-  torches, braziers, the campfire and the candelabra are the cells to animate.
+- The cave and dungeon tilesets have their own layers and ambient classes. Their guides list
+  them.
 
 ## Solidity
 
-- `EMPTY`, edge cells, wall faces, wall decorations, furniture, pools, pits and raised
-  spikes are fully solid (`65535`).
-- Floors, rugs, rails, floor decorations and every exit are fully walkable (`0`). Closed
-  doors are solid.
-- `POT_BROKEN`, `SWITCH_LEFT` and `SWITCH_RIGHT` are solid on the bottom half (`0xFF00`).
+- **The room's structure blocks its whole cell.** `EMPTY`, edge cells, wall faces and every
+  wall row piece are fully solid (`65535`), except the doorways.
+- **Floors, rugs and every exit are fully walkable (`0`).** Closed doors are solid.
+- **Everything that stands on the floor blocks where its art is.** Its mask is the set of
+  collision triangles that the piece covers, so a table blocks its top and not the space
+  between its legs, and a chair, a vase or a pot blocks less than its cell. The player walks
+  around a piece, close to its outline. The shaped masks of the house tileset:
+  `TABLE` (`0x39EE`), `TABLE_LEFT` (`0x19EE`), `TABLE_MIDDLE` (`0x11EE`), `TABLE_RIGHT` (`0x31EE`), `TABLE_SET` (`0x39EE`), `TABLE_CANDLE` (`0x39EE`), `CHAIR_SOUTH` (`0x93C6`), `CHAIR_NORTH` (`0x93C6`), `CHAIR_WEST` (`0x9350`), `CHAIR_EAST` (`0x9305`), `STOOL` (`0x9344`), `BENCH` (`0xBB44`), `DRESSER` (`0xD7D7`), `CABINET` (`0xFFC6`), `SHELF_LOW` (`0xFFEE`), `STOVE` (`0xFFEE`), `COUNTER_LEFT` (`0xFFEE`), `COUNTER_MIDDLE` (`0xFFEE`), `COUNTER_RIGHT` (`0xFFEE`), `COUNTER_SINK` (`0xFFEE`), `BARREL` (`0xD7C6`), `CRATE` (`0xD7C6`), `SACK` (`0x9382`), `PLANT` (`0x82C6`), `VASE` (`0x9382`), `CANDELABRA` (`0x8293`), `POT` (`0x93C6`), `POT_BROKEN` (`0xC600`), `CHEST_CLOSED` (`0xBBC6`), `CHEST_OPEN` (`0xBBC6`), `BUCKET` (`0x9300`), `CAULDRON` (`0x93C6`).
+- **Fit the mask when you draw a piece.** Open `tiles16_house_collision.png` and check that
+  the red area matches the art. A piece that fills its cell, such as a bed, takes `65535`. A
+  piece always blocks somewhere: no object has the mask `0`.
 - NPCs treat any nonzero mask as solid. NPCs can step onto exit cells, so keep routes and
   roaming areas away from them.
 - The player's sprite overlaps the wall face above it and the side bands beside it by a
@@ -603,9 +441,9 @@ phase layer atlases and the ambient classes. The house tileset's layers are
 - Every house room has a `<House>Exit` point with `leave_house`, a matching `<House>Door`
   outdoors, and an entry in `HOUSE_LINKS`.
 - No other room is on screen from any cell the player can stand on.
-- Rugs and pools are at least 2x2. Beds, tombs, long tables and counters are complete, and
-  chairs face their table.
-- A cave has no long straight runs in its outline, and every rail end meets another rail,
-  a wall or an exit.
+- Rugs are at least 2x2. Beds, long tables and counters are complete, and chairs face their
+  table.
+- No floor cell is boxed in by furniture and walls.
+- A cave or a dungeon also passes the checklist of its own guide.
 - Tiles that change state show their initial state, and content code records the change.
 - The spawn is on a floor cell with no handler.

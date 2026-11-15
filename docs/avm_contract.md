@@ -170,7 +170,7 @@ erased, and blocks on flash page programming. LOAD scans matching-size records;
 SAVE_EXISTS only checks the first size word. Changing `.saved` length changes physical
 compatibility. Equal-length new versions still require application validation.
 
-RPG save version 7 stores the complete 267-byte `Game` object directly in `.saved`.
+RPG save version 8 stores the complete 268-byte `Game` object directly in `.saved`.
 It contains no pointers and uses the AVM byte-aligned struct layout; changing that layout
 requires a version bump. There is no separate static save buffer, encoder, decoder or
 checksum. The version byte is the first payload byte. The native host's `sizeof(Game)`

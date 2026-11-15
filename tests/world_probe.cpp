@@ -47,7 +47,7 @@ RPG_NOINLINE static void run_edge_probe() {
         {0, 0}, {4, 0}, {7, 7}, {8, 8}, {12, 9}, {15, 15}, {16, 16}, {23, 7}, {65530, 65530}};
     game.dimensions = {3, 2};
     game.cache.origin_tx = game.cache.origin_ty = 0;
-    for(uint8_t area = AREA_OUTDOOR; area <= AREA_INTERIORS; ++area) {
+    for(uint8_t area = AREA_OUTDOOR; area <= AREA_DUNGEON; ++area) {
         game.area = area;
         for(uint16_t tile = 0; tile < 256; ++tile) {
             memset(game.cache.tiles, tile, sizeof(game.cache.tiles));

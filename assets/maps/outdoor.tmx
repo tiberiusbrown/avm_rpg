@@ -358,7 +358,7 @@
       </properties>
       <point />
     </object>
-    <object id="20" name="MineDoor" x="616" y="72">
+    <object id="20" name="MineEntrance" x="616" y="72">
       <properties>
         <property name="handler" value="take_passage" />
       </properties>

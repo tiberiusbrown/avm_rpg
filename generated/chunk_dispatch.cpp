@@ -35,7 +35,7 @@ template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_4_1() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
-    Handler<positions::MineDoor, STAGE>{}.take_passage();
+    Handler<positions::MineEntrance, STAGE>{}.take_passage();
     if constexpr(STAGE != STAGE_TILES) {
         if(teleported)
             return;

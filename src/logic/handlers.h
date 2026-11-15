@@ -79,7 +79,7 @@ struct Passage {
 inline constexpr Passage PASSAGES[] = {
     {positions::CaveMouth, positions::CaveExit, -1},
     {positions::CaveHole, positions::CaveLadder, 1},
-    {positions::MineDoor, positions::DungeonExit, -1},
+    {positions::MineEntrance, positions::DungeonExit, -1},
 };
 
 // Declared and never defined. An entrance or doorway that is missing from PASSAGES reaches this

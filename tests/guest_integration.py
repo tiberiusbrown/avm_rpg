@@ -138,12 +138,13 @@ def main():
             [
                 "breakpoint set --name probe_done",
                 "run",
-                "expr (int)probe_checks",
-                "expr (int)probe_failure",
+                # The check counter is 16 bits wide and passes 32767, so read it unsigned.
+                "expr (unsigned)probe_checks",
+                "expr (unsigned)probe_failure",
             ],
             work / f"{name}.log",
         )
-        values = [int(v) for v in re.findall(r"\(int\) \$\d+ = (\d+)", output)]
+        values = [int(v) for v in re.findall(r"\(unsigned int\) \$\d+ = (\d+)", output)]
         assert len(values) == 2 and values[0] >= minimum and values[1] == 0, (
             f"{name}: {values}"
         )

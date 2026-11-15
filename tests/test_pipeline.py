@@ -105,11 +105,13 @@ class Pipeline(unittest.TestCase):
         for name, file, frames, masked in [
             ("TILE_SPRITES", "tiles16.png", 255, False),
             ("HOUSE_TILE_SPRITES", "tiles16_house.png", 255, False),
+            ("CAVE_TILE_SPRITES", "tiles16_cave.png", 255, False),
+            ("DUNGEON_TILE_SPRITES", "tiles16_dungeon.png", 255, False),
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
             ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 9, True),
-            ("AMBIENT_SPRITES", "ambient16.png", 35, True),
+            ("AMBIENT_SPRITES", "ambient16.png", 43, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
@@ -176,8 +178,11 @@ class Pipeline(unittest.TestCase):
         out = generate(self.root)
         maps, _, _ = load_world(self.root)
         by_name = {m.tileset: m.tiles for m in maps}
+        # Tilesets take their runtime index by name, after the world's.
         for index, (name, sprites, atlas) in enumerate([
             ("world", "TILE_SPRITES", "tiles16"),
+            ("cave", "CAVE_TILE_SPRITES", "tiles16_cave"),
+            ("dungeon", "DUNGEON_TILE_SPRITES", "tiles16_dungeon"),
             ("house", "HOUSE_TILE_SPRITES", "tiles16_house"),
         ]):
             frames = self.sheet(out["sprites.cpp"], sprites)
@@ -225,6 +230,20 @@ class Pipeline(unittest.TestCase):
             {"SCONCE", "FIREPLACE_LIT", "CANDELABRA", "CLOCK", "STOVE", "WINDOW_CURTAINS"},
             symbols(house),
         )
+        # Flames, water and crystals animate underground.
+        self.assertLessEqual(
+            {"WALL_TORCH", "CAMPFIRE", "LANTERN", "POOL_CENTER", "PUDDLE", "WALL_WATERFALL",
+             "CRYSTALS", "VENT_ACTIVE", "MUSHROOMS"},
+            symbols(by_name["cave"]),
+        )
+        self.assertLessEqual(
+            {"TORCH", "BRAZIER", "CANDELABRA", "ALTAR", "CHAINS", "BANNER", "PUDDLE", "WALL_FOUNTAIN",
+             "WALL_FACE", "WALL_RUNES", "RUNE_LIT", "ORB_LIT", "CHANNEL_HORIZONTAL", "CHANNEL_VERTICAL"},
+            symbols(by_name["dungeon"]),
+        )
+        # No interior tileset has wind frames or a sky.
+        for name in ("cave", "dungeon", "house"):
+            self.assertEqual(tile_wind_block(by_name[name]), (0, 0, 0))
         self.assertIn("constexpr bool tileset_has_sky(uint8_t tileset) {\n    return tileset == TILESET_WORLD;", out["area_ids.h"])
 
     def test_a_phase_without_art_shares_an_earlier_sheet(self):
@@ -232,8 +251,9 @@ class Pipeline(unittest.TestCase):
         (self.root / "assets/images/tiles16_house_phase3.png").unlink()
         sprites = generate(self.root)["sprites.cpp"]
         self.assertNotIn("HOUSE_TILE_SPRITES_PHASE3", sprites)
-        self.assertNotIn(f"case {TILE_PHASES + 3}:", sprites)
-        self.assertIn(f"case {TILE_PHASES + 2}: return HOUSE_TILE_SPRITES_PHASE2;", sprites)
+        house = 3  # world, cave, dungeon, house
+        self.assertNotIn(f"case {house * TILE_PHASES + 3}:", sprites)
+        self.assertIn(f"case {house * TILE_PHASES + 2}: return HOUSE_TILE_SPRITES_PHASE2;", sprites)
 
     def test_layer_atlas_validation(self):
         path = self.root / "assets/images/tiles16_phase1.png"
@@ -290,8 +310,13 @@ class Pipeline(unittest.TestCase):
         out = generate(self.root)
         areas, ids = out["area_ids.h"], out["tile_ids.h"]
         self.assertIn("TILESET_WORLD = 0;", areas)
-        self.assertIn("TILESET_HOUSE = 1;", areas)
-        self.assertIn("TILESET_COUNT = 2;", areas)
+        self.assertEqual(by_symbol["CAVE"].tileset, "cave")
+        self.assertEqual(by_symbol["DUNGEON"].tileset, "dungeon")
+        for index, name in enumerate(("WORLD", "CAVE", "DUNGEON", "HOUSE")):
+            self.assertIn(f"TILESET_{name} = {index};", areas)
+        self.assertIn("TILESET_COUNT = 4;", areas)
+        for symbol, name in (("CAVE", "CAVE"), ("DUNGEON", "DUNGEON")):
+            self.assertIn(f"case {by_symbol[symbol].area}: return TILESET_{name};", areas)
         interiors = by_symbol["INTERIORS"].area
         self.assertIn(f"case {interiors}: return TILESET_HOUSE;", areas)
         self.assertIn("default: return TILESET_WORLD;", areas)
@@ -301,10 +326,12 @@ class Pipeline(unittest.TestCase):
         # One 256-entry collision block per tileset, each ending in the solid sentinel.
         body = out["map_assets.cpp"].split("TILE_COLLISION[] = {", 1)[1].split("};", 1)[0]
         masks = [int(v) for v in re.findall(r"\d+", body)]
-        self.assertEqual(len(masks), 512)
-        self.assertEqual((masks[255], masks[511]), (0xFFFF, 0xFFFF))
+        self.assertEqual(len(masks), 4 * 256)
+        self.assertEqual([masks[block * 256 + 255] for block in range(4)], [0xFFFF] * 4)
         self.assertEqual(masks[0x41], 0xFFFF)  # the world's sign is solid
-        self.assertEqual(masks[256 + 0x40], 0)  # the house's wood floor is not
+        self.assertEqual(masks[3 * 256 + 0x40], 0)  # the house's wood floor is not
+        self.assertEqual(masks[1 * 256 + 0x20], 0)  # nor the cave's floor
+        self.assertEqual(masks[2 * 256 + 0x4D], 0x0F0F)  # a dungeon side gate blocks its left half
         sprites = out["sprites.cpp"]
         self.assertIn("HOUSE_TILE_SPRITES[] = {", sprites)
         self.assertIn("case TILESET_HOUSE: return HOUSE_TILE_SPRITES;", sprites)
