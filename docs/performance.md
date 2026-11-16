@@ -370,6 +370,12 @@ summary of the measurement above.
 
 The integration script creates a fresh directory, launches actual ELF and package
 guests, runs frame-based input scenarios, and records avm-prof traces/HTML reports.
+Pause opening, closing, and loading checks verify gameplay behavior and display timing,
+without comparing framebuffer contents or prescribing animation steps. Menu display intervals
+must stay below 336,000 cycles (the 50 Hz period plus interrupt jitter), and each observed
+interaction must finish within one second. Resumed exploration uses its separate CPU budget.
+Display captures remain available for visual review.
+
 Raw evidence for this run is `verification-ior6tcas` under build/; latest-verification.txt
 points to it. SDK-only users can execute the LLDB/replay checks, but full-device
 per-frame/restart checks are explicitly skipped without the optional harness.
