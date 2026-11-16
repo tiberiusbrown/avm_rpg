@@ -282,11 +282,17 @@ uint8_t const PROGMEM* tileset_phase_sprites(uint8_t tileset, uint8_t phase);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
 // The ambient creatures and effects, ambient16.png: 16x16 plus-mask frames that ambient.h names.
 extern uint8_t const PROGMEM AMBIENT_SPRITES[];
-// The title screen: the whole 128x64 picture, the game's name as one plus-mask sprite, and
-// title16.png's 16x16 plus-mask frames that title.h names.
+// The title screen: the whole 128x64 background picture, the game's name as one plus-mask
+// sprite, and title16.png's 16x16 plus-mask frames that title.h names.
 extern uint8_t const PROGMEM TITLE_SCENE[];
 extern uint8_t const PROGMEM TITLE_LOGO[];
 extern uint8_t const PROGMEM TITLE_SPRITES[];
+// The title's foreground layers, plus-mask sprites drawn over the background. A pine is a sheet
+// of bands eight rows high, top band first; the rock is one frame.
+extern uint8_t const PROGMEM TITLE_PINE_SMALL[];
+extern uint8_t const PROGMEM TITLE_PINE_LEFT[];
+extern uint8_t const PROGMEM TITLE_PINE_RIGHT[];
+extern uint8_t const PROGMEM TITLE_ROCK[];
 // The battle cursor: 22x22 plus-mask frames, one per dash phase. The generated sheet asserts the
 // count.
 inline constexpr uint8_t CURSOR_FRAME_COUNT = 4;

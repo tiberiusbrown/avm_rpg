@@ -1444,10 +1444,15 @@ def sprite_lines(name, frames, masks=None, size=TILE_SIZE):
     return lines
 
 
-# The title screen: title_scene.png is the whole 128x64 picture, title_logo.png the game's name
-# with its outline as alpha, and title16.png the 16x16 plus-mask frames that title.h names.
+# The title screen: title_scene.png is the whole 128x64 background picture, title_logo.png the
+# game's name with its outline as alpha, and title16.png the 16x16 plus-mask frames that title.h
+# names. The foreground stands in front of the background as plus-mask layers of their own, so
+# creatures can pass behind them: one picture per pine, cut into bands of eight rows that sway
+# apart, and the rock.
 TITLE_SCENE_SIZE = (128, 64)
 TITLE_COLUMNS = 8
+TITLE_BAND_ROWS = 8
+TITLE_PINES = ("small", "left", "right")
 
 
 def read_picture(name, root=ROOT, size=None, masked=False):
@@ -1498,6 +1503,44 @@ def picture_lines(name, bitmap, mask=None):
     return lines
 
 
+def band_lines(name, bitmap, mask):
+    """A plus-mask sheet whose frames are the picture's bands of eight rows, top first."""
+    width, height = len(bitmap[0]), len(bitmap)
+    lines = [
+        f"constexpr uint8_t PROGMEM {name}[] = {{",
+        f"    {width}, {TITLE_BAND_ROWS}, // width, height",
+    ]
+    for top in range(0, height, TITLE_BAND_ROWS):
+        rows = slice(top, top + TITLE_BAND_ROWS)
+        pixels = [
+            byte
+            for pair in zip(
+                frame_bytes(bitmap[rows], TITLE_BAND_ROWS, width),
+                frame_bytes(mask[rows], TITLE_BAND_ROWS, width),
+            )
+            for byte in pair
+        ]
+        lines.extend(["", f"    // Band {top // TITLE_BAND_ROWS}"])
+        for start in range(0, len(pixels), 16):
+            lines.append(
+                "    " + ", ".join(f"0x{byte:02x}" for byte in pixels[start : start + 16]) + ","
+            )
+    lines.append("};")
+    return lines
+
+
+def read_title_pine(name, root=ROOT):
+    """Read one pine layer; its height is a whole number of bands."""
+    file = f"title_pine_{name}.png"
+    bitmap, mask = read_picture(file, root, masked=True)
+    require(
+        len(bitmap) % TITLE_BAND_ROWS == 0 and len(bitmap) <= TITLE_SCENE_SIZE[1],
+        root / "assets" / "images" / file,
+        f"the height must be a multiple of {TITLE_BAND_ROWS} and at most {TITLE_SCENE_SIZE[1]}",
+    )
+    return bitmap, mask
+
+
 def generate(root=ROOT):
     world = export_world(root)
     sheets = read_tileset_frames(root)
@@ -1512,8 +1555,10 @@ def generate(root=ROOT):
     title_frames, title_masks = read_sprite_sheet("title16.png", TITLE_COLUMNS, root)
     title_scene, _ = read_picture("title_scene.png", root, TITLE_SCENE_SIZE)
     title_logo, title_logo_mask = read_picture("title_logo.png", root, masked=True)
+    title_pines = {name: read_title_pine(name, root) for name in TITLE_PINES}
+    title_rock, title_rock_mask = read_picture("title_rock.png", root, masked=True)
     art = [
-        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, and the title screen's picture, logo and plus-mask frames. */",
+        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, and the title screen's picture, logo, foreground layers and plus-mask frames. */",
         '#include "rpg.h"',
         '#include "ambient.h"',
         '#include "title.h"',
@@ -1552,6 +1597,11 @@ def generate(root=ROOT):
     art += picture_lines("TITLE_LOGO", title_logo, title_logo_mask)
     art.append("")
     art += sprite_lines("TITLE_SPRITES", title_frames, title_masks)
+    for name, (bitmap, mask) in title_pines.items():
+        art.append("")
+        art += band_lines(f"TITLE_PINE_{name.upper()}", bitmap, mask)
+    art.append("")
+    art += picture_lines("TITLE_ROCK", title_rock, title_rock_mask)
     art.append("// clang-format on")
     art += [
         "",
@@ -1575,6 +1625,11 @@ def generate(root=ROOT):
         f"TITLE_LOGO_HEIGHT == {len(title_logo)}, "
         '"the logo size must match title_logo.png");',
     ]
+    for name, (bitmap, _) in title_pines.items():
+        art += [
+            f"static_assert(PINE_{name.upper()}.bands == {len(bitmap) // TITLE_BAND_ROWS}, "
+            f'"PINE_{name.upper()}.bands must match the height of title_pine_{name}.png");',
+        ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]
     if len(names) > 1:

@@ -25,8 +25,12 @@ static constexpr uint8_t PROMPT_BASELINE = DISPLAY_HEIGHT - BORDER - PADDING - 1
 // Frames run at 50 Hz. Each letter appears on its own frame and blips for that frame.
 // A prompt ignores A for half a second so a press that finished typing cannot advance.
 static constexpr uint8_t ADVANCE_GUARD_FRAMES = 25;
-static constexpr uint8_t BLIP_AMPLITUDE = 18;
-static uint8_t const PROGMEM BLIP_NOTES[8] = {67, 69, 71, 74, 76, 79, 81, 83};
+static constexpr uint8_t BLIP_AMPLITUDE = 15;
+static constexpr int8_t BLIP_OFFSET = -12;
+static uint8_t const PROGMEM BLIP_NOTES[8] = {
+    BLIP_OFFSET + 67, BLIP_OFFSET + 69, BLIP_OFFSET + 71, BLIP_OFFSET + 74,
+    BLIP_OFFSET + 76, BLIP_OFFSET + 79, BLIP_OFFSET + 81, BLIP_OFFSET + 83,
+};
 
 static uint8_t dialogue_x, dialogue_y;
 static bool dialogue_skip;
@@ -147,7 +151,7 @@ __attribute__((noinline)) static bool reveal_letter(char c) {
 
     // Each letter blips for its own frame as a triangle, with a pitch chosen from its character
     // code.
-    avm_audio_tone_triangle(BLIP_NOTES[(uint8_t)c & 7], BLIP_AMPLITUDE);
+    avm_audio_tone(BLIP_NOTES[(uint8_t)c & 7], BLIP_AMPLITUDE);
     type_frame();
     avm_audio_stop_sfx();
     return true;

@@ -1288,7 +1288,7 @@ int main(int argc, char** argv) try {
     require(!d.music_enabled(), "music started before a game was selected");
     d.capture(out / "title.pgm");
     {
-        // The title never stands still: chimney smoke alone changes it within a second.
+        // The title never stands still: the flag alone changes it within a second.
         d.ab->advance(0);
         auto before = d.ab->peripherals.display.filtered_pixels;
         d.advance(0, 16000000);
