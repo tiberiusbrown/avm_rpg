@@ -82,6 +82,12 @@ width=16, height=16, followed by all 255 frames in runtime-ID order.
 - **Ambient sprites.** `ambient16.png` holds 16x16 plus-mask frames in rows of eight. The
   blank cells after the last frame are dropped, and `sprites.cpp` asserts that the count
   matches `AMBIENT_FRAME_COUNT` in `src/ambient.h`.
+- **Title screen.** `title_scene.png` is the whole 128x64 picture, opaque black and white,
+  exported as `TITLE_SCENE`. `title_logo.png` is the game's name with its outline as opaque
+  black and everything else transparent, exported as the plus-mask sprite `TITLE_LOGO`.
+  `title16.png` holds 16x16 plus-mask frames in rows of eight, exported as `TITLE_SPRITES`.
+  `sprites.cpp` asserts the frame count and the logo size against `src/title.h`, which also
+  holds the picture positions that the animation uses (stars, chimney, window, perches, blade).
 
 ## Actors
 

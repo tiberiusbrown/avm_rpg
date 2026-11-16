@@ -112,6 +112,7 @@ class Pipeline(unittest.TestCase):
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
             ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 9, True),
             ("AMBIENT_SPRITES", "ambient16.png", 43, True),
+            ("TITLE_SPRITES", "title16.png", 32, True),
         ]:
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)

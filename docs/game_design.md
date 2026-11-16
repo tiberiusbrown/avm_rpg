@@ -5,7 +5,7 @@
 **Status:** Proposed; intentionally open to revision  
 **Target:** Arduboy Virtual Machine (AVM), running on Arduboy-class AVR hardware  
 **Primary audience:** AI design/development agents, with human code review and playtesting  
-**Project working title:** *Untitled AVM RPG* (the agent will propose a final title)
+**Title:** *Venlor*
 
 > **Core thesis:** Build a small-scale but genuine Elder Scrolls-style open-world RPG, with a main quest, optional quests, freely explorable towns and dungeons, named characters, ambient wandering NPCs, consequential choices, and a world entirely designed and authored by AI. Implement game behavior and quest logic in native C/C++, not a runtime scripting language. Use AVM's expanded code/content storage to make the world substantially richer than a conventional tiny handheld RPG, while strictly bounding guest RAM and stack.
 

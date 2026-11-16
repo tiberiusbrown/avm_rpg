@@ -181,7 +181,8 @@ stats, defined flag bits, NPC residences and the three audio slider levels. The 
 `save_exists` flag before new-game defaults are prepared for the title screen. Starting a
 new game preserves that flag and the current audio options. Save calls `avm_save()` and sets the flag to true, without
 readback or validation; the UI reports `Saved`. The title and pause menu use the cached
-flag without loading or checking storage again. Continue and Load explicitly load and
+flag without loading or checking storage again. On the title, A or B continues the saved game
+when the flag is set and starts a new game otherwise. Continuing and Load explicitly load and
 validate the object, reset NPC casts and animation ticks, refresh the area cache and repair
 blocked player positions. Audio options are initialized and applied at startup (native
 music/SFX gains 128, displayed as 100%; filter off unless a valid save supplies other values). Later loads retain
@@ -201,7 +202,7 @@ compact one-shot tonal/noise effects on voices 1/3. Assets store raw uint16 phas
 increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
 and Timer1/Timer4 audio operation require no game update call. RPG starts
-Glade and Hearth after New Game or a successful Continue, switches to Steel at
+Glade and Hearth after the title starts or continues a game, switches to Steel at
 Dawn for battles, and returns to Glade and Hearth at the result. `music_play` leaves the current
 song alone or queues a different song with `avm_audio_play_fade`. The interpreter
 lowers music attenuation by one every 4 ms and restores the request's captured

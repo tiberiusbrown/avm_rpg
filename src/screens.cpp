@@ -1,27 +1,32 @@
 #include "rpg.h"
 #include "battle_cursor.h"
+#include "title.h"
 
 #include <avm.h>
 
+// A or B continues the saved game when there is one, and starts a new game otherwise.
 __attribute__((noinline)) void title_screen() {
-    uint8_t selection = 0;
+    uint16_t ticks = 0;
+    input_sync();
 
     for(;;) {
-        render_title(save_exists, selection);
-        avm_display(true);
-        uint8_t pressed = input_wait_press();
+        input_wait_frame();
+        render_title(ticks);
+        // The picture stays in the buffer; the next frame draws over all of it.
+        avm_display(false);
+        ticks = (uint16_t)(ticks + 1 == TITLE_CYCLE ? 0 : ticks + 1);
 
-        if(pressed & (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT))
-            selection ^= 1;
-        if(pressed & BTN_A) {
-            if(!selection) {
-                game_start();
-                return;
-            }
-            if(save_exists && game_load())
-                return;
-        }
+        if(input_pressed() & (BTN_A | BTN_B))
+            break;
     }
+
+    // Exploration expects the cleared buffer that its own frames leave behind.
+    avm_draw_filled_rect_black(0, 0, 128, 64);
+    // A load that fails prepares a new game itself.
+    if(save_exists)
+        game_load();
+    else
+        game_start();
 }
 
 __attribute__((noinline)) void status_screen() {

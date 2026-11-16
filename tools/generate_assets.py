@@ -1403,12 +1403,12 @@ def read_ambient_frames(root=ROOT):
     return frames[:count], masks[:count]
 
 
-def frame_bytes(rows, size=TILE_SIZE):
+def frame_bytes(rows, size=TILE_SIZE, width=None):
     # Page-major bytes. Bits below the frame's last row are padding and stay zero.
     return [
         sum(1 << bit for bit in range(8) if page + bit < size and rows[page + bit][x] == "#")
         for page in range(0, size, 8)
-        for x in range(size)
+        for x in range(size if width is None else width)
     ]
 
 
@@ -1444,6 +1444,60 @@ def sprite_lines(name, frames, masks=None, size=TILE_SIZE):
     return lines
 
 
+# The title screen: title_scene.png is the whole 128x64 picture, title_logo.png the game's name
+# with its outline as alpha, and title16.png the 16x16 plus-mask frames that title.h names.
+TITLE_SCENE_SIZE = (128, 64)
+TITLE_COLUMNS = 8
+
+
+def read_picture(name, root=ROOT, size=None, masked=False):
+    """Read one picture of any size as rows of '#' and '.', and its opacity the same way."""
+    path = root / "assets" / "images" / name
+    with Image.open(path) as image:
+        require(
+            image.format == "PNG" and (size is None or image.size == size),
+            path,
+            f"expected a PNG of {size[0]}x{size[1]} pixels" if size else "expected a PNG",
+        )
+        require(
+            image.width <= 255 and image.height <= 255, path, "a sprite is at most 255 pixels"
+        )
+        pixels = image.convert("RGBA")
+        require(
+            all(
+                (r, g, b) in ((0, 0, 0), (255, 255, 255)) and a in (0, 255)
+                for r, g, b, a in pixel_values(pixels)
+            ),
+            path,
+            "use binary monochrome and alpha pixels",
+        )
+        require(
+            masked or all(a == 255 for _, _, _, a in pixel_values(pixels)),
+            path,
+            "the picture must be opaque",
+        )
+    bitmap, mask = [], []
+    for y in range(pixels.height):
+        row = [pixels.getpixel((x, y)) for x in range(pixels.width)]
+        bitmap.append("".join("#" if r and a else "." for r, _, _, a in row))
+        mask.append("".join("#" if a else "." for _, _, _, a in row))
+    return bitmap, mask
+
+
+def picture_lines(name, bitmap, mask=None):
+    width, height = len(bitmap[0]), len(bitmap)
+    pixels = frame_bytes(bitmap, height, width)
+    if mask is not None:
+        pixels = [
+            byte for pair in zip(pixels, frame_bytes(mask, height, width)) for byte in pair
+        ]
+    lines = [f"constexpr uint8_t PROGMEM {name}[] = {{", f"    {width}, {height}, // width, height"]
+    for start in range(0, len(pixels), 16):
+        lines.append("    " + ", ".join(f"0x{byte:02x}" for byte in pixels[start : start + 16]) + ",")
+    lines.append("};")
+    return lines
+
+
 def generate(root=ROOT):
     world = export_world(root)
     sheets = read_tileset_frames(root)
@@ -1455,10 +1509,14 @@ def generate(root=ROOT):
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
     damage_frames, damage_masks = read_battle_damage_frames(root)
     ambient_frames, ambient_masks = read_ambient_frames(root)
+    title_frames, title_masks = read_sprite_sheet("title16.png", TITLE_COLUMNS, root)
+    title_scene, _ = read_picture("title_scene.png", root, TITLE_SCENE_SIZE)
+    title_logo, title_logo_mask = read_picture("title_logo.png", root, masked=True)
     art = [
-        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, and the 22x22 cursor plus masks. */",
+        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, and the title screen's picture, logo and plus-mask frames. */",
         '#include "rpg.h"',
         '#include "ambient.h"',
+        '#include "title.h"',
         "",
         "// clang-format off: preserve frame byte groups.",
     ]
@@ -1488,6 +1546,12 @@ def generate(root=ROOT):
     art += sprite_lines("BATTLE_DAMAGE_SPRITES", damage_frames, damage_masks)
     art.append("")
     art += sprite_lines("AMBIENT_SPRITES", ambient_frames, ambient_masks)
+    art.append("")
+    art += picture_lines("TITLE_SCENE", title_scene)
+    art.append("")
+    art += picture_lines("TITLE_LOGO", title_logo, title_logo_mask)
+    art.append("")
+    art += sprite_lines("TITLE_SPRITES", title_frames, title_masks)
     art.append("// clang-format on")
     art += [
         "",
@@ -1505,6 +1569,11 @@ def generate(root=ROOT):
         '"BATTLE_DAMAGE_FRAMES must match the frames in battle_damage16.png");',
         f"static_assert(AMBIENT_FRAME_COUNT == {len(ambient_frames)}, "
         '"AMBIENT_FRAME_COUNT must match the frames in ambient16.png");',
+        f"static_assert(TITLE_FRAME_COUNT == {len(title_frames)}, "
+        '"TITLE_FRAME_COUNT must match the frames in title16.png");',
+        f"static_assert(TITLE_LOGO_WIDTH == {len(title_logo[0])} && "
+        f"TITLE_LOGO_HEIGHT == {len(title_logo)}, "
+        '"the logo size must match title_logo.png");',
     ]
     names = list(sheets)
     art += ["", "uint8_t const PROGMEM* tileset_sprites(uint8_t tileset) {"]

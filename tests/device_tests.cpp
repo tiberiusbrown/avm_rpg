@@ -1212,6 +1212,15 @@ int main(int argc, char** argv) try {
     require(d.serial() == 0, "title unexpectedly advanced exploration");
     require(!d.music_enabled(), "music started before a game was selected");
     d.capture(out / "title.pgm");
+    {
+        // The title never stands still: chimney smoke alone changes it within a second.
+        d.ab->advance(0);
+        auto before = d.ab->peripherals.display.filtered_pixels;
+        d.advance(0, 16000000);
+        d.ab->advance(0);
+        require(before != d.ab->peripherals.display.filtered_pixels, "title is not animated");
+        require(d.serial() == 0, "animated title advanced exploration");
+    }
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
     verify_options(d, out);
@@ -1322,6 +1331,9 @@ int main(int argc, char** argv) try {
         return nullptr;
     };
     auto place_player = [&](uint8_t tx, uint8_t ty, DIRECTION facing) {
+        // Move the player between frames: a position that changes inside a frame's update
+        // leaves that frame with half of each, which costs far more than a real frame.
+        d.frame();
         Game g = d.state();
         g.player.x = (uint16_t)tx * TILE;
         g.player.y = (uint16_t)ty * TILE;
@@ -1564,7 +1576,6 @@ int main(int argc, char** argv) try {
     verify_audio_options(restarted, 102, 85, 64);
     require(restarted.serial() == 0, "restart did not show title");
     require(!restarted.music_enabled(), "music started on the continue title");
-    restarted.tap(BTN_DOWN);
     restarted.tap(BTN_A);
     auto loaded = restarted.state();
     require(restarted.serial() != 0 && loaded.area == saved.area &&
@@ -1579,18 +1590,24 @@ int main(int argc, char** argv) try {
     summary("dense_collision", restarted, 30, BTN_LEFT);
     restarted.capture(out / "forest.pgm");
 
-    Device new_with_save(package, g, m, s, q);
-    new_with_save.import_sector(sector);
-    new_with_save.advance(0, 3200000);
-    new_with_save.tap(BTN_A);
-    require(new_with_save.state().options.music == 12 && new_with_save.state().options.sfx == 10 &&
-                new_with_save.state().options.lowpass == 5,
-            "New Game reset startup options");
-    verify_audio_options(new_with_save, 102, 85, 64);
-    new_with_save.tap(BTN_B);
-    new_with_save.advance(0, 1600000);
-    require(pause_row_visible(new_with_save, 6),
-            "starting a new game lost the save flag checked at startup");
+    // B continues a saved game from the title just as A does.
+    Device continued(package, g, m, s, q);
+    continued.import_sector(sector);
+    continued.advance(0, 3200000);
+    continued.tap(BTN_B);
+    auto resumed = continued.state();
+    require(continued.serial() != 0 && resumed.area == saved.area &&
+                resumed.player.x == saved.player.x && resumed.player.y == saved.player.y &&
+                resumed.gold == saved.gold,
+            "B on the title did not continue the saved game");
+    require(resumed.options.music == 12 && resumed.options.sfx == 10 &&
+                resumed.options.lowpass == 5,
+            "Continue reset startup options");
+    verify_audio_options(continued, 102, 85, 64);
+    continued.tap(BTN_B);
+    continued.advance(0, 1600000);
+    require(pause_row_visible(continued, 6),
+            "continuing a game lost the save flag checked at startup");
 
     sector[2] ^= 0x40; // Invalid Game layout version; there is no checksum.
     Device corrupt(package, g, m, s, q);
@@ -1604,13 +1621,14 @@ int main(int argc, char** argv) try {
     corrupt.tap(BTN_B);
     corrupt.frame();
 
+    // With no valid save, B starts a new game as A does.
     Device invalid_continue(package, g, m, s, q);
     invalid_continue.import_sector(sector);
     invalid_continue.advance(0, 3200000);
-    invalid_continue.tap(BTN_DOWN);
-    invalid_continue.tap(BTN_A);
-    require(invalid_continue.serial() == 0, "corrupt save accepted");
-    require(!invalid_continue.music_enabled(), "failed continue started music");
+    invalid_continue.tap(BTN_B);
+    require(invalid_continue.serial() != 0 && invalid_continue.state().gold == 0,
+            "B on the title did not start a new game over a corrupt save");
+    require(invalid_continue.music_enabled(), "new game after a corrupt save has no music");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
                  "scrolling with the animated pause menu\"}\n";
     return 0;

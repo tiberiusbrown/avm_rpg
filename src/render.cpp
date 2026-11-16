@@ -3,6 +3,7 @@
 #include "npc.h"
 #include "actor_draw_order.h"
 #include "ambient.h"
+#include "title.h"
 #include "world_assets.h"
 
 #include <avm.h>
@@ -308,15 +309,62 @@ void fade_world_in() {
     input_sync();
 }
 
-void render_title(bool can_continue, uint8_t selection) {
-    avm_draw_text(14, 12, F("AVM / WAYFARER"));
-    avm_draw_text(14, 26, F("Nocturne Grove"));
+static void draw_title_sprite(TitleSprite sprite) {
+    if(sprite.visible)
+        avm_draw_plus_mask(sprite.x, sprite.y, sprite.frame);
+}
 
-    avm_draw_text(22, 40, F("New game"));
-    avm_draw_text(22, 49, can_continue ? F("Continue") : F("No valid save"));
-    avm_draw_text(10, (int16_t)(40 + selection * 9), F(">"));
+static void draw_title_pixel(TitleSprite pixel) {
+    if(pixel.visible)
+        avm_draw_filled_rect_white(pixel.x, pixel.y, 1, 1);
+}
 
-    avm_draw_text(14, 60, F("D-pad choose / A"));
+// The picture covers the whole screen, so the frame needs no clearing. The moving things go on
+// top from the sky forward, and the logo last.
+void render_title(uint16_t ticks) {
+    avm_draw_sprite_overwrite(0, 0, TITLE_SCENE, 0);
+    avm_set_sprite(TITLE_SPRITES);
+
+    for(uint8_t slot = 0; slot < TITLE_TWINKLES; ++slot) {
+        TitleTwinkle twinkle = title_twinkle(slot, ticks);
+        if(twinkle.kind == TWINKLE_DIM)
+            avm_draw_filled_rect_black(twinkle.star.x, twinkle.star.y, 1, 1);
+        else if(twinkle.kind == TWINKLE_FLARE)
+            draw_title_sprite(title_centered(TITLE_GLINT, twinkle.star.x, twinkle.star.y));
+    }
+    TitleSprite meteor = title_meteor(ticks);
+    if(meteor.visible)
+        avm_draw_filled_rect_white(meteor.x, meteor.y, 2, 1);
+    draw_title_sprite(title_bat(ticks));
+    for(uint8_t puff = 0; puff < TITLE_PUFFS; ++puff)
+        draw_title_sprite(title_smoke(puff, ticks));
+    TitleSprite candle = title_candle(ticks);
+    if(candle.visible)
+        avm_draw_filled_rect_black(candle.x, candle.y, 1, 1);
+
+    for(TitleClump clump : TITLE_CLUMPS)
+        avm_draw_plus_mask((int16_t)(clump.x + title_sway(clump.phase, ticks)), clump.y,
+                           clump.frame);
+    for(TitlePerch const& perch : TITLE_PERCHES)
+        draw_title_sprite(title_bird(perch, ticks));
+    for(uint8_t slot = 0; slot < TITLE_LEAVES; ++slot)
+        draw_title_sprite(title_leaf(slot, ticks));
+
+    draw_title_sprite(title_glint(ticks));
+    draw_title_sprite(title_rabbit(ticks));
+    draw_title_sprite(title_butterfly(ticks));
+    for(uint8_t fly = 0; fly < 2; ++fly) {
+        TitleSprite firefly = title_firefly(fly, ticks);
+        if(firefly.visible && firefly.frame)
+            draw_title_sprite(title_centered(TITLE_GLINT, firefly.x, firefly.y));
+        else
+            draw_title_pixel(firefly);
+    }
+    for(uint8_t mote = 0; mote < 4; ++mote)
+        draw_title_pixel(title_mote(mote, ticks));
+    draw_title_sprite(title_mouse(ticks));
+
+    avm_draw_sprite_plus_mask((DISPLAY_WIDTH - TITLE_LOGO_WIDTH) / 2, TITLE_LOGO_Y, TITLE_LOGO, 0);
 }
 
 static char const PROGMEM* menu_label(PAUSE_ITEM item) {

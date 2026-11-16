@@ -140,6 +140,9 @@ flags and RNG survive transitions; NPC scratch does not.
 `title_screen`, `explore`, `menu_screen`, and `status_screen` own their input,
 rendering, and display loops. Exploration calls the menu, which calls status;
 returning resumes the caller. Selections, animation position and feedback are local variables.
+The title has no menu: it animates a scene (`src/title.h`, stateless rules of a local frame
+counter) under the name Venlor until A or B, then continues the saved game if `save_exists` is
+set and starts a new game otherwise. A new game over an existing save is not offered.
 The pause panel eases halfway in from the left each frame while the world fades to 50% black;
 closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Audio or Load. Map is
 visible only in the overworld; Load uses the global `save_exists` flag. Party calls status;
@@ -156,7 +159,7 @@ have independent 0..30 volume sliders displayed as 0–200%, mapped to native at
 16 strengths, from bypass to coefficient 1. Up/down selects; left/right adjusts and repeats
 while held. B closes Audio directly to gameplay, easing the world back to full brightness.
 The three levels live in `Game::options` and are saved with progress. Startup applies valid
-saved values or defaults; New Game and later loads preserve the current values. Finishing
+saved values or defaults; a new game and later loads preserve the current values. Finishing
 an outstanding song fade before a music-volume edit prevents its saved gain undoing the edit.
 
 Exploration and battle share `menu_screen`, item filtering and the panel renderer. Battle

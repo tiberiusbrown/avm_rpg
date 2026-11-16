@@ -1,4 +1,4 @@
-# AVM Wayfarer — Nocturne Grove
+# Venlor
 
 C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. D-pad moves, A reads the sign immediately north of the
@@ -29,7 +29,7 @@ smooths tonal SFX. B eases Audio out and returns directly to gameplay.
 
 Audio settings take effect immediately and are stored alongside progress when **Save** is
 selected. Startup initializes defaults (both stream gains 128, shown as 100%; filter off), then loads valid
-saved settings. New Game, Continue and later Load actions preserve the current settings;
+saved settings. Starting or continuing from the title and later Load actions preserve the current settings;
 only the Audio menu changes them during play.
 
 The sign's battle is a synchronous prototype. Its controls and rules are described in
@@ -139,8 +139,10 @@ the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` desc
 **This development build rejects saves from versions 1–7.** Save version 8 writes the live,
 pointer-free `Game` struct directly from AVM's `.saved` prefix (268 bytes), with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
-`save_exists` flag, then prepares a new game for the title screen. New Game preserves the
-flag; Continue and Load restore the saved world. NPC casts, the tile cache and the animation
+`save_exists` flag, then prepares a new game for the title screen. The title shows an animated
+scene under the game's name and no menu: A or B continues the saved game when the flag is set
+and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
+saved world. NPC casts, the tile cache and the animation
 tick are rebuilt when a save is loaded. Total shipping static RAM is 479 bytes,
 including the save flag and three saved audio options.
 
