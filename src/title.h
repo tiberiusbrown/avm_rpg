@@ -50,8 +50,8 @@ enum TITLE_FRAME : uint8_t {
     TITLE_FISH = 23,            // rising, level, falling; it heads right
     TITLE_SPLASH = 26,          // the splash, then its ring
     TITLE_RIPPLE = 28,          // short, then spread
-    TITLE_FAR_BIRD = 30,        // wings up, down
-    TITLE_FRAME_COUNT = 32
+    TITLE_FAR_BIRD = 30,        // wings up, level, down; it heads left
+    TITLE_FRAME_COUNT = 33
 };
 
 // The size of title_logo.png, which the generated sprite asserts, and where it goes: the open
@@ -88,16 +88,16 @@ struct TitlePoint {
 // A gust comes in at the left edge every twenty seconds and crosses the picture at two pixels a
 // tick. Wherever it is blowing, the flag streams, the pines lean over and dust flies past.
 inline constexpr uint16_t GUST_PERIOD = 1024, GUST_START = 600;
-inline constexpr uint8_t GUST_TICKS = 96, GUST_RISE_TICKS = 16, GUST_HOLD_TICKS = 48;
-inline constexpr uint8_t GUST_FULL = 4;
+inline constexpr uint8_t GUST_TICKS = 128, GUST_RISE_TICKS = 32, GUST_HOLD_TICKS = 64;
+inline constexpr uint8_t GUST_FULL = 16;
 
 // Ticks since the gust's front entered the picture, from 0 to GUST_PERIOD - 1.
 constexpr uint16_t title_gust_age(uint16_t ticks) {
     return (uint16_t)(ticks + GUST_PERIOD - GUST_START) & (GUST_PERIOD - 1);
 }
 
-// How hard the gust blows at column `x`, from 0 (calm) to GUST_FULL: it rises fast, holds, and
-// dies away slowly.
+// How hard the gust blows at column `x`, from 0 (calm) to GUST_FULL: it rises in small steps,
+// holds, and dies away half as fast.
 constexpr uint8_t title_gust(uint8_t x, uint16_t ticks) {
     uint16_t age = title_gust_age(ticks);
     uint8_t reached = x >> 1;
@@ -116,7 +116,7 @@ struct TitleMote {
     uint8_t behind, y;
 };
 
-inline constexpr TitleMote TITLE_MOTES[] = {{0, 23}, {12, 41}, {26, 30}, {38, 47},
+inline constexpr TitleMote TITLE_MOTES[] = {{0, 23},  {12, 41}, {26, 30}, {38, 47},
                                             {54, 26}, {66, 37}, {84, 44}, {98, 28}};
 inline constexpr uint8_t TITLE_MOTE_COUNT = sizeof(TITLE_MOTES) / sizeof(TITLE_MOTES[0]);
 // A mote is a streak this many pixels long.
@@ -133,38 +133,57 @@ constexpr TitleSprite title_mote(uint8_t mote, uint16_t ticks) {
 
 // ---- Sky ----
 
-// Stars of the background's open sky. A few at a time go dark for a moment.
-inline constexpr TitlePoint TITLE_STARS[32] = {
-    {1, 4},    {5, 1},   {8, 1},   {19, 5},  {25, 19}, {25, 23}, {30, 23},  {30, 26},
-    {31, 1},   {35, 4},  {39, 4},  {43, 12}, {43, 17}, {48, 8},  {49, 1},   {50, 4},
-    {54, 29},  {58, 1},  {67, 26}, {71, 24}, {77, 22}, {86, 24}, {89, 26},  {90, 23},
-    {92, 31},  {97, 2},  {102, 26}, {103, 1}, {104, 22}, {112, 2}, {126, 4}, {126, 10}};
-inline constexpr uint8_t TITLE_TWINKLES = 3, TWINKLE_TICKS = 32, TWINKLE_DARK_TICKS = 12;
+// Stars of the background's open sky with room around them. Now and then one of them flares
+// from a single pixel into a small cross and fades back.
+inline constexpr TitlePoint TITLE_STARS[16] = {
+    {2, 9},   {30, 23}, {30, 26}, {35, 4},  {39, 4},  {50, 4},  {60, 8}, {72, 28},
+    {75, 28}, {77, 22}, {86, 24}, {89, 26}, {90, 23}, {92, 31}, {97, 2}, {99, 30}};
+inline constexpr uint8_t TITLE_TWINKLES = 2;
+inline constexpr uint16_t TWINKLE_PERIOD = 256;
+inline constexpr uint8_t TWINKLE_TICKS = 40, TWINKLE_OFFSET = 150;
 
-// The star that slot `slot` darkens now, if any.
+// The star that slot `slot` flares now, if any. A slot has a turn every five seconds, at its own
+// moment, and lets one turn in four pass.
 constexpr TitleSprite title_twinkle(uint8_t slot, uint16_t ticks) {
-    // The slots change at different moments.
-    uint16_t clock = title_clock(ticks, (uint8_t)(slot * 11));
-    if((clock & (TWINKLE_TICKS - 1)) >= TWINKLE_DARK_TICKS)
+    uint16_t clock = title_clock(ticks, (uint8_t)(slot * TWINKLE_OFFSET));
+    if((clock & (TWINKLE_PERIOD - 1)) >= TWINKLE_TICKS)
         return TITLE_HIDDEN;
-    TitlePoint star = TITLE_STARS[ambient_hash((uint16_t)((clock / TWINKLE_TICKS) * 4 + slot + 1)) & 31];
+    uint16_t pick = ambient_hash((uint16_t)((clock / TWINKLE_PERIOD) * 4 + slot + 1));
+    if((pick & 0x300) == 0)
+        return TITLE_HIDDEN;
+    TitlePoint star = TITLE_STARS[pick & 15];
     return {true, 0, star.x, star.y};
 }
 
-// Three far birds cross the sky from right to left, under the name and over the bridge.
+// Three far birds cross the sky from right to left, under the name and over the bridge. Their
+// path rises to the middle of the picture and sinks again; each bird wanders a little around its
+// own place in the loose line and beats its wings in its own time, gliding now and then.
 inline constexpr uint8_t TITLE_FLOCK = 3;
-inline constexpr uint16_t FLOCK_TICKS = 320;
-inline constexpr int16_t FLOCK_Y = 25;
+inline constexpr uint16_t FLOCK_TICKS = 256;
+inline constexpr int16_t FLOCK_START_X = 136, FLOCK_Y = 30;
+
+struct TitleFlockPlace {
+    uint8_t behind;
+    int8_t below;
+};
+
+inline constexpr TitleFlockPlace TITLE_FLOCK_PLACES[TITLE_FLOCK] = {{0, 0}, {10, 3}, {19, -2}};
 
 constexpr TitleSprite title_flock(uint8_t bird, uint16_t ticks) {
     uint16_t age = title_turn(FLOCK_START, ticks);
     if(age >= FLOCK_TICKS)
         return TITLE_HIDDEN;
-    // The leader flies ahead and the other two trail on either side.
-    int16_t x = (int16_t)(134 - age / 2 + (bird ? 7 + bird * 2 : 0));
-    int16_t y = (int16_t)(FLOCK_Y + (bird == 1 ? -3 : bird == 2 ? 3 : 0) +
-                          (ambient_sine((uint8_t)(age * 2 + bird * 50)) >> 5));
-    return title_centered((uint8_t)(TITLE_FAR_BIRD + (((ticks >> 3) + bird) & 1)), x, y);
+    uint8_t along = (uint8_t)age;
+    // Wings go up, level, down, level; one stretch in four is a glide on level wings.
+    uint8_t wings =
+        (((along >> 5) + bird) & 3) == 3 ? 1 : ambient_flap((uint8_t)((along >> 2) + bird * 3));
+    int16_t x = (int16_t)(FLOCK_START_X - ((along * 5) >> 3) + TITLE_FLOCK_PLACES[bird].behind +
+                          (ambient_sine((uint8_t)(along * 3 + bird * 90)) >> 5));
+    // The body lifts on the downstroke.
+    int16_t y = (int16_t)(FLOCK_Y - ((ambient_sine((uint8_t)(along >> 1)) * 4) >> 6) +
+                          TITLE_FLOCK_PLACES[bird].below +
+                          (ambient_sine((uint8_t)(along * 5 + bird * 70)) >> 5) - (wings == 2));
+    return title_centered((uint8_t)(TITLE_FAR_BIRD + wings), x, y);
 }
 
 // ---- Castle ----
@@ -190,19 +209,24 @@ struct TitleTree {
     uint8_t center, phase;
 };
 
-inline constexpr TitleTree PINE_SMALL{21, 24, 5, 3, 31, 90};
+inline constexpr TitleTree PINE_SMALL{21, 24, 5, 4, 31, 152};
 inline constexpr TitleTree PINE_LEFT{-7, 0, 8, 5, 12, 0};
-inline constexpr TitleTree PINE_RIGHT{95, 0, 8, 5, 117, 170};
+inline constexpr TitleTree PINE_RIGHT{95, 0, 8, 5, 117, 208};
 
 // The lean of a tree in 256ths of a pixel per unit of weight, positive to the right. A calm
-// tree sways one pixel either way at its top, once in five seconds. A gust pushes it over to the
-// right and shakes it.
+// tree sways one pixel either way at its top, once in ten seconds. A gust bends it over to the
+// right, two pixels at the top of a tall pine, and lets it come back as the wind dies.
+//
+// A band moves when its weight times the lean crosses a half pixel, so a lean that only brushes
+// such a point would flick the band over and straight back. The sway's reach, the gust's push
+// and each tree's phase are chosen so that this never happens: tests/test_ambient.cpp checks
+// that every band rests for at least half a second between moves, and more than a second
+// before it turns back.
+inline constexpr uint8_t TREE_CALM_SWAY = 63, TREE_GUST_LEAN = 4;
+
 constexpr int16_t title_tree_lean(TitleTree const& tree, uint16_t ticks) {
-    int16_t lean = ambient_sine((uint8_t)(ticks + tree.phase));
-    uint8_t gust = title_gust(tree.center, ticks);
-    if(gust)
-        lean = (int16_t)(lean + gust * (16 + (ambient_sine((uint8_t)(ticks * 8 + tree.phase)) >> 3)));
-    return lean;
+    int16_t calm = (int16_t)(ambient_sine((uint8_t)((ticks >> 1) + tree.phase)) * TREE_CALM_SWAY);
+    return (int16_t)((calm >> 6) + title_gust(tree.center, ticks) * TREE_GUST_LEAN);
 }
 
 constexpr int8_t title_band_shift(TitleTree const& tree, uint8_t band, int16_t lean) {
@@ -259,8 +283,8 @@ constexpr TitleFish title_fish(uint16_t ticks) {
                           : TITLE_HIDDEN};
     }
     uint8_t since = (uint8_t)(age - FISH_JUMP_TICKS);
-    return {TITLE_HIDDEN,
-            title_centered((uint8_t)(TITLE_SPLASH + (since >= 7)), (int16_t)(x + FISH_REACH), water)};
+    return {TITLE_HIDDEN, title_centered((uint8_t)(TITLE_SPLASH + (since >= 7)),
+                                         (int16_t)(x + FISH_REACH), water)};
 }
 
 // ---- Bank ----
@@ -356,7 +380,7 @@ constexpr TitleSprite title_mouse(uint16_t ticks) {
 }
 
 static_assert(TITLE_CYCLE % TITLE_PROGRAM == 0 && TITLE_CYCLE % GUST_PERIOD == 0 &&
-                  TITLE_CYCLE % FISH_PERIOD == 0 && TITLE_CYCLE % 256 == 0 &&
+                  TITLE_CYCLE % FISH_PERIOD == 0 && TITLE_CYCLE % 512 == 0 &&
                   TITLE_PROGRAM % MOUSE_PERIOD == 0,
               "every title animation period must divide TITLE_CYCLE");
 // No fish is in the air when the counter wraps and its pick changes.

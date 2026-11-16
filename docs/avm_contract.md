@@ -131,8 +131,8 @@ transparent/black transparent. `avm_draw_text_P(x, baseline_y, flash_string)` an
 contain x/baseline_y. Dialogue reveals flash strings one letter per frame,
 measures words with `avm_text_width` before placing them, and automatically
 wraps/pages within a fixed overlay. Each visible letter sounds a one-frame
-`avm_audio_tone_triangle` blip. Oversized words split at glyph boundaries. No copied glyph
-metrics or offline dialogue-fit checks are needed. Source: public header,
+`avm_audio_tone(note, amplitude, 0)` blip, stopped explicitly after its frame.
+Oversized words split at glyph boundaries. No copied glyph metrics or offline dialogue-fit checks are needed. Source: public header,
 `runtime/lib/font_br5d_x5.c`,
 interpreter text services.
 

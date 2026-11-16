@@ -1529,6 +1529,22 @@ def band_lines(name, bitmap, mask):
     return lines
 
 
+def read_title_frames(root=ROOT):
+    """Read the title frames, without the blank cells that end the sheet."""
+    frames, masks = read_sprite_sheet("title16.png", TITLE_COLUMNS, root)
+    count = len(frames)
+    while count and all("#" not in row for row in masks[count - 1]):
+        count -= 1
+    path = root / "assets" / "images" / "title16.png"
+    require(count > 0, path, "the title sheet holds no frame")
+    require(
+        all(any("#" in row for row in mask) for mask in masks[:count]),
+        path,
+        "leave no blank frame between title frames",
+    )
+    return frames[:count], masks[:count]
+
+
 def read_title_pine(name, root=ROOT):
     """Read one pine layer; its height is a whole number of bands."""
     file = f"title_pine_{name}.png"
@@ -1552,7 +1568,7 @@ def generate(root=ROOT):
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
     damage_frames, damage_masks = read_battle_damage_frames(root)
     ambient_frames, ambient_masks = read_ambient_frames(root)
-    title_frames, title_masks = read_sprite_sheet("title16.png", TITLE_COLUMNS, root)
+    title_frames, title_masks = read_title_frames(root)
     title_scene, _ = read_picture("title_scene.png", root, TITLE_SCENE_SIZE)
     title_logo, title_logo_mask = read_picture("title_logo.png", root, masked=True)
     title_pines = {name: read_title_pine(name, root) for name in TITLE_PINES}

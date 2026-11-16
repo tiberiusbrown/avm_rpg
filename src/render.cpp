@@ -333,8 +333,11 @@ void render_title(uint16_t ticks) {
     // Sky and castle.
     for(uint8_t slot = 0; slot < TITLE_TWINKLES; ++slot) {
         TitleSprite star = title_twinkle(slot, ticks);
-        if(star.visible)
-            avm_draw_filled_rect_black(star.x, star.y, 1, 1);
+        if(star.visible) {
+            // The star's own pixel is in the background; these are the arms of its cross.
+            avm_draw_filled_rect_white((int16_t)(star.x - 1), star.y, 3, 1);
+            avm_draw_filled_rect_white(star.x, (int16_t)(star.y - 1), 1, 3);
+        }
     }
     avm_draw_plus_mask(TITLE_FLAG_AT.x, TITLE_FLAG_AT.y, title_flag_frame(ticks));
     for(uint8_t bird = 0; bird < TITLE_FLOCK; ++bird)

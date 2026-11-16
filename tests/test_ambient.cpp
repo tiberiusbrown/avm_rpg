@@ -1,4 +1,5 @@
 #include "ambient.h"
+#include "title.h"
 #include "world_assets.h"
 
 #include <stdio.h>
@@ -360,6 +361,48 @@ static void seeds() {
     }
 }
 
+// The title's pines sway slowly and smoothly. A band never jumps more than a pixel, rests at
+// least half a second between moves, and rests more than a second before it goes back the way
+// it came, so no section of a tree flicks to and fro. Gusts included, over the whole cycle.
+static void title_trees() {
+    constexpr int REST_TICKS = 30, TURN_BACK_TICKS = 60;
+    for(TitleTree const* tree : {&PINE_SMALL, &PINE_LEFT, &PINE_RIGHT}) {
+        bool moved = false;
+        for(uint8_t band = 0; band < tree->bands; ++band) {
+            int now = title_band_shift(*tree, band, title_tree_lean(*tree, 0));
+            int before = now;
+            long since = -1;
+            // Two turns of the cycle, so a rest that spans the wrap counts too.
+            for(long tick = 1; tick < 2L * TITLE_CYCLE; ++tick) {
+                int next = title_band_shift(
+                    *tree, band, title_tree_lean(*tree, (uint16_t)(tick % TITLE_CYCLE)));
+                if(next == now)
+                    continue;
+                moved = true;
+                CHECK(next - now == 1 || now - next == 1);
+                if(since >= 0) {
+                    CHECK(tick - since >= REST_TICKS);
+                    CHECK(next != before || tick - since >= TURN_BACK_TICKS);
+                }
+                before = now;
+                now = next;
+                since = tick;
+            }
+            // The bands at the foot of a tree stand still.
+            CHECK(band < tree->top_weight || since < 0);
+        }
+        CHECK(moved);
+    }
+    // A gust leans a tall pine over by two pixels at its top.
+    int16_t most = 0;
+    for(uint16_t tick = 0; tick < GUST_PERIOD; ++tick) {
+        int16_t lean = title_tree_lean(PINE_LEFT, tick);
+        if(lean > most)
+            most = lean;
+    }
+    CHECK(title_band_shift(PINE_LEFT, 0, most) == 2);
+}
+
 int main() {
     tile_sheets();
     ambient_classes();
@@ -368,5 +411,6 @@ int main() {
     flights();
     birds();
     seeds();
+    title_trees();
     printf("PASS ambient animation: %u checks\n", checks);
 }

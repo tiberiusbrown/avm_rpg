@@ -82,12 +82,21 @@ width=16, height=16, followed by all 255 frames in runtime-ID order.
 - **Ambient sprites.** `ambient16.png` holds 16x16 plus-mask frames in rows of eight. The
   blank cells after the last frame are dropped, and `sprites.cpp` asserts that the count
   matches `AMBIENT_FRAME_COUNT` in `src/ambient.h`.
-- **Title screen.** `title_scene.png` is the whole 128x64 picture, opaque black and white,
-  exported as `TITLE_SCENE`. `title_logo.png` is the game's name with its outline as opaque
-  black and everything else transparent, exported as the plus-mask sprite `TITLE_LOGO`.
-  `title16.png` holds 16x16 plus-mask frames in rows of eight, exported as `TITLE_SPRITES`.
-  `sprites.cpp` asserts the frame count and the logo size against `src/title.h`, which also
-  holds the picture positions that the animation uses (stars, chimney, window, perches, blade).
+- **Title screen.** `title_scene.png` is the whole 128x64 background, opaque black and white,
+  exported as `TITLE_SCENE`: sky, castle, bridge, water and the near bank, without the flag.
+  `title_logo.png` is the game's name with its outline as opaque black and everything else
+  transparent, exported as the plus-mask sprite `TITLE_LOGO`. `title16.png` holds 16x16
+  plus-mask frames in rows of eight, exported as `TITLE_SPRITES`; the blank cells after the
+  last frame are dropped. The foreground is separate plus-mask pictures drawn over the
+  background, so creatures can pass behind them. `title_pine_small.png`, `title_pine_left.png`
+  and `title_pine_right.png` are one pine each, with a height that is a multiple of eight rows;
+  they are exported as `TITLE_PINE_SMALL`, `TITLE_PINE_LEFT` and `TITLE_PINE_RIGHT`, sheets
+  whose frames are the picture's bands of eight rows from the top, which the title shifts apart
+  to sway the tree. A pine may be wider than the part of it on screen, so that a leaning tree
+  does not show a cut edge. `title_rock.png` is exported as the single frame `TITLE_ROCK`.
+  `sprites.cpp` asserts the frame count, the logo size and each pine's band count against
+  `src/title.h`, which also holds the screen positions that the animation uses (the layers,
+  stars, flag, water, perch and paths).
 
 ## Actors
 

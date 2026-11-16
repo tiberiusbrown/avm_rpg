@@ -149,11 +149,11 @@ __attribute__((noinline)) static bool reveal_letter(char c) {
     if(dialogue_skip)
         return true;
 
-    // Each letter blips for its own frame as a triangle, with a pitch chosen from its character
-    // code.
-    avm_audio_tone(BLIP_NOTES[(uint8_t)c & 7], BLIP_AMPLITUDE);
+    // Each letter blips for its own frame, with a pitch chosen from its character
+    // code. Zero duration latches until the explicit stop after that frame.
+    if(c & 1)
+        avm_audio_tone(BLIP_NOTES[((uint8_t)c >> 1) & 7], BLIP_AMPLITUDE, 32);
     type_frame();
-    avm_audio_stop_sfx();
     return true;
 }
 
