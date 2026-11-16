@@ -798,25 +798,43 @@ def map_previews(root=ROOT):
     return previews
 
 
+def tile_export_counts(maps):
+    """How many tiles of each tileset in use the sprite sheets hold, keyed by name. A sheet
+    stops after the highest tile that has art in any layer or that a map paints, because the
+    renderer only draws tiles of that span and the cells above it are blank."""
+    counts = {}
+    for name in tileset_order(maps):
+        metadata = next(m.tiles for m in maps if m.tileset == name)
+        top = max(
+            [i for i, frame in enumerate(tile_frames(metadata)) if any("#" in row for row in frame)]
+            + [i for i, t in metadata.items() if t["wind"] is not None or any(t["phases"])]
+            + [tile for m in maps if m.tileset == name for tile in m.data]
+        )
+        counts[name] = top + 1
+    return counts
+
+
 def read_tileset_frames(root):
-    """Sprite frames of each tileset in use, keyed by name: the 255 atlas frames in runtime
-    index order, then the wind block that tile_wind_block describes."""
+    """Sprite frames of each tileset in use, keyed by name: the exported atlas frames in
+    runtime index order, then the wind block that tile_wind_block describes."""
     maps, _, _ = load_world(root)
     by_name = {m.tileset: m.tiles for m in maps}
-    return {name: tile_sheet(by_name[name]) for name in tileset_order(maps)}
+    counts = tile_export_counts(maps)
+    return {name: tile_sheet(by_name[name], counts[name]) for name in tileset_order(maps)}
 
 
 def read_tileset_phase_frames(root):
     """The sprite frames of each tileset in use for phases 1 to TILE_PHASES - 1, keyed by
-    name: one list of 255 frames per phase."""
+    name: one list of exported frames per phase."""
     maps, _, _ = load_world(root)
     by_name = {m.tileset: m.tiles for m in maps}
-    return {name: tile_phase_sheets(by_name[name]) for name in tileset_order(maps)}
+    counts = tile_export_counts(maps)
+    return {name: tile_phase_sheets(by_name[name], counts[name]) for name in tileset_order(maps)}
 
 
-def tile_frames(metadata):
+def tile_frames(metadata, count=None):
     frames = []
-    for _, t in sorted(metadata.items()):
+    for _, t in sorted(metadata.items())[:count]:
         with Image.open(t["image"]) as im:
             x, y = (
                 t["frame"] % t["columns"] * TILE_SIZE,
@@ -835,30 +853,34 @@ def tile_frames(metadata):
     return frames
 
 
-def tile_wind_block(metadata):
+def tile_wind_block(metadata, exported=None):
     """Where a tileset's wind frames sit in its sprite sheet, as (first, count, base). The
     block covers the span of tiles `first` to `first + count - 1`, which holds every tile
-    with a wind frame, and it follows the atlas frames from sheet frame `base`. A tileset
-    with no wind frame has (0, 0, 0)."""
+    with a wind frame, and it follows the `exported` atlas frames from sheet frame `base`.
+    A tileset with no wind frame has (0, 0, 0)."""
     ids = sorted(i for i, t in metadata.items() if t["wind"] is not None)
-    return (ids[0], ids[-1] - ids[0] + 1, len(metadata)) if ids else (0, 0, 0)
+    base = len(metadata) if exported is None else exported
+    return (ids[0], ids[-1] - ids[0] + 1, base) if ids else (0, 0, 0)
 
 
-def tile_sheet(metadata):
-    frames = tile_frames(metadata)
-    first, count, _ = tile_wind_block(metadata)
+def tile_sheet(metadata, exported=None):
+    frames = tile_frames(metadata, exported)
+    first, count, _ = tile_wind_block(metadata, exported)
     for index in range(first, first + count):
         frames.append(metadata[index]["wind"] or frames[index])
     return frames
 
 
-def tile_phase_sheets(metadata):
+def tile_phase_sheets(metadata, exported=None):
     """A whole sheet per phase after the first, so drawing a phase costs nothing per tile:
     the renderer selects the phase's sheet and draws every tile by its ID. A tile with no
     art in a phase repeats its atlas frame."""
-    base = tile_frames(metadata)
+    base = tile_frames(metadata, exported)
     return [
-        [t["phases"][phase] or base[index] for index, (_, t) in enumerate(sorted(metadata.items()))]
+        [
+            t["phases"][phase] or base[index]
+            for index, (_, t) in enumerate(sorted(metadata.items())[:exported])
+        ]
         for phase in range(TILE_PHASES - 1)
     ]
 
@@ -868,7 +890,7 @@ def export_world(root=ROOT):
     prologue = "/* Generated from TMX/TSX; do not edit. */\n"
     order = tileset_order(maps)
     by_name = {m.tileset: m.tiles for m in maps}
-    areas = [prologue, "#pragma once", "#include <stdint.h>"]
+    areas = [prologue, "#pragma once", "#include <stdint.h>", '#include "tile_ids.h"']
     areas += [f"inline constexpr uint8_t AREA_{m.symbol} = {m.area};" for m in maps]
     areas += [
         f"inline constexpr uint8_t TILESET_{name.upper()} = {index};"
@@ -892,7 +914,8 @@ def export_world(root=ROOT):
         ]
     else:
         areas += ["    (void)area;", f"    return TILESET_{order[0].upper()};", "}"]
-    wind_blocks = [(name, tile_wind_block(by_name[name])) for name in order]
+    counts = tile_export_counts(maps)
+    wind_blocks = [(name, tile_wind_block(by_name[name], counts[name])) for name in order]
     areas += [
         "// Extra frames of a tileset's sprite sheet: `count` tiles from tile `first`, stored in",
         "// tile order from sheet frame `base`. A count of zero means the tileset has none.",
@@ -909,8 +932,9 @@ def export_world(root=ROOT):
     if any(block[1] for _, block in wind_blocks):
         areas.append("    switch(tileset) {")
         areas += [
-            f"        case TILESET_{name.upper()}: return {{{first}, {count}, {base}}};"
-            for name, (first, count, base) in wind_blocks
+            f"        case TILESET_{name.upper()}: return "
+            f"{{{first}, {count}, {tileset_prefix(name)}TILE_SPRITE_COUNT}};"
+            for name, (first, count, _) in wind_blocks
             if count
         ]
         areas += ["        default: return {0, 0, 0};", "    }", "}"]
@@ -1010,6 +1034,11 @@ def export_world(root=ROOT):
         ids.append(
             f"inline constexpr uint8_t {prefix}TILE_COUNT = {len(by_name[name])};"
         )
+        ids += [
+            "// The atlas frames in the tileset's sprite sheets. The sheets stop after the highest",
+            "// tile that has art or is painted on a map, and a wind block follows them.",
+            f"inline constexpr uint16_t {prefix}TILE_SPRITE_COUNT = {counts[name]};",
+        ]
     header = [
         prologue,
         "#pragma once",

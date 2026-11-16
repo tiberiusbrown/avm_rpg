@@ -25,6 +25,7 @@ from generate_assets import (
     generate,
     load_world,
     map_previews,
+    tile_export_counts,
     tile_wind_block,
     tileset_overlays,
     TILE_PHASES,
@@ -102,11 +103,13 @@ class Pipeline(unittest.TestCase):
 
     def test_all_bitmap_and_alpha_mask_pixels(self):
         source = generate(self.root)["sprites.cpp"]
+        maps, _, _ = load_world(self.root)
+        counts = tile_export_counts(maps)
         for name, file, frames, masked in [
-            ("TILE_SPRITES", "tiles16.png", 255, False),
-            ("HOUSE_TILE_SPRITES", "tiles16_house.png", 255, False),
-            ("CAVE_TILE_SPRITES", "tiles16_cave.png", 255, False),
-            ("DUNGEON_TILE_SPRITES", "tiles16_dungeon.png", 255, False),
+            ("TILE_SPRITES", "tiles16.png", counts["world"], False),
+            ("HOUSE_TILE_SPRITES", "tiles16_house.png", counts["house"], False),
+            ("CAVE_TILE_SPRITES", "tiles16_cave.png", counts["cave"], False),
+            ("DUNGEON_TILE_SPRITES", "tiles16_dungeon.png", counts["dungeon"], False),
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
@@ -179,6 +182,7 @@ class Pipeline(unittest.TestCase):
         out = generate(self.root)
         maps, _, _ = load_world(self.root)
         by_name = {m.tileset: m.tiles for m in maps}
+        counts = tile_export_counts(maps)
         # Tilesets take their runtime index by name, after the world's.
         for index, (name, sprites, atlas) in enumerate([
             ("world", "TILE_SPRITES", "tiles16"),
@@ -187,15 +191,17 @@ class Pipeline(unittest.TestCase):
             ("house", "HOUSE_TILE_SPRITES", "tiles16_house"),
         ]):
             frames = self.sheet(out["sprites.cpp"], sprites)
-            wind_first, wind_count, wind_base = tile_wind_block(by_name[name])
-            self.assertEqual(len(frames), 255 + wind_count)
-            # Each later phase has a whole sheet of the 255 atlas frames, so a phase is drawn
-            # by selecting its sheet. A transparent layer cell repeats the atlas frame.
+            count = counts[name]
+            prefix = sprites[: -len("TILE_SPRITES")]
+            wind_first, wind_count, wind_base = tile_wind_block(by_name[name], count)
+            self.assertEqual(len(frames), count + wind_count)
+            # Each later phase has a whole sheet of the exported atlas frames, so a phase is
+            # drawn by selecting its sheet. A transparent layer cell repeats the atlas frame.
             animated = set()
             for phase in range(1, TILE_PHASES):
                 phase_frames = self.sheet(out["sprites.cpp"], f"{sprites}_PHASE{phase}")
-                self.assertEqual(len(phase_frames), 255)
-                for tile in range(255):
+                self.assertEqual(len(phase_frames), count)
+                for tile in range(count):
                     cell = self.layer_cell(f"{atlas}_phase{phase}.png", tile)
                     self.assertEqual(phase_frames[tile], cell or frames[tile])
                     if cell:
@@ -212,10 +218,15 @@ class Pipeline(unittest.TestCase):
                     cell is not None, by_name[name][tile]["ambient"] in ("grass", "flowers")
                 )
             if wind_count:
-                self.assertEqual(wind_base, 255)
+                self.assertEqual(wind_base, count)
                 self.assertIn(
-                    f"case TILESET_{name.upper()}: return {{{wind_first}, {wind_count}, {wind_base}}};",
+                    f"case TILESET_{name.upper()}: return {{{wind_first}, {wind_count}, "
+                    f"{prefix}TILE_SPRITE_COUNT}};",
                     out["area_ids.h"],
+                )
+                self.assertIn(
+                    f"inline constexpr uint16_t {prefix}TILE_SPRITE_COUNT = {count};",
+                    out["tile_ids.h"],
                 )
         # Water, the flowers and the village scenery animate outdoors, and the lights indoors.
         world, house = by_name["world"], by_name["house"]

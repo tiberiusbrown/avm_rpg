@@ -2,6 +2,7 @@
 
 #pragma once
 #include <stdint.h>
+#include "tile_ids.h"
 inline constexpr uint8_t AREA_OUTDOOR = 1;
 inline constexpr uint8_t AREA_INTERIORS = 2;
 inline constexpr uint8_t AREA_CAVE = 3;
@@ -32,7 +33,7 @@ inline constexpr uint8_t TILE_PHASES = 4;
 // The frame each tile shows while a gust passes over it.
 constexpr TileFrames tile_wind_frames(uint8_t tileset) {
     switch(tileset) {
-        case TILESET_WORLD: return {6, 84, 255};
+        case TILESET_WORLD: return {6, 84, TILE_SPRITE_COUNT};
         default: return {0, 0, 0};
     }
 }

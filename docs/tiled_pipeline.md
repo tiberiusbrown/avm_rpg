@@ -56,7 +56,11 @@ unused tileset stays valid.
 
 Each 16x16 tile occupies 32 bytes: 16 top-page columns, then 16 bottom-page columns.
 Within a byte, bit zero is the uppermost pixel. Each tileset's sprite array begins with
-width=16, height=16, followed by all 255 frames in runtime-ID order.
+width=16, height=16, followed by the frames in runtime-ID order. A sheet stops after the
+highest tile of its tileset that has art in any layer or that a map paints, so it holds
+fewer than 255 frames (`tile_export_counts()` in the generator). The tiles above it are
+blank and unused, and `TILE_COUNT` still counts the whole atlas. `tile_ids.h` gives the
+frame count as `<PREFIX>TILE_SPRITE_COUNT`, which `tile_wind_frames()` uses as the wind base.
 
 ## Animation
 
@@ -64,12 +68,12 @@ width=16, height=16, followed by all 255 frames in runtime-ID order.
 
 - **Phase layers.** `<atlas>_phase1.png` to `<atlas>_phase3.png` are optional 256x256 RGBA
   images in the atlas layout. A cell is fully transparent or fully opaque monochrome, and
-  cell 255 stays transparent. `sprites.cpp` gets one more 255-frame sheet per phase,
+  cell 255 stays transparent. `sprites.cpp` gets one more sheet per phase, with the same frame count as the atlas sheet,
   `<NAME>_TILE_SPRITES_PHASE<n>`, in which a transparent cell repeats the atlas frame.
   `tileset_phase_sprites(tileset, phase)` returns the sheet, and a phase whose frames all
-  match an earlier sheet returns that sheet. Each sheet is 8,162 bytes of read-only data.
-- **Wind layer.** `<atlas>_wind.png` has the same format. Its frames follow the 255 atlas
-  frames in the tileset's first sheet as one block that spans the tiles with a wind frame.
+  match an earlier sheet returns that sheet. Each sheet takes 32 bytes of read-only data per frame, plus two header bytes.
+- **Wind layer.** `<atlas>_wind.png` has the same format. Its frames follow the exported
+  atlas frames in the tileset's first sheet as one block that spans the tiles with a wind frame.
   `tile_wind_frames(tileset)` in `area_ids.h` gives the block as first tile, count and first
   sheet frame. Exactly the tiles of the ambient classes `grass` and `flowers` have a frame.
 - **Ambient classes.** The optional string tile property `ambient` is one of `none`, `grass`,

@@ -2,6 +2,7 @@
 #include "title.h"
 #include "world_assets.h"
 
+#include <initializer_list>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -38,10 +39,12 @@ static_assert((uint32_t)65536 % ((uint32_t)GUST_STEP_TICKS * GUST_SPACING) == 0 
 static void tile_sheets() {
     for(uint8_t tileset = 0; tileset < TILESET_COUNT; ++tileset) {
         TileFrames wind = tile_wind_frames(tileset);
-        // The wind block follows the 255 atlas frames of the tileset's first sheet.
-        CHECK(!wind.count || wind.base == 255);
-        CHECK((uint16_t)wind.first + wind.count <= 255);
+        // The wind block follows the exported atlas frames of the tileset's first sheet, which
+        // stop after the highest tile that the tileset draws.
+        CHECK(!wind.count || wind.base > 0);
+        CHECK((uint16_t)wind.first + wind.count <= wind.base);
     }
+    CHECK(tile_wind_frames(TILESET_WORLD).base == TILE_SPRITE_COUNT);
     CHECK(tile_wind_frames(TILESET_WORLD).count && !tile_wind_frames(TILESET_HOUSE).count);
     CHECK(!tile_wind_frames(TILESET_CAVE).count && !tile_wind_frames(TILESET_DUNGEON).count);
     CHECK(tileset_has_sky(TILESET_WORLD) && !tileset_has_sky(TILESET_HOUSE));
@@ -374,8 +377,8 @@ static void title_trees() {
             long since = -1;
             // Two turns of the cycle, so a rest that spans the wrap counts too.
             for(long tick = 1; tick < 2L * TITLE_CYCLE; ++tick) {
-                int next = title_band_shift(
-                    *tree, band, title_tree_lean(*tree, (uint16_t)(tick % TITLE_CYCLE)));
+                int next = title_band_shift(*tree, band,
+                                            title_tree_lean(*tree, (uint16_t)(tick % TITLE_CYCLE)));
                 if(next == now)
                     continue;
                 moved = true;

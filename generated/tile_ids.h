@@ -258,6 +258,9 @@ inline constexpr uint8_t TILE_ATLAS_FC = 252;
 inline constexpr uint8_t TILE_ATLAS_FD = 253;
 inline constexpr uint8_t TILE_ATLAS_FE = 254;
 inline constexpr uint8_t TILE_COUNT = 255;
+// The atlas frames in the tileset's sprite sheets. The sheets stop after the highest
+// tile that has art or is painted on a map, and a wind block follows them.
+inline constexpr uint16_t TILE_SPRITE_COUNT = 199;
 inline constexpr uint8_t CAVE_TILE_EMPTY = 0;
 inline constexpr uint8_t CAVE_TILE_EDGE_TOP = 1;
 inline constexpr uint8_t CAVE_TILE_EDGE_LEFT = 2;
@@ -514,6 +517,9 @@ inline constexpr uint8_t CAVE_TILE_ATLAS_FC = 252;
 inline constexpr uint8_t CAVE_TILE_ATLAS_FD = 253;
 inline constexpr uint8_t CAVE_TILE_ATLAS_FE = 254;
 inline constexpr uint8_t CAVE_TILE_COUNT = 255;
+// The atlas frames in the tileset's sprite sheets. The sheets stop after the highest
+// tile that has art or is painted on a map, and a wind block follows them.
+inline constexpr uint16_t CAVE_TILE_SPRITE_COUNT = 99;
 inline constexpr uint8_t DUNGEON_TILE_EMPTY = 0;
 inline constexpr uint8_t DUNGEON_TILE_EDGE_TOP = 1;
 inline constexpr uint8_t DUNGEON_TILE_EDGE_LEFT = 2;
@@ -770,6 +776,9 @@ inline constexpr uint8_t DUNGEON_TILE_ATLAS_FC = 252;
 inline constexpr uint8_t DUNGEON_TILE_ATLAS_FD = 253;
 inline constexpr uint8_t DUNGEON_TILE_ATLAS_FE = 254;
 inline constexpr uint8_t DUNGEON_TILE_COUNT = 255;
+// The atlas frames in the tileset's sprite sheets. The sheets stop after the highest
+// tile that has art or is painted on a map, and a wind block follows them.
+inline constexpr uint16_t DUNGEON_TILE_SPRITE_COUNT = 115;
 inline constexpr uint8_t HOUSE_TILE_EMPTY = 0;
 inline constexpr uint8_t HOUSE_TILE_EDGE_TOP = 1;
 inline constexpr uint8_t HOUSE_TILE_EDGE_LEFT = 2;
@@ -1026,3 +1035,6 @@ inline constexpr uint8_t HOUSE_TILE_ATLAS_FC = 252;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_FD = 253;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_FE = 254;
 inline constexpr uint8_t HOUSE_TILE_COUNT = 255;
+// The atlas frames in the tileset's sprite sheets. The sheets stop after the highest
+// tile that has art or is painted on a map, and a wind block follows them.
+inline constexpr uint16_t HOUSE_TILE_SPRITE_COUNT = 126;
