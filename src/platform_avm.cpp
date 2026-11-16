@@ -14,11 +14,19 @@ static_assert(sizeof(SFX_TRACKS) / sizeof(SFX_TRACKS[0]) == SFX_COUNT);
 constexpr uint8_t MUSIC_MASTER_VOLUME = 255;
 
 void music_play(MUSIC_TRACK track) {
-    auto current = avm_audio_get_music();
+    // While a fade runs, the queued song is the one that will play, not the one fading out.
+    // Asking for the fading song then replaces the queue and restarts it.
+    auto current = avm_audio_get_fade_song();
+    if(!current)
+        current = avm_audio_get_music();
     if(current == MUSIC_TRACKS[track].data)
         return;
 
     avm_audio_play_fade(MUSIC_TRACKS[track].data);
+}
+
+void music_play_area() {
+    music_play(area_music(game.area));
 }
 
 char const PROGMEM* music_next() {
@@ -141,7 +149,7 @@ extern "C" void loop() {
 
     avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
     avm_audio_music_loop(1);
-    music_play(MUSIC_DEFAULT);
-    
+    music_play_area();
+
     explore();
 }

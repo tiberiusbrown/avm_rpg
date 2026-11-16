@@ -4,6 +4,7 @@
 
 enum MUSIC_TRACK : uint8_t {
     MUSIC_BATTLE,
+    MUSIC_CAVE,
     MUSIC_PEACEFUL,
     MUSIC_PEACEFUL2,
     MUSIC_COUNT,

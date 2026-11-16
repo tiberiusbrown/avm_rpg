@@ -1143,6 +1143,81 @@ static void play_grove_battle(Device& d, bool verify_transition = false) {
 }
 
 #ifndef RPG_DEVICE_TEST_LIBRARY
+// Interpreter audio RAM, as the runtime getters in runtime/lib/audio_state.c read it: the music
+// status, the playing song's 24-bit start pointer, the music attenuation, and the saved
+// attenuation and queued song of a song change's fade.
+constexpr unsigned AUDIO_MUSIC_STATUS = 0xa4e;
+constexpr unsigned AUDIO_MUSIC_START = 0xa50;
+constexpr unsigned AUDIO_MUSIC_VOLUME = 0xa71;
+constexpr unsigned AUDIO_FADE_VOLUME = 0xa73;
+constexpr unsigned AUDIO_FADE_SONG = 0xa74;
+
+static unsigned audio_pointer(Device const& d, unsigned address) {
+    auto const& ram = d.ab->core_state.cpu.data;
+    return ram[address] | (unsigned)ram[address + 1] << 8 | (unsigned)ram[address + 2] << 16;
+}
+
+// Waits out a song change, which fades the old song away before the new one starts, and returns
+// the start pointer of the song that plays afterwards.
+static unsigned settled_song(Device& d) {
+    d.advance(0, 24000000);
+    auto const& ram = d.ab->core_state.cpu.data;
+    require(ram[AUDIO_MUSIC_STATUS] != 0 && ram[AUDIO_FADE_VOLUME] == 0,
+            "song change did not finish");
+    return audio_pointer(d, AUDIO_MUSIC_START);
+}
+
+// Holds a direction until a walk crosses into the area.
+static void walk_to_area(Device& d, uint8_t held, uint8_t area, char const* message) {
+    for(unsigned frames = 0; d.state().area != area; ++frames) {
+        require(frames < 2 * TILE, message);
+        d.frame(held);
+    }
+}
+
+// The cave plays its own song, and the outdoors keeps Glade and Hearth.
+static void verify_area_music(Device& d) {
+    Game original = d.state();
+    unsigned outdoor = settled_song(d);
+
+    // The cave mouth is a passage: walking north onto it enters the cave.
+    Game at_mouth = original;
+    at_mouth.player = {(uint16_t)(positions::CaveMouth.x * TILE),
+                       (uint16_t)((positions::CaveMouth.y + 1) * TILE), NORTH, 0};
+    d.set_state(at_mouth);
+    d.advance(0, 1600000);
+    walk_to_area(d, BTN_UP, AREA_CAVE, "walking onto the cave mouth did not teleport");
+    unsigned cave = settled_song(d);
+    require(cave != outdoor, "the cave kept the outdoor song");
+    summary("cave_music", d, 30);
+
+    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "walking onto the cave exit did not teleport");
+    require(settled_song(d) == outdoor, "leaving the cave did not bring the outdoor song back");
+
+    // Leaving while the cave's song is still queued must replace the queue, not let the cave's
+    // song start outdoors once the fade ends. The slowest fade, at attenuation 255, takes 1.02
+    // seconds and outlasts the two screen fades of the walk out.
+    auto& ram = d.ab->core_state.cpu.data;
+    uint8_t volume = ram[AUDIO_MUSIC_VOLUME];
+    ram[AUDIO_MUSIC_VOLUME] = 255;
+    d.set_state(at_mouth);
+    d.advance(0, 1600000);
+    walk_to_area(d, BTN_UP, AREA_CAVE, "walking onto the cave mouth did not teleport");
+    Game at_exit = d.state();
+    at_exit.player = {
+        (uint16_t)(positions::CaveExit.x * TILE),
+        (uint16_t)(positions::CaveExit.y * TILE - FOOT_CENTER_Y - 1), SOUTH, 0};
+    d.set_state(at_exit);
+    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "walking onto the cave exit did not teleport");
+    require(ram[AUDIO_FADE_VOLUME] != 0 && audio_pointer(d, AUDIO_FADE_SONG) == outdoor,
+            "leaving during a song change did not queue the outdoor song");
+    require(settled_song(d) == outdoor, "the cave song started outdoors after a quick exit");
+    ram[AUDIO_MUSIC_VOLUME] = volume;
+
+    d.set_state(original);
+    d.advance(0, 1600000);
+}
+
 static void press_with_music_fade(Device& d) {
     struct Trace {
         Device& device;
@@ -1301,6 +1376,7 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     verify_battle_resign(d, out);
     verify_house_fades(d);
+    verify_area_music(d);
 
     // Stand one tile north of the villager, facing it, and talk with A.
     auto npc_state = d.state();

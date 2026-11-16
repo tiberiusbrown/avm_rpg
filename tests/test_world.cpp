@@ -4,6 +4,7 @@
 #include "map_positions.h"
 #include "npc.h"
 #include "logic/handlers.h"
+#include "music_catalog.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -459,11 +460,14 @@ static bool player_at(TilePos cell, DIRECTION facing) {
            game.player.y == cell.y * TILE && game.player.facing == facing;
 }
 
-// Walks until the area changes, for two tiles at most.
+// Walks until the area changes, for two tiles at most. Only the update that changes the area
+// reports a teleport.
 static void walk_through(uint8_t button) {
     uint8_t area = game.area;
-    for(unsigned i = 0; i < 2 * TILE && game.area == area; ++i)
-        game_update(button, 0);
+    for(unsigned i = 0; i < 2 * TILE && game.area == area; ++i) {
+        bool moved = game_update(button, 0);
+        CHECK(moved == (game.area != area));
+    }
     CHECK(game.area != area);
 }
 
@@ -503,6 +507,11 @@ static void passages() {
                   passage_facing(positions::CaveHole) == SOUTH &&
                   passage_facing(positions::CaveLadder) == SOUTH);
 }
+
+// The cave has a song of its own. The other areas play Glade and Hearth until they get theirs.
+static_assert(area_music(AREA_CAVE) == MUSIC_CAVE && area_music(AREA_OUTDOOR) == MUSIC_PEACEFUL &&
+              area_music(AREA_INTERIORS) == MUSIC_PEACEFUL &&
+              area_music(AREA_DUNGEON) == MUSIC_PEACEFUL);
 
 // Every mechanism cell shows the map's tile while its flag is clear and its own tile while the
 // flag is set, from the tile pass alone: the cache holds no state between frames.

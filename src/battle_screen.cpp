@@ -653,7 +653,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
     input_wait_press(BTN_A);
-    music_play(MUSIC_PEACEFUL);
+    music_play_area();
     fade_to_black();
     fade_world_in();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.

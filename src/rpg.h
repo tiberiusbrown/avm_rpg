@@ -190,7 +190,8 @@ uint16_t rng_next();
 void game_start();
 // game_start followed by update_visible_world.
 void game_new();
-void game_update(uint8_t held, uint8_t pressed = 0);
+// Returns true when the update teleported the player, so the area changed.
+bool game_update(uint8_t held, uint8_t pressed = 0);
 bool actor_move(Actor* actor, DIRECTION dir, uint8_t pixels);
 // Player walking speed, in pixels per frame.
 inline constexpr uint8_t PLAYER_PIXELS_PER_FRAME = 1;

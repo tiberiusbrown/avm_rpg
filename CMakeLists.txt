@@ -135,6 +135,7 @@ add_custom_command(OUTPUT ${MUSIC_CATALOG_OUTPUTS}
     DEPENDS tools/generate_music_catalog.py "${MUSIC_MANIFEST}" ${MUSIC_SCORES}
     VERBATIM)
 add_custom_target(rpg_music_catalog ALL DEPENDS ${MUSIC_CATALOG_OUTPUTS})
+add_dependencies(rpg_world_tests rpg_music_catalog)
 
 # Compile exported dispatch with new, unimplemented named/unnamed handlers.
 # Keep the fixture unlinked so its generated Handler definition is independent.

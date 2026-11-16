@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "battle_cursor.h"
+#include "music_catalog.h"
 #include "title.h"
 
 #include <avm.h>
@@ -196,6 +197,7 @@ __attribute__((noinline)) void explore() {
             if(action == MENU_LOAD) {
                 game_load();
                 update_visible_world(0, false);
+                music_play_area();
                 fade_world_in();
             } else if(action == MENU_AUDIO)
                 audio_screen();
@@ -203,13 +205,16 @@ __attribute__((noinline)) void explore() {
             continue;
         }
         if(pressed & BTN_A) {
-            game_update(0, pressed);
+            // A teleport takes the player to an area with its own song.
+            if(game_update(0, pressed))
+                music_play_area();
             input_sync();
             continue;
         }
 
         RPG_QA_MARK(rpg_frame_begin());
-        game_update(input_held());
+        if(game_update(input_held()))
+            music_play_area();
         RPG_QA_MARK(rpg_render_begin());
         rpg_render_world();
         avm_display(true);

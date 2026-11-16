@@ -202,15 +202,16 @@ Camera game_camera() {
     return c;
 }
 
-void game_update(uint8_t held, uint8_t pressed) {
+bool game_update(uint8_t held, uint8_t pressed) {
     bool did_teleport = update_visible_world(pressed);
     // A runs ordinary chunk logic, including blocking dialogue, with movement paused.
     if(pressed & BTN_A)
-        return;
+        return did_teleport;
     RPG_PHASE(6);
     npc_player_begin(direction(held));
     if(!did_teleport)
         actor_move(&game.player, direction(held), PLAYER_PIXELS_PER_FRAME);
     RPG_PHASE(0);
     ++game.ticks;
+    return did_teleport;
 }
