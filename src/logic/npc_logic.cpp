@@ -16,7 +16,7 @@ char const PROGMEM* npc_name(NPC_ID id) {
 
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition PROGMEM VILLAGER{NPC_STAND, SOUTH, 2, 32, 32,  0,
-                                                    0,         3,     0, 1,  true};
+                                                    0,         3,     0, 9,  true};
     static constexpr NpcDefinition PROGMEM WANDERER{NPC_WANDER, WEST, 2, 48, 48,  16,
                                                     12,         2,    0, 2,  true};
     static constexpr NpcDefinition PROGMEM ROWAN{NPC_STAND, WEST, 0, 32, 32, 0, 0, 3, 0, 3, true};

@@ -110,7 +110,9 @@ is standing; walking uses offsets 0,1,0,2. Each pose lasts eight simulation tick
 `actor_frame()` shares this selection between player and NPC rendering. The
 player uses row 0; `NpcDefinition::sprite_row` selects an NPC's row (0..31).
 
-Rows 0-15 are people. Rows 16-31 are creatures and enemies:
+Rows 0-15 are people; `assets/images/actors16_descriptions.md` records each row's
+sex, hair and head covering for portrait art. Rows 16-31 are
+creatures and enemies:
 
 | Row | Character | Row | Character |
 | --- | --- | --- | --- |

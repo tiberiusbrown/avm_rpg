@@ -221,7 +221,7 @@ uint8_t battle_attack_damage(BattleUnit const& unit) {
 
 uint8_t battle_sprite_row(BattleUnit const& unit) {
     if(unit.id & BATTLE_PARTY_SOURCE) {
-        static constexpr uint8_t PROGMEM ROWS[NPC_ID_LIMIT] = {0, 1, 2, 3};
+        static constexpr uint8_t PROGMEM ROWS[NPC_ID_LIMIT] = {0, 9, 2, 3};
         return ROWS[game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].id];
     }
     return ENEMY_INFO[unit.id].sprite_row;

@@ -176,7 +176,7 @@ static void run_npc_scenarios() {
     npc_test_foot_geometry();
     game_new();
     CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
-    CHECK(npc_definition(NPC_VILLAGER)->sprite_row == 1);
+    CHECK(npc_definition(NPC_VILLAGER)->sprite_row == 9);
     CHECK(npc_definition(NPC_WANDERER)->sprite_row == 2);
     CHECK(!npc_definition((NPC_ID)255));
     CHECK(!npc_move_to((NPC_ID)255, scene_x(0), scene_y(0)));

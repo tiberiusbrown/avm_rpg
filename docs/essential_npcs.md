@@ -21,7 +21,7 @@ Successful `party_add` calls for NPCs then show "<name> has joined the party!"
 and play the `party_join` jingle. Failed additions and the initial traveler setup
 remain silent; the announcement uses the ordinary close/dismiss prompt.
 
-The replacement sample defines NPC_VILLAGER (standing, actor row 1) and NPC_WANDERER
+The replacement sample defines NPC_VILLAGER (standing, actor row 9) and NPC_WANDERER
 (bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The
 villager is dynamic: it roams between two residences at the ends of the clearing, named
 by the map markers `VillagerWest` and `VillagerEast`. The wanderer is static: it stays
