@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "chunk.h"
+#include "story_stub.h"
 #include "map_positions.h"
 #include "logic/npc_logic.h"
 #include <stdio.h>
@@ -18,11 +19,17 @@ static unsigned checks;
 
 static unsigned shown;
 static char const* last_text;
+static NPC_ID last_speaker = NPC_NONE;
 
 bool dialogue_show(char const PROGMEM* words) {
     ++shown;
     last_text = words;
     return true;
+}
+
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
+    last_speaker = id;
+    return dialogue_show(words);
 }
 
 static void interaction_geometry() {
@@ -76,6 +83,11 @@ static void interaction_geometry() {
 }
 
 int main() {
+    CHECK(npc_name(NPC_NONE) == nullptr);
+    CHECK(npc_name((NPC_ID)NPC_ID_LIMIT) == nullptr);
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
+        CHECK(npc_name((NPC_ID)id) && *npc_name((NPC_ID)id));
+    CHECK(!strcmp(npc_name(NPC_ROWAN), "Rowan"));
     interaction_geometry();
     // Without a pending request, the Dialogue phase shows nothing.
     npc_dialogue();
@@ -86,6 +98,7 @@ int main() {
     CHECK(shown == 0);
     npc_dialogue();
     CHECK(shown == 1 && strstr(last_text, "Nocturne Grove"));
+    CHECK(last_speaker == NPC_VILLAGER);
 
     // The request is consumed by the phase that shows it.
     npc_dialogue();
@@ -94,13 +107,16 @@ int main() {
     npc_talk(NPC_WANDERER);
     npc_dialogue();
     CHECK(shown == 2 && strstr(last_text, "old oak"));
+    CHECK(last_speaker == NPC_WANDERER);
 
     // NPCs without a line stay silent, and the request still clears.
     npc_talk(NPC_NONE);
     npc_dialogue();
     CHECK(shown == 2);
 
+    story_stub_reset(BATTLE_VICTORY);
     game_new();
+    CHECK(story_stub_joins() == 0);
     CHECK(game.party.count == 1 && game.party.members[0].id == NPC_NONE);
     CHECK(game.party.members[0].hp == 20 && game.party.members[0].max_hp == 20);
     CHECK(game.party.members[0].movement_class == MOVEMENT_FIGHTER);
@@ -114,6 +130,8 @@ int main() {
     CHECK(npc_find(NPC_ROWAN));
     game_update(0, BTN_A);
     CHECK(game.party.count == 2 && party_contains(NPC_ROWAN));
+    CHECK(last_speaker == NPC_ROWAN);
+    CHECK(story_stub_joins() == 1 && story_stub_last_join() == NPC_ROWAN);
     CHECK(!npc_find(NPC_ROWAN));
     CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
     // Compact removal must leave no holes before another occupied slot.
@@ -150,10 +168,13 @@ int main() {
     CHECK(!npc_find(NPC_ROWAN));
     CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
 
+    CHECK(story_stub_joins() == 1);
+
     // Capacity, identity and statistic failures leave the entire party untouched.
     CHECK(party_add({255, 255, MOVEMENT_KNIGHT, ATTACK_FIGHTER, NPC_VILLAGER}));
     CHECK(party_add({0, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_WANDERER}));
     CHECK(game.party.count == PARTY_CAPACITY && save_valid());
+    CHECK(story_stub_joins() == 3 && story_stub_last_join() == NPC_WANDERER);
     Party full = game.party;
     CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_ROWAN}));
     CHECK(!memcmp(&full, &game.party, sizeof(Party)));
@@ -166,6 +187,7 @@ int main() {
     CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_CLASS_COUNT, NPC_VILLAGER}));
     CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, (NPC_ID)NPC_ID_LIMIT}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
+    CHECK(story_stub_joins() == 3);
     game_new();
     CHECK(game.party.count == 1 && !party_contains(NPC_ROWAN));
     CHECK(npc_find(NPC_ROWAN));

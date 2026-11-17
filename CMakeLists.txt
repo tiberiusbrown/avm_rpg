@@ -233,7 +233,7 @@ if(RPG_BUILD_GUEST)
             if(source STREQUAL "src/platform_avm.cpp")
                 list(APPEND source_dependencies src/music.h src/music_catalog.h src/sfx.h ${MUSIC_OUTPUTS})
             endif()
-            if(source STREQUAL "src/battle_screen.cpp")
+            if(source STREQUAL "src/battle_screen.cpp" OR source STREQUAL "src/dialogue_overlay.cpp")
                 list(APPEND source_dependencies src/sfx.h ${SFX_OUTPUTS}
                     src/music_catalog.h ${MUSIC_CATALOG_OUTPUTS})
             endif()

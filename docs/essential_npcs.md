@@ -5,6 +5,15 @@ Each NPC ID owns at most one slot, so no slot is ever evicted, and occupied slot
 prefix: scans stop at the first empty slot. IDs are independent of object order, slot and
 coordinates. `Npc` is 18 bytes. `NpcPool` is 160 bytes on both AVM and the host. Definitions, routes, character sprites and dialogue remain in PROGMEM.
 
+The sample names NPC_VILLAGER Iona, NPC_WANDERER Silas, and NPC_ROWAN Rowan.
+`npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
+`dialogue_show(id, F("..."))` shows that name in a fitted panel above the main
+dialogue panel, aligned with its left edge. The name remains visible across pages.
+The text-only overload and `dialogue_ask` use the unnamed panel.
+Successful `party_add` calls for NPCs then show "<name> has joined the party!"
+and play the `party_join` jingle. Failed additions and the initial traveler setup
+remain silent; the announcement uses the ordinary close/dismiss prompt.
+
 The replacement sample defines NPC_VILLAGER (standing, actor row 1) and NPC_WANDERER
 (bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The
 villager is dynamic: it roams between two residences at the ends of the clearing, named

@@ -48,6 +48,11 @@ bool dialogue_show(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
+    (void)id;
+    return dialogue_show(words);
+}
+
 static void place_player(uint8_t tx, uint8_t ty) {
     game.player.x = (uint16_t)tx * TILE;
     game.player.y = (uint16_t)ty * TILE;

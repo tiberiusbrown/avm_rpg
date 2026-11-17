@@ -38,6 +38,8 @@ struct NpcRoute {
     uint8_t pause, area;
 };
 
+// Display name in program memory; unknown IDs have no name.
+char const PROGMEM* npc_name(NPC_ID id);
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id);
 NpcRoute const PROGMEM* npc_route(uint8_t id);
 // Default residence of an NPC, supplied by the logic layer.

@@ -37,6 +37,8 @@ bool party_add(PartyMember member) {
         return false;
     game.party.members[game.party.count++] = member;
     npc_recruit(member.id);
+    if(member.id != NPC_NONE)
+        party_joined(member.id);
     return true;
 }
 

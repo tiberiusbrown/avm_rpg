@@ -20,6 +20,8 @@ void fade_world_out() {}
 
 void fade_world_in() {}
 
+void party_joined(NPC_ID) {}
+
 // The probe stops here at every phase boundary. avm-lldb sets a breakpoint on this function.
 extern "C" RPG_NOINLINE void probe_mark() {
     probe_marks = (uint8_t)(probe_marks + 1);

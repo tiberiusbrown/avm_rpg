@@ -20,6 +20,11 @@ bool dialogue_show(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
+    (void)id;
+    return dialogue_show(words);
+}
+
 bool dialogue_ask(char const PROGMEM*) {
     return true;
 }

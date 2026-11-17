@@ -16,6 +16,7 @@ enum SFX : uint8_t {
     SFX_ERROR,
     SFX_FALL,
     SFX_LEAP,
+    SFX_PARTY_JOIN,
     SFX_PRICE,
     SFX_SELECT,
     SFX_SMASH,

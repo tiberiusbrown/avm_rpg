@@ -1,4 +1,6 @@
 #include "rpg.h"
+#include "npc.h"
+#include "sfx.h"
 
 #include <avm.h>
 
@@ -53,7 +55,25 @@ static void clear_overlay() {
     dialogue_prompt = DIALOGUE_TYPING;
 }
 
-static void open_overlay() {
+static void draw_name(NPC_ID id) {
+    char const PROGMEM* name = npc_name(id);
+    if(!name || !*name)
+        return;
+
+    constexpr uint8_t HEIGHT = 2 * BORDER + 2 * PADDING + ASCENT + 1;
+    constexpr uint8_t TOP = OVERLAY_TOP - GAP_ABOVE - HEIGHT;
+    uint16_t width = avm_text_width(name) + 2 * LEFT;
+    if(width > DISPLAY_WIDTH)
+        width = DISPLAY_WIDTH;
+    avm_draw_filled_rect_black(0, TOP - GAP_ABOVE, width + (width < DISPLAY_WIDTH),
+                               HEIGHT + GAP_ABOVE);
+    avm_draw_filled_rect_white(0, TOP, width, HEIGHT);
+    avm_draw_filled_rect_black(BORDER, TOP + BORDER, width - 2 * BORDER,
+                               HEIGHT - 2 * BORDER);
+    avm_draw_text(LEFT, TOP + BORDER + PADDING + ASCENT, name);
+}
+
+static void open_overlay(NPC_ID id = NPC_NONE) {
     // The press that opened the dialogue must not finish or advance its first page.
     input_wait_release(BTN_A | BTN_B);
     avm_set_text_font(AVM_FONT_BR5D);
@@ -61,6 +81,7 @@ static void open_overlay() {
     avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     rpg_render_world();
     clear_overlay();
+    draw_name(id);
 }
 
 static void close_overlay() {
@@ -139,7 +160,7 @@ static void type_frame() {
 
 // Draws one letter at the pen with its blip. A letter that would pass the right
 // edge starts a new line first, so oversized words still break at glyph boundaries.
-__attribute__((noinline)) static bool reveal_letter(char c) {
+__attribute__((noinline)) static bool reveal_letter(char c, bool blips) {
     char letter[2] = {c, 0};
     if(dialogue_x + avm_text_width(letter) > RIGHT && !next_line())
         return false;
@@ -151,13 +172,13 @@ __attribute__((noinline)) static bool reveal_letter(char c) {
 
     // Each letter blips for its own frame, with a pitch chosen from its character
     // code. Zero duration latches until the explicit stop after that frame.
-    if(c & 1)
+    if(blips && (c & 1))
         avm_audio_tone(BLIP_NOTES[((uint8_t)c >> 1) & 7], BLIP_AMPLITUDE, 32);
     type_frame();
     return true;
 }
 
-static bool stream_text(char const PROGMEM* words) {
+static bool stream_text(char const PROGMEM* words, bool blips = true) {
     while(*words) {
         if(separator(*words)) {
             char c = *words++;
@@ -185,7 +206,7 @@ static bool stream_text(char const PROGMEM* words) {
 
         // Word placement above has already decided this word's line.
         while(*words && !separator(*words)) {
-            if(!reveal_letter(*words++))
+            if(!reveal_letter(*words++, blips))
                 return false;
         }
     }
@@ -194,6 +215,10 @@ static bool stream_text(char const PROGMEM* words) {
 }
 
 bool dialogue_show(char const PROGMEM* words) {
+    return dialogue_show(NPC_NONE, words);
+}
+
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     if(!words)
         return true;
     while(separator(*words))
@@ -201,7 +226,7 @@ bool dialogue_show(char const PROGMEM* words) {
     if(!*words)
         return true;
 
-    open_overlay();
+    open_overlay(id);
     bool accepted = stream_text(words) && wait_for_input(DIALOGUE_DONE);
     close_overlay();
     return accepted;
@@ -212,4 +237,17 @@ bool dialogue_ask(char const PROGMEM* question) {
     bool accepted = (!question || stream_text(question)) && wait_for_input(DIALOGUE_CHOICE);
     close_overlay();
     return accepted;
+}
+
+void party_joined(NPC_ID id) {
+    char const PROGMEM* name = npc_name(id);
+    if(!name)
+        return;
+
+    open_overlay();
+    sfx_play(SFX_PARTY_JOIN);
+    // Typing blips share the jingle's voice, so let the jingle play uninterrupted.
+    if(stream_text(name, false) && stream_text(F("has joined the party!"), false))
+        wait_for_input(DIALOGUE_DONE);
+    close_overlay();
 }

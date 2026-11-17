@@ -23,5 +23,7 @@ void story_stub_record_dialogue(char const* text);
 unsigned story_stub_count();
 StoryEvent const& story_stub_event(unsigned index);
 unsigned story_stub_battles();
+unsigned story_stub_joins();
+NPC_ID story_stub_last_join();
 
 #endif

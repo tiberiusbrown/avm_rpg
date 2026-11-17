@@ -123,6 +123,7 @@ static_assert(sizeof(PartyMember) == 5, "byte-sized party statistics and identit
 
 bool party_contains(NPC_ID id);
 // Rejects duplicate identities, invalid statistics, and a full party without changing state.
+// Successful NPC recruitment shows a blocking announcement and plays a jingle.
 bool party_add(PartyMember member);
 
 struct Game {
@@ -235,6 +236,11 @@ inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 Camera game_camera();
 // Block until acknowledged (true) or dismissed with B (false).
 bool dialogue_show(char const PROGMEM* words);
+// Show the speaker's name in a left-aligned panel above the dialogue.
+// NPC_NONE and unknown IDs use the unnamed overlay.
+bool dialogue_show(NPC_ID id, char const PROGMEM* words);
+// Announce a successful recruitment with a jingle; called by party_add after updating the party.
+void party_joined(NPC_ID id);
 // Wrap/page the question, then return A = yes or B = no.
 bool dialogue_ask(char const PROGMEM* question);
 // Validate the loaded live object before using any saved world coordinates or NPC residences.

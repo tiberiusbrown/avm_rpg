@@ -6,6 +6,8 @@
 static StoryEvent events[STORY_LOG_CAPACITY];
 static unsigned event_count;
 static unsigned battle_count;
+static unsigned join_count;
+static NPC_ID last_join = NPC_NONE;
 static BATTLE_RESULT next_result = BATTLE_VICTORY;
 
 void fade_world_out() {}
@@ -23,6 +25,8 @@ static void record(StoryEvent event) {
 void story_stub_reset(BATTLE_RESULT result) {
     event_count = 0;
     battle_count = 0;
+    join_count = 0;
+    last_join = NPC_NONE;
     next_result = result;
 }
 
@@ -51,4 +55,17 @@ StoryEvent const& story_stub_event(unsigned index) {
 
 unsigned story_stub_battles() {
     return battle_count;
+}
+
+void party_joined(NPC_ID id) {
+    ++join_count;
+    last_join = id;
+}
+
+unsigned story_stub_joins() {
+    return join_count;
+}
+
+NPC_ID story_stub_last_join() {
+    return last_join;
 }

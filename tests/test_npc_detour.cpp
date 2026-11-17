@@ -27,6 +27,11 @@ bool dialogue_show(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
+    (void)id;
+    return dialogue_show(words);
+}
+
 static void cache_tile(uint8_t tx, uint8_t ty, uint8_t tile) {
     int dx = (int)tx - (int)game.cache.origin_tx, dy = (int)ty - (int)game.cache.origin_ty;
     if(dx >= 0 && dy >= 0 && dx < CACHE_WIDTH && dy < CACHE_HEIGHT)

@@ -27,6 +27,11 @@ bool dialogue_show(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
+    (void)id;
+    return dialogue_show(words);
+}
+
 static void fail(char const* what, unsigned frame, unsigned id) {
     fprintf(stderr, "FAIL frame %u NPC %u: %s\n", frame, id, what);
     exit(1);

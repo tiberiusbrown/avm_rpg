@@ -1,6 +1,19 @@
 #include "npc_logic.h"
 #include "map_positions.h"
 
+char const PROGMEM* npc_name(NPC_ID id) {
+    switch(id) {
+        case NPC_VILLAGER:
+            return F("Iona");
+        case NPC_WANDERER:
+            return F("Silas");
+        case NPC_ROWAN:
+            return F("Rowan");
+        default:
+            return nullptr;
+    }
+}
+
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition PROGMEM VILLAGER{NPC_STAND, SOUTH, 2, 32, 32,  0,
                                                     0,         3,     0, 1,  true};
@@ -58,15 +71,11 @@ void npc_dialogue() {
     pending_talk = NPC_NONE;
     switch(id) {
         case NPC_ROWAN:
-            if(party_contains(NPC_ROWAN))
-                dialogue_show(F("My bow is yours, friend. We travel together now."));
-            else if(party_add({18, 18, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_ROWAN}))
-                dialogue_show(F("I'm Rowan. You could use a bow on the road. I'll join you!"));
-            else
-                dialogue_show(F("Your party is full. I'll wait here until there's room."));
+            dialogue_show(id, F("I'm Rowan. You could use a bow on the road. I'll join you!"));
+            party_add({18, 18, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_ROWAN});
             break;
         case NPC_VILLAGER:
-            dialogue_show(
+            dialogue_show(id,
                 F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove."));
             // Talking sends the villager to the other end of the clearing, named by map markers.
             npc_set_destination(NPC_VILLAGER,
@@ -75,7 +84,7 @@ void npc_dialogue() {
                                     : positions::VillagerEast);
             break;
         case NPC_WANDERER:
-            dialogue_show(F("I walk this path every night. Mind the roots near the old oak."));
+            dialogue_show(id, F("I walk this path every night. Mind the roots near the old oak."));
             break;
         default:
             break;

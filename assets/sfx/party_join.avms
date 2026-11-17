@@ -1,0 +1,11 @@
+// A new companion joins: a bright ascending arpeggio with a held final note.
+sfx
+volume max
+automation 8ms
+instrument chime { wave pulse duty 25% volume 11 gate 85% }
+channel 1 chime octave 5 {
+    c:80ms e:80ms g:80ms
+    gate 100%
+    volume_slide { to 0 over 280ms }
+    c':280ms
+}

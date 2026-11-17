@@ -9,6 +9,8 @@ void fade_world_out() {}
 
 void fade_world_in() {}
 
+void party_joined(NPC_ID) {}
+
 static void check(bool value, uint16_t line) {
     probe_checks = (uint16_t)(probe_checks + 1);
     if(!value && !probe_failure) {
@@ -23,6 +25,11 @@ static void check(bool value, uint16_t line) {
 bool dialogue_show(char const PROGMEM*) {
     ++npc_test_dialogues;
     return true;
+}
+
+bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
+    (void)id;
+    return dialogue_show(words);
 }
 
 bool dialogue_ask(char const PROGMEM*) {
