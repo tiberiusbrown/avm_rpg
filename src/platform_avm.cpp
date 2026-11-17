@@ -142,13 +142,16 @@ extern "C" void setup() {
 }
 
 extern "C" void loop() {
+    // The title plays its own song. Starting or continuing a game fades it into the area's song.
+    avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
+    avm_audio_music_loop(1);
+    music_play(MUSIC_TITLE);
+
     title_screen();
     // The title screen only places the player. Refreshing the world here keeps the refresh
     // out of the title screen's frame.
     update_visible_world(0, false);
 
-    avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
-    avm_audio_music_loop(1);
     music_play_area();
 
     explore();

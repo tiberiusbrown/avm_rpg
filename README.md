@@ -46,6 +46,7 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 |---|---|---|---:|---:|
 | Glade and Hearth | Original woodland-village theme: breathy pulse flute, lute and rolled chords, saw bass, two bird calls | G major / 6/8 | 96 | 60.000 s |
 | Steel at Dawn | Original fantasy battle theme | D minor / 4/4 | 152 | About 12.6 s |
+| Call of Venlor | Epic main title: a galloping march in which the singing Venlor theme returns between new tunes | D major / 4/4 | 160 | 63.000 s |
 
 [`peaceful.avms`](assets/music/peaceful.avms) is a 32-bar A-A'-B-A'' theme in 6/8,
 two dotted-quarter beats per bar. A breathy flute states a four-note hook over a
@@ -64,6 +65,20 @@ pitches where a plain pulse beats at the 15.6 kHz synthesis rate. The lead never
 because the synthesis interrupt costs more per frame with each sounding voice and the
 pause animation's frame-timing check tolerates only small steps in that load. The generated catalog exposes it as `MUSIC_PEACEFUL` with the title
 **Glade and Hearth**.
+
+[`title.avms`](assets/music/title.avms) is *Call of Venlor*, the main title: 42 bars at 160 BPM (63 seconds) in D major,
+in one epic style from start to finish: a bright pulse horn, offbeat chord stabs, a galloping saw bass
+and a drum kit. It plays the [Venlor theme](docs/venlor_theme.md), a four-bar, thirteen-note lyrical melody
+meant to return throughout the soundtrack, three times, each time the same over D A G D, between three
+pieces of new music. After a heartbeat of toms and a swelling roll the theme enters on a crash, its long notes
+swelling with 16 to 22 cent vibrato, and is followed by a rising fanfare riff. A flowing second tune in
+eighth notes follows, then a bridge of long falling and rising arpeggios that climbs to a held E6 under a
+growing roll. The theme returns, then the riff, then the theme a last time, whose final D rings into a
+fading heartbeat that leads back to the start. The noise voice plays kicks, snares, three toms, crashes and
+snare rolls made with `noise_retrigger`. The theme takes 12 of the 42 bars. The score compiles to about 23 KB
+and sends at most five events in any 20 ms frame. With the song playing, the animated title still holds
+its 50 Hz pace (600 frames in 12 seconds, longest interval 332,136 cycles). The generated catalog exposes it as
+`MUSIC_TITLE` with the title **Call of Venlor**.
 
 Battles have sound effects. Each `assets/sfx/*.avms` score is a one-shot effect, and the
 build compiles them all with `tools/compile_sfx.py` into `generated/sfx_ids.h` and
@@ -84,7 +99,8 @@ Noise carries the impacts.
 | `fall` | A unit is defeated, after the blow that defeated it |
 | `enemy_turn` | The enemy's turn starts |
 
-Playback starts with Glade and Hearth. Battles switch to Steel at Dawn and return to
+Playback starts with Call of Venlor on the title screen. Starting or continuing a game fades it into the
+area's song, Glade and Hearth outdoors. Battles switch to Steel at Dawn and return to
 Glade and Hearth when A dismisses the result screen. Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
@@ -140,7 +156,7 @@ the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` desc
 pointer-free `Game` struct directly from AVM's `.saved` prefix (268 bytes), with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. The title shows an animated
-scene under the game's name and no menu: A or B continues the saved game when the flag is set
+scene under the game's name and no menu, with Call of Venlor playing: A or B continues the saved game when the flag is set
 and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
 saved world. NPC casts, the tile cache and the animation
 tick are rebuilt when a save is loaded. Total shipping static RAM is 479 bytes,
@@ -303,5 +319,5 @@ Audio timing is a manual measurement tool and is excluded from CTest. See
 [the timing investigation](docs/audio_timing.md) for measured results and definitions.
 
 See [Tiled/asset pipeline](docs/tiled_pipeline.md), [world architecture](docs/chunk_world.md),
-[NPC mechanics](docs/essential_npcs.md) and [current measurements](docs/tiles16_measurements.md).
+[NPC mechanics](docs/essential_npcs.md), [the Venlor theme](docs/venlor_theme.md), the game's recurring musical theme, and [current measurements](docs/tiles16_measurements.md).
 The M0 proof is an independent historical API diagnostic and retains its tiny test art.

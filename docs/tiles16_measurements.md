@@ -58,7 +58,7 @@ A read-only SPI observer rejects ignored writes and nonzero data at the cycle-17
 boundary. Intentional dummy writes at 17 preserve the hardware WCOL flag and advance
 the stream. Timing, status flags, transmitted bytes and received bytes use upstream
 Ardens behavior without an emulation workaround.
-Audio checks verify silent titles, audible unclipped PWM after New Game and
+Audio checks verify that the title plays its own song, audible unclipped PWM after New Game and
 Continue, and uninterrupted playback through dialogue and menus. Exploration
 measurements include music. The A2 score test decodes two complete loops of
 each of the six original songs, checking every note attack, exact musical

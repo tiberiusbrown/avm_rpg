@@ -201,16 +201,17 @@ progress, and that an invalid version is rejected during startup.
 compact one-shot tonal/noise effects on voices 1/3. Assets store raw uint16 phase
 increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
-and Timer1/Timer4 audio operation require no game update call. RPG starts
-Glade and Hearth after the title starts or continues a game, switches to Steel at
-Dawn for battles, and returns to Glade and Hearth at the result. `music_play` leaves the current
+and Timer1/Timer4 audio operation require no game update call. RPG plays Call of
+Venlor on the title, fades it into Glade and Hearth when the title starts or continues a game,
+switches to Steel at Dawn for battles, and returns to Glade and Hearth at the result. `music_play` leaves the current
 song alone or queues a different song with `avm_audio_play_fade`. The interpreter
 lowers music attenuation by one every 4 ms and restores the request's captured
 gain before starting the queued song (1.02 seconds at gain 255). Input, display
 and gameplay continue during the fade. Shared master gain stays 255 and
 SFX is unaffected. Runtime getters read the existing music start pointer and
 gain bytes directly from RAM; the RPG stores no duplicate song selection.
-The title leaves audio disabled; dialogue and menus let playback continue. The Audio
+The title plays its own song, enabled before the first title frame at 16 kHz with looping, and
+the area's song replaces it through the fade; dialogue and menus let playback continue. The Audio
 panel adjusts music and SFX attenuation independently in 31 positions, from 0–200%,
 leaving shared gain unchanged. Defaults are native 128 (100%); the maximum is native 255
 (200%). Stored level 15 remains 100%, preserving previous saved slider percentages. Its low-pass strength slider maps bypass and progressively smaller coefficients

@@ -1,0 +1,360 @@
+// Call of Venlor — the main title theme: the Venlor theme as an epic, galloping march.
+// D major | 4/4 at 160 BPM | 42 bars (63.0 seconds). One style throughout: a bright pulse horn,
+// offbeat chord stabs, a galloping saw bass and a drum kit. Only the dynamics grow.
+// The Venlor theme (docs/venlor_theme.md) is the song's landmark, not the whole song. In D it is
+// four bars of long, singing notes after a quarter-note pickup:
+//   A4 | D5--- E5 | A5-- G5 E5 | G5 A5 D6 E6 | D6-. A5 D5--
+// It always appears exactly so, over the chords D | A | G | D, three times.
+// Form, in the manner of a film-score march: theme, new tunes, theme.
+//   1-2   Intro    A drum roll swells under a D pedal into the crash.
+//   3-10  A        The theme, then a rising fanfare riff over G A G A. The riff is new material.
+//   11-18 B        A flowing second tune in eighth notes over Bm G D A | Bm G A D. It shares
+//                  nothing with the theme: stepwise runs and a different rhythm.
+//   19-26 C        The bridge: over Em Em G A | Bm G A A the lead sings long falling arpeggios,
+//                  then long rising ones, and climbs to a held E6 under a growing roll.
+//   27-34 A'       The theme again, and the riff.
+//   35-38 Finale   The theme a last time; its final D swells, vibrates and rings through the coda.
+//   39-42 Coda     The chord rings and fades to a heartbeat of toms that leads back to bar 1.
+// Loop at runtime with avm_audio_music_loop(1).
+// Channels 0 and 2 (lead and bass) carry the song if an effect borrows channel 1 or 3.
+
+title "Call of Venlor"
+description "The epic main title: a galloping march in which the singing Venlor theme returns between new tunes"
+tempo 160
+meter 4/4
+volume max
+// 16 ms steps keep the vibrato smooth and put every channel's fades on one grid.
+automation 16ms
+
+// --- Envelopes --------------------------------------------------------------------
+
+// Brassy short notes: a tiny rise, then a settle.
+envelope horn_env  { points 0ms:78%, 28ms:100%, 170ms:90%, 560ms:80% release 60ms:0% }
+// Connected eighth notes for the flowing tune.
+envelope flow_env  { points 0ms:85%, 24ms:100%, 180ms:88% release 40ms:0% }
+// Swells for long notes. The vibrato rides along. One for a half note, one for three beats.
+envelope sing_env  { points 0ms:62%, 420ms:100%, 760ms:90% release 80ms:0% }
+envelope rise_env  { points 0ms:40%, 1700ms:100% release 100ms:0% }
+// The last note swells, then dies away over the coda.
+envelope fin_env   { points 0ms:40%, 1300ms:100%, 3400ms:34% release 260ms:0% }
+
+// Harmony voice.
+envelope pad_env   { points 0ms:22%, 2900ms:100% release 160ms:0% }
+envelope fade_env  { points 0ms:100%, 2800ms:25% release 200ms:0% }
+envelope stab_env  { points 0ms:100%, 70ms:55%, 180ms:25% release 20ms:0% }
+
+// Bass voice.
+envelope bass_env  { points 0ms:100%, 60ms:82%, 190ms:62% release 24ms:0% }
+envelope pedal_env { points 0ms:35%, 1300ms:100%, 2600ms:88% release 160ms:0% }
+envelope soft_env  { points 0ms:100%, 200ms:60%, 600ms:35% release 60ms:0% }
+
+// Percussion voice (noise: only the envelope and level tell the drums apart).
+envelope kick_env  { points 0ms:100%, 30ms:62%, 100ms:0% }
+envelope snare_env { points 0ms:100%, 22ms:75%, 100ms:0% }
+envelope hat_env   { points 0ms:100%, 26ms:0% }
+envelope toml_env  { points 0ms:100%, 50ms:70%, 240ms:26% release 70ms:0% }
+envelope tomm_env  { points 0ms:100%, 40ms:62%, 150ms:18% release 50ms:0% }
+envelope tomh_env  { points 0ms:100%, 30ms:55%, 90ms:12% release 30ms:0% }
+envelope crash_env { points 0ms:100%, 260ms:58%, 1100ms:20% release 400ms:0% }
+// A roll builds from nothing over one bar.
+envelope riser_env { points 0ms:14%, 1500ms:100% release 16ms:0% }
+
+// --- Lead (channel 0): a bright pulse horn ------------------------------------------
+
+instrument lead  { wave pulse duty 25% volume 15 envelope horn_env gate 92% }
+instrument flow  { wave pulse duty 25% volume 15 envelope flow_env gate 96% }
+instrument long  {
+    wave pulse duty 25% volume 15 envelope sing_env gate 98%
+    lfo { target pitch depth 16cents period 180ms }
+}
+instrument rise  {
+    wave pulse duty 25% volume 15 envelope rise_env gate 100%
+    lfo { target pitch depth 18cents period 190ms }
+}
+instrument final {
+    wave pulse duty 25% volume 15 envelope fin_env gate 100%
+    lfo { target pitch depth 22cents period 190ms }
+}
+
+// --- Harmony (channel 1) ------------------------------------------------------------
+
+// A swelling open fifth for the intro.
+instrument pad5  {
+    wave pulse duty 50% volume 8 envelope pad_env gate 100%
+    arpeggio { offsets 0,7,12 step 48ms }
+}
+// The final D major chord, fading.
+instrument fade  {
+    wave pulse duty 50% volume 8 envelope fade_env gate 100%
+    tremolo { period 120ms depth 30% }
+    arpeggio { offsets 0,4,7 step 36ms }
+}
+// Short chord stabs on the offbeats.
+instrument stabM {
+    wave pulse duty 37.5% volume 8 envelope stab_env gate 78%
+    arpeggio { offsets 0,4,7 step 32ms }
+}
+instrument stabm {
+    wave pulse duty 37.5% volume 8 envelope stab_env gate 78%
+    arpeggio { offsets 0,3,7 step 32ms }
+}
+
+// --- Bass (channel 2): saw ----------------------------------------------------------
+
+instrument bass  { wave saw volume 11 envelope bass_env gate 86% }
+instrument pedal {
+    wave saw volume 10 envelope pedal_env gate 100%
+    lfo { target pitch depth 8cents period 700ms }
+}
+instrument low   { wave saw volume 7 envelope soft_env gate 90% }
+
+// --- Percussion (channel 3): noise --------------------------------------------------
+
+instrument kick  { wave noise volume 9 envelope kick_env gate 85% }
+instrument snare { wave noise volume 6 envelope snare_env gate 85% }
+instrument hat   { wave noise volume 2 envelope hat_env gate 55% }
+instrument tom_l { wave noise volume 8 envelope toml_env gate 100% }
+instrument tom_m { wave noise volume 7 envelope tomm_env gate 100% }
+instrument tom_h { wave noise volume 6 envelope tomh_env gate 100% }
+instrument crash { wave noise volume 6 envelope crash_env gate 100% }
+instrument roll  {
+    wave noise volume 6 envelope riser_env gate 100%
+    noise_retrigger { every 16ms seed 37 }
+}
+// Soft heartbeat toms, from very quiet to firm.
+instrument tom_pp { wave noise volume 3 envelope toml_env gate 100% }
+instrument tom_p  { wave noise volume 4 envelope toml_env gate 100% }
+instrument tom_mp { wave noise volume 5 envelope toml_env gate 100% }
+instrument tom_mf { wave noise volume 7 envelope toml_env gate 100% }
+
+// --- Lead phrases -------------------------------------------------------------------
+
+// The Venlor theme, always exactly so, after its A4 pickup (a quarter at the end of the bar before).
+// Four bars: D5 over D, A5 over A, G5 over G, D6 and D5 over D.
+phrase theme {
+    d2.@rise e4@lead |
+    a2@long g4@lead e4@lead |
+    g4@lead a4@lead d'4@lead e'4@lead |
+    d'4.@lead a8@lead d2@long |
+}
+// The fanfare riff that follows the theme, over G, A, G, then A (and D). It is new material.
+phrase riff_g { g8@lead g8@lead b4@lead d'4@lead b4@lead | }
+phrase riff_a { e'4@lead c#'4@lead a2@long | }
+// The riff's last bar: it closes on D (the first time) or hands over the pickup (the second).
+phrase riff_d { e'4@lead c#'4@lead d'2@long | }
+phrase riff_p { e'4@lead c#'4@lead a4@lead a,4@lead | }
+
+channel 0 lead octave 5 {
+    // 1-2 Intro: a roll and a pedal, then the pickup
+    r1 |
+    r2. a,4@lead |
+
+    // 3-10 A: the theme, then the riff closing on D
+    theme riff_g riff_a riff_g riff_d
+
+    // 11-18 B: a flowing second tune over Bm G D A | Bm G A D
+    b8@flow a8@flow g8@flow f#8@flow g8@flow a8@flow b4@lead |
+    d'4.@lead b8@lead g4@lead a4@lead |
+    f#8@flow g8@flow a8@flow b8@flow a8@flow g8@flow f#8@flow e8@flow |
+    e4.@lead c#8@lead e2@long |
+    b8@flow a8@flow g8@flow f#8@flow g8@flow a8@flow b8@flow d'8@flow |
+    d'4.@lead e'8@lead d'4@lead b4@lead |
+    c#'4@lead e'4@lead d'4@lead c#'4@lead |
+    d'4.@lead a8@lead f#4@lead d4@lead |
+
+    // 19-26 C: the bridge, long falling arpeggios over Em Em G A, then rising over Bm G A A
+    b2@long g4@lead e4@lead |
+    f#2@long e4@lead d4@lead |
+    d'2@long b4@lead g4@lead |
+    e'2@long c#'4@lead a4@lead |
+    f#4@lead b4@lead d'2@long |
+    b4@lead d'4@lead e'2@long |
+    a4@lead c#'4@lead e'2@long |
+    e'2.@rise a,4@lead |
+
+    // 27-34 A': the theme again, and the riff handing over the pickup
+    theme riff_g riff_a riff_g riff_p
+
+    // 35-39 Finale: the theme a last time; its final D rings through bar 39
+    d2.@rise e4@lead |
+    a2@long g4@lead e4@lead |
+    g4@lead a4@lead d'4@lead e'4@lead |
+    d'4.@lead a8@lead d2@final ~
+    d1@final |
+    r1 r1 r1
+}
+
+// --- Harmony phrases ----------------------------------------------------------------
+
+// Offbeat chord stabs: two beats on each chord, or one chord for the bar.
+phrase st_a_d { r8 a8 r8 a8 r8 d8 r8 d8 | }
+phrase st_g   { r8 g8 r8 g8 r8 g8 r8 g8 | }
+phrase st_a   { r8 a8 r8 a8 r8 a8 r8 a8 | }
+phrase st_d   { r8 d8 r8 d8 r8 d8 r8 d8 | }
+phrase st_b   { r8 b8 r8 b8 r8 b8 r8 b8 | }
+phrase st_e   { r8 e8 r8 e8 r8 e8 r8 e8 | }
+// The theme's chords, one per bar: D A G D.
+phrase st_theme { st_d st_a st_g st_d }
+
+channel 1 pad5 octave 3 {
+    // 1-2 Intro: one open fifth on D, swelling
+    d1 ~ d1 |
+
+    // 3-10 A: stabs on D A G D, then the riff's G A G (A D)
+    use stabM
+    st_theme
+    st_g st_a st_g st_a_d
+
+    // 11-18 B: stabs on Bm G D A | Bm G A D
+    use stabm
+    st_b
+    use stabM
+    st_g st_d st_a
+    use stabm
+    st_b
+    use stabM
+    st_g st_a st_d
+
+    // 19-26 C: stabs on Em Em G A | Bm G A A
+    use stabm
+    st_e st_e
+    use stabM
+    st_g st_a
+    use stabm
+    st_b
+    use stabM
+    st_g st_a st_a
+
+    // 27-34 A': stabs on D A G D, then the riff's G A G A
+    st_theme
+    st_g st_a st_g st_a
+
+    // 35-38 Finale: D A G D
+    st_theme
+
+    // 39-42 Coda: the final chord, fading
+    use fade
+    d1 |
+    r1 r1 r1
+}
+
+// --- Bass phrases -------------------------------------------------------------------
+
+// Gallop: an eighth and two sixteenths on each beat.
+phrase gal_d { d8 d16 d16 }
+phrase gal_a { a8 a16 a16 }
+phrase gal_g { g8 g16 g16 }
+phrase gal_b { b8 b16 b16 }
+phrase gal_e { e8 e16 e16 }
+// One bar of gallop on one root.
+phrase bar_d { gal_d gal_d gal_d gal_d | }
+phrase bar_a { gal_a gal_a gal_a gal_a | }
+phrase bar_g { gal_g gal_g gal_g gal_g | }
+phrase bar_b { gal_b gal_b gal_b gal_b | }
+phrase bar_e { gal_e gal_e gal_e gal_e | }
+phrase bar_a_d { gal_a gal_a gal_d gal_d | }
+// The theme's chords, one per bar: D A G D.
+phrase bar_theme { bar_d bar_a bar_g bar_d }
+
+channel 2 pedal octave 2 {
+    // 1-2 Intro: a D pedal that swells
+    d1@pedal ~ d1@pedal |
+
+    // 3-10 A: D A G D, then the riff's G A G (A D)
+    use bass
+    bar_theme
+    bar_g bar_a bar_g bar_a_d
+
+    // 11-18 B: Bm G D A | Bm G A D
+    bar_b bar_g bar_d bar_a
+    bar_b bar_g bar_a bar_d
+
+    // 19-26 C: Em Em G A | Bm G A A
+    bar_e bar_e bar_g bar_a
+    bar_b bar_g bar_a bar_a
+
+    // 27-34 A': D A G D, then the riff's G A G A
+    bar_theme
+    bar_g bar_a bar_g bar_a
+
+    // 35-38 Finale: D A G D
+    bar_theme
+
+    // 39-42 Coda: the root swells once more, then soft roots
+    d1@pedal |
+    d2@low d2@low |
+    d2@low r2 |
+    d2@low r2 |
+}
+
+// --- Percussion phrases -------------------------------------------------------------
+
+// The groove in sixteenths: kick, hat, snare and a tom pair before the next bar.
+phrase groove_a {
+    c16@kick r16 c16@hat r16  c16@snare r16 r16 c16@hat
+    c16@kick r16 c16@kick r16  c16@snare r16 c16@tom_h c16@tom_h |
+}
+// A bar that opens on a crash.
+phrase open_a {
+    c4@crash c16@snare r16 r16 c16@hat
+    c16@kick r16 c16@kick r16  c16@snare r16 c16@tom_h c16@tom_h |
+}
+// The same, with a tumbling fill on the last beat.
+phrase fill_a {
+    c16@kick r16 c16@hat r16  c16@snare r16 r16 c16@hat
+    c16@kick r16 c16@kick r16  c16@tom_h c16@tom_m c16@tom_m c16@tom_l |
+}
+// A busier groove for the flowing tune.
+phrase groove_b {
+    c16@kick r16 c16@hat r16  c16@snare r16 c16@hat c16@hat
+    c16@kick r16 c16@hat r16  c16@snare r16 c16@hat c16@hat |
+}
+phrase fill_b {
+    c16@kick r16 c16@hat r16  c16@snare r16 c16@hat c16@hat
+    c16@kick r16 c16@hat r16  c16@tom_h c16@tom_m c16@tom_m c16@tom_l |
+}
+// The bridge's and the return's groove: sixteenth kicks and hats.
+phrase groove_d {
+    c16@kick c16@hat c16@kick c16@hat  c16@snare c16@hat r16 c16@hat
+    c16@kick c16@hat c16@kick c16@hat  c16@snare c16@hat c16@tom_m c16@tom_l |
+}
+phrase open_d {
+    c4@crash c16@snare c16@hat r16 c16@hat
+    c16@kick c16@hat c16@kick c16@hat  c16@snare c16@hat c16@tom_m c16@tom_l |
+}
+phrase fill_d {
+    c16@kick c16@hat c16@kick c16@hat  c16@snare c16@hat r16 c16@hat
+    c16@kick c16@hat c16@kick c16@hat  c16@tom_h c16@tom_h c16@tom_m c16@tom_l |
+}
+
+channel 3 octave 4 {
+    // 1-2 Intro: a heartbeat of toms, then a roll that swells into the crash
+    c4@tom_pp r4 c4@tom_p r4 |
+    c1@roll |
+
+    // 3-10 A: a crash on the theme, a fill before the riff ends
+    open_a groove_a groove_a groove_a
+    groove_a groove_a groove_a fill_a
+
+    // 11-18 B
+    open_a groove_b groove_b groove_b
+    groove_b groove_b groove_b fill_b
+
+    // 19-26 C: sixteenth drums, then a roll
+    open_d groove_d groove_d groove_d
+    groove_d groove_d fill_d
+    c1@roll |
+
+    // 27-34 A'
+    open_d groove_d groove_d groove_d
+    groove_d groove_d groove_d fill_d
+
+    // 35-38 Finale
+    open_d groove_d groove_d groove_d
+
+    // 39-42 Coda: a crash, then a heartbeat that fades
+    c1@crash |
+    c4@tom_mf r4 c4@tom_mp r4 |
+    c4@tom_p r4 c4@tom_pp r4 |
+    c4@tom_pp r4 c4@tom_pp r4 |
+}

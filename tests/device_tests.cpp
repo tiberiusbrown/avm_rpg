@@ -1289,7 +1289,8 @@ int main(int argc, char** argv) try {
 
     d.advance(0, 3200000);
     require(d.serial() == 0, "title unexpectedly advanced exploration");
-    require(!d.music_enabled(), "music started before a game was selected");
+    require(d.music_enabled(), "the title has no music");
+    unsigned title_song = audio_pointer(d, AUDIO_MUSIC_START);
     d.capture(out / "title.pgm");
     {
         // The title never stands still: the flag alone changes it within a second.
@@ -1302,6 +1303,9 @@ int main(int argc, char** argv) try {
     }
     d.tap(BTN_A);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
+    // The title song fades out and the area's song takes over; the fade lowers the music
+    // attenuation while it runs, so the audio checks wait for it.
+    require(settled_song(d) != title_song, "starting a game kept the title song");
     verify_options(d, out);
     verify_pause_party(d);
     if(std::string(argv[6]) == "pause") {
@@ -1655,7 +1659,8 @@ int main(int argc, char** argv) try {
             "startup did not load saved options");
     verify_audio_options(restarted, 102, 85, 64);
     require(restarted.serial() == 0, "restart did not show title");
-    require(!restarted.music_enabled(), "music started on the continue title");
+    require(restarted.music_enabled(), "the continue title has no music");
+    unsigned continue_title_song = audio_pointer(restarted, AUDIO_MUSIC_START);
     restarted.tap(BTN_A);
     auto loaded = restarted.state();
     require(restarted.serial() != 0 && loaded.area == saved.area &&
@@ -1663,6 +1668,8 @@ int main(int argc, char** argv) try {
                 loaded.gold == saved.gold,
             "fresh emulator save/load mismatch");
     restarted.verify_music();
+    require(settled_song(restarted) != continue_title_song,
+            "continuing a game kept the title song");
     restarted.capture(out / "restarted.pgm");
     restarted.hold(BTN_DOWN, 20);
     require(restarted.state().player.y > saved.player.y, "16x16 pixel movement failed");
@@ -1683,6 +1690,7 @@ int main(int argc, char** argv) try {
     require(resumed.options.music == 12 && resumed.options.sfx == 10 &&
                 resumed.options.lowpass == 5,
             "Continue reset startup options");
+    settled_song(continued);
     verify_audio_options(continued, 102, 85, 64);
     continued.tap(BTN_B);
     continued.advance(0, 1600000);
