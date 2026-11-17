@@ -15,6 +15,22 @@ Npc* npc_find(NPC_ID id) {
     return nullptr;
 }
 
+void npc_recruit(NPC_ID id) {
+    if(!id)
+        return;
+    auto& pool = game.npcs;
+    if(Npc* actor = npc_find(id)) {
+        npc_on_retire(*actor, NPC_RETIRED_PARTY);
+        uint8_t slot = (uint8_t)(actor - pool.actors);
+        while(slot + 1 < NPC_CAPACITY && pool.actors[slot + 1].id) {
+            pool.actors[slot] = pool.actors[slot + 1];
+            ++slot;
+        }
+        pool.actors[slot] = {};
+    }
+    pool.settled = false;
+}
+
 bool npc_visible(uint16_t x, uint16_t y) {
     return x < game.camera.x + 128 && x + TILE > game.camera.x && y < game.camera.y + 64 &&
            y + TILE > game.camera.y;
@@ -172,13 +188,13 @@ __attribute__((noinline)) void npc_reconcile() {
     auto& pool = game.npcs;
     bool entering = pool.entering != 0;
     pool.entering = 0;
-    // Once every defined NPC holds a slot, no cast can follow until npc_reset, so skip the order.
+    // Once every available NPC holds a slot, skip casting until a reset or recruitment.
     if(pool.settled)
         return;
     NPC_ID order[NPC_ID_LIMIT];
     uint8_t count = 0;
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
-        if(!npc_definition((NPC_ID)id))
+        if(party_contains((NPC_ID)id) || !npc_definition((NPC_ID)id))
             continue;
         uint8_t at = count++;
         while(at > 0 && higher_priority((NPC_ID)id, order[at - 1])) {

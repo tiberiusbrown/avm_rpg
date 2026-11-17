@@ -121,7 +121,7 @@ static void sign() {
 static void grove_battle() {
     game_new();
     story_stub_reset(BATTLE_VICTORY);
-    uint8_t hp = game.hp;
+    uint8_t hp = game.party.members[0].hp;
     uint16_t gold = game.gold, x = game.player.x, y = game.player.y;
 
     // Neither a held A nor a sign that is not faced starts a battle.
@@ -140,7 +140,7 @@ static void grove_battle() {
     CHECK(battle.kind == STORY_EVENT_BATTLE && battle.encounter == &BATTLE_GROVE);
     CHECK(outcome.kind == STORY_EVENT_DIALOGUE && strstr(outcome.text, "withdraw"));
     CHECK(game.player.x == x && game.player.y == y && game.area == AREA_OUTDOOR);
-    CHECK(game.hp == hp && game.gold == gold);
+    CHECK(game.party.members[0].hp == hp && game.gold == gold);
 
     story_stub_set_result(BATTLE_DEFEAT);
     game_update(0, BTN_A);
@@ -151,7 +151,7 @@ static void grove_battle() {
           story_stub_event(4).encounter == &BATTLE_GROVE);
     CHECK(story_stub_event(5).kind == STORY_EVENT_DIALOGUE &&
           strstr(story_stub_event(5).text, "drive you back"));
-    CHECK(game.player.x == x && game.player.y == y && game.hp == hp);
+    CHECK(game.player.x == x && game.player.y == y && game.party.members[0].hp == hp);
 }
 
 static void saves() {
@@ -185,10 +185,29 @@ static void saves() {
     game.player.facing = STILL;
     reject();
     game = saved;
-    game.hp = game.max_hp + 1;
+    game.party.members[0].hp = game.party.members[0].max_hp + 1;
     reject();
     game = saved;
-    game.max_hp = 0;
+    game.party.members[0].max_hp = 0;
+    reject();
+    game = saved;
+    game.party.count = 0;
+    reject();
+    game = saved;
+    game.party.count = PARTY_CAPACITY + 1;
+    reject();
+    game = saved;
+    game.party.members[0].movement_class = MOVEMENT_CLASS_COUNT;
+    reject();
+    game = saved;
+    game.party.members[0].attack_class = ATTACK_CLASS_COUNT;
+    reject();
+    game = saved;
+    game.party.members[0].id = NPC_VILLAGER;
+    reject();
+    game = saved;
+    game.party.count = 2;
+    game.party.members[1] = game.party.members[0];
     reject();
     game = saved;
     game.level = 0;

@@ -3,8 +3,7 @@
 One eight-slot pool and the 11x7 effective terrain cache bound NPC RAM/work.
 Each NPC ID owns at most one slot, so no slot is ever evicted, and occupied slots form a
 prefix: scans stop at the first empty slot. IDs are independent of object order, slot and
-coordinates. `Npc` is 18 bytes. `NpcPool` is 157 bytes on AVM, and 158 on the host, whose
-alignment pads it. Definitions, routes, character sprites and dialogue remain in PROGMEM.
+coordinates. `Npc` is 18 bytes. `NpcPool` is 160 bytes on both AVM and the host. Definitions, routes, character sprites and dialogue remain in PROGMEM.
 
 The replacement sample defines NPC_VILLAGER (standing, actor row 1) and NPC_WANDERER
 (bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The
@@ -13,6 +12,15 @@ by the map markers `VillagerWest` and `VillagerEast`. The wanderer is static: it
 at its generated `WandererHome`. Each has one line of talk dialogue, shown by
 `npc_dialogue` after `npc_talk`; the sign is the only other dialogue. Its welcome is
 followed by a battle and an outcome line.
+
+`NPC_ROWAN` stands at the generated `RowanHome` marker southeast of the player spawn,
+using archer row 3. Talking recruits him into the saved four-member party with 18/18 HP,
+fighter movement and archer attack. Further talks acknowledge his membership without
+adding another member or resetting his HP. Recruitment retires his map actor immediately; party membership prevents him from
+being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP and fighter movement/attack.
+Party HP/MHP and both class identifiers are bytes; its count and unique NPC identities
+are validated on load. The pause menu's Party panel shows all four slots and freezes
+world simulation while it eases in and out.
 
 `NpcDefinition` is an 11-byte ROM record: behavior/facing, period, pause/walk, leash,
 priority, route, sprite_row and talkable. `period` is the number of frames per movement
@@ -24,7 +32,7 @@ frames through `actor_frame`: north/east/south/west groups of three, idle 0, gai
 ## Presence: NPCs are cast when a scene starts
 
 A scene is an area entry (`world_place`, which calls `npc_reset`). Presence is decided per
-scene, and only two things can change it:
+scene, with these changes:
 
 - **Casting.** A reconcile casts each NPC whose home (static) or residence (dynamic) lies
   in the current area. The NPC is placed at that home when its foot box is cached, clear
@@ -32,11 +40,12 @@ scene, and only two things can change it:
   in view, because the whole screen changes at that moment. After entry a cast is allowed
   only out of view: the sprite box must lie outside the view grown by one tile. A cast
   that is blocked, or in view, waits and is retried each frame.
-- **Scene exit.** `npc_reset` retires every present NPC with `NPC_RETIRED_RESET`. Nothing
-  else removes an NPC.
+- **Scene exit.** `npc_reset` retires every present NPC with `NPC_RETIRED_RESET`.
+- **Recruitment.** Adding an NPC to the party retires its map actor with `NPC_RETIRED_PARTY`.
+  Remaining actors are compacted without changing their state. Party members are excluded from casting.
 
-So an NPC is never removed while its scene lasts, and it appears on screen only by walking
-there, by the camera moving onto it, or as part of the scene entry itself.
+An NPC appears on screen only by walking there, by the camera moving onto it, or as part
+of the scene entry itself. Recruitment is the only removal during a scene.
 
 Static NPCs keep their home for the scene, and `npc_set_destination` refuses them. Dynamic
 NPCs have a residence (`NpcPool::residence`, indexed by ID), saved with the game.

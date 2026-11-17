@@ -101,52 +101,72 @@ bool battle_blocked(uint8_t field, uint8_t cell) {
     return (BATTLEFIELDS[field].blocked[battle_row(cell)] >> battle_column(cell)) & 1;
 }
 
-constexpr BattleUnitType PROGMEM BATTLE_UNIT_TYPES[BATTLE_UNIT_TYPE_COUNT] =
-    BATTLE_UNIT_TYPE_INITIALIZER;
-
-// Every type's moves fit the per-unit bound that sizes the action buffers, every attack range is a
-// nonempty span starting at one cell or more, and a knight has no orthogonal range.
-constexpr bool battle_types_fit() {
-    for(BattleUnitType const& type : BATTLE_UNIT_DEFINITIONS) {
-        uint8_t moves =
-            type.movement_type == BATTLE_MOVEMENT_KNIGHT ? 8 : (uint8_t)(4 * type.move_range);
-        if(moves > BATTLE_MOVE_LIMIT || type.attack_min < 1 || type.attack_min > type.attack_max)
+constexpr EnemyInfo PROGMEM ENEMY_INFO[ENEMY_COUNT] = {
+    {10, MOVEMENT_FIGHTER, ATTACK_FIGHTER, 2}, {10, MOVEMENT_KNIGHT, ATTACK_FIGHTER, 1},
+    {9, MOVEMENT_FIGHTER, ATTACK_ARCHER, 0},   {10, MOVEMENT_FIGHTER, ATTACK_SPEARMAN, 3},
+    {9, MOVEMENT_WOLF, ATTACK_BITE, 17},       {12, MOVEMENT_FIGHTER, ATTACK_BRUTE, 25},
+};
+static_assert([] {
+    for(auto const& enemy : ENEMY_INFO)
+        if(!enemy.max_hp || enemy.movement_class >= MOVEMENT_CLASS_COUNT ||
+           enemy.attack_class >= ATTACK_CLASS_COUNT || enemy.sprite_row >= ACTOR_ROW_COUNT)
             return false;
-        if(type.movement_type == BATTLE_MOVEMENT_KNIGHT && type.move_range)
+    return true;
+}());
+
+// Check every independent class combination, including those not used by an enemy preset.
+constexpr bool battle_classes_fit() {
+    for(auto const& rules : BATTLE_RULES.classes) {
+        uint8_t moves = rules.movement_type == BATTLE_MOVEMENT_KNIGHT ? 8 : 4 * rules.move_range;
+        if(moves > BATTLE_MOVE_LIMIT || !rules.attack_min || rules.attack_min > rules.attack_max ||
+           rules.damage > 15)
             return false;
     }
     return true;
 }
 
-static_assert(battle_types_fit(), "a unit type exceeds BATTLE_MOVE_LIMIT or has an empty range");
+static_assert(battle_classes_fit());
 
-// Nocturne Grove: the party's rogue (10 HP) and archer (9) against a wolf (9) and a brute (12). The
-// archer can shoot the brute at range four at once along the open row 2, the wolf can run at the
-// party along row 1, and the rogue can leap toward the centre, where the brute can knock it back.
 constexpr BattleEncounter PROGMEM BATTLE_GROVE{
     BATTLEFIELD_GROVE,
-    4,
-    {
-        {battle_cell(2, 1), 10, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
-        {battle_cell(1, 2), 9, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
-        {battle_cell(6, 1), 9, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
-        {battle_cell(5, 2), 12, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
-    },
+    2,
+    {ENEMY_WOLF, ENEMY_BRUTE},
+    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
+    {battle_cell(6, 1), battle_cell(5, 2), battle_cell(7, 0), battle_cell(7, 3)},
 };
 
 void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) {
+    state = {};
     state.field = encounter->field;
-    state.unit_count = encounter->unit_count;
-    for(uint8_t i = 0; i < BATTLE_UNIT_CAPACITY; ++i) {
-        state.units[i].cell = encounter->units[i].cell;
-        state.units[i].hp = encounter->units[i].hp;
-        state.units[i].type = encounter->units[i].type;
-        state.units[i].team = encounter->units[i].team;
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        PartyMember const& member = game.party.members[i];
+        if(member.hp)
+            state.units[state.unit_count++] = {encounter->party_cells[i], member.hp,
+                                               battle_party_id(i), BATTLE_PARTY};
     }
-    state.turn = BATTLE_PARTY;
-    state.activations = 0;
-    state.ended = false;
+    for(uint8_t i = 0; i < encounter->enemy_count; ++i) {
+        uint8_t id = encounter->enemies[i];
+        state.units[state.unit_count++] = {encounter->enemy_cells[i], ENEMY_INFO[id].max_hp, id,
+                                           BATTLE_ENEMY};
+    }
     state.result = BATTLE_DEFEAT;
+    if(!battle_living(state, BATTLE_PARTY) || !battle_living(state, BATTLE_ENEMY)) {
+        state.ended = true;
+        state.result = battle_living(state, BATTLE_PARTY) ? BATTLE_VICTORY : BATTLE_DEFEAT;
+    }
+}
+
+void battle_finish(BattleState const& state) {
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(unit.team == BATTLE_PARTY && (unit.id & BATTLE_PARTY_SOURCE))
+            game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].hp = unit.hp;
+    }
+}
+
+uint8_t battle_max_hp(BattleUnit const& unit) {
+    return unit.id & BATTLE_PARTY_SOURCE ? game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].max_hp
+                                         : ENEMY_INFO[unit.id].max_hp;
 }
 
 uint8_t battle_unit_at(BattleState const& state, uint8_t cell) {
@@ -196,11 +216,15 @@ DIRECTION battle_direction(uint8_t from, uint8_t to) {
 }
 
 uint8_t battle_attack_damage(BattleUnit const& unit) {
-    return battle_rules(unit.type).damage;
+    return battle_rules(unit.id).damage;
 }
 
 uint8_t battle_sprite_row(BattleUnit const& unit) {
-    return BATTLE_UNIT_TYPES[unit.type].sprite_row;
+    if(unit.id & BATTLE_PARTY_SOURCE) {
+        static constexpr uint8_t PROGMEM ROWS[NPC_ID_LIMIT] = {0, 1, 2, 3};
+        return ROWS[game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].id];
+    }
+    return ENEMY_INFO[unit.id].sprite_row;
 }
 
 // The distance from `a` to `b` when they share a row or column, or zero when they share neither
@@ -248,7 +272,7 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
     if(!actor.hp || battle_blocked(state.field, destination) ||
        battle_unit_at(state, destination) != BATTLE_NO_UNIT)
         return false;
-    BattleUnitRules const& rules = battle_rules(actor.type);
+    BattleUnitRules const& rules = battle_rules(actor.id);
     if(rules.movement_type == BATTLE_MOVEMENT_KNIGHT) {
         int8_t dx = (int8_t)(battle_column(destination) - battle_column(actor.cell));
         int8_t dy = (int8_t)(battle_row(destination) - battle_row(actor.cell));
@@ -266,7 +290,7 @@ bool battle_can_attack(BattleState const& state, uint8_t attacker, uint8_t victi
     if(!actor.hp || !target.hp || actor.team == target.team)
         return false;
     uint8_t distance = battle_line_distance(actor.cell, target.cell);
-    if(!battle_in_attack_range(battle_rules(actor.type), distance))
+    if(!battle_in_attack_range(battle_rules(actor.id), distance))
         return false;
     return distance == 1 || !battle_line_blocked(state, actor.cell, target.cell);
 }
@@ -350,7 +374,7 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
         BattleUnit const& actor = state.units[a];
         if(!actor.hp || actor.team != state.turn)
             continue;
-        BattleUnitRules const& rules = battle_rules(actor.type);
+        BattleUnitRules const& rules = battle_rules(actor.id);
         uint8_t lo = rules.attack_min, hi = rules.attack_max;
         for(uint8_t v = 0; v < state.unit_count; ++v) {
             BattleUnit const& target = state.units[v];
@@ -382,7 +406,7 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
             continue;
         uint8_t x = battle_column(actor.cell), y = battle_row(actor.cell);
         uint8_t unit_bits = (uint8_t)(a << 5);
-        BattleUnitRules const& rules = battle_rules(actor.type);
+        BattleUnitRules const& rules = battle_rules(actor.id);
         if(rules.movement_type == BATTLE_MOVEMENT_KNIGHT) {
             // Clockwise from north-north-east.
             count = battle_leap(rows, out, count, unit_bits, x, y, 1, -2);
@@ -556,7 +580,7 @@ void battle_apply(BattleState& state, BattleAction action) {
         fell = battle_damage(actor, BATTLE_MOVE_COST) || fell;
     } else {
         BattleUnit& target = state.units[occupant];
-        BattleUnitRules const& rules = battle_rules(actor.type);
+        BattleUnitRules const& rules = battle_rules(actor.id);
         fell = battle_damage(target, rules.damage);
         if(!fell && rules.effect == BATTLE_EFFECT_KNOCKBACK)
             battle_knock_back(state, actor, target);
@@ -582,8 +606,8 @@ void battle_pass(BattleState& state) {
     battle_next_turn(state);
 }
 
-uint8_t battle_settle(BattleState& state) {
-    uint8_t passes = 0;
+uint16_t battle_settle(BattleState& state) {
+    uint16_t passes = 0;
     while(!state.ended && !battle_can_act(state)) {
         battle_pass(state);
         ++passes;

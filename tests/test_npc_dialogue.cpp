@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "chunk.h"
+#include "map_positions.h"
 #include "logic/npc_logic.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,9 +64,8 @@ static void interaction_geometry() {
                         CHECK(frame_pressed == (expected ? 0 : BTN_A));
                         for(uint8_t slot = 0; slot < 2; ++slot) {
                             Npc const& n = game.npcs.actors[slot];
-                            CHECK(n.actor.facing == (n.id == expected
-                                                         ? (DIRECTION)((facing + 2) & 3)
-                                                         : STILL));
+                            CHECK(n.actor.facing ==
+                                  (n.id == expected ? (DIRECTION)((facing + 2) & 3) : STILL));
                         }
                     }
                 }
@@ -99,6 +99,76 @@ int main() {
     npc_talk(NPC_NONE);
     npc_dialogue();
     CHECK(shown == 2);
+
+    game_new();
+    CHECK(game.party.count == 1 && game.party.members[0].id == NPC_NONE);
+    CHECK(game.party.members[0].hp == 20 && game.party.members[0].max_hp == 20);
+    CHECK(game.party.members[0].movement_class == MOVEMENT_FIGHTER);
+    CHECK(game.party.members[0].attack_class == ATTACK_FIGHTER);
+    Npc* rowan = npc_find(NPC_ROWAN);
+    CHECK(rowan && rowan->actor.x > game.player.x && rowan->actor.y > game.player.y);
+    CHECK(rowan->actor.x - game.player.x <= 2 * TILE);
+    CHECK(rowan->actor.y - game.player.y <= TILE);
+    // Approach the NPC from the west and use the actual interaction path.
+    world_enter(AREA_OUTDOOR, rowan->actor.x - TILE, rowan->actor.y, EAST);
+    CHECK(npc_find(NPC_ROWAN));
+    game_update(0, BTN_A);
+    CHECK(game.party.count == 2 && party_contains(NPC_ROWAN));
+    CHECK(!npc_find(NPC_ROWAN));
+    CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
+    // Compact removal must leave no holes before another occupied slot.
+    bool empty = false;
+    for(auto const& actor : game.npcs.actors) {
+        if(!actor.id)
+            empty = true;
+        else
+            CHECK(!empty);
+    }
+    update_visible_world(0, false);
+    CHECK(!npc_find(NPC_ROWAN));
+    CHECK(game.party.members[1].hp == 18 && game.party.members[1].max_hp == 18);
+    CHECK(game.party.members[1].movement_class == MOVEMENT_FIGHTER);
+    CHECK(game.party.members[1].attack_class == ATTACK_ARCHER);
+    CHECK(save_valid());
+    Game recruited = game;
+    npc_talk(NPC_ROWAN);
+    npc_dialogue();
+    CHECK(game.party.count == 2);
+    game.party.members[1].hp = 7;
+    CHECK(save_restore());
+    update_visible_world(0, false);
+    CHECK(game.party.count == 2 && game.party.members[1].hp == 7);
+    CHECK(!npc_find(NPC_ROWAN));
+    npc_talk(NPC_ROWAN);
+    npc_dialogue();
+    CHECK(game.party.count == 2 && game.party.members[1].hp == 7);
+    CHECK(!npc_find(NPC_ROWAN));
+
+    world_enter(AREA_INTERIORS, positions::ElderExit.x * TILE,
+                (positions::ElderExit.y - 1) * TILE, SOUTH);
+    world_enter(AREA_OUTDOOR, positions::PlayerStart.x * TILE, positions::PlayerStart.y * TILE, NORTH);
+    CHECK(!npc_find(NPC_ROWAN));
+    CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
+
+    // Capacity, identity and statistic failures leave the entire party untouched.
+    CHECK(party_add({255, 255, MOVEMENT_KNIGHT, ATTACK_FIGHTER, NPC_VILLAGER}));
+    CHECK(party_add({0, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_WANDERER}));
+    CHECK(game.party.count == PARTY_CAPACITY && save_valid());
+    Party full = game.party;
+    CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_ROWAN}));
+    CHECK(!memcmp(&full, &game.party, sizeof(Party)));
+    game = recruited;
+    Party before = game.party;
+    CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_ROWAN}));
+    CHECK(!party_add({2, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_VILLAGER}));
+    CHECK(!party_add({0, 0, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_VILLAGER}));
+    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_ARCHER, NPC_VILLAGER}));
+    CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_CLASS_COUNT, NPC_VILLAGER}));
+    CHECK(!party_add({1, 1, MOVEMENT_FIGHTER, ATTACK_ARCHER, (NPC_ID)NPC_ID_LIMIT}));
+    CHECK(!memcmp(&before, &game.party, sizeof(Party)));
+    game_new();
+    CHECK(game.party.count == 1 && !party_contains(NPC_ROWAN));
+    CHECK(npc_find(NPC_ROWAN));
 
     printf("npc dialogue checks passed: %u\n", checks);
     return 0;

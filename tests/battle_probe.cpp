@@ -3,6 +3,7 @@
 // phases. avm-lldb reads `avm time` at each stop, so the difference between a phase's start and end
 // marks is the emulated cost of that phase.
 #include "battle.h"
+#include "battle_fixtures.h"
 #include "battle_ai.h"
 #include <avm.h>
 
@@ -35,23 +36,23 @@ static BattleState scenario;
 static uint8_t legal[BATTLE_ACTION_CAPACITY];
 
 // Four units a side: a mixed party against a mixed enemy, the two lines four columns apart.
-static constexpr BattleEncounter PROGMEM FOUR_A_SIDE{
+static constexpr BattleFixture PROGMEM FOUR_A_SIDE{
     BATTLEFIELD_GROVE,
     8,
     {
-        {battle_cell(1, 0), 10, BATTLE_TYPE_FIGHTER, BATTLE_PARTY},
-        {battle_cell(2, 1), 10, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
-        {battle_cell(1, 2), 9, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
-        {battle_cell(2, 3), 10, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY},
-        {battle_cell(7, 0), 9, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
-        {battle_cell(5, 1), 12, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
-        {battle_cell(6, 2), 9, BATTLE_TYPE_ARCHER, BATTLE_ENEMY},
-        {battle_cell(5, 3), 10, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY},
+        {battle_cell(1, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY},
+        {battle_cell(2, 1), 10, ENEMY_ROGUE, BATTLE_PARTY},
+        {battle_cell(1, 2), 9, ENEMY_ARCHER, BATTLE_PARTY},
+        {battle_cell(2, 3), 10, ENEMY_SPEARMAN, BATTLE_PARTY},
+        {battle_cell(7, 0), 9, ENEMY_WOLF, BATTLE_ENEMY},
+        {battle_cell(5, 1), 12, ENEMY_BRUTE, BATTLE_ENEMY},
+        {battle_cell(6, 2), 9, ENEMY_ARCHER, BATTLE_ENEMY},
+        {battle_cell(5, 3), 10, ENEMY_FIGHTER, BATTLE_ENEMY},
     },
 };
 
 static void grove(BATTLE_TEAM turn, uint8_t activations) {
-    battle_begin(scenario, &BATTLE_GROVE);
+    battle_fixture_begin(scenario, &BATTLE_TEST_GROVE);
     scenario.turn = turn;
     scenario.activations = activations;
 }
@@ -185,16 +186,16 @@ extern "C" void setup() {
 
     // Many ranged options: archers on both sides and an enemy spearman.
     grove(BATTLE_ENEMY, 4);
-    scenario.units[ROGUE].type = BATTLE_TYPE_ARCHER;
-    scenario.units[WOLF].type = BATTLE_TYPE_ARCHER;
-    scenario.units[BRUTE].type = BATTLE_TYPE_SPEARMAN;
+    scenario.units[ROGUE].id = ENEMY_ARCHER;
+    scenario.units[WOLF].id = ENEMY_ARCHER;
+    scenario.units[BRUTE].id = ENEMY_SPEARMAN;
     scenario.units[ROGUE].cell = cell(1, 0);
     scenario.units[WOLF].cell = cell(7, 0);
     measure_decision(8, scenario);
 
     // Wolf sprint options: two wolves with open rows ahead.
     grove(BATTLE_ENEMY, 0);
-    scenario.units[BRUTE].type = BATTLE_TYPE_WOLF;
+    scenario.units[BRUTE].id = ENEMY_WOLF;
     scenario.units[BRUTE].hp = 9;
     measure_decision(10, scenario);
 
@@ -222,14 +223,14 @@ extern "C" void setup() {
     measure_decision(18, scenario);
 
     // Four units a side, the enemy to act; then three a side, without each side's last unit.
-    battle_begin(scenario, &FOUR_A_SIDE);
+    battle_fixture_begin(scenario, &FOUR_A_SIDE);
     scenario.turn = BATTLE_ENEMY;
     measure_decision(50, scenario);
     scenario.units[3].hp = 0;
     scenario.units[7].hp = 0;
     measure_decision(52, scenario);
     // Four a side in contact: the lines have closed to adjacent columns.
-    battle_begin(scenario, &FOUR_A_SIDE);
+    battle_fixture_begin(scenario, &FOUR_A_SIDE);
     scenario.turn = BATTLE_ENEMY;
     scenario.activations = 6;
     for(uint8_t i = 4; i < 8; ++i)

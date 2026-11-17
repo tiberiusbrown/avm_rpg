@@ -58,13 +58,6 @@ void fade_to_black() {
         show_fade(step);
 }
 
-static void panel() {
-    avm_draw_filled_rect_black(2, 2, 124, 60);
-
-    avm_draw_filled_rect_white(2, 2, 124, 1);
-    avm_draw_filled_rect_white(2, 61, 124, 1);
-}
-
 // The view's first cache entry, its world tile and its screen position.
 struct View {
     uint8_t const* tiles;
@@ -396,9 +389,9 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
     else
         rpg_render_world();
     uint8_t fade = (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / width);
-    draw_fade(action == MENU_AUDIO  ? FADE_STEPS / 2
-              : action == MENU_LOAD ? FADE_STEPS - fade
-                                    : fade);
+    draw_fade((action == MENU_AUDIO || action == MENU_PARTY) ? FADE_STEPS / 2
+              : action == MENU_LOAD                          ? FADE_STEPS - fade
+                                                             : fade);
     if(!revealed)
         return;
 
@@ -475,16 +468,40 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
     }
 }
 
-void render_status() {
-    // The panel covers all but a two-pixel rim, so the terrain and the actors are enough.
-    draw_tiles();
-    draw_actors();
-    panel();
-    avm_draw_text(6, 11, F("TRAVELER"));
+void render_party(uint8_t revealed, bool closing) {
+    rpg_render_world();
+    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / PARTY_WIDTH)
+                      : FADE_STEPS / 2);
+    if(!revealed)
+        return;
 
-    avm_draw_textf(6, 25, F("HP %u/%u"), game.hp, game.max_hp);
-    avm_draw_textf(6, 35, F("Lv %u Gold %u"), game.level, game.gold);
-    avm_draw_text(6, 45, F("Nocturne Grove"));
+    int16_t x = DISPLAY_WIDTH - revealed;
+    avm_draw_filled_rect_black(x, 0, PARTY_WIDTH, 64);
+    avm_draw_filled_rect_white(x + 1, 1, PARTY_WIDTH - 2, 62);
+    avm_draw_filled_rect_black(x + 2, 2, PARTY_WIDTH - 4, 60);
+    avm_draw_textf(x + 4, 8, F("Party %u/%u"), game.party.count, PARTY_CAPACITY);
+    avm_draw_text(x + 89, 8, F("B back"));
 
-    avm_draw_text(6, 58, F("A / B return"));
+    static char const PROGMEM* const PROGMEM NAMES[] = {F("Traveler"), F("Villager"), F("Wanderer"),
+                                                        F("Rowan")};
+    static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Fighter"), F("Knight"), F("Wolf")};
+    static char const PROGMEM* const PROGMEM ATTACK[] = {F("Fighter"), F("Archer"), F("Spearman"),
+                                                         F("Brute"), F("Bite")};
+    static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == NPC_ID_LIMIT);
+    static_assert(sizeof(MOVEMENT) / sizeof(MOVEMENT[0]) == MOVEMENT_CLASS_COUNT);
+    static_assert(sizeof(ATTACK) / sizeof(ATTACK[0]) == ATTACK_CLASS_COUNT);
+    for(uint8_t i = 0; i < PARTY_CAPACITY; ++i) {
+        uint8_t y = (uint8_t)(18 + i * 12);
+        if(i >= game.party.count) {
+            avm_draw_text(x + 4, y, F("- Empty -"));
+            continue;
+        }
+        PartyMember const& member = game.party.members[i];
+        avm_draw_text(x + 4, y, NAMES[member.id]);
+        avm_draw_textf(x + 60, y, F("HP %u/%u"), member.hp, member.max_hp);
+        avm_draw_text(x + 4, y + 6, F("M:"));
+        avm_draw_text(x + 16, y + 6, MOVEMENT[member.movement_class]);
+        avm_draw_text(x + 64, y + 6, F("A:"));
+        avm_draw_text(x + 76, y + 6, ATTACK[member.attack_class]);
+    }
 }

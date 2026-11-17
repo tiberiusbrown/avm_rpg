@@ -4,6 +4,7 @@
 // spread over random legal positions with the enemy to act. The guest cost is measured separately
 // on the AVM emulator with tests/battle_probe.cpp.
 #include "battle.h"
+#include "battle_fixtures.h"
 #include "battle_ai.h"
 #include "battle_reference.h"
 #include <chrono>
@@ -18,7 +19,7 @@ static uint8_t cell(unsigned x, unsigned y) {
 
 static BattleState fresh() {
     BattleState state;
-    battle_begin(state, &BATTLE_GROVE);
+    battle_fixture_begin(state, &BATTLE_TEST_GROVE);
     return state;
 }
 
@@ -111,9 +112,9 @@ int main() {
 
     BattleState ranged = fresh();
     ranged.turn = BATTLE_ENEMY;
-    ranged.units[ROGUE].type = BATTLE_TYPE_ARCHER;
-    ranged.units[WOLF].type = BATTLE_TYPE_ARCHER;
-    ranged.units[BRUTE].type = BATTLE_TYPE_SPEARMAN;
+    ranged.units[ROGUE].id = ENEMY_ARCHER;
+    ranged.units[WOLF].id = ENEMY_ARCHER;
+    ranged.units[BRUTE].id = ENEMY_SPEARMAN;
     place(ranged, ROGUE, 1, 0);
     place(ranged, WOLF, 7, 0);
     place(ranged, BRUTE, 5, 2);
@@ -121,7 +122,7 @@ int main() {
 
     BattleState sprint = fresh();
     sprint.turn = BATTLE_ENEMY;
-    sprint.units[BRUTE].type = BATTLE_TYPE_WOLF;
+    sprint.units[BRUTE].id = ENEMY_WOLF;
     sprint.units[BRUTE].hp = 9;
     report("two wolves sprinting", sprint);
 
@@ -177,10 +178,10 @@ int main() {
     BattleState four{};
     four.field = BATTLEFIELD_GROVE;
     four.unit_count = 8;
-    BATTLE_UNIT_TYPE const party_types[4] = {BATTLE_TYPE_FIGHTER, BATTLE_TYPE_ROGUE,
-                                             BATTLE_TYPE_ARCHER, BATTLE_TYPE_SPEARMAN};
-    BATTLE_UNIT_TYPE const enemy_types[4] = {BATTLE_TYPE_WOLF, BATTLE_TYPE_BRUTE,
-                                             BATTLE_TYPE_ARCHER, BATTLE_TYPE_FIGHTER};
+    ENEMY_ID const party_types[4] = {ENEMY_FIGHTER, ENEMY_ROGUE,
+                                             ENEMY_ARCHER, ENEMY_SPEARMAN};
+    ENEMY_ID const enemy_types[4] = {ENEMY_WOLF, ENEMY_BRUTE,
+                                             ENEMY_ARCHER, ENEMY_FIGHTER};
     uint8_t const party_cells[4] = {cell(1, 0), cell(2, 1), cell(1, 2), cell(2, 3)};
     uint8_t const enemy_cells[4] = {cell(7, 0), cell(5, 1), cell(6, 2), cell(5, 3)};
     uint8_t const party_hp[4] = {10, 10, 9, 10}, enemy_hp[4] = {9, 12, 9, 10};

@@ -6,7 +6,10 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
                                                     0,         3,     0, 1,  true};
     static constexpr NpcDefinition PROGMEM WANDERER{NPC_WANDER, WEST, 2, 48, 48,  16,
                                                     12,         2,    0, 2,  true};
+    static constexpr NpcDefinition PROGMEM ROWAN{NPC_STAND, WEST, 0, 32, 32, 0, 0, 3, 0, 3, true};
     switch(id) {
+        case NPC_ROWAN:
+            return &ROWAN;
         case NPC_VILLAGER:
             return &VILLAGER;
         case NPC_WANDERER:
@@ -24,6 +27,8 @@ bool npc_is_dynamic(NPC_ID id) {
 // Default residence. Quest code moves dynamic NPCs with npc_set_destination.
 TilePos npc_home(NPC_ID id) {
     switch(id) {
+        case NPC_ROWAN:
+            return positions::RowanHome;
         case NPC_VILLAGER:
             return positions::VillagerHome;
         case NPC_WANDERER:
@@ -52,6 +57,14 @@ void npc_dialogue() {
     NPC_ID id = pending_talk;
     pending_talk = NPC_NONE;
     switch(id) {
+        case NPC_ROWAN:
+            if(party_contains(NPC_ROWAN))
+                dialogue_show(F("My bow is yours, friend. We travel together now."));
+            else if(party_add({18, 18, MOVEMENT_FIGHTER, ATTACK_ARCHER, NPC_ROWAN}))
+                dialogue_show(F("I'm Rowan. You could use a bow on the road. I'll join you!"));
+            else
+                dialogue_show(F("Your party is full. I'll wait here until there's room."));
+            break;
         case NPC_VILLAGER:
             dialogue_show(
                 F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove."));

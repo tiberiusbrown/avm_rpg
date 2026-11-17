@@ -16,7 +16,7 @@ inline constexpr uint8_t BATTLE_UNIT_CAPACITY = 2 * BATTLE_SIDE_CAPACITY;
 inline constexpr uint8_t BATTLE_NO_UNIT = BATTLE_UNIT_CAPACITY;
 
 // The most HP a unit can hold.
-inline constexpr uint8_t BATTLE_MAX_HP = 15;
+inline constexpr uint8_t BATTLE_MAX_HP = 255;
 
 // The blood price: every voluntary move costs its unit this much HP, after the move's engagement
 // damage. A pass costs every living member of the passing team the same.
@@ -80,80 +80,98 @@ enum BATTLE_MOVEMENT_TYPE : uint8_t { BATTLE_MOVEMENT_ORTHOGONAL, BATTLE_MOVEMEN
 // away from the attacker when that cell is on the board and empty.
 enum BATTLE_ATTACK_EFFECT : uint8_t { BATTLE_EFFECT_NONE, BATTLE_EFFECT_KNOCKBACK };
 
-// The immutable definition shared by every unit of one type. Live units store an index into the
-// table in PROGMEM, so the battle state carries only compact identifiers. Movement and attack are
-// separate patterns. Every attack strikes along a row or column at a distance from attack_min to
-// attack_max, and every cell between the attacker and its victim must be empty. The attacker never
-// moves when it attacks.
-struct BattleUnitType {
-    uint8_t sprite_row; // Actor sheet row. The row picks artwork and nothing else.
+// Movement and attack classes are independent. Their definitions stay in program memory.
+struct MovementInfo {
     BATTLE_MOVEMENT_TYPE movement_type;
-    uint8_t move_range; // Farthest orthogonal move. Knight units leave it zero.
-    uint8_t attack_min, attack_max;
-    uint8_t damage; // HP removed from a struck unit.
+    uint8_t move_range;
+};
+
+struct AttackInfo {
+    uint8_t attack_min, attack_max, damage;
     BATTLE_ATTACK_EFFECT effect;
 };
 
-// The six archetypes. The team is stored on each unit, so any type can fight on either side.
-enum BATTLE_UNIT_TYPE : uint8_t {
-    BATTLE_TYPE_FIGHTER,  // Steps one cell; strikes an adjacent unit for 3.
-    BATTLE_TYPE_ROGUE,    // Leaps like a chess knight; strikes an adjacent unit for 3.
-    BATTLE_TYPE_ARCHER,   // Steps one cell; shoots along a clear line 2 to 4 cells away for 3.
-    BATTLE_TYPE_SPEARMAN, // Steps one cell; thrusts along a clear line 1 or 2 cells away for 3.
-    BATTLE_TYPE_WOLF,     // Runs one or two cells straight; bites an adjacent unit for 3.
-    BATTLE_TYPE_BRUTE,    // Steps one cell; strikes an adjacent unit for 2 and knocks it back.
-    BATTLE_UNIT_TYPE_COUNT,
+inline constexpr MovementInfo MOVEMENT_INFO[MOVEMENT_CLASS_COUNT] = {
+    {BATTLE_MOVEMENT_ORTHOGONAL, 1},
+    {BATTLE_MOVEMENT_KNIGHT, 0},
+    {BATTLE_MOVEMENT_ORTHOGONAL, 2},
+};
+inline constexpr AttackInfo ATTACK_INFO[ATTACK_CLASS_COUNT] = {
+    {1, 1, 3, BATTLE_EFFECT_NONE}, {2, 4, 3, BATTLE_EFFECT_NONE},
+    {1, 2, 3, BATTLE_EFFECT_NONE}, {1, 1, 2, BATTLE_EFFECT_KNOCKBACK},
+    {1, 1, 3, BATTLE_EFFECT_NONE},
 };
 
-// The archetype definitions. Sprite rows come from actors16.png: people for the fighter, rogue,
-// archer, and spearman, the four-legged dog for the wolf, and the hulking ogre for the brute.
-// Normal attacks deal 3, and the brute's 2 plus knockback. Encounters give each unit its HP; the
-// balanced starting values are 10 for a fighter, rogue, or spearman, 9 for an archer or wolf, and
-// 12 for a brute. This one initializer builds the program-memory table and the rule copy below.
-// clang-format off
-#define BATTLE_UNIT_TYPE_INITIALIZER                                                               \
-    {                                                                                              \
-        {2, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 1, 3, BATTLE_EFFECT_NONE},       /* Fighter */       \
-        {1, BATTLE_MOVEMENT_KNIGHT, 0, 1, 1, 3, BATTLE_EFFECT_NONE},           /* Rogue */         \
-        {0, BATTLE_MOVEMENT_ORTHOGONAL, 1, 2, 4, 3, BATTLE_EFFECT_NONE},       /* Archer */        \
-        {3, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 2, 3, BATTLE_EFFECT_NONE},       /* Spearman */      \
-        {17, BATTLE_MOVEMENT_ORTHOGONAL, 2, 1, 1, 3, BATTLE_EFFECT_NONE},      /* Wolf */          \
-        {25, BATTLE_MOVEMENT_ORTHOGONAL, 1, 1, 1, 2, BATTLE_EFFECT_KNOCKBACK}, /* Brute */         \
-    }
-// clang-format on
+// Enemy IDs index immutable definitions, independently of the unit's team or artwork.
+enum ENEMY_ID : uint8_t {
+    ENEMY_FIGHTER,
+    ENEMY_ROGUE,
+    ENEMY_ARCHER,
+    ENEMY_SPEARMAN,
+    ENEMY_WOLF,
+    ENEMY_BRUTE,
+    ENEMY_COUNT
+};
 
-extern BattleUnitType const PROGMEM BATTLE_UNIT_TYPES[BATTLE_UNIT_TYPE_COUNT];
+struct EnemyInfo {
+    uint8_t max_hp, movement_class, attack_class, sprite_row;
+};
 
-// A compile-time copy of the definitions, for checks and for tables derived from them. Nothing
-// reads it at run time.
-inline constexpr BattleUnitType BATTLE_UNIT_DEFINITIONS[BATTLE_UNIT_TYPE_COUNT] =
-    BATTLE_UNIT_TYPE_INITIALIZER;
+extern EnemyInfo const PROGMEM ENEMY_INFO[ENEMY_COUNT];
 
-// The rule fields of each unit type, without the artwork, derived from the same initializer at
-// compile time. The rules read them through battle_rules. Like every constant object on the AVM,
-// the table sits in program memory and costs no RAM.
+// A source ID below ENEMY_COUNT indexes EnemyInfo. The high bit instead references one of the
+// saved party's four slots. Team is independent, allowing rule fixtures to use either source.
+inline constexpr uint8_t BATTLE_PARTY_SOURCE = 0x80;
+static_assert(ENEMY_COUNT <= BATTLE_PARTY_SOURCE);
+
+constexpr uint8_t battle_party_id(uint8_t slot) {
+    return (uint8_t)(BATTLE_PARTY_SOURCE | slot);
+}
+
+inline uint8_t battle_movement_class(uint8_t id) {
+    return id & BATTLE_PARTY_SOURCE ? game.party.members[id & ~BATTLE_PARTY_SOURCE].movement_class
+                                    : ENEMY_INFO[id].movement_class;
+}
+
+inline uint8_t battle_attack_class(uint8_t id) {
+    return id & BATTLE_PARTY_SOURCE ? game.party.members[id & ~BATTLE_PARTY_SOURCE].attack_class
+                                    : ENEMY_INFO[id].attack_class;
+}
+
+// A ROM cross-product lets hot rule paths read both definitions through one reference. It is
+// derived from the independent class tables; no combined class ID is stored on any member.
 struct BattleUnitRules {
     BATTLE_MOVEMENT_TYPE movement_type;
     uint8_t move_range;
-    uint8_t attack_min, attack_max;
-    uint8_t damage;
+    uint8_t attack_min, attack_max, damage;
     BATTLE_ATTACK_EFFECT effect;
 };
 
-constexpr BattleUnitRules battle_rules_from(BattleUnitType const& type) {
-    return BattleUnitRules{type.movement_type, type.move_range, type.attack_min,
-                           type.attack_max,    type.damage,     type.effect};
-}
+inline constexpr uint8_t BATTLE_RULE_COUNT = (uint8_t)MOVEMENT_CLASS_COUNT * ATTACK_CLASS_COUNT;
 
-static_assert(BATTLE_UNIT_TYPE_COUNT == 6, "BATTLE_UNIT_RULES lists every type");
-inline constexpr BattleUnitRules BATTLE_UNIT_RULES[BATTLE_UNIT_TYPE_COUNT] = {
-    battle_rules_from(BATTLE_UNIT_DEFINITIONS[0]), battle_rules_from(BATTLE_UNIT_DEFINITIONS[1]),
-    battle_rules_from(BATTLE_UNIT_DEFINITIONS[2]), battle_rules_from(BATTLE_UNIT_DEFINITIONS[3]),
-    battle_rules_from(BATTLE_UNIT_DEFINITIONS[4]), battle_rules_from(BATTLE_UNIT_DEFINITIONS[5]),
+struct BattleRuleTable {
+    BattleUnitRules classes[BATTLE_RULE_COUNT];
 };
 
-inline BattleUnitRules const& battle_rules(BATTLE_UNIT_TYPE type) {
-    return BATTLE_UNIT_RULES[type];
+inline constexpr BattleRuleTable BATTLE_RULES = [] {
+    BattleRuleTable table{};
+    for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
+        for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
+            auto const& move = MOVEMENT_INFO[m];
+            auto const& attack = ATTACK_INFO[a];
+            table.classes[m * ATTACK_CLASS_COUNT + a] = {move.movement_type, move.move_range,
+                                                         attack.attack_min,  attack.attack_max,
+                                                         attack.damage,      attack.effect};
+        }
+    return table;
+}();
+
+inline uint8_t battle_rule_index(uint8_t id) {
+    return (uint8_t)(battle_movement_class(id) * ATTACK_CLASS_COUNT + battle_attack_class(id));
+}
+
+inline BattleUnitRules const& battle_rules(uint8_t id) {
+    return BATTLE_RULES.classes[battle_rule_index(id)];
 }
 
 // Whether a straight-line distance is within an attack range. Attacks are always along one row or
@@ -162,38 +180,46 @@ constexpr bool battle_in_attack_range(BattleUnitRules const& rules, uint8_t dist
     return distance >= rules.attack_min && distance <= rules.attack_max;
 }
 
-// A unit's board cell, health, type, and team. The team is stored, so artwork never decides it. The
-// fields are packed into two bytes (the cell in the first; HP, type, and team in the second), so a
-// battle state with eight slots is no larger than four unpacked units, and every copy the search
-// makes stays at 22 bytes.
+// Only HP and a source ID describe an enemy in RAM. The other byte holds board placement and
+// team. Allied units reference saved party slots; search copies never duplicate their classes.
 struct BattleUnit {
     uint8_t cell : 5;
-    uint8_t hp : 4; // At most BATTLE_MAX_HP.
-    BATTLE_UNIT_TYPE type : 3;
     BATTLE_TEAM team : 1;
+    uint8_t hp;
+    uint8_t id;
+
+    constexpr BattleUnit() : cell(0), team(BATTLE_PARTY), hp(0), id(0) {}
+
+    constexpr BattleUnit(uint8_t cell, uint8_t hp, uint8_t id, BATTLE_TEAM team)
+        : cell(cell), team(team), hp(hp), id(id) {}
 };
 
-static_assert(sizeof(BattleUnit) == 2, "a unit packs into two bytes");
-static_assert(BATTLE_CELLS <= 32 && BATTLE_MAX_HP <= 15 && BATTLE_UNIT_TYPE_COUNT <= 8,
-              "the unit's bit fields hold every cell, HP value, and type");
+static_assert(sizeof(BattleUnit) == 3, "one placement byte plus full HP and source ID");
+static_assert(sizeof(EnemyInfo) == 4, "enemy statistics and artwork stay in ROM");
 
-// A fixed starting arrangement. Story code names one of these and passes it to battle_show.
+// Encounters author only enemies and deployment cells. Allies always come from game.party.
 struct BattleEncounter {
-    uint8_t field; // BATTLEFIELD_ID
-    uint8_t unit_count;
-    BattleUnit units[BATTLE_UNIT_CAPACITY];
+    uint8_t field;
+    uint8_t enemy_count;
+    uint8_t enemies[BATTLE_SIDE_CAPACITY];
+    uint8_t party_cells[BATTLE_SIDE_CAPACITY];
+    uint8_t enemy_cells[BATTLE_SIDE_CAPACITY];
 };
 
 // Live combat state. It is plain data and copies cheaply, so a search can branch from it.
+#pragma pack(push, 1)
+
 struct BattleState {
     uint8_t field; // BATTLEFIELD_ID
     BattleUnit units[BATTLE_UNIT_CAPACITY];
     uint8_t unit_count;
     BATTLE_TEAM turn;
-    uint8_t activations; // Completed activations, including forced passes.
+    uint16_t activations; // Full uint8 HP can require more than 255 activations.
     bool ended;
     BATTLE_RESULT result; // Meaningful only once ended is set.
 };
+
+#pragma pack(pop)
 
 // A unit moves or attacks by naming the cell it targets. An empty destination is a move, and a
 // destination holding an enemy is an attack. BATTLE_NO_UNIT instead names a team pass.
@@ -247,12 +273,15 @@ inline constexpr uint8_t BATTLE_ACTION_CAPACITY = battle_action_capacity();
 // Every legal action of one unit fits here: its moves and one attack on each other unit.
 inline constexpr uint8_t BATTLE_UNIT_ACTION_CAPACITY = BATTLE_MOVE_LIMIT + BATTLE_UNIT_CAPACITY - 1;
 
-// Nocturne Grove: a grassy clearing with two heroes against two creatures.
+// Nocturne Grove: the saved player party against two creatures.
 extern uint8_t const PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS];
 extern BattleEncounter const PROGMEM BATTLE_GROVE;
 
-// Starts a fresh battle from the encounter. Every call discards any earlier state.
+// Deploys the saved party and the encounter's enemies; zero-HP members do not deploy.
 void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter);
+// Writes final ally HP back to the saved roster, without changing its classes or membership.
+void battle_finish(BattleState const& state);
+uint8_t battle_max_hp(BattleUnit const& unit);
 
 // The living unit on a cell, or BATTLE_NO_UNIT. Defeated units occupy no cell.
 uint8_t battle_unit_at(BattleState const& state, uint8_t cell);
@@ -372,7 +401,7 @@ void battle_pass(BattleState& state);
 
 // Passes while the side to act has no legal action. Returns the number of passes. Every pass costs
 // HP and no action restores any, so it always returns.
-uint8_t battle_settle(BattleState& state);
+uint16_t battle_settle(BattleState& state);
 
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team);
 

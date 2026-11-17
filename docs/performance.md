@@ -125,9 +125,11 @@ capacity for those additions.
 
 ## Battle search
 
-The battle has six data-defined archetypes (fighter, rogue, archer, spearman, wolf, brute) and up to
-four units a side in eight unit slots. The Grove battle pits the party's rogue (10 HP) and archer (9)
-against a wolf (9) and a brute (12). Normal attacks deal 3, and the brute's 2 plus knockback. Every
+The battle uses three movement classes and five attack classes, combined independently for either
+side. Six program-memory enemy definitions provide fighter, rogue, archer, spearman, wolf and brute
+presets. The shipping Grove encounter deploys the saved player party against a wolf (9 HP) and a
+brute (12). The measurements below use the fixed `BATTLE_TEST_GROVE` rule fixture: a rogue (10 HP)
+and archer (9) against those two enemies. Normal attacks deal 3, and the brute's 2 plus knockback. Every
 voluntary move costs its mover 1 HP (the blood price), paid after it deals 1 engagement damage to each
 enemy orthogonally adjacent to its destination; a move whose engagement defeats the last opponent wins
 before the price is due. Every pass costs each living unit on the passing team 1 HP, including voluntary player passes. There is no
@@ -238,8 +240,9 @@ collision in the world tileset.
 
 ### Evaluation
 
-The utility keeps its weights for units, HP, and strikes; the larger HP keeps every static score far
-inside int16_t and below the terminal scores (the extremes at the 15 HP limit are tested). It has no
+The utility keeps its weights for units, HP and strikes. Full-byte HP is accumulated as a signed
+health difference before multiplying by the common HP weight. Material and final static scores
+saturate at +/-19,999, below terminal scores, without overflowing int16_t; tests cover 255 HP. It has no
 movement term: `battle_apply` already charges the blood price and deals the engagement damage, so the
 search sees both, and an extra penalty would count the price twice. Its positional term is the attack
 gap: the cells a unit must still travel to line up on a row or column and come within its attack
@@ -288,19 +291,21 @@ the blocked mask cell by cell instead of the screening table cost 229 to 238 byt
 inlining, and inlining `battle_line_blocked` with the table saved one byte (227) for 256 bytes more
 code. The blood-price update changed neither static RAM nor the stack
 bound; its code was 1,574 bytes, mostly the engagement-aware ordering and greedy choice.
-`BattleUnit` packs its cell, HP (at most 15), type, and team into two bytes, so `BattleState` holds eight
-slots in 22 bytes, as it held four before. The six `BattleUnitType` records (7 bytes each), the derived
-rule copy, the gap table, and the per-type action limits stay in program memory. The static search
-workspace is 188 bytes (160 before): four 4-byte plies, four killer bytes, the 80-byte shared action
-scratch, and four 22-byte positions for the children of each ply. The work counters are compiled only
-into the host and the battle probe (`RPG_BATTLE_STATS`), so the shipping guest carries none. The
-enumerator's occupancy masks, the ordering's target cells (eight bytes), and the evaluation's party
-mask are frame locals. The static RAM increase is the 28 bytes of workspace.
+`BattleUnit` uses three bytes: board cell/team metadata, uint8 HP, and a uint8 source ID. An
+enemy's ID indexes the four-byte `EnemyInfo` ROM record (MHP, movement class, attack class, artwork).
+The high bit instead references a saved player-party slot; the battle/search does not copy its
+classes or MHP. `BattleState` holds eight slots in 31 bytes, including a uint16 activation counter.
+The separate movement/attack tables, derived rule combinations, gap table and action limits stay
+in program memory. Search workspace is 226 bytes: four four-byte plies, four killers, the 82-byte
+shared action scratch and four 31-byte child positions. The blocking battle screen reuses a fixed
+static workspace to keep the complete guest stack bound below 256 bytes. Current shipping static
+RAM is 585 bytes (289 saved, 296 ordinary); the provable stack bound is 220 bytes. Battle results
+write only ally HP back to the saved party. Work counters remain limited to host/probe builds.
 
-The deepest shipping path is explore → update_visible_world → run_chunk (the battle screen, 45 bytes)
-→ enemy_turn (9) → deepen (44, the search loop inlined) → battle_score (42) → battle_line_blocked
-(14). The arrow's flight runs inside the battle screen's resolve and never overlaps the search. The search parameters are arguments, and the
-loop has one caller, so it shares its frame with the deepening loop.
+The deepest shipping path is explore → update_visible_world → run_chunk (14 bytes)
+→ resolve (30) → draw_board (45) → battle_enumerate (40). The arrow's flight never overlaps the
+search. Search positions and the single blocking battle screen are static workspaces; ordinary
+frame-local input, animation and evaluation temporaries remain on the stack.
 
 ### Decisions
 

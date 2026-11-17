@@ -114,7 +114,7 @@ int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply);
 // Cells a unit of `type` must still travel before it can attack a unit that is dx columns and dy
 // rows away: it lines up on the row or column and then reaches its attack range along it. Units
 // between them are ignored, so it is an estimate.
-uint8_t battle_attack_gap(BATTLE_UNIT_TYPE type, uint8_t dx, uint8_t dy);
+uint8_t battle_attack_gap(uint8_t id, uint8_t dx, uint8_t dy);
 
 // The enemy's node budget for a position: BATTLE_AI_NODE_BUDGET with up to four living units,
 // scaled by four over the living units beyond that (160 with six, 120 with eight).

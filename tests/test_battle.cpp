@@ -1,4 +1,5 @@
 #include "battle.h"
+#include "battle_fixtures.h"
 #include "battle_ai.h"
 #include "battle_cursor.h"
 #include "battle_motion.h"
@@ -30,7 +31,7 @@ static uint8_t cell(unsigned x, unsigned y) {
 
 static BattleState fresh() {
     BattleState state;
-    battle_begin(state, &BATTLE_GROVE);
+    battle_fixture_begin(state, &BATTLE_TEST_GROVE);
     return state;
 }
 
@@ -46,7 +47,7 @@ static bool same_state(BattleState const& a, BattleState const& b) {
 // One unit of a custom board: its column, row, type, team, and HP.
 struct Placement {
     unsigned x, y;
-    BATTLE_UNIT_TYPE type;
+    ENEMY_ID id;
     BATTLE_TEAM team;
     uint8_t hp;
 };
@@ -62,7 +63,7 @@ static BattleState board(BATTLE_TEAM turn, std::initializer_list<Placement> unit
             fprintf(stderr, "board: unit on blocking terrain at (%u,%u)\n", p.x, p.y);
             exit(1);
         }
-        s.units[s.unit_count++] = BattleUnit{cell(p.x, p.y), p.hp, p.type, p.team};
+        s.units[s.unit_count++] = BattleUnit{cell(p.x, p.y), p.hp, p.id, p.team};
     }
     s.turn = turn;
     s.activations = activations;
@@ -170,7 +171,7 @@ static BattleState random_board(uint8_t most = BATTLE_UNIT_CAPACITY) {
             team = team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
         ++per_team[team];
         s.units[i] = BattleUnit{c, (uint8_t)(1 + next_random(12)),
-                                (BATTLE_UNIT_TYPE)next_random(BATTLE_UNIT_TYPE_COUNT), team};
+                                (ENEMY_ID)next_random(ENEMY_COUNT), team};
     }
     s.turn = (BATTLE_TEAM)next_random(2);
     s.activations = (uint8_t)next_random(26);
@@ -189,19 +190,19 @@ struct OracleType {
     bool knockback;
 };
 
-static OracleType oracle_type(BATTLE_UNIT_TYPE type) {
+static OracleType oracle_type(uint8_t type) {
     switch(type) {
-        case BATTLE_TYPE_FIGHTER:
+        case ENEMY_FIGHTER:
             return {false, 1, 1, 1, 3, false};
-        case BATTLE_TYPE_ROGUE:
+        case ENEMY_ROGUE:
             return {true, 0, 1, 1, 3, false};
-        case BATTLE_TYPE_ARCHER:
+        case ENEMY_ARCHER:
             return {false, 1, 2, 4, 3, false};
-        case BATTLE_TYPE_SPEARMAN:
+        case ENEMY_SPEARMAN:
             return {false, 1, 1, 2, 3, false};
-        case BATTLE_TYPE_WOLF:
+        case ENEMY_WOLF:
             return {false, 2, 1, 1, 3, false};
-        case BATTLE_TYPE_BRUTE:
+        case ENEMY_BRUTE:
             return {false, 1, 1, 1, 2, true};
         default:
             abort();
@@ -243,7 +244,7 @@ static bool oracle_legal(BattleState const& s, uint8_t unit, uint8_t destination
         return false;
     int x = actor.cell % 8, y = actor.cell / 8;
     int dx = destination % 8 - x, dy = destination / 8 - y;
-    OracleType rules = oracle_type(actor.type);
+    OracleType rules = oracle_type(actor.id);
     int occupant = oracle_occupant(s, destination % 8, destination / 8);
     bool straight = (dx == 0) != (dy == 0);
     int distance = abs(dx) + abs(dy);
@@ -264,29 +265,30 @@ static bool oracle_legal(BattleState const& s, uint8_t unit, uint8_t destination
 // --- Data ----------------------------------------------------------------------------------
 
 static void unit_definitions() {
-    for(uint8_t t = 0; t < BATTLE_UNIT_TYPE_COUNT; ++t) {
-        BattleUnitType const& type = BATTLE_UNIT_TYPES[t];
-        OracleType rules = oracle_type((BATTLE_UNIT_TYPE)t);
+    for(uint8_t t = 0; t < ENEMY_COUNT; ++t) {
+        EnemyInfo const& info = ENEMY_INFO[t];
+        BattleUnitRules const& type = battle_rules(t);
+        OracleType rules = oracle_type((ENEMY_ID)t);
         CHECK((type.movement_type == BATTLE_MOVEMENT_KNIGHT) == rules.knight);
         CHECK(type.move_range == rules.move_range);
         CHECK(type.attack_min == rules.attack_min && type.attack_max == rules.attack_max);
         CHECK(type.damage == rules.damage);
         CHECK((type.effect == BATTLE_EFFECT_KNOCKBACK) == rules.knockback);
-        CHECK(type.sprite_row < ACTOR_ROW_COUNT);
+        CHECK(info.sprite_row < ACTOR_ROW_COUNT);
         // Each archetype has artwork of its own.
         for(uint8_t u = 0; u < t; ++u)
-            CHECK(BATTLE_UNIT_TYPES[u].sprite_row != type.sprite_row);
+            CHECK(ENEMY_INFO[u].sprite_row != info.sprite_row);
     }
     // People for the four human archetypes, the dog for the wolf, and the ogre for the brute.
-    CHECK(BATTLE_UNIT_TYPES[BATTLE_TYPE_WOLF].sprite_row == 17);
-    CHECK(BATTLE_UNIT_TYPES[BATTLE_TYPE_BRUTE].sprite_row == 25);
-    CHECK(BATTLE_UNIT_TYPES[BATTLE_TYPE_ROGUE].sprite_row < 16);
-    CHECK(BATTLE_UNIT_TYPES[BATTLE_TYPE_ARCHER].sprite_row < 16);
+    CHECK(ENEMY_INFO[ENEMY_WOLF].sprite_row == 17);
+    CHECK(ENEMY_INFO[ENEMY_BRUTE].sprite_row == 25);
+    CHECK(ENEMY_INFO[ENEMY_ROGUE].sprite_row < 16);
+    CHECK(ENEMY_INFO[ENEMY_ARCHER].sprite_row < 16);
 
     // The copied state stays compact: no ability data is stored per unit.
-    static_assert(sizeof(BattleUnit) == 2, "a unit packs its cell, HP, type, and team");
-    static_assert(sizeof(BattleState) == 22, "the copied battle state did not grow");
-    static_assert(sizeof(BattleUnitType) == 7, "a unit type is seven bytes of program memory");
+    static_assert(sizeof(BattleUnit) == 3, "placement, full-byte HP and source ID");
+    static_assert(sizeof(BattleState) == 31, "compact battle state with a 16-bit activation counter");
+    static_assert(sizeof(EnemyInfo) == 4, "four bytes of immutable enemy information");
 }
 
 static void initial_layout() {
@@ -298,19 +300,19 @@ static void initial_layout() {
     struct Expected {
         uint8_t x, y, hp;
         BATTLE_TEAM team;
-        BATTLE_UNIT_TYPE type;
+        ENEMY_ID id;
     } const expected[4] = {
-        {2, 1, 10, BATTLE_PARTY, BATTLE_TYPE_ROGUE},
-        {1, 2, 9, BATTLE_PARTY, BATTLE_TYPE_ARCHER},
-        {6, 1, 9, BATTLE_ENEMY, BATTLE_TYPE_WOLF},
-        {5, 2, 12, BATTLE_ENEMY, BATTLE_TYPE_BRUTE},
+        {2, 1, 10, BATTLE_PARTY, ENEMY_ROGUE},
+        {1, 2, 9, BATTLE_PARTY, ENEMY_ARCHER},
+        {6, 1, 9, BATTLE_ENEMY, ENEMY_WOLF},
+        {5, 2, 12, BATTLE_ENEMY, ENEMY_BRUTE},
     };
 
     for(uint8_t i = 0; i < 4; ++i) {
         CHECK(battle_column(s.units[i].cell) == expected[i].x &&
               battle_row(s.units[i].cell) == expected[i].y);
         CHECK(s.units[i].hp == expected[i].hp && s.units[i].team == expected[i].team);
-        CHECK(s.units[i].type == expected[i].type);
+        CHECK(s.units[i].id == expected[i].id);
         CHECK(battle_unit_at(s, s.units[i].cell) == i);
     }
     CHECK(battle_living(s, BATTLE_PARTY) == 2 && battle_living(s, BATTLE_ENEMY) == 2);
@@ -326,7 +328,7 @@ static void initial_layout() {
     // Begin discards any earlier state.
     s.activations = 9;
     s.ended = true;
-    battle_begin(s, &BATTLE_GROVE);
+    battle_fixture_begin(s, &BATTLE_TEST_GROVE);
     CHECK(!s.ended && s.activations == 0 && s.turn == BATTLE_PARTY);
     CHECK(s.units[BRUTE].hp == 12 && s.units[ROGUE].hp == 10);
 }
@@ -334,17 +336,17 @@ static void initial_layout() {
 // A unit's team is stored, not inferred from artwork, so a unit's team and sprite row are
 // independent, and any archetype can fight on either side.
 static void teams_are_explicit() {
-    BattleUnit unit{0, 5, BATTLE_TYPE_ROGUE, BATTLE_PARTY};
+    BattleUnit unit{0, 5, ENEMY_ROGUE, BATTLE_PARTY};
     CHECK(unit.team == BATTLE_PARTY &&
-          battle_sprite_row(unit) == BATTLE_UNIT_TYPES[BATTLE_TYPE_ROGUE].sprite_row);
-    unit.type = BATTLE_TYPE_WOLF;
+          battle_sprite_row(unit) == ENEMY_INFO[ENEMY_ROGUE].sprite_row);
+    unit.id = ENEMY_WOLF;
     CHECK(unit.team == BATTLE_PARTY && battle_sprite_row(unit) == 17);
     unit.team = BATTLE_ENEMY;
     CHECK(unit.team == BATTLE_ENEMY && battle_sprite_row(unit) == 17);
 
     // A wolf on the party's side acts on the party's turn and bites enemies, whatever its artwork.
-    BattleState s = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                         {4, 1, BATTLE_TYPE_ROGUE, BATTLE_ENEMY, 5}});
+    BattleState s = board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                         {4, 1, ENEMY_ROGUE, BATTLE_ENEMY, 5}});
     CHECK(battle_legal(s, act(0, 4, 1)) && battle_legal(s, act(0, 1, 1)));
     CHECK(!battle_legal(s, act(1, 3, 3)));
     s.turn = BATTLE_ENEMY;
@@ -423,13 +425,13 @@ static void board_edges() {
 
 static void fighter_movement() {
     // 1. A fighter moves exactly one orthogonal cell.
-    BattleState s = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                         {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState s = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                         {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(destinations(s, 0) == cells_of({cell(3, 0), cell(4, 1), cell(3, 2), cell(2, 1)}));
     CHECK(!battle_legal(s, act(0, 5, 1)) && !battle_legal(s, act(0, 4, 2)));
     // The spearman, archer, and brute move the same way.
-    for(BATTLE_UNIT_TYPE type : {BATTLE_TYPE_ARCHER, BATTLE_TYPE_SPEARMAN, BATTLE_TYPE_BRUTE}) {
-        s.units[0].type = type;
+    for(ENEMY_ID type : {ENEMY_ARCHER, ENEMY_SPEARMAN, ENEMY_BRUTE}) {
+        s.units[0].id = type;
         CHECK(destinations(s, 0) == cells_of({cell(3, 0), cell(4, 1), cell(3, 2), cell(2, 1)}));
     }
 }
@@ -437,8 +439,8 @@ static void fighter_movement() {
 static void rogue_movement() {
     // 2. A rogue reaches every open knight-shaped cell on the board, and nothing else: the boulder
     // at (4,3) is a knight's leap away but blocks it.
-    BattleState s = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                         {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState s = board(BATTLE_PARTY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                         {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     uint32_t leaps = cells_of({cell(5, 0), cell(5, 2), cell(2, 3), cell(1, 0), cell(1, 2)});
     CHECK(!battle_legal(s, act(0, 4, 3)));
     CHECK(destinations(s, 0) == leaps);
@@ -447,8 +449,8 @@ static void rogue_movement() {
           !battle_legal(s, act(0, 5, 1)) && !battle_legal(s, act(0, 3, 3)));
     // Near the middle of the board all eight leaps exist.
     place(s, 0, 3, 2);
-    BattleState mid = board(BATTLE_PARTY, {{3, 2, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                           {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState mid = board(BATTLE_PARTY, {{3, 2, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                           {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     uint8_t packed[BATTLE_UNIT_ACTION_CAPACITY];
     uint8_t attacks = 0;
     // From (3,2) the leaps two rows down leave the board, so six remain on it, and two of those
@@ -456,16 +458,16 @@ static void rogue_movement() {
     CHECK(battle_unit_actions(mid, 0, packed, attacks) == 4 && attacks == 0);
 
     // 4. The rogue jumps over units, friendly and enemy, between it and its landing cell.
-    BattleState over = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                            {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                            {3, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
-                                            {4, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState over = board(BATTLE_PARTY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                            {4, 1, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                            {3, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 5},
+                                            {4, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(battle_legal(over, act(0, 5, 2)) && battle_legal(over, act(0, 2, 3)));
     // 5. It cannot land on an occupied cell: a friend there is illegal, and an enemy on a
     // knight-shaped cell is not an attack.
-    BattleState land = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                            {5, 2, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                            {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState land = board(BATTLE_PARTY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                            {5, 2, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                            {1, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(!battle_legal(land, act(0, 5, 2)) && !battle_legal(land, act(0, 1, 0)));
     CHECK(battle_legal(land, act(0, 5, 0)));
     battle_apply(land, act(0, 5, 0));
@@ -474,23 +476,23 @@ static void rogue_movement() {
 
 static void wolf_movement() {
     // 6. A wolf moves one or two cells straight.
-    BattleState s = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                         {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState s = board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                         {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(destinations(s, 0) == cells_of({cell(3, 0), cell(4, 1), cell(5, 1), cell(3, 2),
                                           cell(3, 3), cell(2, 1), cell(1, 1)}));
     battle_apply(s, act(0, 5, 1));
     CHECK(s.units[0].cell == cell(5, 1) && s.activations == 1 && s.turn == BATTLE_ENEMY);
 
     // 7. A unit on the first cell blocks the second, friend or foe, and it cannot run through.
-    BattleState blocked = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                               {4, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                               {3, 2, BATTLE_TYPE_ARCHER, BATTLE_ENEMY, 4}});
+    BattleState blocked = board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                               {4, 1, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                               {3, 2, ENEMY_ARCHER, BATTLE_ENEMY, 4}});
     CHECK(!battle_legal(blocked, act(0, 5, 1)) && !battle_legal(blocked, act(0, 3, 3)));
     // The adjacent enemy archer is an attack, and the run west is still open.
     CHECK(battle_legal(blocked, act(0, 3, 2)) && battle_legal(blocked, act(0, 1, 1)));
     // A wolf cannot run into an enemy two cells away: that is neither a move nor an attack.
-    BattleState far = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                           {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState far = board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                           {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(!battle_legal(far, act(0, 5, 1)) && battle_legal(far, act(0, 4, 1)));
 
     // 8. No change of direction: an L-shaped two-cell move and a diagonal are not moves.
@@ -501,17 +503,17 @@ static void wolf_movement() {
 
 static void board_boundaries() {
     // 9. Moves never wrap from one row's end to the next row's start.
-    BattleState s = board(BATTLE_PARTY, {{7, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                         {0, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState s = board(BATTLE_PARTY, {{7, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                         {0, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(!battle_legal(s, act(0, 0, 2)) && !battle_legal(s, act(0, 1, 2)));
     CHECK(destinations(s, 0) ==
           cells_of({cell(7, 0), cell(7, 2), cell(7, 3), cell(6, 1), cell(5, 1)}));
-    BattleState left = board(BATTLE_PARTY, {{0, 2, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 4},
-                                            {7, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState left = board(BATTLE_PARTY, {{0, 2, ENEMY_ROGUE, BATTLE_PARTY, 4},
+                                            {7, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(destinations(left, 0) == cells_of({cell(1, 0), cell(2, 1), cell(2, 3)}));
     // An archer at a row's end cannot shoot the next row's first cell.
-    BattleState shot = board(BATTLE_PARTY, {{6, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                            {0, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState shot = board(BATTLE_PARTY, {{6, 1, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                            {0, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(!battle_can_attack(shot, 0, 1));
     // Cells past the last cell are off the board, and so is an unknown unit.
     CHECK(!battle_legal(s, act(0, 7, 4)) && !battle_legal(s, {0, 255}));
@@ -524,68 +526,68 @@ static void terrain() {
     // A step cannot enter a tree or a rock, and a run stops before one: from (2,0) the wolf reaches
     // (3,0) but not the pine at (4,0), and from between the two trees at (5,0) it cannot go east or
     // west at all.
-    BattleState run = board(BATTLE_PARTY, {{2, 0, BATTLE_TYPE_WOLF, BATTLE_PARTY, 9},
-                                           {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState run = board(BATTLE_PARTY, {{2, 0, ENEMY_WOLF, BATTLE_PARTY, 9},
+                                           {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(run, act(0, 3, 0)) && !battle_legal(run, act(0, 4, 0)));
     CHECK(!battle_can_move_to(run, 0, cell(4, 0)));
-    BattleState pinned = board(BATTLE_PARTY, {{5, 0, BATTLE_TYPE_WOLF, BATTLE_PARTY, 9},
-                                              {0, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState pinned = board(BATTLE_PARTY, {{5, 0, ENEMY_WOLF, BATTLE_PARTY, 9},
+                                              {0, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(destinations(pinned, 0) == cells_of({cell(5, 1), cell(5, 2)}));
-    BattleState step = board(BATTLE_PARTY, {{1, 2, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                            {7, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState step = board(BATTLE_PARTY, {{1, 2, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                            {7, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(step, act(0, 1, 3)) && battle_legal(step, act(0, 0, 2)));
 
     // A leap passes over terrain as it passes over units, but cannot land on it.
-    BattleState leap = board(BATTLE_PARTY, {{3, 0, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                            {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState leap = board(BATTLE_PARTY, {{3, 0, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                            {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(leap, act(0, 5, 1)));
-    BattleState landing = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                               {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState landing = board(BATTLE_PARTY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                               {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(landing, act(0, 4, 3)));
 
     // Terrain screens shots and thrusts: along row 0 the pine stands between (2,0) and (5,0), and
     // along row 3 the boulder between (2,3) and (5,3). Range alone would allow both.
-    BattleState screened = board(BATTLE_PARTY, {{2, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                                {5, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState screened = board(BATTLE_PARTY, {{2, 0, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                                {5, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_can_attack(screened, 0, 1) && !battle_legal(screened, act(0, 5, 0)));
     CHECK(battle_line_blocked(screened, cell(2, 0), cell(5, 0)));
-    BattleState low = board(BATTLE_PARTY, {{2, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                           {5, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState low = board(BATTLE_PARTY, {{2, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                           {5, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_can_attack(low, 0, 1));
-    BattleState open = board(BATTLE_PARTY, {{0, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                            {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState open = board(BATTLE_PARTY, {{0, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                            {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_can_attack(open, 0, 1));
-    BattleState thrust = board(BATTLE_PARTY, {{3, 3, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY, 10},
-                                              {5, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState thrust = board(BATTLE_PARTY, {{3, 3, ENEMY_SPEARMAN, BATTLE_PARTY, 10},
+                                              {5, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(thrust, act(0, 5, 3)));
     // Adjacent blows have nothing between, so terrain never stops them.
-    BattleState beside = board(BATTLE_PARTY, {{3, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                              {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState beside = board(BATTLE_PARTY, {{3, 0, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                              {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(beside, act(0, 3, 1)));
 
     // No knockback onto terrain: the brute's blow from (4,2) would push north onto the pine at
     // (4,0), and from (2,3) east onto the boulder.
-    BattleState north = board(BATTLE_PARTY, {{4, 2, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                             {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState north = board(BATTLE_PARTY, {{4, 2, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                             {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(north, act(0, 4, 1));
     CHECK(north.units[1].cell == cell(4, 1) && north.units[1].hp == 8);
-    BattleState east = board(BATTLE_PARTY, {{2, 3, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {3, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState east = board(BATTLE_PARTY, {{2, 3, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {3, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(east, act(0, 3, 3));
     CHECK(east.units[1].cell == cell(3, 3) && east.units[1].hp == 8);
 
     // The evaluation counts strikes by the same rules: a screened archer threatens nothing, so its
     // score matches a spearman's in the same cell, while an open line costs the enemy 60.
-    BattleState archer = board(BATTLE_ENEMY, {{2, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                              {5, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState archer = board(BATTLE_ENEMY, {{2, 0, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                              {5, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     BattleState spearman = archer;
-    spearman.units[0].type = BATTLE_TYPE_SPEARMAN;
+    spearman.units[0].id = ENEMY_SPEARMAN;
     CHECK(battle_score(archer, BATTLE_ENEMY, 0) == battle_score(spearman, BATTLE_ENEMY, 0));
 
     // The enemy's choices respect terrain: a lone fighter between the trees attacks the hero below
     // it rather than look for a way through them.
-    BattleState hemmed = board(BATTLE_ENEMY, {{5, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                              {5, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState hemmed = board(BATTLE_ENEMY, {{5, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                              {5, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(legal_set(hemmed).count == 1);
     CHECK(same_action(battle_enemy_action(hemmed), act(1, 5, 1)));
 }
@@ -594,27 +596,27 @@ static void terrain() {
 
 static void melee_attacks() {
     // 10. A fighter strikes an adjacent enemy for 3 and stays put, at no cost to itself.
-    BattleState s = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                         {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                         {3, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState s = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                         {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                         {3, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(s, act(0, 4, 1)) && !battle_legal(s, act(0, 3, 3)));
     battle_apply(s, act(0, 4, 1));
     CHECK(s.units[1].hp == 7 && s.units[1].cell == cell(4, 1) && s.units[0].cell == cell(3, 1));
     CHECK(s.activations == 1 && s.turn == BATTLE_ENEMY);
 
     // 11. A rogue strikes adjacent enemies only, never one on a knight-shaped cell.
-    BattleState r = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                         {3, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                         {5, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState r = board(BATTLE_PARTY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                         {3, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                         {5, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(r, act(0, 3, 2)) && !battle_legal(r, act(0, 5, 2)));
     CHECK(battle_can_attack(r, 0, 1) && !battle_can_attack(r, 0, 2));
     battle_apply(r, act(0, 3, 2));
     CHECK(r.units[1].hp == 7 && r.units[0].cell == cell(3, 1));
 
     // 20. A wolf bites adjacent enemies only, even in a clear line two cells away.
-    BattleState w = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 9},
-                                         {3, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                         {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState w = board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 9},
+                                         {3, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                         {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_can_attack(w, 0, 1) && !battle_can_attack(w, 0, 2));
     battle_apply(w, act(0, 3, 0));
     CHECK(w.units[1].hp == 7 && w.units[0].cell == cell(3, 1));
@@ -624,104 +626,104 @@ static void archer_attacks() {
     // 12. An archer shoots along a row or column at ranges 2, 3, and 4.
     for(unsigned range = 2; range <= 4; ++range) {
         BattleState row =
-            board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                 {1 + range, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+            board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                 {1 + range, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
         CHECK(battle_legal(row, act(0, 1 + range, 1)));
         battle_apply(row, act(0, 1 + range, 1));
         CHECK(row.units[1].hp == 7 && row.units[0].cell == cell(1, 1));
     }
-    BattleState column = board(BATTLE_PARTY, {{2, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                              {2, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState column = board(BATTLE_PARTY, {{2, 0, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                              {2, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_can_attack(column, 0, 1));
 
     // 13. An adjacent enemy cannot be shot.
-    BattleState near = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                            {2, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState near = board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                            {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(near, act(0, 2, 1)) && !battle_can_attack(near, 0, 1));
     // 14. Nor one five cells away.
-    BattleState beyond = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                              {6, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState beyond = board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                              {6, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(beyond, act(0, 6, 1)));
     // 15. Nor one on a diagonal, or off the lines entirely.
-    BattleState diagonal = board(BATTLE_PARTY, {{1, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                                {3, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                                {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState diagonal = board(BATTLE_PARTY, {{1, 0, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                                {3, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(diagonal, act(0, 3, 2)) && !battle_legal(diagonal, act(0, 4, 1)));
 
     // 16. Any living unit between blocks the shot, friend or foe; a defeated unit does not.
-    BattleState friendly = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                                {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                                {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState friendly = board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                                {3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                                {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(friendly, act(0, 4, 1)));
-    BattleState hostile = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                               {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                               {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState hostile = board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                               {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                               {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(hostile, act(0, 3, 1)) && !battle_legal(hostile, act(0, 5, 1)));
     hostile.units[1].hp = 0;
     CHECK(battle_legal(hostile, act(0, 5, 1)));
-    BattleState up = board(BATTLE_PARTY, {{2, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                          {2, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                          {2, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState up = board(BATTLE_PARTY, {{2, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                          {2, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                          {2, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_can_attack(up, 0, 2));
 }
 
 static void spearman_attacks() {
     // 17. A spearman thrusts at ranges 1 and 2 and stays put.
-    BattleState s = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY, 10},
-                                         {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                         {2, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState s = board(BATTLE_PARTY, {{2, 1, ENEMY_SPEARMAN, BATTLE_PARTY, 10},
+                                         {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                         {2, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(s, act(0, 3, 1)) && battle_legal(s, act(0, 2, 3)));
     battle_apply(s, act(0, 2, 3));
     CHECK(s.units[2].hp == 7 && s.units[0].cell == cell(2, 1));
 
     // 18. The two-cell thrust needs the cell between to be empty.
-    BattleState blocked = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY, 10},
-                                               {2, 2, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                               {2, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState blocked = board(BATTLE_PARTY, {{2, 1, ENEMY_SPEARMAN, BATTLE_PARTY, 10},
+                                               {2, 2, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                               {2, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(blocked, act(0, 2, 3)));
     // 19. Three cells is out of reach.
-    BattleState beyond = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY, 10},
-                                              {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState beyond = board(BATTLE_PARTY, {{2, 1, ENEMY_SPEARMAN, BATTLE_PARTY, 10},
+                                              {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_legal(beyond, act(0, 5, 1)));
 }
 
 static void brute_attacks() {
     // 21. A brute deals exactly 2. 22. A surviving victim is pushed one cell straight away.
-    BattleState s = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                         {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState s = board(BATTLE_PARTY, {{2, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                         {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(s, act(0, 3, 1));
     CHECK(s.units[1].hp == 8 && s.units[1].cell == cell(4, 1));
     CHECK(s.units[0].cell == cell(2, 1) && s.activations == 1 && s.turn == BATTLE_ENEMY);
     // 25. Occupancy follows: the old cell is empty and the new one holds the victim.
     CHECK(battle_unit_at(s, cell(3, 1)) == BATTLE_NO_UNIT && battle_unit_at(s, cell(4, 1)) == 1);
     // Pushes go every way.
-    BattleState north = board(BATTLE_PARTY, {{2, 2, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                             {2, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState north = board(BATTLE_PARTY, {{2, 2, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                             {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(north, act(0, 2, 1));
     CHECK(north.units[1].cell == cell(2, 0));
-    BattleState west = board(BATTLE_PARTY, {{2, 2, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {1, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState west = board(BATTLE_PARTY, {{2, 2, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {1, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(west, act(0, 1, 2));
     CHECK(west.units[1].cell == cell(0, 2));
 
     // 23. No push off the board, or into a unit of either side, and no collision damage.
-    BattleState edge = board(BATTLE_PARTY, {{6, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {7, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState edge = board(BATTLE_PARTY, {{6, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {7, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(edge, act(0, 7, 1));
     CHECK(edge.units[1].cell == cell(7, 1) && edge.units[1].hp == 8);
-    BattleState top = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                           {3, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState top = board(BATTLE_PARTY, {{3, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                           {3, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(top, act(0, 3, 0));
     CHECK(top.units[1].cell == cell(3, 0));
-    BattleState wall = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                            {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                            {3, 2, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10}});
+    BattleState wall = board(BATTLE_PARTY, {{2, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {3, 2, ENEMY_FIGHTER, BATTLE_PARTY, 10}});
     battle_apply(wall, act(0, 3, 1));
     CHECK(wall.units[1].cell == cell(3, 1) && wall.units[1].hp == 8 && wall.units[2].hp == 10);
-    BattleState ally = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                            {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10}});
+    BattleState ally = board(BATTLE_PARTY, {{2, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {4, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10}});
     battle_apply(ally, act(0, 3, 1));
     CHECK(ally.units[1].cell == cell(3, 1) && ally.units[2].hp == 10);
     // A defeated unit's cell is empty, so a push may enter it.
@@ -731,9 +733,9 @@ static void brute_attacks() {
     CHECK(ally.units[1].cell == cell(4, 1) && ally.units[1].hp == 6);
 
     // 24. A victim the blow defeats is not pushed: it is removed where it stood.
-    BattleState kill = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 1},
-                                            {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState kill = board(BATTLE_PARTY, {{2, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 1},
+                                            {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(kill, act(0, 3, 1));
     CHECK(kill.units[1].hp == 0 && kill.units[1].cell == cell(3, 1));
     CHECK(battle_unit_at(kill, cell(3, 1)) == BATTLE_NO_UNIT &&
@@ -750,20 +752,20 @@ static void activations_and_alternation() {
     };
 
     Case const cases[] = {
-        {board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                              {7, 3, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}}),
+        {board(BATTLE_PARTY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                              {7, 3, ENEMY_WOLF, BATTLE_ENEMY, 4}}),
          act(0, 5, 2)},
-        {board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                              {7, 3, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}}),
+        {board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                              {7, 3, ENEMY_WOLF, BATTLE_ENEMY, 4}}),
          act(0, 5, 1)},
-        {board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                              {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}}),
+        {board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                              {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 4}}),
          act(0, 5, 1)},
-        {board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY, 4},
-                              {3, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}}),
+        {board(BATTLE_PARTY, {{1, 1, ENEMY_SPEARMAN, BATTLE_PARTY, 4},
+                              {3, 1, ENEMY_WOLF, BATTLE_ENEMY, 4}}),
          act(0, 3, 1)},
-        {board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 6},
-                              {2, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}}),
+        {board(BATTLE_PARTY, {{1, 1, ENEMY_BRUTE, BATTLE_PARTY, 6},
+                              {2, 1, ENEMY_WOLF, BATTLE_ENEMY, 4}}),
          act(0, 2, 1)},
     };
     for(Case const& c : cases) {
@@ -794,9 +796,9 @@ static void blood_price() {
     // 1-4. Every voluntary move costs its unit exactly 1 HP, whatever its pattern or distance: one
     // cell, a wolf's two-cell run, or a rogue's leap. Nothing else changes when no enemy is
     // adjacent.
-    for(uint8_t t = 0; t < BATTLE_UNIT_TYPE_COUNT; ++t) {
-        BattleState s = board(BATTLE_PARTY, {{3, 1, (BATTLE_UNIT_TYPE)t, BATTLE_PARTY, 10},
-                                             {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    for(uint8_t t = 0; t < ENEMY_COUNT; ++t) {
+        BattleState s = board(BATTLE_PARTY, {{3, 1, (ENEMY_ID)t, BATTLE_PARTY, 10},
+                                             {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
         ActionSet set = legal_set(s);
         CHECK(set.count > 0);
         for(uint8_t i = 0; i < set.count; ++i) {
@@ -806,8 +808,8 @@ static void blood_price() {
             CHECK(moved.units[1].hp == 10 && !moved.ended && moved.turn == BATTLE_ENEMY);
         }
     }
-    BattleState run = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 9},
-                                           {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState run = board(BATTLE_PARTY, {{1, 1, ENEMY_WOLF, BATTLE_PARTY, 9},
+                                           {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(run, act(0, 3, 1));
     CHECK(run.units[0].cell == cell(3, 1) && run.units[0].hp == 8);
 
@@ -825,39 +827,39 @@ static void blood_price() {
     CHECK(late.units[WOLF].hp == 8);
 
     // 7-8. A unit with 1 HP may move; it arrives and then falls.
-    BattleState last = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 1},
-                                            {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                            {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState last = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 1},
+                                            {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                            {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(last, act(0, 4, 1)) && oracle_legal(last, 0, cell(4, 1)));
     battle_apply(last, act(0, 4, 1));
     CHECK(last.units[0].hp == 0 && last.units[0].cell == cell(4, 1) && !last.ended);
     CHECK(battle_unit_at(last, cell(4, 1)) == BATTLE_NO_UNIT && last.turn == BATTLE_ENEMY);
 
     // 9. The price comes after the engagement: a 1 HP mover still hits the enemy beside it.
-    BattleState price = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 1},
-                                             {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                             {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState price = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 1},
+                                             {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                             {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(price, act(0, 4, 1));
     CHECK(price.units[2].hp == 9 && price.units[0].hp == 0);
 }
 
 static void engagement_damage() {
     // 10. One adjacent enemy loses 1 HP, and 14. the mover loses only its price.
-    BattleState one = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                           {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState one = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                           {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(one, act(0, 4, 1));
     CHECK(one.units[1].hp == 9 && one.units[0].hp == 9 && one.units[1].cell == cell(5, 1));
-    CHECK(battle_engagement(board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                                 {5, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}}),
+    CHECK(battle_engagement(board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                                 {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}}),
                             0, cell(4, 1))
               .hits == 1);
 
     // 11. Two adjacent enemies each lose 1; 12. a diagonal enemy and 13. a friend lose nothing.
-    BattleState two = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                           {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                           {5, 2, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12},
-                                           {5, 3, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 9},
-                                           {3, 2, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9}});
+    BattleState two = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                           {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                           {5, 2, ENEMY_BRUTE, BATTLE_ENEMY, 12},
+                                           {5, 3, ENEMY_WOLF, BATTLE_ENEMY, 9},
+                                           {3, 2, ENEMY_ARCHER, BATTLE_PARTY, 9}});
     CHECK(battle_legal(two, act(0, 4, 2)));
     BattleEngagement plan = battle_engagement(two, 0, cell(4, 2));
     CHECK(plan.hits == 2 && plan.kills == 0);
@@ -866,68 +868,68 @@ static void engagement_damage() {
     CHECK(two.units[3].hp == 9 && two.units[4].hp == 9 && two.units[0].hp == 9);
 
     // 16. An archer engages an adjacent enemy it could never shoot.
-    BattleState archer = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                              {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState archer = board(BATTLE_PARTY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                              {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(archer, act(0, 2, 1));
     CHECK(archer.units[1].hp == 9 && !battle_can_attack(archer, 0, 1));
 
     // 17. A brute's engagement deals 1 and pushes no one.
-    BattleState brute = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                             {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState brute = board(BATTLE_PARTY, {{1, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                             {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(brute, act(0, 2, 1));
     CHECK(brute.units[1].hp == 9 && brute.units[1].cell == cell(3, 1));
 
     // 18. A wolf's run engages only at its destination, not beside the cell it runs through.
-    BattleState run = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 9},
-                                           {2, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                           {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState run = board(BATTLE_PARTY, {{1, 1, ENEMY_WOLF, BATTLE_PARTY, 9},
+                                           {2, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                           {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(run, act(0, 3, 1)));
     battle_apply(run, act(0, 3, 1));
     CHECK(run.units[1].hp == 10 && run.units[2].hp == 9 && run.units[0].hp == 8);
 
     // 19. A rogue's leap engages only at its landing cell, not beside its start or the cells it
     // passes.
-    BattleState leap = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                            {2, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                            {3, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState leap = board(BATTLE_PARTY, {{1, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                            {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {3, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_legal(leap, act(0, 3, 2)));
     battle_apply(leap, act(0, 3, 2));
     CHECK(leap.units[1].hp == 10 && leap.units[2].hp == 9);
 
     // 20. A knockback is not a move: the pushed unit pays nothing and engages no one, though it
     // lands beside an enemy of its own.
-    BattleState push = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 12},
-                                            {2, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                            {3, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9}});
+    BattleState push = board(BATTLE_PARTY, {{1, 1, ENEMY_BRUTE, BATTLE_PARTY, 12},
+                                            {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {3, 0, ENEMY_ARCHER, BATTLE_PARTY, 9}});
     battle_apply(push, act(0, 2, 1));
     CHECK(push.units[1].cell == cell(3, 1) && push.units[1].hp == 8);
     CHECK(push.units[2].hp == 9 && push.units[0].hp == 12);
 
     // 21. A normal attack engages no one: the enemy beside the attacker is untouched.
-    BattleState strike = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                              {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                              {3, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState strike = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                              {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                              {3, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_apply(strike, act(0, 4, 1));
     CHECK(strike.units[1].hp == 7 && strike.units[2].hp == 10 && strike.units[0].hp == 10);
 }
 
 static void sacrifices_and_outcomes() {
     // 22. A 1 HP mover defeats an enemy and then falls; the battle goes on while both sides live.
-    BattleState trade = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 1},
-                                             {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                             {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1},
-                                             {7, 3, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState trade = board(BATTLE_PARTY, {{3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 1},
+                                             {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                             {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 1},
+                                             {7, 3, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     CHECK(battle_action_kind(trade, act(0, 4, 1)) == BATTLE_ACTION_KILL);
     battle_apply(trade, act(0, 4, 1));
     CHECK(trade.units[0].hp == 0 && trade.units[2].hp == 0 && !trade.ended);
     CHECK(trade.turn == BATTLE_ENEMY && trade.activations == 1);
 
     // 23. A 1 HP rogue leaps between two 1 HP enemies and takes both with it.
-    BattleState pair = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 1},
-                                            {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                            {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1},
-                                            {5, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 1},
-                                            {7, 0, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState pair = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 1},
+                                            {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                            {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 1},
+                                            {5, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 1},
+                                            {7, 0, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     CHECK(battle_legal(pair, act(0, 4, 2)));
     BattleEngagement both = battle_engagement(pair, 0, cell(4, 2));
     CHECK(both.hits == 2 && both.kills == 2);
@@ -938,8 +940,8 @@ static void sacrifices_and_outcomes() {
     // once: the battle ends before the blood price, so a 1 HP mover that would otherwise fall with
     // its victim survives, and the two sides never fall together. The party's last rogue leaps
     // beside the last wolf...
-    BattleState party_win = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 1},
-                                                 {5, 2, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState party_win = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 1},
+                                                 {5, 2, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     CHECK(battle_action_kind(party_win, act(0, 3, 3)) == BATTLE_ACTION_KIND{BATTLE_ACTION_MOVE});
     CHECK(battle_action_kind(party_win, act(0, 4, 2)) == BATTLE_ACTION_WIN);
     CHECK(battle_legal(party_win, act(0, 4, 2)));
@@ -951,8 +953,8 @@ static void sacrifices_and_outcomes() {
           battle_living(party_win, BATTLE_ENEMY) == 0);
     CHECK(battle_score(party_win, BATTLE_PARTY, 1) == BATTLE_SCORE_WIN - 1);
     // ...and the enemy's last wolf runs beside the party's last archer.
-    BattleState enemy_win = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 1},
-                                                 {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState enemy_win = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 1},
+                                                 {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     CHECK(battle_legal(enemy_win, act(1, 3, 1)));
     battle_apply(enemy_win, act(1, 3, 1));
     CHECK(enemy_win.ended && enemy_win.result == BATTLE_DEFEAT);
@@ -960,24 +962,24 @@ static void sacrifices_and_outcomes() {
     CHECK(battle_score(enemy_win, BATTLE_ENEMY, 1) == BATTLE_SCORE_WIN - 1);
     CHECK(battle_score(enemy_win, BATTLE_PARTY, 1) == -(BATTLE_SCORE_WIN - 1));
     // A winning engagement by a healthy mover costs nothing either.
-    BattleState clean = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                             {5, 2, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState clean = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                             {5, 2, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     battle_apply(clean, act(0, 4, 2));
     CHECK(clean.ended && clean.result == BATTLE_VICTORY && clean.units[0].hp == 5);
     // An engagement that defeats some opponents but not the last still charges the price.
-    BattleState partial = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                               {5, 2, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1},
-                                               {7, 3, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState partial = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                               {5, 2, ENEMY_WOLF, BATTLE_ENEMY, 1},
+                                               {7, 3, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     battle_apply(partial, act(0, 4, 2));
     CHECK(!partial.ended && partial.units[1].hp == 0 && partial.units[0].hp == 4);
 
     // 26. A sacrifice that leaves an opponent standing loses when it removes the side's last unit.
-    BattleState lost = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 1},
-                                            {5, 2, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 5}});
+    BattleState lost = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 1},
+                                            {5, 2, ENEMY_WOLF, BATTLE_ENEMY, 5}});
     battle_apply(lost, act(0, 4, 2));
     CHECK(lost.ended && lost.result == BATTLE_DEFEAT && lost.units[1].hp == 4);
-    BattleState enemy_lost = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 3},
-                                                  {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState enemy_lost = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 3},
+                                                  {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     battle_apply(enemy_lost, act(1, 3, 1));
     CHECK(enemy_lost.ended && enemy_lost.result == BATTLE_VICTORY && enemy_lost.units[0].hp == 2);
 
@@ -989,8 +991,8 @@ static void sacrifices_and_outcomes() {
     CHECK(v.ended && v.result == BATTLE_VICTORY && v.units[ARCHER].hp == 9 && v.activations == 1);
     CHECK(!battle_can_act(v) && !battle_legal(v, act(ROGUE, 4, 2)));
     // A brute's blow that kills the last party member is a defeat, and the dead are not pushed.
-    BattleState d = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 2},
-                                         {3, 1, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState d = board(BATTLE_ENEMY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 2},
+                                         {3, 1, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     battle_apply(d, act(1, 2, 1));
     CHECK(d.ended && d.result == BATTLE_DEFEAT && d.units[0].cell == cell(2, 1));
 }
@@ -998,9 +1000,9 @@ static void sacrifices_and_outcomes() {
 static void forced_pass() {
     // 29. An archer cornered by two adjacent enemies has no move and no shot, so its side passes,
     // and every pass costs 1 HP from the start of the battle.
-    BattleState s = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                         {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                         {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState s = board(BATTLE_PARTY, {{0, 0, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                         {1, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                         {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!battle_can_act(s));
     CHECK(battle_settle(s) == 1 && s.turn == BATTLE_ENEMY && s.activations == 1 &&
           s.units[0].hp == 8);
@@ -1025,15 +1027,15 @@ static void forced_pass() {
     fatal.units[0].hp = 1;
     battle_pass(fatal);
     CHECK(fatal.units[0].hp == 0 && fatal.ended && fatal.result == BATTLE_DEFEAT);
-    BattleState payer = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 1},
-                                             {7, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                             {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState payer = board(BATTLE_PARTY, {{0, 0, ENEMY_ARCHER, BATTLE_PARTY, 1},
+                                             {7, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                             {1, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     battle_pass(payer);
     CHECK(payer.units[0].hp == 0 && !payer.ended && payer.units[1].hp == 8);
     for(BATTLE_TEAM team : {BATTLE_PARTY, BATTLE_ENEMY}) {
-        BattleState wiped = board(team, {{0, 0, BATTLE_TYPE_ARCHER, team, 1},
-                                         {7, 3, BATTLE_TYPE_ARCHER, team, 1},
-                                         {1, 0, BATTLE_TYPE_FIGHTER, (BATTLE_TEAM)(team ^ 1), 10}});
+        BattleState wiped = board(team, {{0, 0, ENEMY_ARCHER, team, 1},
+                                         {7, 3, ENEMY_ARCHER, team, 1},
+                                         {1, 0, ENEMY_FIGHTER, (BATTLE_TEAM)(team ^ 1), 10}});
         battle_pass(wiped);
         CHECK(wiped.ended && wiped.activations == 1 && !wiped.units[0].hp && !wiped.units[1].hp);
         CHECK(wiped.result == (team == BATTLE_PARTY ? BATTLE_DEFEAT : BATTLE_VICTORY));
@@ -1043,16 +1045,16 @@ static void forced_pass() {
     }
 
     // 33. A unit that can move never passes, even when the move would cost its last HP.
-    BattleState brink = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 1},
-                                             {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState brink = board(BATTLE_PARTY, {{0, 0, ENEMY_FIGHTER, BATTLE_PARTY, 1},
+                                             {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_can_act(brink) && battle_settle(brink) == 0 && brink.units[0].hp == 1);
 
     // 34. Settling always returns. The cornered archer passes on every party turn while the enemy's
     // archers step about; every pass and every step costs HP, so the battle ends within its total
     // HP.
-    BattleState pinned = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 3},
-                                              {1, 0, BATTLE_TYPE_ARCHER, BATTLE_ENEMY, 2},
-                                              {0, 1, BATTLE_TYPE_ARCHER, BATTLE_ENEMY, 2}});
+    BattleState pinned = board(BATTLE_PARTY, {{0, 0, ENEMY_ARCHER, BATTLE_PARTY, 3},
+                                              {1, 0, ENEMY_ARCHER, BATTLE_ENEMY, 2},
+                                              {0, 1, ENEMY_ARCHER, BATTLE_ENEMY, 2}});
     unsigned budget = total_hp(pinned), passes = 0;
     while(!pinned.ended) {
         unsigned before = total_hp(pinned);
@@ -1161,8 +1163,8 @@ static void determinism_and_copies() {
         }
     }
     // 31. Copies are independent, including after a knockback.
-    BattleState original = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 6},
-                                                {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState original = board(BATTLE_PARTY, {{2, 1, ENEMY_BRUTE, BATTLE_PARTY, 6},
+                                                {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     BattleState copy = original;
     battle_apply(copy, act(0, 3, 1));
     CHECK(original.units[1].cell == cell(3, 1) && original.units[1].hp == 5 &&
@@ -1235,26 +1237,26 @@ static void legal_action_enumeration() {
     CHECK(opening.attacks == 1 && same_action(opening.actions[0], act(ARCHER, 5, 2)));
 
     // Different archetypes in the same cell generate different action sets.
-    uint32_t sets[BATTLE_UNIT_TYPE_COUNT];
-    for(uint8_t t = 0; t < BATTLE_UNIT_TYPE_COUNT; ++t) {
-        BattleState s = board(BATTLE_PARTY, {{3, 1, (BATTLE_UNIT_TYPE)t, BATTLE_PARTY, 4},
-                                             {3, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
-                                             {6, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    uint32_t sets[ENEMY_COUNT];
+    for(uint8_t t = 0; t < ENEMY_COUNT; ++t) {
+        BattleState s = board(BATTLE_PARTY, {{3, 1, (ENEMY_ID)t, BATTLE_PARTY, 4},
+                                             {3, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5},
+                                             {6, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
         check_enumeration(s);
         sets[t] = destinations(s, 0);
     }
     // The stepping fighter and brute share moves and targets; the others differ from them and from
     // each other.
-    CHECK(sets[BATTLE_TYPE_FIGHTER] == sets[BATTLE_TYPE_BRUTE]);
-    uint8_t distinct[] = {BATTLE_TYPE_FIGHTER, BATTLE_TYPE_ROGUE, BATTLE_TYPE_ARCHER,
-                          BATTLE_TYPE_SPEARMAN, BATTLE_TYPE_WOLF};
+    CHECK(sets[ENEMY_FIGHTER] == sets[ENEMY_BRUTE]);
+    uint8_t distinct[] = {ENEMY_FIGHTER, ENEMY_ROGUE, ENEMY_ARCHER,
+                          ENEMY_SPEARMAN, ENEMY_WOLF};
     for(uint8_t a = 0; a < 5; ++a)
         for(uint8_t b = (uint8_t)(a + 1); b < 5; ++b)
             CHECK(sets[distinct[a]] != sets[distinct[b]]);
     // The spearman reaches the enemy two cells south; the archer reaches the one three cells east.
-    CHECK(sets[BATTLE_TYPE_SPEARMAN] & (1u << cell(3, 3)));
-    CHECK(sets[BATTLE_TYPE_ARCHER] & (1u << cell(6, 1)));
-    CHECK(!(sets[BATTLE_TYPE_FIGHTER] & (1u << cell(3, 3))));
+    CHECK(sets[ENEMY_SPEARMAN] & (1u << cell(3, 3)));
+    CHECK(sets[ENEMY_ARCHER] & (1u << cell(6, 1)));
+    CHECK(!(sets[ENEMY_FIGHTER] & (1u << cell(3, 3))));
 
     // Defeated units have no actions, and neither does a unit of the other side.
     BattleState dead = fresh();
@@ -1268,17 +1270,17 @@ static void legal_action_enumeration() {
 
     // Three units of one side against one, of the archetypes with the most moves: nothing is
     // truncated, and every action is still listed once.
-    BattleState crowd = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                             {5, 2, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                             {4, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                             {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState crowd = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                             {5, 2, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                             {4, 1, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                             {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     check_enumeration(crowd);
     CHECK(legal_set(crowd).count > 2 * BATTLE_MOVE_LIMIT);
     // Four units on one side, an unreachable shape in play, still fits the buffer.
-    BattleState four = board(BATTLE_PARTY, {{1, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                            {6, 1, BATTLE_TYPE_WOLF, BATTLE_PARTY, 4},
-                                            {1, 2, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 4},
-                                            {6, 2, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 4}});
+    BattleState four = board(BATTLE_PARTY, {{1, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                            {6, 1, ENEMY_WOLF, BATTLE_PARTY, 4},
+                                            {1, 2, ENEMY_ROGUE, BATTLE_PARTY, 4},
+                                            {6, 2, ENEMY_ROGUE, BATTLE_PARTY, 4}});
     check_enumeration(four);
 
     // The capacity is the largest total over every split of the eight slots, and each per-unit
@@ -1319,21 +1321,21 @@ static void action_encoding() {
     }
 }
 
-// Units pack into two bytes and keep every value the rules use.
+// Units keep full-byte HP and source IDs independently of placement.
 static void unit_packing() {
-    BattleUnit unit{31, BATTLE_MAX_HP, BATTLE_TYPE_BRUTE, BATTLE_ENEMY};
-    CHECK(unit.cell == 31 && unit.hp == 15 && unit.type == BATTLE_TYPE_BRUTE &&
+    BattleUnit unit{31, BATTLE_MAX_HP, ENEMY_BRUTE, BATTLE_ENEMY};
+    CHECK(unit.cell == 31 && unit.hp == 255 && unit.id == ENEMY_BRUTE &&
           unit.team == BATTLE_ENEMY);
     unit.hp = (uint8_t)(unit.hp - 1);
     unit.cell = 0;
-    CHECK(unit.cell == 0 && unit.hp == 14 && unit.type == BATTLE_TYPE_BRUTE &&
+    CHECK(unit.cell == 0 && unit.hp == 254 && unit.id == ENEMY_BRUTE &&
           unit.team == BATTLE_ENEMY);
-    for(uint8_t t = 0; t < BATTLE_UNIT_TYPE_COUNT; ++t) {
-        unit.type = (BATTLE_UNIT_TYPE)t;
-        CHECK(unit.type == t && unit.hp == 14 && unit.cell == 0);
+    for(uint8_t t = 0; t < ENEMY_COUNT; ++t) {
+        unit.id = (ENEMY_ID)t;
+        CHECK(unit.id == t && unit.hp == 254 && unit.cell == 0);
     }
     unit.team = BATTLE_PARTY;
-    CHECK(unit.team == BATTLE_PARTY && unit.type == BATTLE_UNIT_TYPE_COUNT - 1);
+    CHECK(unit.team == BATTLE_PARTY && unit.id == ENEMY_COUNT - 1);
     // The Grove encounter fits the side limit.
     BattleState grove = fresh();
     CHECK(battle_living(grove, BATTLE_PARTY) <= BATTLE_SIDE_CAPACITY &&
@@ -1385,16 +1387,16 @@ static void search_ordering() {
         }
     }
     // A brute's 2 HP blow kills only a victim with 2 HP or less.
-    BattleState brute = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 3},
-                                             {3, 1, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState brute = board(BATTLE_ENEMY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 3},
+                                             {3, 1, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     CHECK(battle_action_kind(brute, act(1, 2, 1)) == BATTLE_ACTION_ATTACK);
     brute.units[0].hp = 2;
     CHECK(battle_action_kind(brute, act(1, 2, 1)) == BATTLE_ACTION_WIN);
     // A move that engages is damage, one that defeats an engaged enemy is a kill, and a move beside
     // no enemy is quiet.
-    BattleState moves = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                             {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 2},
-                                             {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState moves = board(BATTLE_PARTY, {{2, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                             {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 2},
+                                             {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_action_kind(moves, act(0, 3, 1)) == BATTLE_ACTION_ATTACK);
     CHECK(battle_action_kind(moves, act(0, 2, 0)) == BATTLE_ACTION_MOVE);
     moves.units[1].hp = 1;
@@ -1410,8 +1412,8 @@ static void search_ordering() {
 
 static void terminal_scores() {
     // The enemy's winning blow leaves state.turn on the enemy; the score still names the enemy.
-    BattleState win = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 2},
-                                           {3, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}});
+    BattleState win = board(BATTLE_ENEMY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 2},
+                                           {3, 1, ENEMY_WOLF, BATTLE_ENEMY, 4}});
     battle_apply(win, act(1, 2, 1));
     CHECK(win.ended && win.result == BATTLE_DEFEAT && win.turn == BATTLE_ENEMY);
     CHECK(battle_score(win, BATTLE_ENEMY, 1) == BATTLE_SCORE_WIN - 1);
@@ -1441,11 +1443,11 @@ static void terminal_scores() {
             BATTLE_TEAM strong = way ? BATTLE_ENEMY : BATTLE_PARTY;
             BATTLE_TEAM weak = way ? BATTLE_PARTY : BATTLE_ENEMY;
             BattleState e =
-                board(BATTLE_ENEMY, {{0, 0, BATTLE_TYPE_ARCHER, strong, BATTLE_MAX_HP},
-                                     {0, 1, BATTLE_TYPE_SPEARMAN, strong, BATTLE_MAX_HP},
-                                     {0, 2, BATTLE_TYPE_ARCHER, strong, BATTLE_MAX_HP},
-                                     {0, 3, BATTLE_TYPE_SPEARMAN, strong, BATTLE_MAX_HP},
-                                     {spread ? 7u : 1u, 1, BATTLE_TYPE_FIGHTER, weak, 1}});
+                board(BATTLE_ENEMY, {{0, 0, ENEMY_ARCHER, strong, BATTLE_MAX_HP},
+                                     {0, 1, ENEMY_SPEARMAN, strong, BATTLE_MAX_HP},
+                                     {0, 2, ENEMY_ARCHER, strong, BATTLE_MAX_HP},
+                                     {0, 3, ENEMY_SPEARMAN, strong, BATTLE_MAX_HP},
+                                     {spread ? 7u : 1u, 1, ENEMY_FIGHTER, weak, 1}});
             for(BATTLE_TEAM turn : {BATTLE_PARTY, BATTLE_ENEMY}) {
                 e.turn = turn;
                 int score = battle_score(e, BATTLE_ENEMY, 0);
@@ -1457,27 +1459,27 @@ static void terminal_scores() {
 
 static void attack_gaps() {
     // The gap counts the cells left to line up and come within range.
-    CHECK(battle_attack_gap(BATTLE_TYPE_FIGHTER, 1, 0) == 0);
-    CHECK(battle_attack_gap(BATTLE_TYPE_FIGHTER, 3, 2) == 4);
-    CHECK(battle_attack_gap(BATTLE_TYPE_FIGHTER, 1, 1) == 1);
+    CHECK(battle_attack_gap(ENEMY_FIGHTER, 1, 0) == 0);
+    CHECK(battle_attack_gap(ENEMY_FIGHTER, 3, 2) == 4);
+    CHECK(battle_attack_gap(ENEMY_FIGHTER, 1, 1) == 1);
     // An archer wants distance: adjacent is one cell too close, and two to four cells in line is in
     // range.
-    CHECK(battle_attack_gap(BATTLE_TYPE_ARCHER, 1, 0) == 1);
-    CHECK(battle_attack_gap(BATTLE_TYPE_ARCHER, 0, 3) == 0);
-    CHECK(battle_attack_gap(BATTLE_TYPE_ARCHER, 6, 1) == 3);
-    CHECK(battle_attack_gap(BATTLE_TYPE_ARCHER, 0, 0) == 2);
+    CHECK(battle_attack_gap(ENEMY_ARCHER, 1, 0) == 1);
+    CHECK(battle_attack_gap(ENEMY_ARCHER, 0, 3) == 0);
+    CHECK(battle_attack_gap(ENEMY_ARCHER, 6, 1) == 3);
+    CHECK(battle_attack_gap(ENEMY_ARCHER, 0, 0) == 2);
     // A spearman threatens two cells away.
-    CHECK(battle_attack_gap(BATTLE_TYPE_SPEARMAN, 2, 0) == 0 &&
-          battle_attack_gap(BATTLE_TYPE_SPEARMAN, 3, 0) == 1);
+    CHECK(battle_attack_gap(ENEMY_SPEARMAN, 2, 0) == 0 &&
+          battle_attack_gap(ENEMY_SPEARMAN, 3, 0) == 1);
 }
 
 // The enemy's utility changes by exactly the amounts its weights name, on positions where nothing
 // else changes.
 static void utility_weights() {
-    BattleState base = board(BATTLE_ENEMY, {{0, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                            {0, 3, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                            {6, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 4},
-                                            {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 4}});
+    BattleState base = board(BATTLE_ENEMY, {{0, 0, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                            {0, 3, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                            {6, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 4},
+                                            {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 4}});
     int16_t start = battle_score(base, BATTLE_ENEMY, 0);
     BattleState hurt = base;
     hurt.units[0].hp = 3;
@@ -1494,7 +1496,7 @@ static void utility_weights() {
     // A wolf covers two cells a move, so each cell of its gap is worth half as much: 10 for the sum
     // and 10 for the nearest enemy.
     BattleState wolves = base;
-    wolves.units[3].type = BATTLE_TYPE_WOLF;
+    wolves.units[3].id = ENEMY_WOLF;
     BattleState wolf_closer = wolves;
     wolf_closer.units[3].cell = cell(6, 3);
     CHECK(battle_score(wolf_closer, BATTLE_ENEMY, 0) - battle_score(wolves, BATTLE_ENEMY, 0) == 20);
@@ -1502,24 +1504,24 @@ static void utility_weights() {
     // Strikes count by the real rules. A party archer and a party spearman in the same cell differ
     // only in reach, so the scores differ only in strikes: with the enemy to act, an archer shot in
     // reply at range three costs the enemy 60, and the spearman cannot reach.
-    BattleState archer = board(BATTLE_ENEMY, {{1, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                              {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 4},
-                                              {0, 3, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 4}});
+    BattleState archer = board(BATTLE_ENEMY, {{1, 1, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                              {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 4},
+                                              {0, 3, ENEMY_FIGHTER, BATTLE_PARTY, 4}});
     BattleState spearman = archer;
-    spearman.units[0].type = BATTLE_TYPE_SPEARMAN;
+    spearman.units[0].id = ENEMY_SPEARMAN;
     CHECK(battle_score(archer, BATTLE_ENEMY, 0) - battle_score(spearman, BATTLE_ENEMY, 0) == -60);
     // A unit in the line blocks the shot, so the two score the same.
     BattleState archer_blocked = archer;
     archer_blocked.units[2].cell = cell(2, 1);
     BattleState spearman_blocked = archer_blocked;
-    spearman_blocked.units[0].type = BATTLE_TYPE_SPEARMAN;
+    spearman_blocked.units[0].id = ENEMY_SPEARMAN;
     CHECK(battle_score(archer_blocked, BATTLE_ENEMY, 0) ==
           battle_score(spearman_blocked, BATTLE_ENEMY, 0));
     // An adjacent archer cannot shoot, so it threatens nothing either.
     BattleState archer_adjacent = archer;
     archer_adjacent.units[1].cell = cell(2, 1);
     BattleState spearman_adjacent = archer_adjacent;
-    spearman_adjacent.units[0].type = BATTLE_TYPE_SPEARMAN;
+    spearman_adjacent.units[0].id = ENEMY_SPEARMAN;
     CHECK(battle_score(archer_adjacent, BATTLE_ENEMY, 0) -
               battle_score(spearman_adjacent, BATTLE_ENEMY, 0) ==
           60);
@@ -1571,37 +1573,37 @@ static void expect_completed(BattleState const& s, BattleSearchResult result);
 static void search_matches_reference_on_engagements() {
     BattleState const positions[] = {
         // One engagement target, and two.
-        board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                             {1, 2, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                             {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 9},
-                             {5, 2, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}}),
-        board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                             {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                             {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4},
-                             {5, 2, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 5}}),
+        board(BATTLE_ENEMY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                             {1, 2, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                             {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 9},
+                             {5, 2, ENEMY_BRUTE, BATTLE_ENEMY, 12}}),
+        board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                             {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                             {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 4},
+                             {5, 2, ENEMY_BRUTE, BATTLE_ENEMY, 5}}),
         // Two engagement kills that do not end the battle, and a sacrifice that does.
-        board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 1},
-                             {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                             {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1},
-                             {5, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 1},
-                             {7, 0, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 6}}),
-        board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 1},
-                             {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 2},
-                             {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}}),
+        board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 1},
+                             {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                             {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 1},
+                             {5, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 1},
+                             {7, 0, ENEMY_BRUTE, BATTLE_ENEMY, 6}}),
+        board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 1},
+                             {7, 3, ENEMY_FIGHTER, BATTLE_PARTY, 2},
+                             {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 1}}),
         // An unsuccessful sacrifice beside a sturdy enemy, and ordinary attacks with a knockback.
-        board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 1},
-                             {5, 0, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 6}}),
-        board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                             {2, 2, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                             {3, 1, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12},
-                             {3, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}}),
+        board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 1},
+                             {5, 0, ENEMY_WOLF, BATTLE_ENEMY, 6}}),
+        board(BATTLE_ENEMY, {{2, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                             {2, 2, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                             {3, 1, ENEMY_BRUTE, BATTLE_ENEMY, 12},
+                             {3, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10}}),
         // A blocked archer shot, and a forced pass.
-        board(BATTLE_PARTY, {{0, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                             {2, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                             {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 2}}),
-        board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 2},
-                             {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                             {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}}),
+        board(BATTLE_PARTY, {{0, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                             {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                             {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 2}}),
+        board(BATTLE_PARTY, {{0, 0, ENEMY_ARCHER, BATTLE_PARTY, 2},
+                             {1, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                             {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}}),
     };
     for(BattleState const& position : positions) {
         for(uint8_t depth = 1; depth <= BATTLE_AI_DEPTH; ++depth)
@@ -1621,32 +1623,32 @@ static void search_matches_reference_on_engagements() {
 
 static void search_simulates_mechanics() {
     // A knockback that moves the last enemy out of a lethal line is found and scored correctly.
-    BattleState push = board(BATTLE_PARTY, {{3, 1, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 6},
-                                            {4, 1, BATTLE_TYPE_SPEARMAN, BATTLE_ENEMY, 5},
-                                            {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4}});
+    BattleState push = board(BATTLE_PARTY, {{3, 1, ENEMY_BRUTE, BATTLE_PARTY, 6},
+                                            {4, 1, ENEMY_SPEARMAN, BATTLE_ENEMY, 5},
+                                            {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 4}});
     for(uint8_t depth = 1; depth <= BATTLE_AI_DEPTH; ++depth)
         expect_same_as_reference(push, depth);
 
     // A ranged kill of the last enemy is a win one ply deep, and it comes first.
-    BattleState shot = board(BATTLE_PARTY, {{0, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                            {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 2}});
+    BattleState shot = board(BATTLE_PARTY, {{0, 1, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                            {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 2}});
     BattleSearchResult won = battle_search(shot, BATTLE_AI_DEPTH);
     CHECK(same_action(won.action, act(0, 4, 1)) && won.score == BATTLE_SCORE_WIN - 1);
     // The win ends the root's search at its first child.
     CHECK(battle_search_stats().nodes == 1);
 
     // A wolf sprint and a knight leap reach the last enemy for a kill on the next turn.
-    BattleState sprint = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 2},
-                                              {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4}});
+    BattleState sprint = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 2},
+                                              {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 4}});
     expect_same_as_reference(sprint, 3);
-    BattleState leap = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 2},
-                                            {5, 3, BATTLE_TYPE_ROGUE, BATTLE_ENEMY, 4}});
+    BattleState leap = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 2},
+                                            {5, 3, ENEMY_ROGUE, BATTLE_ENEMY, 4}});
     expect_same_as_reference(leap, 3);
 
     // A forced pass inside the tree: the cornered archer passes, and the search passes with it.
-    BattleState cornered = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                                {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
-                                                {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState cornered = board(BATTLE_PARTY, {{0, 0, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                                {1, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 5},
+                                                {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     BattleSearchResult pass = battle_search(cornered, 2);
     CHECK(pass.action.unit_index == BATTLE_NO_UNIT);
     for(uint8_t depth = 1; depth <= BATTLE_AI_DEPTH; ++depth)
@@ -1668,10 +1670,10 @@ static void search_simulates_mechanics() {
 
 static void voluntary_pass_search() {
     BattleState positions[] = {
-        board(BATTLE_PARTY, {{2, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 3},
-                             {4, 2, BATTLE_TYPE_SPEARMAN, BATTLE_ENEMY, 11}}),
-        board(BATTLE_ENEMY, {{0, 0, BATTLE_TYPE_BRUTE, BATTLE_PARTY, 4},
-                             {0, 1, BATTLE_TYPE_ARCHER, BATTLE_ENEMY, 12}}),
+        board(BATTLE_PARTY, {{2, 3, ENEMY_ARCHER, BATTLE_PARTY, 3},
+                             {4, 2, ENEMY_SPEARMAN, BATTLE_ENEMY, 11}}),
+        board(BATTLE_ENEMY, {{0, 0, ENEMY_BRUTE, BATTLE_PARTY, 4},
+                             {0, 1, ENEMY_ARCHER, BATTLE_ENEMY, 12}}),
     };
     for(BattleState const& s : positions) {
         BattleState before = s;
@@ -1693,26 +1695,26 @@ static void voluntary_pass_search() {
 static void sacrifice_search() {
     // A lone 1 HP wolf with no attack falls to the blood price of any move, so every action loses
     // at once, and the search reports that loss one ply deep.
-    BattleState doomed = board(BATTLE_ENEMY, {{0, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                              {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                              {7, 3, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState doomed = board(BATTLE_ENEMY, {{0, 0, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                              {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                              {7, 3, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     CHECK(battle_search(doomed, BATTLE_AI_DEPTH).score == -(BATTLE_SCORE_WIN - 1));
     BattleState healthier = doomed;
     healthier.units[2].hp = 2;
     CHECK(battle_search(healthier, BATTLE_AI_DEPTH).score > -(BATTLE_SCORE_WIN - 1));
 
     // Self-elimination is avoided: the 1 HP wolf would fall if it moved, so the healthy brute acts.
-    BattleState choice = board(BATTLE_ENEMY, {{0, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                              {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                              {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1},
-                                              {5, 2, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState choice = board(BATTLE_ENEMY, {{0, 0, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                              {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                              {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 1},
+                                              {5, 2, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     BattleAction spare = battle_enemy_action(choice);
     CHECK(spare.unit_index == 3 && battle_legal(choice, spare));
 
     // A winning sacrifice is found at once and scored as a win one ply deep: the enemy's last wolf
     // runs beside the party's last archer, and both fall.
-    BattleState sacrifice = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 1},
-                                                 {5, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState sacrifice = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 1},
+                                                 {5, 1, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     for(uint8_t depth = 1; depth <= BATTLE_AI_DEPTH; ++depth) {
         BattleSearchResult won = battle_search(sacrifice, depth);
         CHECK(same_action(won.action, act(1, 3, 1)) && won.score == BATTLE_SCORE_WIN - 1);
@@ -1723,9 +1725,9 @@ static void sacrifice_search() {
     CHECK(same_action(battle_greedy_action(sacrifice), act(1, 3, 1)));
     // The party's version: its last rogue leaps between two 1 HP enemies, the last of the enemy
     // side.
-    BattleState double_kill = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 1},
-                                                   {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1},
-                                                   {5, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 1}});
+    BattleState double_kill = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 1},
+                                                   {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 1},
+                                                   {5, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 1}});
     CHECK(battle_legal(double_kill, act(0, 4, 2)));
     BattleSearchResult both = battle_search(double_kill, 2);
     CHECK(same_action(both.action, act(0, 4, 2)) && both.score == BATTLE_SCORE_WIN - 1);
@@ -1734,8 +1736,8 @@ static void sacrifice_search() {
 
     // A losing sacrifice is avoided: the last wolf, at 1 HP beside a 9 HP archer, strikes rather
     // than move, since any move would cost its last HP and lose.
-    BattleState hopeless = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                                {3, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 1}});
+    BattleState hopeless = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                                {3, 1, ENEMY_WOLF, BATTLE_ENEMY, 1}});
     BattleAction bite = battle_enemy_action(hopeless);
     CHECK(same_action(bite, act(1, 2, 1)));
     CHECK(same_action(battle_greedy_action(hopeless), act(1, 2, 1)));
@@ -1770,8 +1772,8 @@ static void search_bounds() {
     CHECK(first.nodes < unpruned && first.leaves <= first.nodes && first.leaves > 0);
 
     // The workspace: four plies of 4 bytes, four killer bytes, the 82-byte shared action scratch
-    // (two plies of four rogues a side, four of any two-on-two battle), and four 22-byte positions.
-    CHECK(battle_search_workspace_bytes() == 4 * 4 + 4 + 82 + 4 * 22);
+    // (two plies of four rogues a side, four of any two-on-two battle), and four compact positions.
+    CHECK(battle_search_workspace_bytes() == 4 * 4 + 4 + 82 + 4 * sizeof(BattleState));
     printf(
         "search workspace %u bytes; enemy opening depth %u: %u nodes, %u leaves (unpruned %llu)\n",
         (unsigned)battle_search_workspace_bytes(), (unsigned)BATTLE_AI_DEPTH, (unsigned)first.nodes,
@@ -1848,18 +1850,18 @@ static void budget_boundaries() {
     CHECK(battle_search_stats().completed == 1);
 
     // An immediate win stops the deepening at depth one.
-    BattleState win = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 2},
-                                           {3, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4},
-                                           {7, 3, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 6}});
+    BattleState win = board(BATTLE_ENEMY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 2},
+                                           {3, 1, ENEMY_WOLF, BATTLE_ENEMY, 4},
+                                           {7, 3, ENEMY_BRUTE, BATTLE_ENEMY, 6}});
     BattleSearchResult quick = battle_think(win, BATTLE_AI_DEPTH, BATTLE_AI_NODE_BUDGET);
     CHECK(same_action(quick.action, act(1, 2, 1)) && quick.score == BATTLE_SCORE_WIN - 1);
     CHECK(battle_search_stats().completed == 1 && battle_search_stats().nodes == 1);
     CHECK(same_action(battle_enemy_action(win), act(1, 2, 1)));
 
     // No legal action: the result is a pass, from a completed iteration.
-    BattleState cornered = board(BATTLE_ENEMY, {{1, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                                {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 5},
-                                                {0, 0, BATTLE_TYPE_ARCHER, BATTLE_ENEMY, 4}});
+    BattleState cornered = board(BATTLE_ENEMY, {{1, 0, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                                {0, 1, ENEMY_FIGHTER, BATTLE_PARTY, 5},
+                                                {0, 0, ENEMY_ARCHER, BATTLE_ENEMY, 4}});
     BattleSearchResult none = battle_think(cornered, BATTLE_AI_DEPTH, BATTLE_AI_NODE_BUDGET);
     CHECK(none.action.unit_index == BATTLE_NO_UNIT && battle_search_stats().completed >= 1);
     CHECK(battle_enemy_action(cornered).unit_index == BATTLE_NO_UNIT);
@@ -1897,7 +1899,7 @@ static unsigned attack_gap_to_party(BattleState const& s, uint8_t unit, uint8_t 
             continue;
         unsigned dx = (unsigned)abs(battle_column(from) - battle_column(u.cell));
         unsigned dy = (unsigned)abs(battle_row(from) - battle_row(u.cell));
-        unsigned gap = battle_attack_gap(s.units[unit].type, (uint8_t)dx, (uint8_t)dy);
+        unsigned gap = battle_attack_gap(s.units[unit].id, (uint8_t)dx, (uint8_t)dy);
         if(gap < best)
             best = gap;
     }
@@ -1914,8 +1916,8 @@ static bool threatened(BattleState const& s, uint8_t unit) {
 
 static void enemy_behavior() {
     // Wolf sprint: a lone wolf far from a fighter closes two cells in one move.
-    BattleState sprint = board(BATTLE_ENEMY, {{0, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                              {7, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 9}});
+    BattleState sprint = board(BATTLE_ENEMY, {{0, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                              {7, 1, ENEMY_WOLF, BATTLE_ENEMY, 9}});
     BattleAction run = battle_enemy_action(sprint);
     CHECK(run.unit_index == 1 && battle_unit_at(sprint, run.destination) == BATTLE_NO_UNIT);
     unsigned run_length =
@@ -1927,10 +1929,10 @@ static void enemy_behavior() {
     // Brute knockback: the 3 HP fighter cannot escape, the party fighter beside it would finish it
     // with one blow, and the adjacent archer cannot shoot. The brute's blow pushes the party
     // fighter away.
-    BattleState knock = board(BATTLE_ENEMY, {{1, 1, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                             {0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                             {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 3},
-                                             {1, 0, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState knock = board(BATTLE_ENEMY, {{1, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                             {0, 0, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                             {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 3},
+                                             {1, 0, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     CHECK(threatened(knock, 2));
     BattleAction shove = battle_enemy_action(knock);
     CHECK(same_action(shove, act(3, 1, 1)));
@@ -1940,10 +1942,10 @@ static void enemy_behavior() {
 
     // Archer minimum range: an enemy fighter beside an archer strikes it rather than step into its
     // line of fire.
-    BattleState close = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                             {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                             {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 3},
-                                             {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState close = board(BATTLE_ENEMY, {{2, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                             {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                             {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 3},
+                                             {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(!threatened(close, 2));
     BattleAction stay = battle_enemy_action(close);
     BattleState after = close;
@@ -1953,10 +1955,10 @@ static void enemy_behavior() {
 
     // Spearman reach: a 4 HP wolf two cells from a spearman leaves the thrust's reach (a run costs
     // it 1, and a thrust would then finish it).
-    BattleState reach = board(BATTLE_ENEMY, {{2, 1, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY, 10},
-                                             {0, 3, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                             {4, 1, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 4},
-                                             {7, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState reach = board(BATTLE_ENEMY, {{2, 1, ENEMY_SPEARMAN, BATTLE_PARTY, 10},
+                                             {0, 3, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                             {4, 1, ENEMY_WOLF, BATTLE_ENEMY, 4},
+                                             {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(threatened(reach, 2));
     BattleAction away = battle_enemy_action(reach);
     BattleState moved = reach;
@@ -1964,10 +1966,10 @@ static void enemy_behavior() {
     CHECK(!threatened(moved, 2));
 
     // Blocked line: an injured enemy in an archer's open line moves out of it or behind cover.
-    BattleState open = board(BATTLE_ENEMY, {{0, 1, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                            {0, 3, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                            {3, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 4},
-                                            {6, 2, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState open = board(BATTLE_ENEMY, {{0, 1, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                            {0, 3, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                            {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 4},
+                                            {6, 2, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     CHECK(threatened(open, 2));
     BattleState sheltered = open;
     battle_apply(sheltered, battle_enemy_action(open));
@@ -1978,10 +1980,10 @@ static void enemy_behavior() {
     CHECK(!threatened(covered, 2));
 
     // Tactical aggression: a healthy enemy beside a hero attacks it rather than stepping back.
-    BattleState adjacent = board(BATTLE_ENEMY, {{3, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                                {0, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 9},
-                                                {4, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                                {7, 3, BATTLE_TYPE_WOLF, BATTLE_ENEMY, 9}});
+    BattleState adjacent = board(BATTLE_ENEMY, {{3, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                                {0, 3, ENEMY_ARCHER, BATTLE_PARTY, 9},
+                                                {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {7, 3, ENEMY_WOLF, BATTLE_ENEMY, 9}});
     BattleAction strike = battle_enemy_action(adjacent);
     CHECK(battle_unit_at(adjacent, strike.destination) != BATTLE_NO_UNIT);
     // A kill is taken.
@@ -1989,10 +1991,10 @@ static void enemy_behavior() {
     finish.units[0].hp = 3;
     CHECK(same_action(battle_enemy_action(finish), act(2, 3, 1)));
     // With nothing in reach, the enemy closes in.
-    BattleState far = board(BATTLE_ENEMY, {{1, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                           {1, 2, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                           {6, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 10},
-                                           {7, 2, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 12}});
+    BattleState far = board(BATTLE_ENEMY, {{1, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                           {1, 2, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                           {6, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                           {7, 2, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
     BattleAction advance = battle_enemy_action(far);
     CHECK(battle_unit_at(far, advance.destination) == BATTLE_NO_UNIT);
     CHECK(attack_gap_to_party(far, advance.unit_index, advance.destination) <
@@ -2005,9 +2007,9 @@ static void party_search_uses_leaps() {
     // other the party's own fighter. The leap engages the brute on landing, and the same search the
     // enemy uses, run for the party, finds the forced win within three plies, whatever the brute
     // does.
-    BattleState wall = board(BATTLE_PARTY, {{2, 1, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 10},
-                                            {2, 0, BATTLE_TYPE_FIGHTER, BATTLE_PARTY, 10},
-                                            {0, 1, BATTLE_TYPE_BRUTE, BATTLE_ENEMY, 2}});
+    BattleState wall = board(BATTLE_PARTY, {{2, 1, ENEMY_ROGUE, BATTLE_PARTY, 10},
+                                            {2, 0, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                            {0, 1, ENEMY_BRUTE, BATTLE_ENEMY, 2}});
     CHECK(legal_set(wall).attacks == 0 && battle_legal(wall, act(0, 0, 0)));
     CHECK(battle_unit_at(wall, cell(1, 1)) == BATTLE_NO_UNIT &&
           battle_unit_at(wall, cell(0, 1)) == 2);
@@ -2022,18 +2024,18 @@ static void party_search_uses_leaps() {
 
 // A four-on-four encounter: the rules, the copied state, and the encounter table all hold eight
 // units.
-static constexpr BattleEncounter PROGMEM TEST_FOUR_A_SIDE{
+static constexpr BattleFixture PROGMEM TEST_FOUR_A_SIDE{
     BATTLEFIELD_GROVE,
     8,
     {
-        {battle_cell(1, 0), 5, BATTLE_TYPE_FIGHTER, BATTLE_PARTY},
-        {battle_cell(1, 1), 5, BATTLE_TYPE_ROGUE, BATTLE_PARTY},
-        {battle_cell(0, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_PARTY},
-        {battle_cell(1, 3), 5, BATTLE_TYPE_SPEARMAN, BATTLE_PARTY},
-        {battle_cell(6, 0), 4, BATTLE_TYPE_WOLF, BATTLE_ENEMY},
-        {battle_cell(6, 1), 6, BATTLE_TYPE_BRUTE, BATTLE_ENEMY},
-        {battle_cell(7, 2), 4, BATTLE_TYPE_ARCHER, BATTLE_ENEMY},
-        {battle_cell(6, 3), 15, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY},
+        {battle_cell(1, 0), 5, ENEMY_FIGHTER, BATTLE_PARTY},
+        {battle_cell(1, 1), 5, ENEMY_ROGUE, BATTLE_PARTY},
+        {battle_cell(0, 2), 4, ENEMY_ARCHER, BATTLE_PARTY},
+        {battle_cell(1, 3), 5, ENEMY_SPEARMAN, BATTLE_PARTY},
+        {battle_cell(6, 0), 4, ENEMY_WOLF, BATTLE_ENEMY},
+        {battle_cell(6, 1), 6, ENEMY_BRUTE, BATTLE_ENEMY},
+        {battle_cell(7, 2), 4, ENEMY_ARCHER, BATTLE_ENEMY},
+        {battle_cell(6, 3), BATTLE_MAX_HP, ENEMY_FIGHTER, BATTLE_ENEMY},
     },
 };
 
@@ -2042,23 +2044,23 @@ static constexpr BattleEncounter PROGMEM TEST_FOUR_A_SIDE{
 // or a wolf at most two per direction, and only one toward the near edge of a four-row board; a
 // rogue at most six leaps (two of its eight leave a four-row board from any cell) and four adjacent
 // attacks. Attacks never exceed the opponents.
-static unsigned oracle_unit_limit(BATTLE_UNIT_TYPE type, unsigned opponents) {
+static unsigned oracle_unit_limit(uint8_t type, unsigned opponents) {
     OracleType rules = oracle_type(type);
     unsigned moves = rules.knight ? 6 : rules.move_range == 2 ? 7 : 4;
-    unsigned per_type = type == BATTLE_TYPE_FIGHTER || type == BATTLE_TYPE_BRUTE ? 4
-                        : type == BATTLE_TYPE_ROGUE                              ? 10
+    unsigned per_type = type == ENEMY_FIGHTER || type == ENEMY_BRUTE ? 4
+                        : type == ENEMY_ROGUE                              ? 10
                                                                                  : 7;
     return per_type < moves + opponents ? per_type : moves + opponents;
 }
 
 static void four_a_side() {
     BattleState s;
-    battle_begin(s, &TEST_FOUR_A_SIDE);
-    CHECK(s.unit_count == 8 && sizeof(BattleState) == 22);
+    battle_fixture_begin(s, &TEST_FOUR_A_SIDE);
+    CHECK(s.unit_count == 8 && sizeof(BattleState) == 31);
     CHECK(battle_living(s, BATTLE_PARTY) == 4 && battle_living(s, BATTLE_ENEMY) == 4);
     for(uint8_t i = 0; i < 8; ++i)
         CHECK(battle_unit_at(s, s.units[i].cell) == i);
-    CHECK(s.units[7].hp == BATTLE_MAX_HP && s.units[7].type == BATTLE_TYPE_FIGHTER);
+    CHECK(s.units[7].hp == BATTLE_MAX_HP && s.units[7].id == ENEMY_FIGHTER);
     check_enumeration(s);
     BattleState enemy = s;
     enemy.turn = BATTLE_ENEMY;
@@ -2081,22 +2083,22 @@ static void four_a_side() {
             unsigned count = battle_unit_actions(r, u, packed, attacks);
             unsigned opponents =
                 battle_living(r, r.turn == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY);
-            CHECK(count <= oracle_unit_limit(r.units[u].type, opponents));
+            CHECK(count <= oracle_unit_limit(r.units[u].id, opponents));
         }
     }
 
     // The search's depth follows the composition: any two-on-two battle and the Grove get four
     // plies, a mixed four-on-four battle three, and four rogues a side still two.
     CHECK(battle_search_depth_limit(fresh()) == BATTLE_AI_DEPTH);
-    BattleState rogues2 = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                               {0, 3, BATTLE_TYPE_ROGUE, BATTLE_PARTY, 5},
-                                               {7, 0, BATTLE_TYPE_ROGUE, BATTLE_ENEMY, 5},
-                                               {7, 3, BATTLE_TYPE_ROGUE, BATTLE_ENEMY, 5}});
+    BattleState rogues2 = board(BATTLE_PARTY, {{0, 0, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                               {0, 3, ENEMY_ROGUE, BATTLE_PARTY, 5},
+                                               {7, 0, ENEMY_ROGUE, BATTLE_ENEMY, 5},
+                                               {7, 3, ENEMY_ROGUE, BATTLE_ENEMY, 5}});
     CHECK(battle_search_depth_limit(rogues2) == BATTLE_AI_DEPTH);
     CHECK(battle_search_depth_limit(s) == 3);
     BattleState rogues4 = s;
     for(uint8_t i = 0; i < 8; ++i)
-        rogues4.units[i].type = BATTLE_TYPE_ROGUE;
+        rogues4.units[i].id = ENEMY_ROGUE;
     CHECK(battle_search_depth_limit(rogues4) == 2);
     // A defeated unit no longer counts, so the limit can only rise as a battle goes on.
     BattleState fewer = rogues4;
@@ -2135,12 +2137,12 @@ static void four_a_side() {
           battle_legal(enemy, battle_enemy_action(enemy)));
 
     // A forced pass on a full board: the cornered archer's whole side is boxed in.
-    BattleState boxed = board(BATTLE_PARTY, {{0, 0, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                             {1, 0, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
-                                             {0, 1, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
-                                             {7, 3, BATTLE_TYPE_ARCHER, BATTLE_PARTY, 4},
-                                             {6, 3, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5},
-                                             {7, 2, BATTLE_TYPE_FIGHTER, BATTLE_ENEMY, 5}});
+    BattleState boxed = board(BATTLE_PARTY, {{0, 0, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                             {1, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 5},
+                                             {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 5},
+                                             {7, 3, ENEMY_ARCHER, BATTLE_PARTY, 4},
+                                             {6, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 5},
+                                             {7, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
     CHECK(!battle_can_act(boxed));
     BattleSearchResult passed = battle_search(boxed, 3);
     CHECK(passed.action.unit_index == BATTLE_NO_UNIT && passed.depth == 3);
@@ -2281,7 +2283,74 @@ static void target_frames() {
     }
 }
 
+static void saved_party_battles() {
+    game = {};
+    game.party.count = 2;
+    game.party.members[0] = {255, 255, MOVEMENT_KNIGHT, ATTACK_ARCHER, NPC_NONE};
+    game.party.members[1] = {127, 200, MOVEMENT_WOLF, ATTACK_BRUTE, NPC_ROWAN};
+    Party saved = game.party;
+    BattleState state;
+    battle_begin(state, &BATTLE_GROVE);
+    CHECK(state.unit_count == 4 && state.units[0].hp == 255 && state.units[1].hp == 127);
+    CHECK(state.units[0].id == battle_party_id(0) && state.units[1].id == battle_party_id(1));
+    CHECK(state.units[2].id == ENEMY_WOLF && state.units[2].hp == ENEMY_INFO[ENEMY_WOLF].max_hp);
+    CHECK(state.units[3].id == ENEMY_BRUTE && state.units[3].hp == ENEMY_INFO[ENEMY_BRUTE].max_hp);
+    CHECK(battle_max_hp(state.units[0]) == 255 && battle_max_hp(state.units[1]) == 200);
+    CHECK(battle_sprite_row(state.units[0]) == 0 && battle_sprite_row(state.units[1]) == 3);
+    CHECK(battle_can_move_to(state, 0, cell(3, 3)));
+    CHECK(!battle_can_move_to(state, 0, cell(3, 1)));
+    CHECK(battle_can_attack(state, 0, 2)); // Knight movement with the archer's range-four shot.
+    CHECK(battle_rules(state.units[1].id).move_range == 2);
+    CHECK(battle_rules(state.units[1].id).effect == BATTLE_EFFECT_KNOCKBACK);
+    BattleState child = state;
+    battle_apply(child, act(0, 6, 1));
+    CHECK(child.units[2].hp == state.units[2].hp - 3 && child.units[0].hp == 255);
+    CHECK(!memcmp(&game.party, &saved, sizeof(Party)));
+    BattleSearchResult choice = battle_search(state, 2);
+    CHECK(choice.depth && !memcmp(&game.party, &saved, sizeof(Party)));
+    state.units[0].hp = 201;
+    state.units[1].hp = 0;
+    battle_finish(state);
+    saved.members[0].hp = 201;
+    saved.members[1].hp = 0;
+    CHECK(!memcmp(&game.party, &saved, sizeof(Party)));
+    battle_begin(state, &BATTLE_GROVE);
+    CHECK(state.unit_count == 3 && battle_living(state, BATTLE_PARTY) == 1);
+    game.party.members[0].hp = 0;
+    battle_begin(state, &BATTLE_GROVE);
+    CHECK(state.ended && state.result == BATTLE_DEFEAT);
+
+    // Every independent class combination reaches the shared rule and AI tables.
+    game.party.count = 1;
+    for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
+        for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
+            game.party.members[0] = {255, 255, m, a, NPC_NONE};
+            battle_begin(state, &BATTLE_GROVE);
+            auto const& rules = battle_rules(state.units[0].id);
+            CHECK(rules.movement_type == MOVEMENT_INFO[m].movement_type);
+            CHECK(rules.move_range == MOVEMENT_INFO[m].move_range);
+            CHECK(rules.attack_min == ATTACK_INFO[a].attack_min);
+            CHECK(rules.attack_max == ATTACK_INFO[a].attack_max);
+            CHECK(rules.damage == ATTACK_INFO[a].damage && rules.effect == ATTACK_INFO[a].effect);
+            uint64_t nodes = 0;
+            BattleSearchResult reference = reference_search(state, 1, nodes);
+            choice = battle_search(state, 1);
+            CHECK(choice.score == reference.score && same_action(choice.action, reference.action));
+        }
+    // Full-health passes can last beyond 255 activations without wrapping or truncating HP.
+    state = board(BATTLE_PARTY, {{0, 0, ENEMY_FIGHTER, BATTLE_PARTY, 255},
+                                  {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 255}});
+    for(unsigned i = 0; i < 508; ++i)
+        battle_pass(state);
+    CHECK(!state.ended && state.activations == 508);
+    CHECK(state.units[0].hp == 1 && state.units[1].hp == 1);
+    battle_pass(state);
+    CHECK(state.ended && state.result == BATTLE_DEFEAT && state.activations == 509);
+    CHECK(state.units[0].hp == 0 && state.units[1].hp == 1);
+}
+
 int main() {
+    saved_party_battles();
     unit_definitions();
     initial_layout();
     teams_are_explicit();

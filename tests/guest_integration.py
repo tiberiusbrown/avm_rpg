@@ -96,6 +96,9 @@ def main():
         "avm run-for 100ms",
         "avm button set A",
         "avm run-for 100ms",
+        "avm button set",
+        "avm run-for 400ms",
+        "expr (int)game.party.count",
         "thread backtrace",
     ]
     output = lldb(sdk, artifacts / "rpg.elf", commands, work / "sdk-input.log")
@@ -109,7 +112,8 @@ def main():
         and values[2] > spawn["ty"] * 16
         and values[3] == values[4]
     ), f"AVM shared rules/input diverged: {values}"
-    assert "menu_screen" in output and "status_screen" in output and "explore" in output
+    assert values[5] == 1
+    assert "party_screen" in output and "explore" in output
     proof = [
         # M0 returns from loop every frame; setup is a one-shot stop during boot.
         "breakpoint set --name setup",

@@ -77,8 +77,8 @@ struct Npc {
 };
 
 
-// Occupied slots form a prefix: casts take the first empty slot, and only npc_reset empties the
-// pool. Scans may therefore stop at the first empty slot.
+// Occupied slots form a prefix: casts take the first empty slot, and recruitment compacts
+// the remaining actors. Scans may therefore stop at the first empty slot.
 struct NpcPool {
     Npc actors[NPC_CAPACITY];
     // Each NPC_ID's residence: a dynamic NPC's destination, or a static NPC's fixed home. Saved.
@@ -87,13 +87,13 @@ struct NpcPool {
     uint8_t entering;
     uint8_t activation_deferrals;
     DIRECTION push_direction;
-    // True once every defined NPC holds a slot. Only npc_reset clears it, since nothing is removed.
+    // True once every available NPC holds a slot. Reset and recruitment clear it.
     bool settled;
 };
 
 static_assert(NPC_ID_LIMIT <= NPC_CAPACITY, "every NPC ID can own a slot, so none is evicted");
 static_assert(sizeof(Npc) == 18, "compact live NPC record");
-// AVM packs this to 157 bytes; host alignment of Npc pads it to 158.
-static_assert(sizeof(NpcPool) <= 158, "fixed NPC storage, independent of authored count");
+// The additional residence keeps this record even-sized on both AVM and the host.
+static_assert(sizeof(NpcPool) == 160, "fixed NPC storage, independent of authored count");
 
 #endif

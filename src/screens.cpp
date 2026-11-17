@@ -30,10 +30,22 @@ __attribute__((noinline)) void title_screen() {
         game_start();
 }
 
-__attribute__((noinline)) void status_screen() {
-    render_status();
-    avm_display(true);
-    input_wait_press(BTN_A | BTN_B);
+__attribute__((noinline)) void party_screen() {
+    int16_t revealed = 0;
+    bool closing = false;
+    input_sync();
+
+    for(;;) {
+        input_wait_frame();
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(PARTY_WIDTH));
+        render_party((uint8_t)cursor_pixel(revealed), closing);
+        avm_display(true);
+        if(closing) {
+            if(!revealed)
+                return;
+        } else if(input_pressed() & (BTN_A | BTN_B))
+            closing = true;
+    }
 }
 
 bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle) {
@@ -54,8 +66,8 @@ bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle) {
     }
 }
 
-__attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
-    PAUSE_ITEM selection = PAUSE_RESUME;
+__attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUSE_ITEM initial) {
+    PAUSE_ITEM selection = initial;
     uint8_t width = menu_width(battle != nullptr);
     int16_t revealed = 0;
     bool closing = false;
@@ -77,7 +89,8 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
         uint8_t pressed = input_pressed();
 
         if(closing) {
-            if(!revealed || (action == MENU_AUDIO && !cursor_pixel(revealed)))
+            if(!revealed ||
+               ((action == MENU_AUDIO || action == MENU_PARTY) && !cursor_pixel(revealed)))
                 return action;
             continue;
         }
@@ -113,8 +126,9 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle) {
                     feedback = F("Saved");
                     break;
                 case PAUSE_PARTY:
-                    status_screen();
-                    input_sync();
+                    action = MENU_PARTY;
+                    closing = true;
+                    feedback = nullptr;
                     break;
                 case PAUSE_PASS:
                 case PAUSE_RESIGN:
@@ -193,11 +207,23 @@ __attribute__((noinline)) void explore() {
 
         if(pressed & BTN_B) {
             // Refresh after the menu's locals have left the stack: chunk dialogue can enter battle.
-            MENU_EXIT action = menu_screen();
+            MENU_EXIT action;
+            PAUSE_ITEM initial = PAUSE_RESUME;
+            do {
+                action = menu_screen(nullptr, initial);
+                if(action == MENU_PARTY) {
+                    party_screen();
+                    initial = PAUSE_PARTY;
+                }
+            } while(action == MENU_PARTY);
             if(action == MENU_LOAD) {
                 game_load();
                 update_visible_world(0, false);
                 music_play_area();
+                // Keep the black load frame while rebuilding the saved world. Its first render
+                // starts a fresh frame, so validation/casting and drawing do not share a budget.
+                input_wait_frame();
+                avm_display(true);
                 fade_world_in();
             } else if(action == MENU_AUDIO)
                 audio_screen();

@@ -51,8 +51,8 @@ struct Cursor {
 
 enum SCREEN_MOTION : uint8_t { MOTION_STILL, MOTION_WALK, MOTION_LEAP, MOTION_SHOT };
 
-// Everything one battle's screen needs. battle_show allocates it on its own frame and passes it to
-// each helper, so no battle data is static.
+// One blocking battle owns this fixed workspace. Keeping it off the call stack leaves room for
+// full-byte HP and the AI while staying within the guest's 256-byte stack budget.
 struct BattleScreen {
     BattleState state;
     Cursor cursor;
@@ -70,7 +70,7 @@ struct BattleScreen {
     // Bit i is set for each unit flashing after damage.
     uint8_t flashing;
     // The HP each flashing unit lost, four bits per unit: unit i is in damage[i / 2], in the high
-    // half when i is odd. HP is at most BATTLE_MAX_HP, so a loss always fits.
+    // half when i is odd. Current attack and engagement damage fit four bits.
     uint8_t damage[BATTLE_UNIT_CAPACITY / 2];
     // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
     // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
@@ -99,14 +99,19 @@ static void draw_actor_info(BattleState const& state, Cursor const& cursor) {
     if(index == BATTLE_NO_UNIT)
         return;
 
-    static constexpr char PROGMEM CLASS_NAMES[BATTLE_UNIT_TYPE_COUNT][9] = {
-        "Fighter", "Rogue", "Archer", "Spearman", "Wolf", "Brute"};
+    static constexpr char PROGMEM MOVE_NAMES[MOVEMENT_CLASS_COUNT][8] = {"Fighter", "Knight",
+                                                                         "Wolf"};
+    static constexpr char PROGMEM ATTACK_NAMES[ATTACK_CLASS_COUNT][9] = {
+        "Fighter", "Archer", "Spearman", "Brute", "Bite"};
     BattleUnit const& unit = state.units[index];
-    int16_t x = battle_column(cursor.cell) < BATTLE_COLUMNS / 2 ? 76 : 2;
-    avm_draw_filled_rect_white(x, 44, 50, 18);
-    avm_draw_filled_rect_black(x + 1, 45, 48, 16);
-    avm_draw_text(x + 4, 51, CLASS_NAMES[unit.type]);
-    avm_draw_textf(x + 4, 59, F("HP %u"), unit.hp);
+    int16_t x = battle_column(cursor.cell) < BATTLE_COLUMNS / 2 ? 60 : 2;
+    avm_draw_filled_rect_white(x, 37, 66, 25);
+    avm_draw_filled_rect_black(x + 1, 38, 64, 23);
+    avm_draw_text(x + 3, 44, F("M:"));
+    avm_draw_text(x + 15, 44, MOVE_NAMES[battle_movement_class(unit.id)]);
+    avm_draw_text(x + 3, 51, F("A:"));
+    avm_draw_text(x + 15, 51, ATTACK_NAMES[battle_attack_class(unit.id)]);
+    avm_draw_textf(x + 3, 59, F("HP %u/%u"), unit.hp, battle_max_hp(unit));
 }
 
 // Moves the rendered cursor halfway toward its logical cell and advances the dash pattern.
@@ -338,13 +343,13 @@ RPG_NOINLINE static bool any_fallen(BattleScreen const& screen) {
 }
 
 // The sound of a unit type's attack landing. An archer's arrow has its own sounds.
-static SFX attack_sound(uint8_t type) {
-    switch(type) {
-        case BATTLE_TYPE_SPEARMAN:
+static SFX attack_sound(uint8_t attack) {
+    switch(attack) {
+        case ATTACK_SPEARMAN:
             return SFX_THRUST;
-        case BATTLE_TYPE_WOLF:
+        case ATTACK_BITE:
             return SFX_BITE;
-        case BATTLE_TYPE_BRUTE:
+        case ATTACK_BRUTE:
             return SFX_SMASH;
         default:
             return SFX_STRIKE;
@@ -477,15 +482,15 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
     // lunges toward its victim.
     uint8_t lunger = screen.mover;
     uint8_t actor = action.unit_index;
-    uint8_t type = screen.state.units[actor].type;
+    uint8_t attack = battle_attack_class(screen.state.units[actor].id);
     // The sound that starts the reaction: the attack landing, the arrow arriving, or for a move
     // the clash of its engagement, or only its price when it hurt no one else.
-    SFX impact = attack_sound(type);
+    SFX impact = attack_sound(attack);
     if(screen.mover_dx != 0 || screen.mover_dy != 0) {
         walk_unit(screen);
         lunger = BATTLE_NO_UNIT;
         impact = screen.flashing & ~(1 << actor) ? SFX_CLASH : SFX_PRICE;
-    } else if(type == BATTLE_TYPE_ARCHER) {
+    } else if(attack == ATTACK_ARCHER) {
         fly_arrow(screen, action.destination, toward);
         lunger = BATTLE_NO_UNIT;
         impact = SFX_ARROW_HIT;
@@ -602,8 +607,9 @@ RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
 }
 
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
-    // Everything this battle needs lives in one local, and each helper receives it.
-    BattleScreen screen{};
+    // Battles cannot nest; reuse one fixed screen workspace, clearing it on every entry.
+    static BattleScreen screen;
+    screen = {};
     BattleState& state = screen.state;
     battle_begin(state, encounter);
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
@@ -653,6 +659,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         }
     }
 
+    battle_finish(state);
     draw_board(screen, BATTLE_NO_UNIT, SOUTH);
     draw_result(state.result);
     avm_display(false);

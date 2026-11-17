@@ -35,7 +35,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 9;
+inline constexpr uint8_t SAVE_VERSION = 10;
 
 enum {
     BTN_B = 4,
@@ -90,13 +90,49 @@ struct AudioOptions {
     uint8_t sfx = OPTION_SLIDER_MAX;
 };
 
+inline constexpr uint8_t PARTY_CAPACITY = 4;
+
+enum MOVEMENT_CLASS : uint8_t {
+    MOVEMENT_FIGHTER,
+    MOVEMENT_KNIGHT,
+    MOVEMENT_WOLF,
+    MOVEMENT_CLASS_COUNT
+};
+
+enum ATTACK_CLASS : uint8_t {
+    ATTACK_FIGHTER,
+    ATTACK_ARCHER,
+    ATTACK_SPEARMAN,
+    ATTACK_BRUTE,
+    ATTACK_BITE,
+    ATTACK_CLASS_COUNT
+};
+
+struct PartyMember {
+    uint8_t hp, max_hp;
+    uint8_t movement_class, attack_class;
+    NPC_ID id; // NPC_NONE identifies the traveler; other identities prevent duplicate recruits.
+};
+
+struct Party {
+    PartyMember members[PARTY_CAPACITY];
+    uint8_t count;
+};
+
+static_assert(sizeof(PartyMember) == 5, "byte-sized party statistics and identity");
+
+bool party_contains(NPC_ID id);
+// Rejects duplicate identities, invalid statistics, and a full party without changing state.
+bool party_add(PartyMember member);
+
 struct Game {
     // The live object is AVM's saved prefix. Bump the version when its byte layout changes.
     uint8_t save_version;
     Actor player;
     uint16_t rng, gold, ticks;
     WorldFlags flags;
-    uint8_t area, hp, max_hp, level;
+    uint8_t area, level;
+    Party party;
     TileCache cache;
     Camera camera;
     MapDimensions dimensions; // Active area dimensions, cached on entry or teleport.
@@ -229,7 +265,7 @@ enum PAUSE_ITEM : uint8_t {
     PAUSE_ITEM_COUNT
 };
 
-enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PASS, MENU_RESIGN };
+enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PARTY, MENU_PASS, MENU_RESIGN };
 
 enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_ITEM_COUNT };
 
@@ -248,7 +284,8 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
 uint8_t option_level(OPTION_ITEM item);
 void options_apply();
 void option_adjust(OPTION_ITEM item, bool increase);
-void render_status();
+inline constexpr uint8_t PARTY_WIDTH = 128;
+void render_party(uint8_t revealed, bool closing);
 
 void input_sync();
 uint8_t input_held();
@@ -259,10 +296,11 @@ void input_wait_frame();
 
 void title_screen();
 void explore();
-// Return to the caller before opening Audio or performing an action, keeping modal frames shallow.
-MENU_EXIT menu_screen(BattleScreen const* battle = nullptr);
+// Return to the caller before opening Audio/Party or performing an action, keeping modal frames
+// shallow.
+MENU_EXIT menu_screen(BattleScreen const* battle = nullptr, PAUSE_ITEM initial = PAUSE_RESUME);
 void audio_screen(BattleScreen const* battle = nullptr);
-void status_screen();
+void party_screen();
 void game_save();
 bool game_load();
 char const PROGMEM* music_next();

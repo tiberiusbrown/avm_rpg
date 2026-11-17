@@ -2,6 +2,7 @@
 // party plays one of several simple policies. The counts show how the enemy behaves across whole
 // battles, and they are used to tune the evaluation. Nothing here changes the battle rules.
 #include "battle.h"
+#include "battle_fixtures.h"
 #include "battle_ai.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +50,7 @@ static unsigned legal_actions(BattleState const& s, BattleAction* out) {
 
 // The attack gap from a cell to the nearest living unit of `team`, for a unit of `type`. Returns 99
 // when none is alive.
-static int nearest_gap(BattleState const& s, BATTLE_UNIT_TYPE type, uint8_t cell,
+static int nearest_gap(BattleState const& s, uint8_t type, uint8_t cell,
                        BATTLE_TEAM team) {
     int best = 99;
     for(uint8_t i = 0; i < s.unit_count; ++i) {
@@ -93,7 +94,7 @@ static BattleAction party_choice(BattleState const& s, uint8_t policy) {
             else if(kind == BATTLE_ACTION_ATTACK)
                 score = 3;
             else {
-                BATTLE_UNIT_TYPE type = s.units[a.unit_index].type;
+                uint8_t type = s.units[a.unit_index].id;
                 int before = nearest_gap(s, type, s.units[a.unit_index].cell, BATTLE_ENEMY);
                 int after = nearest_gap(s, type, a.destination, BATTLE_ENEMY);
                 score = after < before ? 2 : 1;
@@ -152,7 +153,7 @@ static void require_progress(unsigned before, BattleState const& s) {
 static GameStats play(uint8_t policy) {
     GameStats g{};
     BattleState s;
-    battle_begin(s, &BATTLE_GROVE);
+    battle_fixture_begin(s, &BATTLE_TEST_GROVE);
     unsigned starting_hp = total_hp(s);
     unsigned streak = 0;
     for(unsigned guard = 0; guard < 400 && !s.ended; ++guard) {
@@ -187,7 +188,7 @@ static GameStats play(uint8_t policy) {
         } else {
             ++g.moves[team];
             if(team == BATTLE_ENEMY) {
-                BATTLE_UNIT_TYPE type = s.units[a.unit_index].type;
+                uint8_t type = s.units[a.unit_index].id;
                 bool retreat = nearest_gap(s, type, a.destination, BATTLE_PARTY) >
                                nearest_gap(s, type, s.units[a.unit_index].cell, BATTLE_PARTY);
                 g.enemy_retreats += retreat;

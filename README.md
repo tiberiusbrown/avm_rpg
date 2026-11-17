@@ -15,7 +15,11 @@ world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Jou
 **Map**, **Audio**, or **Load**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
-immediately after saving. Party opens the traveler status screen. Journal and Map are placeholders. The world stays frozen while the menu is open; music continues.
+immediately after saving. Party opens an eased sliding roster with four slots, showing each member's HP/MHP, movement class (M) and attack class (A). A or B returns to the pause menu.
+A new game starts with the traveler (20/20 HP, fighter movement and attack). Rowan waits southeast
+of the starting point; talking to him recruits him once (18/18 HP, fighter movement, archer attack).
+Rowan disappears from the map upon joining and stays absent on revisits and after loading.
+Party membership and statistics are saved. The version 10 save layout rejects older saves. Journal and Map are placeholders. The world stays frozen while the menu is open; music continues.
 Save writes the existing single save slot and immediately sets the save flag, without readback. Selecting Load eases the panel out
 while fading the world completely to black, restores the saved world while hidden, then
 fades it completely back in before play resumes.
@@ -246,9 +250,12 @@ overworld cache and from the current area.
   A on the selected hero or B cancels a selection. The selected hero has a two-pixel white border.
   An invalid confirmation does nothing, and it does not use up the turn. After a hero acts, the
   cursor returns to that hero, so it can be selected again without moving the cursor.
-- Hovering the cursor over a living actor shows its class and current HP in a small panel on
+- Hovering the cursor over a living actor shows its movement class, attack class and HP/MHP in a small panel on
   the opposite side of the screen. The panel disappears over empty cells.
-- Each unit is one of six archetypes, with separate movement and attack patterns:
+- Party members store uint8 HP/MHP and independent movement/attack class IDs in saved RAM.
+  An enemy stores only uint8 HP and an enemy ID in its live battle record; its MHP, movement,
+  attack and artwork are read from `EnemyInfo` in program memory. Board placement is separate
+  metadata. Both sides use the same movement and attack rules. The six enemy presets are:
 
   | Archetype | Movement | Attack | Damage | Starting HP |
   |---|---|---|---|---|
@@ -262,8 +269,9 @@ overworld cache and from the current area.
   Moves need empty, open cells all the way, except the rogue's leap, which needs only an empty, open
   landing cell. Attacks need every cell between to be empty and open, whoever stands there. A brute
   pushes a surviving victim one cell straight away when that cell is on the board, empty, and open.
-  Attackers never move. A battle holds up to four units a side. The Grove pits the party's rogue and
-  archer against a wolf and a brute.
+  Attackers never move. A battle holds up to four units a side. The Grove deploys the living
+  members of the current saved party against a wolf and a brute. Recruitment therefore changes
+  the next battle's roster. HP supports the complete 0..255 range; zero-HP members do not deploy.
 - Battlefield tiles with collision in the world tileset block. No unit stands on them or moves
   through them, and they stop arrows, spear thrusts, and knockback. A rogue's leap passes over them,
   as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at
@@ -303,8 +311,10 @@ overworld cache and from the current area.
   including three and four units a side (`docs/performance.md`). While it runs, a small box at the
   center of the screen shows three dots that fill in about five times a second; each update redraws
   only that box and pushes the display without clearing it.
-- A press of A confirms the VICTORY or DEFEAT overlay. The battle does not change HP,
-  position, flags, or any other overworld state.
+- At the result overlay, final ally HP is copied back into the saved party, including move/pass
+  costs and defeated members at zero HP. MHP, classes and membership are preserved. Resigning
+  preserves the party's remaining battle HP. A press of A confirms VICTORY or DEFEAT. Battles
+  provide no automatic healing; entering with no living party members immediately results in defeat.
 
 The battle is the only feature in this prototype. Other encounters and battlefields are not
 implemented.

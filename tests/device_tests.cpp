@@ -11,6 +11,7 @@
 #pragma pack(pop)
 // BattleUnit uses byte-sized bit-field allocation units; packing it would change those offsets.
 #include "battle.h"
+#include "battle_fixtures.h"
 #include "music_catalog.h"
 
 #include <filesystem>
@@ -22,7 +23,7 @@
 
 namespace fs = std::filesystem;
 
-static_assert(sizeof(Game) == 106 + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions),
+static_assert(sizeof(Game) == 104 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -153,7 +154,7 @@ struct Device {
                 stages = {};
                 previous_phase = 0;
                 phase_begin = begin;
-                if(proof || (state().area == AREA_OUTDOOR && state().hp == 20))
+                if(proof || (state().area == AREA_OUTDOOR && state().party.members[0].hp == 20))
                     started = true;
             }
             if(marker == 2)
@@ -628,6 +629,8 @@ struct PauseTiming {
         }
         require(intervals != 0, "pause timing captured no display intervals");
         // Preserve the 50 Hz budget with interrupt jitter, without prescribing animation steps.
+        if(worst >= 336000)
+            std::cerr << name << " worst display interval: " << worst << " cycles\n";
         require(worst < 336000, "pause display missed its 50 Hz frame budget");
         uint64_t elapsed = device.ab->core_state.cpu.cycle_count - begin;
         require(elapsed < 16000000, "pause interaction exceeded one second");
@@ -819,7 +822,9 @@ static void verify_pause_party(Device& d) {
     d.tap(BTN_RIGHT);
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
+    d.advance(0, 8000000);
     d.tap(BTN_B);
+    d.advance(0, 8000000);
     auto after = pause_frame(d).pixels;
     Game returned = d.state();
     require(!memcmp(&frozen, &returned, sizeof(Game)), "Party changed paused game state");
@@ -831,6 +836,92 @@ static void verify_pause_party(Device& d) {
         }
     }
     d.tap(BTN_B);
+    d.frame();
+}
+
+static void verify_party_recruitment(Device& d, fs::path const& out) {
+    Game original = d.state();
+    require(original.party.count == 1, "new game did not start with one party member");
+    Game nearby = original;
+    nearby.player = {(uint16_t)((positions::RowanHome.x - 1) * TILE),
+                     (uint16_t)(positions::RowanHome.y * TILE), EAST, 0};
+    d.set_state(nearby);
+    d.frame();
+    d.tap(BTN_A);
+    require(d.prompt() != DIALOGUE_CLOSED, "talking to Rowan did not open dialogue");
+    while(d.prompt() != DIALOGUE_CLOSED) {
+        d.wait_for_prompt();
+        d.tap(BTN_A);
+    }
+    auto joined = d.state().party;
+    require(joined.count == 2 && joined.members[1].id == NPC_ROWAN &&
+                joined.members[1].hp == 18 && joined.members[1].max_hp == 18 &&
+                joined.members[1].movement_class == MOVEMENT_FIGHTER &&
+                joined.members[1].attack_class == ATTACK_ARCHER,
+            "Rowan did not join with the expected statistics");
+    auto recruited = d.state();
+    for(auto const& actor : recruited.npcs.actors)
+        require(actor.id != NPC_ROWAN, "recruited Rowan remained on the map");
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_CLOSED && d.state().party.count == 2,
+            "absent Rowan could still be talked to or recruited twice");
+    d.tap(BTN_B);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 8000000);
+    d.capture(out / "party-recruited.pgm");
+    auto shown = d.state().party;
+    require(!memcmp(&joined, &shown, sizeof(Party)), "Party panel changed member statistics");
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+    d.tap(BTN_B);
+    d.frame();
+    // Start a real encounter with a recruited party and full-byte HP, then verify result writeback.
+    Game combat = d.state();
+    combat.party.members[0].hp = combat.party.members[0].max_hp = 255;
+    combat.party.members[0].movement_class = MOVEMENT_KNIGHT;
+    combat.party.members[0].attack_class = ATTACK_ARCHER;
+    combat.party.members[1].hp = 127;
+    combat.party.members[1].max_hp = 200;
+    combat.party.members[1].movement_class = MOVEMENT_WOLF;
+    combat.party.members[1].attack_class = ATTACK_BRUTE;
+    combat.player = {(uint16_t)(positions::PlayerStart.x * TILE),
+                     (uint16_t)(positions::PlayerStart.y * TILE), NORTH, 0};
+    d.set_state(combat);
+    d.frame();
+    d.tap(BTN_A);
+    d.wait_for_prompt();
+    d.tap(BTN_A);
+    d.wait_for_battle();
+    auto deployed = d.battle_state();
+    require(deployed.unit_count == 4 && deployed.units[0].id == battle_party_id(0) &&
+                deployed.units[1].id == battle_party_id(1) && deployed.units[0].hp == 255 &&
+                deployed.units[1].hp == 127 && deployed.units[2].id == ENEMY_WOLF &&
+                deployed.units[3].id == ENEMY_BRUTE,
+            "real battle did not deploy the recruited party with full-byte HP");
+    d.advance(0, 1600000);
+    d.capture(out / "battle-saved-party.pgm");
+    deployed.units[0].hp = 201;
+    deployed.units[1].hp = 0;
+    d.set_battle(deployed);
+    d.tap(BTN_B);
+    d.tap(BTN_DOWN); // Resign
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    d.tap(BTN_A);
+    d.advance(0, 8000000);
+    combat.party.members[0].hp = 201;
+    combat.party.members[1].hp = 0;
+    auto finished = d.state().party;
+    require(!memcmp(&combat.party, &finished, sizeof(Party)),
+            "battle result did not persist HP while preserving member classes");
+    d.tap(BTN_A);
+    d.advance(0, 4000000);
+    d.wait_for_prompt();
+    d.tap(BTN_A);
+    d.frame();
+    d.set_state(original);
     d.frame();
 }
 
@@ -935,12 +1026,12 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     BattleState blocked = initial;
     blocked.turn = BATTLE_ENEMY;
     blocked.unit_count = 6;
-    blocked.units[0] = {battle_cell(0, 0), 2, BATTLE_TYPE_ARCHER, BATTLE_ENEMY};
-    blocked.units[1] = {battle_cell(7, 3), 3, BATTLE_TYPE_ARCHER, BATTLE_ENEMY};
-    blocked.units[2] = {battle_cell(1, 0), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
-    blocked.units[3] = {battle_cell(0, 1), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
-    blocked.units[4] = {battle_cell(6, 3), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
-    blocked.units[5] = {battle_cell(7, 2), 8, BATTLE_TYPE_FIGHTER, BATTLE_PARTY};
+    blocked.units[0] = {battle_cell(0, 0), 2, ENEMY_ARCHER, BATTLE_ENEMY};
+    blocked.units[1] = {battle_cell(7, 3), 3, ENEMY_ARCHER, BATTLE_ENEMY};
+    blocked.units[2] = {battle_cell(1, 0), 8, ENEMY_FIGHTER, BATTLE_PARTY};
+    blocked.units[3] = {battle_cell(0, 1), 8, ENEMY_FIGHTER, BATTLE_PARTY};
+    blocked.units[4] = {battle_cell(6, 3), 8, ENEMY_FIGHTER, BATTLE_PARTY};
+    blocked.units[5] = {battle_cell(7, 2), 8, ENEMY_FIGHTER, BATTLE_PARTY};
     d.set_battle(blocked);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -958,8 +1049,8 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     BattleState waiting = initial;
     waiting.turn = BATTLE_ENEMY;
     waiting.unit_count = 2;
-    waiting.units[0] = {battle_cell(0, 0), 4, BATTLE_TYPE_BRUTE, BATTLE_PARTY};
-    waiting.units[1] = {battle_cell(0, 1), 12, BATTLE_TYPE_ARCHER, BATTLE_ENEMY};
+    waiting.units[0] = {battle_cell(0, 0), 4, ENEMY_BRUTE, BATTLE_PARTY};
+    waiting.units[1] = {battle_cell(0, 1), 12, ENEMY_ARCHER, BATTLE_ENEMY};
     d.set_battle(waiting);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1105,7 +1196,10 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
 static void play_grove_battle(Device& d, bool verify_transition = false) {
     // A caller may have just closed the welcome; let the entry transition finish before acting.
     d.wait_for_battle();
-    GroveCell cursor{2, 1}; // The battle opens with the cursor on the rogue.
+    BattleState fixture;
+    battle_fixture_begin(fixture, &BATTLE_TEST_GROVE);
+    d.set_battle(fixture);
+    GroveCell cursor{2, 1}; // The encounter and fixture share the first deployment cell.
     for(auto const& action : GROVE_VICTORY_PLAN) {
         grove_move_cursor(d, cursor, action.hero);
         d.tap(BTN_A); // Select the hero.
@@ -1376,7 +1470,8 @@ int main(int argc, char** argv) try {
     unsigned actors = 0;
     for(auto const& n : d.state().npcs.actors)
         actors += n.id != NPC_NONE;
-    require(actors == 2, "sample NPCs did not activate");
+    require(actors == 3, "sample NPCs and recruit did not activate");
+    verify_party_recruitment(d, out);
     verify_actor_layers(d, out);
     summary("idle_grove", d, 30);
     d.capture(out / "grove.pgm");
@@ -1409,6 +1504,16 @@ int main(int argc, char** argv) try {
         require(!memcmp(&frozen, &paused, sizeof(Game)), "battle entry advanced world simulation");
     }
     // Closing the welcome starts the Grove battle, which returns only after its outcome line.
+    {
+        Game current = d.state();
+        BattleState deployed = d.battle_state();
+        require(deployed.unit_count == current.party.count + 2,
+                "encounter did not deploy the saved party plus its enemies");
+        for(uint8_t i = 0; i < current.party.count; ++i)
+            require(deployed.units[i].id == battle_party_id(i) &&
+                        deployed.units[i].hp == current.party.members[i].hp,
+                    "battle did not preserve saved party HP and identity");
+    }
     d.capture(out / "grove-battle.pgm");
     verify_battle_menu(d, out);
     play_grove_battle(d, true);
@@ -1609,9 +1714,11 @@ int main(int argc, char** argv) try {
 
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
-    d.capture(out / "status.pgm");
+    d.advance(0, 8000000);
+    d.capture(out / "party.pgm");
     require(d.serial() == menu_serial, "Party advanced simulation");
     d.tap(BTN_B);
+    d.advance(0, 8000000);
     auto after_party_pixels = pause_frame(d).pixels;
     for(unsigned i = 0; i < menu_pixels.size(); ++i)
         if(i % 128 >= 39)

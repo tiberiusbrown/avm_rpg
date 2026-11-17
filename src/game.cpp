@@ -23,6 +23,23 @@ uint16_t rng_next() {
     return x;
 }
 
+bool party_contains(NPC_ID id) {
+    for(uint8_t i = 0; i < game.party.count; ++i)
+        if(game.party.members[i].id == id)
+            return true;
+    return false;
+}
+
+bool party_add(PartyMember member) {
+    if(game.party.count >= PARTY_CAPACITY || member.id >= NPC_ID_LIMIT || !member.max_hp ||
+       member.hp > member.max_hp || member.movement_class >= MOVEMENT_CLASS_COUNT ||
+       member.attack_class >= ATTACK_CLASS_COUNT || party_contains(member.id))
+        return false;
+    game.party.members[game.party.count++] = member;
+    npc_recruit(member.id);
+    return true;
+}
+
 void game_start() {
     AudioOptions options = game.options;
     memset(&game, 0, sizeof(game));
@@ -30,8 +47,7 @@ void game_start() {
 
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
-    game.hp = 20;
-    game.max_hp = 20;
+    party_add({20, 20, MOVEMENT_FIGHTER, ATTACK_FIGHTER, NPC_NONE});
     game.level = 1;
     npc_residence_defaults();
 

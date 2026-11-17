@@ -11,8 +11,8 @@ enum NPC_EVENT : uint8_t {
     NPC_EVENT_TARGET_FAILED
 };
 
-// Scene exit is the only retirement: NPCs are never removed while their scene lasts.
-enum NPC_RETIRE_REASON : uint8_t { NPC_RETIRED_RESET };
+// Recruitment removes a map actor immediately; scene exit retires the remaining actors.
+enum NPC_RETIRE_REASON : uint8_t { NPC_RETIRED_RESET, NPC_RETIRED_PARTY };
 
 struct NpcDefinition {
     NPC_BEHAVIOR behavior;
@@ -49,6 +49,8 @@ void npc_residence_defaults();
 // Sets where a dynamic NPC lives. An active NPC walks there; the change never moves it at once.
 bool npc_set_destination(NPC_ID id, TilePos destination);
 Npc* npc_find(NPC_ID id);
+// Called after adding a party member. Retires its map actor, preserving the occupied prefix.
+void npc_recruit(NPC_ID id);
 bool npc_visible(uint16_t x, uint16_t y);
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t other_x, uint16_t other_y);
 void npc_reset();
