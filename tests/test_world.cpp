@@ -513,6 +513,11 @@ static_assert(area_music(AREA_CAVE) == MUSIC_CAVE && area_music(AREA_OUTDOOR) ==
               area_music(AREA_INTERIORS) == MUSIC_PEACEFUL &&
               area_music(AREA_DUNGEON) == MUSIC_PEACEFUL);
 
+// The super creepy track is kept for a later scene, so no area plays it yet.
+static_assert(area_music(AREA_CAVE) != MUSIC_CREEPY && area_music(AREA_OUTDOOR) != MUSIC_CREEPY &&
+              area_music(AREA_INTERIORS) != MUSIC_CREEPY &&
+              area_music(AREA_DUNGEON) != MUSIC_CREEPY && MUSIC_DEFAULT != MUSIC_CREEPY);
+
 // Every mechanism cell shows the map's tile while its flag is clear and its own tile while the
 // flag is set, from the tile pass alone: the cache holds no state between frames.
 static void mechanism_states() {

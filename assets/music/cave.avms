@@ -1,346 +1,292 @@
-// Where the Light Ends — original cave theme for the Hollow Mine.
-// D Phrygian and chromatic | 4/4 at 56 BPM | 20 measures (85.7 seconds).
-// Form A - B - C - D - E. Every part is slow, and every consonance is spoiled.
-//   A (1-4)    Cold. A saw drone on D, a creature breathing in the noise voice,
-//              and water drips whose pitches sit a semitone or a tritone from
-//              the drone. The wail enters in bar 3 with the "stalker" motif:
-//              D held, then Eb-D, then a drop of a tritone to Ab.
-//   B (5-8)    Crawl. The bass creeps in 3+3+2 eighths. The motif repeats, then
-//              the whole scene slides up a semitone (Eb pedal, E and A in the
-//              wail), and a heartbeat starts underneath.
-//   C (9-12)   Music box. A limping 3+3+2 lullaby (D F E | D Bb A | C E Eb |
-//              D C A) turns over Bb, then A, while a distant rumble swells and
-//              a rapid minor second (A and Bb) shivers in the wail's channel.
-//   D (13-16)  Descent. The bass walks down D C# C B as the wail climbs
-//              chromatically from A5 to D6. The heart doubles its pace, a
-//              minor-second growl swells in the harmony voice, and bar 16
-//              screams a tritone (F6 over B) with a noise crash, then cuts.
-//   E (17-20)  Return. A faint ghost of the motif in the low register,
-//              breathing and drips again, and the drone sinks back to D so the
-//              loop re-enters on the cold open.
+// Stone and Shadow — the cave theme for the Hollow Mine.
+// E minor | 4/4 at 68 BPM | 26 bars (91.8 seconds). Dark and foreboding, but a real song: a
+// slow march with a singable tune, honest chords and a steady bass. Nothing is spoiled on purpose:
+// the only tension is the dominant (a B chord with its raised third, D#) that the tune leans on
+// and then lets go. The unsettling special-purpose track that used to be the cave's song is
+// creepy.avms.
+//   Intro (1-2)   A drone on E swells, a distant bell tolls E and B, and one drum answers. The
+//                 last beat is a short roll into the tune.
+//   A (3-10)      The tune, a pulse "horn" on a 50% square: two four-bar phrases. The first
+//                 (Em C | Am B) climbs to F# and leaves D# hanging over the dominant; the second
+//                 (Em C | D Em) answers it and walks down to a low E. A slow shimmering harmony
+//                 voice outlines each chord, the bass tolls roots and fifths, and a deep drum
+//                 marks beats one and three.
+//   B (11-18)     A glimmer in the cavern: over C G | Am Em | C G | B B the lead climbs in a
+//                 brighter, ringing voice to B5, a plucked descending arpeggio drips beneath it
+//                 like water, and the drums and bass start to march. The last two bars lean
+//                 on the dominant with a pounding bass and a growing roll.
+//   A' (19-26)    The tune again, fuller: a brighter horn, a marching bass of roots and fifths
+//                 in quarter notes and busier drums. The last E fades into the drone of the
+//                 intro, so the loop re-enters on its cold open.
 // Loop at runtime with avm_audio_music_loop(1).
-// The tune lives in channels 0 and 2, so an effect that borrows channel 1 or 3
-// costs the drips, the box and the breath, never the wail or the drone.
+// Channels 0 and 2 (lead and bass) carry the song if an effect borrows channel 1 or 3: the tune
+// and the roots and fifths still make a complete piece without the harmony and the drums.
 
-title "Where the Light Ends"
-description "A slow, dark cave theme: saw drone, breathing noise, drips, a limping music box and a creeping chromatic climb"
-tempo 56
+title "Stone and Shadow"
+description "A dark, foreboding cave march: a low drone, a tolling bell and distant drums under a slow minor tune, with a brief glimmer in the middle"
+tempo 68
 meter 4/4
 volume max
-// 16 ms steps keep the tremolo and vibrato smooth and put every channel's fades on one grid.
+// 16 ms steps keep the vibrato smooth and put every channel's fades on one grid.
 automation 16ms
 
-// --- Bass: the drone and the crawl --------------------------------------------------
+// --- Lead (channel 0) ----------------------------------------------------------------
 
-// A slow inhale at each attack, a wobbling pitch and a breathing tremolo.
-envelope drone_env {
-    points 0ms:45%, 900ms:100%, 3500ms:88%
-    release 500ms:0%
-}
-instrument drone {
-    wave saw volume 15 envelope drone_env gate 100%
-    tremolo { period 2600ms depth 35% }
-    lfo { target pitch depth 7cents period 1100ms }
-}
+// The horn: a soft attack that settles, so short notes sound connected.
+envelope horn_env  { points 0ms:55%, 50ms:100%, 380ms:82% release 110ms:0% }
+// Long notes swell, and the vibrato rides along.
+envelope moan_env  { points 0ms:45%, 650ms:100%, 1700ms:84% release 160ms:0% }
+// B section: a ringing note that decays, as a struck crystal would.
+envelope glint_env { points 0ms:100%, 160ms:76%, 1300ms:46% release 140ms:0% }
+envelope flow_env  { points 0ms:85%, 24ms:100%, 220ms:82% release 50ms:0% }
+// The very last note swells once, then dies away into the drone.
+envelope last_env  { points 0ms:55%, 600ms:100%, 1800ms:62%, 3300ms:24% release 200ms:0% }
 
-// The descent: every bar swells from a half-held level to full, faster and harder.
-envelope surge_env {
-    points 0ms:55%, 3200ms:100%
-    release 200ms:0%
+instrument horn {
+    wave pulse duty 50% volume 13 envelope horn_env gate 94%
 }
-instrument surge {
-    wave saw volume 10 envelope surge_env gate 100%
-    tremolo { period 700ms depth 40% }
-    lfo { target pitch depth 10cents period 500ms }
+instrument moan {
+    wave pulse duty 50% volume 13 envelope moan_env gate 98%
+    lfo { target pitch depth 14cents period 230ms }
 }
-
-envelope crawl_env {
-    points 0ms:100%, 140ms:78%, 600ms:42%
-    release 160ms:0%
+instrument flow {
+    wave pulse duty 25% volume 12 envelope flow_env gate 96%
 }
-instrument crawl { wave saw volume 13 envelope crawl_env gate 85% }
-
-// --- Lead: wails ------------------------------------------------------------------
-
-// A thin 12.5% pulse that trembles, drifts in timbre and sags a third of a semitone.
-envelope wail_env {
-    points 0ms:0%, 380ms:100%, 1300ms:82%, 2600ms:64%
-    release 450ms:0%
+instrument glint {
+    wave pulse duty 25% volume 12 envelope glint_env gate 100%
+    lfo { target pitch depth 10cents period 210ms }
 }
-instrument wail {
-    wave pulse duty 12.5% volume 12 envelope wail_env gate 96%
-    lfo { target pitch depth 20cents period 320ms }
-    lfo { target duty depth 8% period 1400ms wave triangle }
-    frequency_slide { delta -35cents over 2400ms }
+// The return of the tune: the same horn with a brighter, thinner pulse and a little more level.
+instrument horn2 {
+    wave pulse duty 37.5% volume 14 envelope horn_env gate 94%
+}
+instrument moan2 {
+    wave pulse duty 37.5% volume 14 envelope moan_env gate 98%
+    lfo { target pitch depth 16cents period 220ms }
+}
+instrument last {
+    wave pulse duty 37.5% volume 14 envelope last_env gate 100%
+    lfo { target pitch depth 16cents period 220ms }
 }
 
-// The same voice for the quick notes of the motif.
-envelope wail_s_env {
-    points 0ms:0%, 90ms:100%, 500ms:70%
-    release 160ms:0%
+// --- Harmony (channel 1): bell, shimmering chords, dripping arpeggio ---------------------
+
+// A distant bell: a thin pulse that rings and fades.
+envelope toll_env  { points 0ms:100%, 120ms:55%, 1800ms:12% release 400ms:0% }
+instrument toll {
+    wave pulse duty 12.5% volume 8 envelope toll_env gate 100%
+    lfo { target pitch depth 6cents period 120ms }
 }
-instrument wail_s {
-    wave pulse duty 12.5% volume 12 envelope wail_s_env gate 92%
-    lfo { target pitch depth 20cents period 320ms }
-    lfo { target duty depth 8% period 1400ms wave triangle }
+instrument toll2 {
+    wave pulse duty 12.5% volume 5 envelope toll_env gate 100%
+    lfo { target pitch depth 6cents period 120ms }
 }
 
-// The climb: half notes that open fast and keep trembling.
-envelope cry_env {
-    points 0ms:0%, 150ms:100%, 1800ms:80%
-    release 150ms:0%
+// A quiet, slowly turning chord, one per bar: minor and major triads, 140 ms per note.
+envelope pad_env   { points 0ms:60%, 350ms:100% release 120ms:0% }
+// The last chord of the song fades.
+envelope pad_end_env { points 0ms:100%, 3200ms:18% release 200ms:0% }
+instrument pad_m {
+    wave pulse duty 50% volume 5 envelope pad_env gate 100%
+    arpeggio { offsets 0,3,7 step 140ms }
 }
-instrument cry {
-    wave pulse duty 12.5% volume 12 envelope cry_env gate 95%
-    lfo { target pitch depth 25cents period 220ms }
-    lfo { target duty depth 8% period 700ms wave triangle }
+instrument pad_M {
+    wave pulse duty 50% volume 5 envelope pad_env gate 100%
+    arpeggio { offsets 0,4,7 step 140ms }
 }
-
-// The scream: a violent vibrato on the thinnest pulse.
-envelope shriek_env {
-    points 0ms:70%, 60ms:100%, 1000ms:90%
-    release 250ms:0%
-}
-instrument shriek {
-    wave pulse duty 12.5% volume 11 envelope shriek_env gate 90%
-    lfo { target pitch depth 70cents period 110ms }
-    lfo { target duty depth 10% period 180ms wave triangle }
+instrument pad_end {
+    wave pulse duty 50% volume 5 envelope pad_end_env gate 100%
+    arpeggio { offsets 0,3,7 step 140ms }
 }
 
-// The echo of the motif in the last bars: quiet, wide, and sinking.
-envelope ghost_env {
-    points 0ms:0%, 500ms:100%, 1500ms:60%
-    release 500ms:0%
-}
-instrument ghost {
-    wave pulse duty 25% volume 7 envelope ghost_env gate 96%
-    lfo { target pitch depth 30cents period 400ms }
-    frequency_slide { delta -60cents over 2000ms }
-}
+// The drip in the B section: a plucked arpeggio that falls and rises again.
+envelope pluck_env { points 0ms:100%, 80ms:55%, 260ms:24% release 40ms:0% }
+instrument drip { wave pulse duty 25% volume 7 envelope pluck_env gate 85% }
 
-// A minor second flickering at 23 Hz, swelling over two bars.
-envelope shiver_env {
-    points 0ms:10%, 8000ms:100%
-    release 300ms:0%
-}
-instrument shiver {
-    wave pulse duty 50% volume 6 envelope shiver_env gate 100%
-    arpeggio { offsets 0,1 step 44ms }
-}
+// --- Bass (channel 2): saw -------------------------------------------------------------
 
-// --- Harmony voice: drips, the music box, the growl ------------------------------------
+// A deep pluck for the tolling roots and fifths.
+envelope bass_env  { points 0ms:100%, 140ms:78%, 700ms:52% release 120ms:0% }
+// The drone swells in over the intro and again at the end of the loop.
+envelope drone_env { points 0ms:50%, 1200ms:100%, 3600ms:90% release 400ms:0% }
+// A firmer, shorter note for the march.
+envelope march_env { points 0ms:100%, 90ms:80%, 300ms:58% release 60ms:0% }
 
-// Each drip is a short falling tick to a pitch off the drone, and the echo is its quieter
-// answer a tone lower. The slide sets the pitch, so the written note only places the drip.
-envelope drip_env { points 0ms:100%, 18ms:70%, 70ms:0% }
-instrument drip_a {
-    wave pulse duty 25% volume 6 envelope drip_env gate 100%
-    frequency_slide { from f6 to eb6 over 28ms }
-}
-instrument drip_b {
-    wave pulse duty 25% volume 6 envelope drip_env gate 100%
-    frequency_slide { from bb5 to ab5 over 28ms }
-}
-instrument drip_c {
-    wave pulse duty 25% volume 6 envelope drip_env gate 100%
-    frequency_slide { from e6 to d6 over 28ms }
-}
-instrument echo_a {
-    wave pulse duty 25% volume 3 envelope drip_env gate 100%
-    frequency_slide { from eb6 to d6 over 28ms }
-}
-instrument echo_c {
-    wave pulse duty 25% volume 3 envelope drip_env gate 100%
-    frequency_slide { from d6 to c6 over 28ms }
-}
+instrument bass  { wave saw volume 11 envelope bass_env gate 96% }
+instrument drone { wave saw volume 11 envelope drone_env gate 100% }
+instrument march { wave saw volume 12 envelope march_env gate 88% }
 
-// A music box that has gone out of tune: bright plucks and a slowly wandering pitch.
-envelope box_env {
-    points 0ms:100%, 150ms:62%, 700ms:34%, 1500ms:14%
-    release 80ms:0%
-}
-instrument box {
-    wave pulse duty 25% volume 10 envelope box_env gate 92%
-    lfo { target pitch depth 14cents period 1500ms }
-}
+// --- Percussion (channel 3): noise ----------------------------------------------------
 
-// The low growl of the descent: a minor second flickering at 23 Hz, swelling in every bar.
-envelope growl_env {
-    points 0ms:15%, 3500ms:100%
-    release 200ms:0%
-}
-instrument growl {
-    wave pulse duty 50% volume 7 envelope growl_env gate 100%
-    arpeggio { offsets 0,1 step 44ms }
-}
+// A low drum: retriggering the same seed every 24 to 26 ms turns the noise into a boom.
+envelope boom_env  { points 0ms:100%, 50ms:78%, 320ms:30% release 160ms:0% }
+envelope tap_env   { points 0ms:100%, 22ms:40%, 50ms:0% }
+// A short roll into the next section, and a long one that grows over a whole bar.
+envelope fill_env  { points 0ms:20%, 780ms:100% release 16ms:0% }
+envelope riser_env { points 0ms:12%, 3300ms:100% release 16ms:0% }
 
-// The stinger: D, Eb and Ab in a hard flicker.
-envelope cluster_env {
-    points 0ms:100%, 900ms:85%
-    release 250ms:0%
+instrument boom {
+    wave noise volume 9 envelope boom_env gate 100%
+    noise_retrigger { every 24ms seed 9 }
 }
-instrument cluster {
-    wave pulse duty 25% volume 6 envelope cluster_env gate 90%
-    arpeggio { offsets 0,1,6 step 40ms }
-}
-
-// --- Noise: breath, heart, rumble, crash --------------------------------------------
-
-// One slow breath per bar: 14 a minute, in over 1.7 seconds and out over 1.8.
-envelope breath_env {
-    points 0ms:0%, 1700ms:100%, 2300ms:72%, 3500ms:0%
-}
-instrument breath { wave noise volume 4 envelope breath_env gate 100% }
-
-// Retriggering the same seed every 20 to 26 ms turns the noise into a low rattling boom.
-envelope rumble_env {
-    points 0ms:0%, 9000ms:55%, 15000ms:100%
-    release 1200ms:0%
-}
-instrument rumble {
-    wave noise volume 5 envelope rumble_env gate 100%
-    noise_retrigger { every 20ms seed 21 }
-}
-
-envelope beat_env { points 0ms:100%, 40ms:60%, 110ms:0% }
-instrument heart_lub {
-    wave noise volume 6 envelope beat_env gate 100%
+instrument thud {
+    wave noise volume 5 envelope boom_env gate 100%
     noise_retrigger { every 26ms seed 9 }
 }
-instrument heart_dub {
-    wave noise volume 4 envelope beat_env gate 100%
-    noise_retrigger { every 22ms seed 9 }
+instrument tap { wave noise volume 3 envelope tap_env gate 100% }
+instrument fill {
+    wave noise volume 5 envelope fill_env gate 100%
+    noise_retrigger { every 20ms seed 37 }
+}
+instrument roll {
+    wave noise volume 6 envelope riser_env gate 100%
+    noise_retrigger { every 16ms seed 37 }
 }
 
-envelope crash_env {
-    points 0ms:100%, 200ms:75%, 1800ms:20%
-    release 600ms:0%
+// --- Channel 0: the tune ----------------------------------------------------------------
+
+// The tune is the same in A and A'. Chords: Em C | Am B, then Em C | D Em.
+phrase tune_1 {
+    b2@moan e'4. d'8 |
+    c'4. b8 g2@moan |
+    a4. c'8 e'2@moan |
+    f#'2.@moan d#'4 |
 }
-instrument crash { wave noise volume 9 envelope crash_env gate 50% }
+phrase tune_2 {
+    b2@moan e'4. g'8 |
+    e'4. d'8 c'4 b4 |
+    a4. f#8 d4 f#4 |
+}
 
-// One beat of the resting heart (lub, dub, a long rest) and half a beat of the racing one.
-phrase heart { c32@heart_lub r32 c32@heart_dub r8 r32 }
-phrase racing { c32@heart_lub r32 c32@heart_dub r32 }
-
-// --- Channel 0: the wail ---------------------------------------------------------------
-
-channel 0 wail octave 5 {
-    // A: silence, then the stalker motif: D held, Eb-D, down a tritone to Ab.
+channel 0 horn octave 4 {
+    // 1-2 Intro: the lead waits.
     r1 | r1 |
-    d2.@wail r4 |
-    eb4@wail_s d4@wail_s ab,2@wail |
 
-    // B: the motif again, then up a semitone (E crushes Eb, and A is a tritone from it).
-    d2.@wail r4 |
-    eb4@wail_s d4@wail_s ab,2@wail |
-    eb2.@wail r4 |
-    e4@wail_s eb4@wail_s a,2@wail |
+    // 3-10 A: the tune, in the plain horn. Its last E is held, and the drum rolls into B.
+    tune_1
+    tune_2
+    e1@moan |
 
-    // C: silence for the box, then the shiver that swells under its last two bars.
-    r1 | r1 |
-    use shiver
-    a,1 ~ a,1 |
-    use wail
+    // 11-18 B: the glimmer over C G | Am Em | C G | B B.
+    use flow
+    e'8 d'8 c'8 d'8 e'4 g'4 |
+    g'4. a'8 b'2@glint |
+    a'2@glint e'2@glint |
+    g'4 f#'4 e'2@glint |
+    e'8 d'8 c'8 d'8 e'4 g'4 |
+    g'4. a'8 b'2@glint |
+    a'2@glint f#'2@glint |
+    d#'2.@glint b4 |
 
-    // D: a chromatic climb, A5 to D6, then the scream on F6.
-    a2@cry bb2@cry |
-    b2@cry c'2@cry |
-    c#'2@cry d'2@cry |
-    f'2@shriek r2 |
-
-    // E: the motif's ghost, an octave and more below, then silence for the loop's return.
-    octave 4
-    d2.@ghost r4 |
-    eb4@ghost d4@ghost ab,2@ghost |
-    r1 | r1 |
+    // 19-26: the tune again in the brighter horn, ending on a long fading E.
+    use horn2
+    b2@moan2 e'4. d'8 |
+    c'4. b8 g2@moan2 |
+    a4. c'8 e'2@moan2 |
+    f#'2.@moan2 d#'4 |
+    b2@moan2 e'4. g'8 |
+    e'4. d'8 c'4 b4 |
+    a4. f#8 d4 f#4 |
+    e1@last |
 }
 
-// --- Channel 1: drips, music box, growl ---------------------------------------------
+// --- Channel 1: bell, chords, drip ---------------------------------------------------------
 
-channel 1 drip_a octave 6 {
-    // A: four drips, irregular, two of them echoed.
-    r:5/16 c16@drip_a r:2/16 c16@echo_a r:7/16 |
-    r:11/16 c16@drip_b r:4/16 |
-    r:3/16 c16@drip_c r:2/16 c16@echo_c r:9/16 |
-    r:8/16 c16@drip_a r:7/16 |
+// One chord a bar, as a quiet arpeggio. The roots are written in octave 3.
+channel 1 toll octave 3 {
+    // 1-2 Intro: the bell tolls E and B, a fifth apart, then again more softly.
+    e'2 b2 |
+    e'2@toll2 b2@toll2 |
 
-    // B: fewer drips, then room for the music box.
-    r:13/16 c16@drip_b r:2/16 |
-    r:6/16 c16@drip_c r:2/16 c16@echo_c r:6/16 |
-    r:9/16 c16@drip_a r:6/16 |
-    r1 |
+    // 3-10 A: Em C | Am B | Em C | D Em.
+    use pad_m e1 |
+    use pad_M c1 |
+    use pad_m a1 |
+    use pad_M b1 |
+    use pad_m e1 |
+    use pad_M c1 |
+    use pad_M d1 |
+    use pad_m e1 |
 
-    // C: the music box, over Bb and then over A.
-    use box
-    octave 5
-    d4. f4. e4 |
-    d4. bb,4. a,4 |
-    c4. e4. eb4 |
-    d4. c4. a,4 |
+    // 11-18 B: a descending arpeggio drips over C G | Am Em | C G | B, then a swelling B chord.
+    use drip
+    g'8 e'8 c'8 e'8 g'8 e'8 c'8 e'8 |
+    d'8 b8 g8 b8 d'8 b8 g8 b8 |
+    e'8 c'8 a8 c'8 e'8 c'8 a8 c'8 |
+    e'8 b8 g8 b8 e'8 b8 g8 b8 |
+    g'8 e'8 c'8 e'8 g'8 e'8 c'8 e'8 |
+    d'8 b8 g8 b8 d'8 b8 g8 b8 |
+    f#'8 d#'8 b8 d#'8 f#'8 d#'8 b8 d#'8 |
+    use pad_M b1 |
 
-    // D: the growl swells in each bar, then the cluster under the scream.
-    use growl
-    octave 4
-    d1 | d1 | d1 |
-    use cluster
-    octave 5
-    d2 r2 |
-
-    // E: silence after the scream, then the drips come back.
-    r1 |
-    r:7/16 c16@drip_a r:2/16 c16@echo_a r:5/16 |
-    r:12/16 c16@drip_b r:3/16 |
-    r:10/16 c16@drip_c r:5/16 |
+    // 19-26 A': Em C | Am B | Em C | D, and a last Em that fades.
+    use pad_m e1 |
+    use pad_M c1 |
+    use pad_m a1 |
+    use pad_M b1 |
+    use pad_m e1 |
+    use pad_M c1 |
+    use pad_M d1 |
+    use pad_end e1 |
 }
 
-// --- Channel 2: the drone and the crawl ----------------------------------------------
+// --- Channel 2: drone and march -----------------------------------------------------------
 
 channel 2 drone octave 2 {
-    // A: one long breath of D.
-    d1 ~ d1 ~ d1 ~ d1 |
+    // 1-2 Intro: one long swelling E.
+    e1 ~ e1 |
 
-    // B: the crawl, three eighths and three and two, on D and then on Eb.
-    use crawl
-    d8 r8 r8 d'8 r8 r8 d8 r8 |
-    d8 r8 r8 d'8 r8 r8 eb8 r8 |
-    eb8 r8 r8 eb'8 r8 r8 eb8 r8 |
-    eb8 r8 r8 eb'8 r8 r8 d8 r8 |
-
-    // C: Bb, then A, as two held drones.
+    // 3-10 A: roots and fifths, tolled once each half bar; a held E to close.
+    use bass
+    e2 b2 | c'2 g2 | a2 e'2 | b2 f#'2 |
+    e2 b2 | c'2 g2 | d'2 a2 |
     use drone
-    bb1 ~ bb1 |
-    a1 ~ a1 |
+    e1 |
 
-    // D: the walk down, a half step a bar, swelling harder each time.
-    use surge
-    d'1 | c#'1 | c'1 |
-    b1 |
+    // 11-18 B: the same slow roots, then a pounding B, and a quicker B as the roll grows.
+    use bass
+    c'2 g2 | g2 d'2 | a2 e'2 | e2 b2 |
+    c'2 g2 | g2 d'2 |
+    use march
+    b4 b4 b4 b4 |
+    b8 b8 b8 b8 b8 b8 b8 b8 |
 
-    // E: back to the cold D, which the first bar of the loop continues.
+    // 19-26 A': a march of roots and fifths in quarter notes; the last E rejoins the drone.
+    e4 b4 e4 b4 |
+    c'4 g4 c'4 g4 |
+    a4 e'4 a4 e'4 |
+    b4 f#'4 b4 f#'4 |
+    e4 b4 e4 b4 |
+    c'4 g4 c'4 g4 |
+    d'4 a4 d'4 a4 |
     use drone
-    d1 ~ d1 ~ d1 ~ d1 |
+    e1 |
 }
 
-// --- Channel 3: noise ----------------------------------------------------------------
+// --- Channel 3: drums ------------------------------------------------------------------
 
 channel 3 octave 4 {
-    // A: four breaths.
-    c1@breath | c1@breath | c1@breath | c1@breath |
+    // 1-2 Intro: one soft drum, then two, then a short roll into the tune.
+    c4@thud r2. |
+    c4@thud r4 c4@thud c4@fill |
 
-    // B: two breaths, then the heart starts, one beat a beat.
-    c1@breath | c1@breath |
-    repeat 4 { heart } |
-    repeat 4 { heart } |
+    // 3-10 A: a deep drum on beat one, a softer on beat three; a tap leads into the B chord.
+    c4@boom r4 c4@thud r4 |
+    c4@boom r4 c4@thud r4 |
+    c4@boom r4 c4@thud r4 |
+    c4@boom r4 c4@thud c4@tap |
+    c4@boom r4 c4@thud r4 |
+    c4@boom r4 c4@thud r4 |
+    c4@boom r4 c4@thud r4 |
+    c4@boom r2 c4@fill |
 
-    // C: a distant rumble that builds through the box's four bars.
-    c1@rumble ~ c1@rumble ~ c1@rumble ~ c1@rumble |
+    // 11-18 B: a march with a tap on the even beats; the last bars pound and roll.
+    repeat 6 { c4@boom c4@tap c4@thud c4@tap | }
+    c4@boom c4@thud c4@boom c4@thud |
+    c1@roll |
 
-    // D: the heart races, then the crash under the scream.
-    repeat 8 { racing } |
-    repeat 8 { racing } |
-    repeat 8 { racing } |
-    c1@crash |
-
-    // E: the breathing returns.
-    c1@breath | c1@breath | c1@breath | c1@breath |
+    // 19-26 A': the same march with eighth-note taps, then one last drum.
+    repeat 6 { c4@boom c8@tap c8@tap c4@thud c8@tap c8@tap | }
+    c4@boom c4@tap c4@thud c4@tap |
+    c4@boom r2. |
 }

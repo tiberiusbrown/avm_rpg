@@ -48,6 +48,8 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 | Peaceful Village | Original NES-inspired town theme over a stepwise descending bass (`peaceful3.avms`) | D major / 4/4 | 96 | 60.000 s |
 | Steel at Dawn | Original fantasy battle theme | D minor / 4/4 | 152 | About 12.6 s |
 | Call of Venlor | Epic main title: a galloping march in which the singing Venlor theme returns between new tunes | D major / 4/4 | 160 | 63.000 s |
+| Stone and Shadow | Dark, foreboding cave march: swelling drone, tolling bell, distant drums and a slow minor tune with a glimmer in the middle (`cave.avms`) | E minor / 4/4 | 68 | 91.765 s |
+| Where the Light Ends | Super creepy special-purpose track, kept for a later scene and played by no area yet (`creepy.avms`) | D Phrygian / 4/4 | 56 | 85.714 s |
 
 [`peaceful.avms`](assets/music/peaceful.avms) is *Morning in the Meadow*, the song of the outdoors, the interiors and
 the dungeon: 24 bars at 76 BPM in G major, in one quiet style. A breathy flute sings its own eight-bar tune
@@ -79,6 +81,26 @@ and sends at most five events in any 20 ms frame. With the song playing, the ani
 its 50 Hz pace (600 frames in 12 seconds, longest interval 332,136 cycles). The generated catalog exposes it as
 `MUSIC_TITLE` with the title **Call of Venlor**.
 
+[`cave.avms`](assets/music/cave.avms) is *Stone and Shadow*, the song of the Hollow Mine: 26 bars at 68 BPM
+(91.8 seconds) in E minor. It is dark and foreboding but a real song, with a singable tune, honest chords and a
+steady bass, and none of the spoiled consonances of the creepy track. After a two-bar intro (a drone on E swells,
+a distant bell tolls E and B, and one drum answers) the tune enters on a 50% pulse "horn": two four-bar phrases
+over Em C | Am B and Em C | D Em. The first climbs to F# and leaves D# hanging over the dominant; the second
+answers it and walks down to a low E. A quiet turning chord outlines each bar on channel 1, the bass tolls roots
+and fifths, and a deep drum marks beats one and three. The middle section is a glimmer in the cavern over
+C G | Am Em | C G | B B: the lead climbs to B5 in a ringing voice, a plucked arpeggio drips beneath it, the
+drums and bass begin to march, and the last two bars lean on the dominant under a growing roll. The tune then
+returns in a brighter horn over a marching bass in quarter notes, and its last E fades into the drone that
+opens the loop. Lead and bass carry the song if an effect borrows channel 1 or 3. The score compiles to about
+25 KB, sends at most four events in any 20 ms frame, and renders as loudly as the title song without clipping.
+It does not quote the Venlor theme. The generated catalog exposes it as `MUSIC_CAVE` with the title
+**Stone and Shadow**.
+
+[`creepy.avms`](assets/music/creepy.avms) is *Where the Light Ends*, the cave's earlier song, now a super creepy
+special-purpose track held back for a later scene (20 bars at 56 BPM, D Phrygian and chromatic: a breathing
+drone, drips a semitone or a tritone off the drone, a limping music box, a heartbeat and a scream). No area plays
+it, and `tests/test_world.cpp` asserts so. Play it with `music_play(MUSIC_CREEPY)`.
+
 Battles have sound effects. Each `assets/sfx/*.avms` score is a one-shot effect, and the
 build compiles them all with `tools/compile_sfx.py` into `generated/sfx_ids.h` and
 `generated/sfx_data.h`; add a score and it becomes `SFX_<FILE>`, played with
@@ -99,7 +121,8 @@ Noise carries the impacts.
 | `enemy_turn` | The enemy's turn starts |
 
 Playback starts with Call of Venlor on the title screen. Starting or continuing a game fades it into the
-area's song, Morning in the Meadow outdoors. Battles switch to Steel at Dawn and return to
+area's song: Morning in the Meadow outdoors, in the interiors and in the dungeon, and Stone and Shadow in the
+cave. Battles switch to Steel at Dawn and return to
 Morning in the Meadow when A dismisses the result screen. Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
