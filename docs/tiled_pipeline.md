@@ -192,6 +192,7 @@ python tools/generate_assets.py --check
 ./tools/build.ps1 -SdkRoot ../../build/avm-sdk-install
 ctest --test-dir build -C RelWithDebInfo --output-on-failure
 cmake --build build --config RelWithDebInfo --target rpg_integration
+cmake --build build --config RelWithDebInfo --target rpg_integration_full
 python tools/collect_evidence.py --build build --write-docs
 ```
 
@@ -199,5 +200,11 @@ python tools/collect_evidence.py --build build --write-docs
 Keep RelWithDebInfo and guest full LTO. For native-only builds pass `-HostOnly`.
 Full-device QA requires matching `AVM_SOURCE_ROOT` and `AVM_BUILD_ROOT`; SDK-only
 builds still run LLDB guest probes and source profiles, with device QA explicitly
-skipped. The default build refreshes root `rpg.arduboy` and builds the marker-bearing
+skipped. `rpg_integration` runs distinct collision masks, validates every tile lookup
+against TSX metadata, exercises device smoke scenarios, and records 100 ms profiles.
+`rpg_integration_full` enables the exhaustive collision matrix, full normal/FXC device
+QA and 8-second profiles. Use the full target before collecting evidence; the collector
+reads `build/latest-full-verification.txt`, independently of subsequent fast runs.
+Each integration run records stage times in `results.json` and prints them as it runs.
+The default build refreshes root `rpg.arduboy` and builds the marker-bearing
 `build/artifacts/rpg_qa.arduboy` that device QA reads.

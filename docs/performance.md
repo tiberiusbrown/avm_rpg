@@ -359,7 +359,7 @@ AVM source/build library with -DAVM_SOURCE_ROOT=/path/to/avm and
 -DAVM_BUILD_ROOT=/path/to/avm/build, then build. The core installed-SDK command is:
 
 ```sh
-python tests/guest_integration.py --sdk /path/to/sdk --build build
+python tests/guest_integration.py --sdk /path/to/sdk --build build --full
 python tools/collect_evidence.py --build build
 ```
 
@@ -370,14 +370,23 @@ summary of the measurement above.
 
 The integration script creates a fresh directory, launches actual ELF and package
 guests, runs frame-based input scenarios, and records avm-prof traces/HTML reports.
+The default `rpg_integration` target runs representative guest geometry, all-tile
+lookup validation, normal/FXC device smoke scenarios and 100 ms profiles. Full
+performance evidence requires `rpg_integration_full` (or the script's `--full` flag),
+which retains exhaustive guest geometry, all device scenarios and 8-second profiles.
+The collector reads `latest-full-verification.txt`; `latest-verification.txt` points
+to the most recent run of either suite. Device battle scenarios wait for instrumented
+input/result readiness with bounded deadlines rather than spending a fixed 120 million
+cycles after every action. Both suites report stage and total wall times.
 Pause opening, closing, and loading checks verify gameplay behavior and display timing,
 without comparing framebuffer contents or prescribing animation steps. Menu display intervals
 must stay below 336,000 cycles (the 50 Hz period plus interrupt jitter), and each observed
 interaction must finish within one second. Resumed exploration uses its separate CPU budget.
 Display captures remain available for visual review.
 
-Raw evidence for this run is `verification-ior6tcas` under build/; latest-verification.txt
-points to it. SDK-only users can execute the LLDB/replay checks, but full-device
+Raw evidence for this run is `verification-ior6tcas` under build/;
+`latest-full-verification.txt` points to the latest exhaustive run. SDK-only users
+can execute the LLDB/replay checks, but full-device
 per-frame/restart checks are explicitly skipped without the optional harness.
 
 Limitations: Windows/MSVC and emulated device verified; physical hardware, other

@@ -38,7 +38,7 @@ struct Cost {
 struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
     unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
-    unsigned battle_pointer_addr = 0;
+    unsigned battle_pointer_addr = 0, battle_ready_addr = 0;
     uint8_t previous_phase = 0;
     uint64_t phase_begin = 0;
     Cost stages;
@@ -197,6 +197,20 @@ struct Device {
         uint64_t end = ab->core_state.cpu.cycle_count + cycles;
         while(ab->core_state.cpu.cycle_count < end)
             step();
+    }
+
+    void wait_for_battle(unsigned previous_activations = 256) {
+        require(battle_ready_addr, "missing battle QA readiness address");
+        buttons = 0;
+        uint64_t deadline = ab->core_state.cpu.cycle_count + 120000000;
+        for(;;) {
+            auto phase = ab->core_state.cpu.data[battle_ready_addr];
+            if(phase != BATTLE_QA_BUSY &&
+               (previous_activations == 256 || battle_state().activations != previous_activations))
+                return;
+            require(ab->core_state.cpu.cycle_count < deadline, "battle readiness timeout");
+            step();
+        }
     }
 
     bool music_enabled() const {
@@ -1065,13 +1079,6 @@ constexpr GroveAction GROVE_VICTORY_PLAN[] = {
                              // move, and falls.
 };
 
-// After each hero action the test advances past both sides' reactions: the hero's own animation,
-// the enemy pause, the enemy's search, the enemy's animation, and the enemy's result pause. The
-// search's node budget keeps it under about 31 million cycles on the AVM at the positions measured
-// in docs/performance.md, under two seconds of thinking. 120 million cycles (375 frames of
-// 320,000 cycles each) leaves a margin for every entry.
-constexpr unsigned GROVE_ENEMY_TURN_CYCLES = 120000000;
-
 // The cursor moves one tile per press, so moving it takes one press per tile.
 static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
     while(cursor.x < target.x) {
@@ -1097,17 +1104,20 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
 // exploration.
 static void play_grove_battle(Device& d, bool verify_transition = false) {
     // A caller may have just closed the welcome; let the entry transition finish before acting.
-    d.advance(0, 6400000);
+    d.wait_for_battle();
     GroveCell cursor{2, 1}; // The battle opens with the cursor on the rogue.
     for(auto const& action : GROVE_VICTORY_PLAN) {
         grove_move_cursor(d, cursor, action.hero);
         d.tap(BTN_A); // Select the hero.
         grove_move_cursor(d, cursor, action.target);
+        unsigned previous_activations = d.battle_state().activations;
         d.tap(BTN_A); // Confirm the destination.
         // A move leaves the cursor on the hero's new cell, and a strike returns it to the hero.
         cursor = action.strike ? action.hero : action.target;
-        d.advance(0, GROVE_ENEMY_TURN_CYCLES);
+        d.wait_for_battle(previous_activations);
     }
+    require(d.battle_state().ended && d.battle_state().result == BATTLE_VICTORY,
+            "grove battle did not reach victory");
     // The victory overlay waits for a fresh A. Its outcome line then opens over exploration.
     d.advance(0, 1600000);
     if(verify_transition) {
@@ -1249,23 +1259,65 @@ static void press_with_music_fade(Device& d) {
         require(trace.levels[i] < trace.levels[i - 1], "music fade did not ramp down");
 }
 
+static void verify_smoke(Device& d, fs::path const& package, fs::path const& out) {
+    d.advance(0, 3200000);
+    require(d.serial() == 0 && d.music_enabled(), "smoke boot did not reach the title");
+    d.capture(out / "title.pgm");
+    d.tap(BTN_A);
+    d.frame();
+    auto initial = d.state();
+    require(d.serial() != 0 && initial.ticks != 0 && initial.area == AREA_OUTDOOR,
+            "smoke new game did not reach exploration");
+    d.hold(BTN_DOWN, 4);
+    require(d.state().player.y > initial.player.y, "smoke movement failed");
+    d.capture(out / "exploration.pgm");
+    d.tap(BTN_B);
+    unsigned serial = d.serial();
+    d.advance(0, 800000);
+    require(d.serial() == serial, "smoke menu did not pause exploration");
+    d.tap(BTN_DOWN); // Save, immediately below Resume.
+    d.tap(BTN_A);
+    auto saved = d.state();
+    auto sector = d.sector();
+    require((sector[0] | (uint16_t)sector[1] << 8) == sizeof(Game) &&
+                sector[2] == SAVE_VERSION && !memcmp(sector.data() + 2, &saved, sizeof(Game)),
+            "smoke save did not persist the live game");
+
+    Device restarted(package, d.game_addr, d.marker_addr, d.serial_addr, d.dialogue_addr);
+    restarted.import_sector(sector);
+    restarted.advance(0, 3200000);
+    restarted.tap(BTN_A);
+    restarted.frame();
+    auto loaded = restarted.state();
+    require(restarted.serial() != 0 && loaded.area == saved.area && loaded.gold == saved.gold &&
+                loaded.player.x == saved.player.x && loaded.player.y == saved.player.y,
+            "smoke restart did not restore the save");
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"boot, input, display, pause and save/restart\"}\n";
+}
+
 int main(int argc, char** argv) try {
-    require(argc == 9 || argc == 10,
+    require(argc >= 9 && argc <= 11,
             "device_tests package game_address marker_address serial_address "
-            "output_directory normal|fxc|proof|pause|battle dialogue_address phase_address "
-            "[battle_pointer_address]");
+            "output_directory normal|fxc|proof|smoke|pause|battle dialogue_address phase_address "
+            "[battle_pointer_address [battle_ready_address]]");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
     unsigned q = std::stoul(argv[7]);
     Device d(package, g, m, s, q, std::string(argv[6]) == "proof");
     d.phase_addr = std::stoul(argv[8]);
-    if(argc == 10)
+    if(argc >= 10)
         d.battle_pointer_addr = std::stoul(argv[9]);
+    if(argc == 11)
+        d.battle_ready_addr = std::stoul(argv[10]);
     if(d.proof) {
         d.frame();
         summary("m0_proof", d, 30);
         d.capture(out / "proof-visible.pgm");
+        return 0;
+    }
+    if(std::string(argv[6]) == "smoke") {
+        verify_smoke(d, package, out);
         return 0;
     }
 

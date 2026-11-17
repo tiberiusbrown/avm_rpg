@@ -313,7 +313,7 @@ environment on Windows:
 
 ```powershell
 cmake --build build --config RelWithDebInfo --target avm_tests_run avm_bench_run avm_interpreter_fxc avm_sdk_install
-cmake --build projects/avm_rpg/build --config RelWithDebInfo --target rpg_integration rpg_audio_timing
+cmake --build projects/avm_rpg/build --config RelWithDebInfo --target rpg_integration_full rpg_audio_timing
 ctest --test-dir projects/avm_rpg/build -C RelWithDebInfo --output-on-failure
 ```
 

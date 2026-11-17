@@ -7,6 +7,9 @@
 
 volatile uint8_t world_phase;
 volatile uint16_t probe_checks, probe_failure;
+// LLDB enables the exhaustive geometry matrix before setup in full verification.
+volatile bool probe_exhaustive;
+volatile uint32_t probe_collision_hash;
 static unsigned dialogues;
 
 void fade_world_out() {}
@@ -47,9 +50,26 @@ RPG_NOINLINE static void run_edge_probe() {
         {0, 0}, {4, 0}, {7, 7}, {8, 8}, {12, 9}, {15, 15}, {16, 16}, {23, 7}, {65530, 65530}};
     game.dimensions = {3, 2};
     game.cache.origin_tx = game.cache.origin_ty = 0;
+    uint32_t hash = 2166136261u;
     for(uint8_t area = AREA_OUTDOOR; area <= AREA_DUNGEON; ++area) {
         game.area = area;
         for(uint16_t tile = 0; tile < 256; ++tile) {
+            uint16_t mask = tile_collision((uint8_t)tile);
+            // Independently compared with TSX metadata by the host, for every tile
+            // in every area, including the outside sentinel.
+            hash = (hash ^ (uint8_t)mask) * 16777619u;
+            hash = (hash ^ (uint8_t)(mask >> 8)) * 16777619u;
+            bool seen = false;
+            // Scan the existing table rather than allocating a second copy in
+            // the guest's limited RAM/stack. Most duplicates match the first IDs.
+            for(uint16_t previous = 0; !probe_exhaustive && previous < tile; ++previous) {
+                if(tile_collision((uint8_t)previous) == mask) {
+                    seen = true;
+                    break;
+                }
+            }
+            if(!probe_exhaustive && seen)
+                continue;
             memset(game.cache.tiles, tile, sizeof(game.cache.tiles));
             for(uint8_t position = 0; position < sizeof(POSITIONS) / sizeof(POSITIONS[0]);
                 ++position) {
@@ -78,6 +98,7 @@ RPG_NOINLINE static void run_edge_probe() {
             }
         }
     }
+    probe_collision_hash = hash;
 }
 
 extern "C" void setup() {

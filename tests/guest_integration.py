@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,8 +15,11 @@ sys.path.insert(0, str(ROOT / "tools"))
 from elf import symbols
 from generate_assets import load_world
 
+TIMINGS = {}
+
 
 def run(argv, log):
+    started = time.monotonic()
     result = subprocess.run(
         [str(a) for a in argv],
         stdout=subprocess.PIPE,
@@ -24,6 +28,8 @@ def run(argv, log):
         timeout=180,
     )
     log.write_text(result.stdout, encoding="utf-8")
+    TIMINGS[log.stem] = round(time.monotonic() - started, 3)
+    print(f"{log.stem}: {TIMINGS[log.stem]:.3f}s", flush=True)
     if result.returncode:
         raise RuntimeError(f"{argv[0]} failed ({result.returncode}):\n{result.stdout}")
     return result.stdout
@@ -34,19 +40,28 @@ def lldb(sdk, elf, commands, log):
     script = log.with_suffix(".lldb")
     script.write_text("\n".join(commands) + "\n")
     exe = sdk / "bin" / ("avm-lldb.exe" if sys.platform == "win32" else "avm-lldb")
-    return run([exe, "--batch", "--source", script, elf], log)
+    return run([exe, "--no-lldbinit", "--batch", "--source", script, elf], log)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sdk", type=Path, required=True)
     parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument(
+        "--full", action="store_true",
+        help="Run exhaustive guest/device QA and 8-second profiles",
+    )
     args = parser.parse_args()
     sdk = args.sdk.resolve()
     build = args.build.resolve()
     artifacts = build / "artifacts"
     work = Path(tempfile.mkdtemp(prefix="verification-", dir=build))
-    print(f"Verification artifacts: {work}")
+    started = time.monotonic()
+    print(f"Verification artifacts: {work}", flush=True)
+    profiler = sdk / "bin" / ("avm-prof.exe" if sys.platform == "win32" else "avm-prof")
+    # Fail before running expensive guests if the installed tools cannot load.
+    run([profiler, "--help"], work / "profiler-preflight.log")
+    lldb(sdk, artifacts / "m0_proof.elf", ["version"], work / "lldb-preflight.log")
     commands = [
         "breakpoint set --name loop",
         "run",
@@ -132,22 +147,44 @@ def main():
     measurements = []
     guest_checks = {}
     for name, minimum in [("m15_probe", 32), ("m16_probe", 1000)]:
+        commands = ["breakpoint set --name probe_done", "run"]
+        if name == "m15_probe" and args.full:
+            commands = [
+                "breakpoint set --name setup",
+                "run",
+                "breakpoint delete 1",
+                "expr probe_exhaustive = true",
+                "breakpoint set --name probe_done",
+                "continue",
+            ]
+        # The check counter is 16 bits wide and can pass 32767.
+        commands += ["expr (unsigned)probe_checks", "expr (unsigned)probe_failure"]
+        if name == "m15_probe":
+            commands += ["expr (unsigned long)probe_collision_hash"]
         output = lldb(
             sdk,
             artifacts / f"{name}.elf",
-            [
-                "breakpoint set --name probe_done",
-                "run",
-                # The check counter is 16 bits wide and passes 32767, so read it unsigned.
-                "expr (unsigned)probe_checks",
-                "expr (unsigned)probe_failure",
-            ],
+            commands,
             work / f"{name}.log",
         )
-        values = [int(v) for v in re.findall(r"\(unsigned int\) \$\d+ = (\d+)", output)]
-        assert len(values) == 2 and values[0] >= minimum and values[1] == 0, (
-            f"{name}: {values}"
-        )
+        values = [
+            int(v) for v in re.findall(r"\(unsigned (?:int|long)\) \$\d+ = (\d+)", output)
+        ]
+        assert (
+            len(values) == (3 if name == "m15_probe" else 2)
+            and values[0] >= minimum
+            and values[1] == 0
+        ), f"{name}: {values}"
+        if name == "m15_probe":
+            expected = 2166136261
+            for area in sorted(maps, key=lambda m: m.area):
+                for tile in range(256):
+                    mask = area.tiles[tile]["collision"] if tile != 255 else 0xFFFF
+                    for byte in (mask & 255, mask >> 8):
+                        expected = ((expected ^ byte) * 16777619) & 0xFFFFFFFF
+            assert values[2] == expected, (
+                "guest tile collision lookup differs from TSX metadata"
+            )
         guest_checks[name] = values[0]
     device = build / (
         "rpg_device_tests.exe" if sys.platform == "win32" else "rpg_device_tests"
@@ -172,10 +209,11 @@ def main():
                     artifacts / f"{name}{variant}.arduboy",
                     *addresses,
                     work / mode,
-                    mode,
+                    mode if args.full or mode == "proof" else "smoke",
                     0 if mode == "proof" else refs["dialogue_prompt"]["address"],
                     0 if mode == "proof" else refs["world_phase"]["address"],
                     0 if mode == "proof" else refs["battle_qa_state"]["address"],
+                    0 if mode == "proof" else refs["battle_qa_ready"]["address"],
                 ],
                 work / f"{mode}.log",
             )
@@ -194,7 +232,6 @@ def main():
         print(
             "Full-device restart/persistence and per-frame metrics SKIPPED: configure AVM_SOURCE_ROOT/AVM_BUILD_ROOT."
         )
-    profiler = sdk / "bin" / ("avm-prof.exe" if sys.platform == "win32" else "avm-prof")
     replay = ROOT / "tests/replays/exploration.json"
     for name in ["m0_proof", "rpg"]:
         path = work / f"{name}.avmp"
@@ -206,7 +243,7 @@ def main():
                 "--warmup",
                 "1s",
                 "--for",
-                "8s",
+                "8s" if args.full else "100ms",
                 "--native",
                 "--replay",
                 replay,
@@ -224,13 +261,18 @@ def main():
         )
     report = {
         "result": "PASS",
+        "suite": "full" if args.full else "fast",
         "sdk_input": True,
         "procedural_screen_calls": True,
         "m0_execution_and_drawing": True,
-        "full_device": device.exists(),
-        "full_device_fxc": device.exists(),
+        "device_smoke": device.exists(),
+        "device_smoke_fxc": device.exists(),
+        "full_device": device.exists() and args.full,
+        "full_device_fxc": device.exists() and args.full,
         "guest_checks": guest_checks,
         "measurements": measurements,
+        "timings_seconds": TIMINGS,
+        "elapsed_seconds": round(time.monotonic() - started, 3),
         "elf_sha256": {
             name: hashlib.sha256((artifacts / f"{name}.elf").read_bytes()).hexdigest()
             for name in ["m0_proof", "rpg", "m15_probe", "m16_probe"]
@@ -238,6 +280,8 @@ def main():
     }
     (work / "results.json").write_text(json.dumps(report, indent=2) + "\n")
     (build / "latest-verification.txt").write_text(str(work) + "\n")
+    if args.full:
+        (build / "latest-full-verification.txt").write_text(str(work) + "\n")
     print(json.dumps(report, indent=2))
 
 

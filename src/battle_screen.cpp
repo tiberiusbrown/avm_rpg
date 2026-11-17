@@ -81,6 +81,7 @@ struct BattleScreen {
 #ifdef RPG_DEVICE_QA
 extern "C" {
 BattleState const* volatile battle_qa_state;
+volatile BATTLE_QA_PHASE battle_qa_ready;
 }
 #endif
 
@@ -543,6 +544,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
     uint8_t selected = BATTLE_NO_UNIT;
     // Presses made while the enemy acted do not count.
     input_sync();
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_INPUT);
     for(;;) {
         draw_board(screen, selected, SOUTH);
         draw_actor_info(state, cursor);
@@ -566,6 +568,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
                 selected = BATTLE_NO_UNIT;
             } else {
                 // Return before opening the shared menu so this input frame is no longer live.
+                RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
                 return BattleAction{BATTLE_NO_UNIT, BATTLE_CELLS};
             }
         }
@@ -581,6 +584,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
                 // it was on when the action was confirmed.
                 cursor.x = cursor_subpixel(cell_x(cursor.cell));
                 cursor.y = cursor_subpixel(cell_y(cursor.cell));
+                RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
                 return action;
             }
         }
@@ -602,6 +606,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     BattleScreen screen{};
     BattleState& state = screen.state;
     battle_begin(state, encounter);
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
     RPG_QA_MARK(battle_qa_state = &state);
     // The platform sets these at startup, and dialogue sets them to the same values.
     avm_set_text_font(AVM_FONT_BR5D);
@@ -652,12 +657,14 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     draw_result(state.result);
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);
     input_wait_press(BTN_A);
     music_play_area();
     fade_to_black();
     fade_world_in();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
     RPG_QA_MARK(battle_qa_state = nullptr);
     return state.result;
 }

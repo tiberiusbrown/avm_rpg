@@ -325,9 +325,17 @@ From this repository root:
 ```powershell
 ./tools/build.ps1 -SdkRoot ../../build/avm-sdk-install
 cmake --build build --config RelWithDebInfo --target rpg_integration
+cmake --build build --config RelWithDebInfo --target rpg_integration_full
 cmake --build build --config RelWithDebInfo --target rpg_audio_timing
 python tools/collect_evidence.py --build build --write-docs
 ```
+
+`rpg_integration` runs focused guest checks, short native profiles, and normal/FXC
+device smoke checks (boot, input, drawing, pause, save and restart). With current
+artifacts it targets a 10–20 second run. `rpg_integration_full` retains the exhaustive
+guest collision matrix, full device scenarios and 8-second profiles; run it before
+collecting performance evidence. Both targets print per-stage wall times and retain
+logs/captures in a fresh `build/verification-*` directory. Compilation is additional.
 
 Audio uses Timer1 for output and synthesis at the selected 7,812.5 or 15,625 Hz,
 with the separate 1 kHz Timer0 clock. The optional full-device build also provides

@@ -295,12 +295,18 @@ if(RPG_BUILD_GUEST)
             DEPENDS rpg_qa rpg_audio_timing_tests VERBATIM)
     endif()
     if(EXISTS "${AVM_LLDB}")
-        add_custom_target(rpg_integration
-            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"
-                --sdk "${AVM_SDK_ROOT}" --build "${CMAKE_CURRENT_BINARY_DIR}"
-            DEPENDS rpg rpg_qa m0_proof m15_probe m16_probe VERBATIM)
-        if(TARGET rpg_device_tests)
-            add_dependencies(rpg_integration rpg_device_tests)
-        endif()
+        foreach(suite IN ITEMS rpg_integration rpg_integration_full)
+            set(suite_options)
+            if(suite STREQUAL "rpg_integration_full")
+                list(APPEND suite_options --full)
+            endif()
+            add_custom_target(${suite}
+                COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/guest_integration.py"
+                    --sdk "${AVM_SDK_ROOT}" --build "${CMAKE_CURRENT_BINARY_DIR}" ${suite_options}
+                DEPENDS rpg rpg_qa m0_proof m15_probe m16_probe USES_TERMINAL VERBATIM)
+            if(TARGET rpg_device_tests)
+                add_dependencies(${suite} rpg_device_tests)
+            endif()
+        endforeach()
     endif()
 endif()

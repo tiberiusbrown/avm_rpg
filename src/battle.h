@@ -30,6 +30,9 @@ enum BATTLE_TEAM : uint8_t { BATTLE_PARTY, BATTLE_ENEMY };
 // Valid once a battle has ended, through team elimination or the party's resignation.
 enum BATTLE_RESULT : uint8_t { BATTLE_VICTORY, BATTLE_DEFEAT };
 
+// Marker values used only by the instrumented device-QA guest.
+enum BATTLE_QA_PHASE : uint8_t { BATTLE_QA_BUSY, BATTLE_QA_INPUT, BATTLE_QA_RESULT };
+
 // Terrain only. Its tile IDs belong to one tileset, which need not be the overworld area's.
 // A cell whose tile has collision in its tileset blocks: no unit stands on it or moves through it,
 // no shot or thrust passes it, and no knockback pushes a unit onto it. A rogue's leap still passes

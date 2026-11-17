@@ -81,6 +81,6 @@ From the RPG root:
 
 ```powershell
 ./tools/build.ps1 -SdkRoot ../../build/avm-sdk-install
-cmake --build build --config RelWithDebInfo --target rpg_integration
+cmake --build build --config RelWithDebInfo --target rpg_integration_full
 python tools/collect_evidence.py --build build --write-docs
 ```

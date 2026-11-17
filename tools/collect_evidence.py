@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--write-docs", action="store_true")
     args = parser.parse_args()
     build = args.build.resolve()
-    work = Path((build / "latest-verification.txt").read_text().strip())
+    work = Path((build / "latest-full-verification.txt").read_text().strip())
     result = json.loads((work / "results.json").read_text())
     assert result["result"] == "PASS" and result["full_device"] and result["full_device_fxc"]
     resources, artifacts, lto, stack_reports = {}, {}, {}, {}
@@ -146,10 +146,21 @@ def main():
         "|---|---:|---:|---:|---:|---:|",
     ]
     for m in result["measurements"]:
-        if "workload" in m:
+        if "frames" in m:
             lines.append(
                 f"| {m['workload']} | {m['frames']} | {m['average_cycles']:,} | {m['worst_cycles']:,} | "
                 f"{m.get('average_render_display_cycles', '-')} | {m.get('observed_fps', '-')} |"
+            )
+    lines += [
+        "",
+        "| Display workload | fade frames / display intervals | worst interval cycles | interaction cycles |",
+        "|---|---:|---:|---:|",
+    ]
+    for m in result["measurements"]:
+        if "worst_frame_cycles" in m:
+            lines.append(
+                f"| {m['workload']} | {m.get('fade_frames', m.get('display_intervals'))} | "
+                f"{m['worst_frame_cycles']:,} | {m.get('interaction_cycles', '-')} |"
             )
     lines += [
         "",
@@ -191,7 +202,7 @@ def main():
         "From the RPG root:\n",
         "```powershell",
         "./tools/build.ps1 -SdkRoot ../../build/avm-sdk-install",
-        "cmake --build build --config RelWithDebInfo --target rpg_integration",
+        "cmake --build build --config RelWithDebInfo --target rpg_integration_full",
         "python tools/collect_evidence.py --build build --write-docs",
         "```",
     ]
