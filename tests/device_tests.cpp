@@ -701,18 +701,17 @@ static void verify_options_handoff(FadeTrace const& trace) {
     } while(position != AUDIO_WIDTH * 16);
 }
 
-static void verify_audio_options(Device const& d, unsigned music, unsigned sfx, unsigned lowpass) {
+static void verify_audio_options(Device const& d, unsigned music, unsigned sfx) {
     auto const& ram = d.ab->core_state.cpu.data;
-    require(ram[0xa71] == music && ram[0xa72] == sfx && ram[0xa6e] == lowpass,
+    require(ram[0xa71] == music && ram[0xa72] == sfx,
             "Audio did not apply independent audio settings");
     require(ram[0xa17] == 255, "Audio changed the shared master gain");
 }
 
 static void verify_options(Device& d, fs::path const& out) {
-    require(d.state().options.music == 15 && d.state().options.sfx == 15 &&
-                !d.state().options.lowpass,
+    require(d.state().options.music == 15 && d.state().options.sfx == 15,
             "new game did not initialize audio defaults");
-    verify_audio_options(d, 128, 128, 0);
+    verify_audio_options(d, 128, 128);
     d.tap(BTN_B);
     d.advance(0, 1600000);
     d.tap(BTN_UP);
@@ -727,64 +726,50 @@ static void verify_options(Device& d, fs::path const& out) {
     }
     d.capture(out / "options.pgm");
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 119, 128, 0);
+    verify_audio_options(d, 119, 128);
     auto pixels = pause_frame(d).pixels;
     int knob = 128 - AUDIO_WIDTH + 10 + 14 * (AUDIO_WIDTH - 23) / 30;
     for(int x = 50; x < 118; ++x)
-        require(((pixels[2 * 128 + x] >> 4) & 1) == (x >= knob && x < knob + 3),
+        require((pixels[3 * 128 + x] & 1) == (x >= knob && x < knob + 3), // Row y = 24, the knob
                 "music slider thumb did not move with its volume");
     for(unsigned i = 0; i < 17; ++i)
         d.tap(BTN_LEFT);
-    verify_audio_options(d, 0, 128, 0);
+    verify_audio_options(d, 0, 128);
     d.capture(out / "options-music-muted.pgm");
     d.advance(BTN_RIGHT, 32000000);
     d.advance(0, 800000);
-    verify_audio_options(d, 255, 128, 0);
+    verify_audio_options(d, 255, 128);
     require(d.state().options.music == 30, "music did not reach 200 percent");
     d.tap(BTN_RIGHT);
-    verify_audio_options(d, 255, 128, 0);
+    verify_audio_options(d, 255, 128);
     d.capture(out / "options-music-200.pgm");
 
     d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 255, 111, 0);
+    verify_audio_options(d, 255, 111);
     for(unsigned i = 0; i < 17; ++i)
         d.tap(BTN_LEFT);
-    verify_audio_options(d, 255, 0, 0);
+    verify_audio_options(d, 255, 0);
     d.advance(BTN_RIGHT, 32000000);
     d.advance(0, 800000);
-    verify_audio_options(d, 255, 255, 0);
+    verify_audio_options(d, 255, 255);
     require(d.state().options.sfx == 30, "SFX did not reach 200 percent");
 
-    d.tap(BTN_DOWN);
-    for(unsigned i = 0; i < 5; ++i)
-        d.tap(BTN_RIGHT);
-    verify_audio_options(d, 255, 255, 64);
-    d.capture(out / "options-lowpass.pgm");
-    d.advance(BTN_RIGHT, 19200000);
-    d.advance(0, 800000);
-    verify_audio_options(d, 255, 255, 1);
-    d.advance(BTN_LEFT, 19200000);
-    d.advance(0, 800000);
-    verify_audio_options(d, 255, 255, 0);
     d.tap(BTN_DOWN); // Wrap to Music.
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 247, 255, 0);
+    verify_audio_options(d, 247, 255);
     d.tap(BTN_RIGHT);
-    d.tap(BTN_UP); // Wrap back to Low-pass.
-    d.tap(BTN_RIGHT);
-    verify_audio_options(d, 255, 255, 128);
-    d.tap(BTN_LEFT);
+    d.tap(BTN_UP); // Wrap back to SFX.
+    d.tap(BTN_DOWN); // And forward to Music again.
 
     // Restore the half-scale native defaults (100 percent on the expanded sliders).
-    d.tap(BTN_DOWN);
     for(unsigned i = 0; i < 15; ++i)
         d.tap(BTN_LEFT);
     d.tap(BTN_DOWN);
     for(unsigned i = 0; i < 15; ++i)
         d.tap(BTN_LEFT);
-    verify_audio_options(d, 128, 128, 0);
+    verify_audio_options(d, 128, 128);
     d.tap(BTN_A);
     auto paused = d.state();
     require(d.serial() == serial && !memcmp(&paused, &frozen, sizeof(Game)),
@@ -801,10 +786,7 @@ static void set_test_options(Device& d) {
     d.tap(BTN_DOWN);
     for(unsigned i = 0; i < 5; ++i)
         d.tap(BTN_LEFT);
-    d.tap(BTN_DOWN);
-    for(unsigned i = 0; i < 5; ++i)
-        d.tap(BTN_RIGHT);
-    verify_audio_options(d, 102, 85, 64);
+    verify_audio_options(d, 102, 85);
     d.tap(BTN_B);
     d.frame();
 }
@@ -892,7 +874,7 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     d.advance(0, 9600000);
     d.capture(out / "battle-audio.pgm");
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 119, 128, 0);
+    verify_audio_options(d, 119, 128);
     d.tap(BTN_RIGHT);
     paused = d.battle_state();
     require(!memcmp(&initial, &paused, sizeof(initial)) && d.serial() == serial,
@@ -1179,7 +1161,7 @@ static void walk_to_area(Device& d, uint8_t held, uint8_t area, char const* mess
     }
 }
 
-// The cave plays its own song, and the outdoors keeps Glade and Hearth.
+// The cave plays its own song, and the outdoors keeps Morning in the Meadow.
 static void verify_area_music(Device& d) {
     Game original = d.state();
     unsigned outdoor = settled_song(d);
@@ -1621,9 +1603,7 @@ int main(int argc, char** argv) try {
     d.tap(BTN_LEFT);
     d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
-    d.tap(BTN_DOWN);
-    d.tap(BTN_RIGHT);
-    verify_audio_options(d, 94, 77, 56);
+    verify_audio_options(d, 94, 77);
     d.tap(BTN_B);
     d.frame();
     d.tap(BTN_B);
@@ -1643,10 +1623,9 @@ int main(int argc, char** argv) try {
                 menu_loaded.cache.origin_tx == saved.cache.origin_tx &&
                 menu_loaded.cache.origin_ty == saved.cache.origin_ty,
             "pause Load did not restore the saved world");
-    require(menu_loaded.options.music == 11 && menu_loaded.options.sfx == 9 &&
-                menu_loaded.options.lowpass == 6,
+    require(menu_loaded.options.music == 11 && menu_loaded.options.sfx == 9,
             "Load overwrote options edited during this session");
-    verify_audio_options(d, 94, 77, 56);
+    verify_audio_options(d, 94, 77);
     d.capture(out / "menu-loaded.pgm");
 
     Device restarted(package, g, m, s, q);
@@ -1654,10 +1633,9 @@ int main(int argc, char** argv) try {
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
     require(restarted.state().gold == 0, "startup validation did not restore new-game defaults");
-    require(restarted.state().options.music == 12 && restarted.state().options.sfx == 10 &&
-                restarted.state().options.lowpass == 5,
+    require(restarted.state().options.music == 12 && restarted.state().options.sfx == 10,
             "startup did not load saved options");
-    verify_audio_options(restarted, 102, 85, 64);
+    verify_audio_options(restarted, 102, 85);
     require(restarted.serial() == 0, "restart did not show title");
     require(restarted.music_enabled(), "the continue title has no music");
     unsigned continue_title_song = audio_pointer(restarted, AUDIO_MUSIC_START);
@@ -1687,11 +1665,10 @@ int main(int argc, char** argv) try {
                 resumed.player.x == saved.player.x && resumed.player.y == saved.player.y &&
                 resumed.gold == saved.gold,
             "B on the title did not continue the saved game");
-    require(resumed.options.music == 12 && resumed.options.sfx == 10 &&
-                resumed.options.lowpass == 5,
+    require(resumed.options.music == 12 && resumed.options.sfx == 10,
             "Continue reset startup options");
     settled_song(continued);
-    verify_audio_options(continued, 102, 85, 64);
+    verify_audio_options(continued, 102, 85);
     continued.tap(BTN_B);
     continued.advance(0, 1600000);
     require(pause_row_visible(continued, 6),
@@ -1701,7 +1678,7 @@ int main(int argc, char** argv) try {
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
     corrupt.advance(0, 3200000);
-    verify_audio_options(corrupt, 128, 128, 0);
+    verify_audio_options(corrupt, 128, 128);
     corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);

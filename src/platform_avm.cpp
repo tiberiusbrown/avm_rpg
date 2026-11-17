@@ -46,16 +46,8 @@ RPG_NOINLINE void sfx_play(SFX effect) {
     avm_audio_sfx(SFX_TRACKS[effect].data);
 }
 
-static constexpr uint8_t LOWPASS_LEVELS[] PROGMEM = {
-    0, 128, 112, 96, 80, 64, 56, 48, 40, 32, 24, 16, 12, 8, 4, 1};
-static_assert(sizeof(LOWPASS_LEVELS) == OPTION_SLIDER_MAX + 1);
-
 uint8_t option_level(OPTION_ITEM item) {
-    if(item == OPTION_MUSIC)
-        return game.options.music;
-    if(item == OPTION_SFX)
-        return game.options.sfx;
-    return game.options.lowpass;
+    return item == OPTION_MUSIC ? game.options.music : game.options.sfx;
 }
 
 void options_apply() {
@@ -63,12 +55,11 @@ void options_apply() {
                          OPTION_VOLUME_MAX);
     avm_audio_sfx_volume(((uint16_t)game.options.sfx * 255 + OPTION_VOLUME_MAX / 2) /
                        OPTION_VOLUME_MAX);
-    avm_audio_lowpass(LOWPASS_LEVELS[game.options.lowpass]);
 }
 
 void option_adjust(OPTION_ITEM item, bool increase) {
     uint8_t level = option_level(item);
-    if(increase ? level == option_max(item) : level == 0)
+    if(increase ? level == OPTION_VOLUME_MAX : level == 0)
         return;
     level = (uint8_t)(level + (increase ? 1 : -1));
     if(item == OPTION_MUSIC) {
@@ -78,12 +69,9 @@ void option_adjust(OPTION_ITEM item, bool increase) {
             avm_audio_play(pending);
         game.options.music = level;
         avm_audio_music_volume(((uint16_t)level * 255 + OPTION_VOLUME_MAX / 2) / OPTION_VOLUME_MAX);
-    } else if(item == OPTION_SFX) {
+    } else {
         game.options.sfx = level;
         avm_audio_sfx_volume(((uint16_t)level * 255 + OPTION_VOLUME_MAX / 2) / OPTION_VOLUME_MAX);
-    } else {
-        game.options.lowpass = level;
-        avm_audio_lowpass(LOWPASS_LEVELS[level]);
     }
 }
 

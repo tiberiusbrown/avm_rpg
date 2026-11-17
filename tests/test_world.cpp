@@ -508,7 +508,7 @@ static void passages() {
                   passage_facing(positions::CaveLadder) == SOUTH);
 }
 
-// The cave has a song of its own. The other areas play Glade and Hearth until they get theirs.
+// The cave has a song of its own. The other areas play Morning in the Meadow until they get theirs.
 static_assert(area_music(AREA_CAVE) == MUSIC_CAVE && area_music(AREA_OUTDOOR) == MUSIC_PEACEFUL &&
               area_music(AREA_INTERIORS) == MUSIC_PEACEFUL &&
               area_music(AREA_DUNGEON) == MUSIC_PEACEFUL);

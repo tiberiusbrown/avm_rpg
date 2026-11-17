@@ -452,9 +452,9 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
     avm_draw_text(x + 4, 8, F("Audio"));
     avm_draw_text(x + 51, 8, F("B resume"));
 
-    static char const PROGMEM* const PROGMEM LABELS[] = {F("Music"), F("SFX"), F("Low-pass")};
+    static char const PROGMEM* const PROGMEM LABELS[] = {F("Music"), F("SFX")};
     for(uint8_t item = 0; item < OPTION_ITEM_COUNT; ++item) {
-        uint8_t y = 18 + item * 16;
+        uint8_t y = 22 + item * 16;
         uint8_t level = option_level((OPTION_ITEM)item);
         avm_draw_text(x + 10, y, LABELS[item]);
         if(item == selection)
@@ -469,7 +469,7 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
         avm_draw_filled_rect_white(x + 10, y + 5, TRACK_WIDTH, 1);
         avm_draw_filled_rect_white(x + 10, y + 3, 1, 5);
         avm_draw_filled_rect_white(x + 10 + TRACK_WIDTH - 1, y + 3, 1, 5);
-        int16_t knob = x + 10 + (uint16_t)level * (TRACK_WIDTH - 3) / option_max((OPTION_ITEM)item);
+        int16_t knob = x + 10 + (uint16_t)level * (TRACK_WIDTH - 3) / OPTION_VOLUME_MAX;
         avm_draw_filled_rect_black(knob - 1, y + 1, 5, 9);
         avm_draw_filled_rect_white(knob, y + 2, 3, 7);
     }

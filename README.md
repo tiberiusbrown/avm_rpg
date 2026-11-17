@@ -22,13 +22,12 @@ fades it completely back in before play resumes.
 
 Selecting **Audio** eases the pause panel out to the left, then immediately eases the
 Audio panel in from the right. The world remains frozen at 50% fade throughout the
-handoff. Up/down selects **Music**, **SFX**, or **Low-pass**; left/right adjusts the
+handoff. Up/down selects **Music** or **SFX**; left/right adjusts the
 slider, with repeat while held. Volume sliders run from Off to 200% in 31 positions, with a default of 100%.
-The low-pass slider runs from bypass to maximum smoothing; the native filter also
-smooths tonal SFX. B eases Audio out and returns directly to gameplay.
+B eases Audio out and returns directly to gameplay.
 
 Audio settings take effect immediately and are stored alongside progress when **Save** is
-selected. Startup initializes defaults (both stream gains 128, shown as 100%; filter off), then loads valid
+selected. Startup initializes defaults (both stream gains 128, shown as 100%), then loads valid
 saved settings. Starting or continuing from the title and later Load actions preserve the current settings;
 only the Audio menu changes them during play.
 
@@ -44,27 +43,25 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
-| Glade and Hearth | Original woodland-village theme: breathy pulse flute, lute and rolled chords, saw bass, two bird calls | G major / 6/8 | 96 | 60.000 s |
+| Morning in the Meadow | Original pastoral theme: breathy pulse flute, rocking harp, slow saw roots, no drums; quotes the Venlor theme in two halves | G major / 4/4 | 76 | 75.789 s |
 | Steel at Dawn | Original fantasy battle theme | D minor / 4/4 | 152 | About 12.6 s |
 | Call of Venlor | Epic main title: a galloping march in which the singing Venlor theme returns between new tunes | D major / 4/4 | 160 | 63.000 s |
 
-[`peaceful.avms`](assets/music/peaceful.avms) is a 32-bar A-A'-B-A'' theme in 6/8,
-two dotted-quarter beats per bar. A breathy flute states a four-note hook over a
-lilting lute that plays two chord tones after each beat, with a saw bass walking
-root and fifth stepwise (G D E B C G D A). The first A closes on the dominant and
-the answer on a held G, with a bird calling above it. A' lifts the hook a fifth and climbs
-to G6. B is a shaded glade: sighing long notes over rolled chords in three quarter-note
-beats against the bass's two. A'' brings the hook back, sings the climax as two long
-notes, and rises to D6 so the loop re-enters on the hook. Held notes use a slight
-vibrato. The bird calls are short rising frequency slides on the harmony voice. The
-score uses 16 ms automation, channels 0/1/2, and leaves noise free; channels 0 and 2
-carry the tune if an effect borrows channel 1. The score needs no manual detuning: the
+[`peaceful.avms`](assets/music/peaceful.avms) is *Morning in the Meadow*, the song of the outdoors, the interiors and
+the dungeon: 24 bars at 76 BPM in G major, in one quiet style. A breathy flute sings its own eight-bar tune
+over G Em C D | G Em C D, with a rocking harp (one chord a bar, in eighth notes) and slow saw roots, and no
+drums. The [Venlor theme](docs/venlor_theme.md) is only quoted, in G, and its two halves are far apart. The question
+(`D4 | G4 A4 | D5 C5 A4`) opens the second section over G D and is left unanswered by the song's own music,
+and the answer (`C5 D5 G5 A5 | G5 D5 G4`) is held back until bars 21-22, where it is the song's final cadence
+over C G; its last G swells, vibrates and rings into the coda. The rest is the song's own music: the tune,
+a rising contrast over Em Am D | Am D | Em D, and the tune's first half again. Held flute notes swell with a
+12 cent vibrato. The score uses 16 ms automation, channels 0/1/2, and leaves noise free; channels 0 and 2
+carry the song if an effect borrows channel 1. The score needs no manual detuning: the
 compiler tunes every note five cents flat and corrects each by at most six cents more (see
-[`docs/audio.md`](../../docs/audio.md#note-tuning)), which keeps the tonic G5, G6 and C6 off the
-pitches where a plain pulse beats at the 15.6 kHz synthesis rate. The lead never rests for a full beat,
+[`docs/audio.md`](../../docs/audio.md#note-tuning)). The lead and the harp never rest for a full beat,
 because the synthesis interrupt costs more per frame with each sounding voice and the
-pause animation's frame-timing check tolerates only small steps in that load. The generated catalog exposes it as `MUSIC_PEACEFUL` with the title
-**Glade and Hearth**.
+pause animation's frame-timing check tolerates only small steps in that load. The generated catalog exposes it as
+`MUSIC_PEACEFUL` with the title **Morning in the Meadow**.
 
 [`title.avms`](assets/music/title.avms) is *Call of Venlor*, the main title: 42 bars at 160 BPM (63 seconds) in D major,
 in one epic style from start to finish: a bright pulse horn, offbeat chord stabs, a galloping saw bass
@@ -100,8 +97,8 @@ Noise carries the impacts.
 | `enemy_turn` | The enemy's turn starts |
 
 Playback starts with Call of Venlor on the title screen. Starting or continuing a game fades it into the
-area's song, Glade and Hearth outdoors. Battles switch to Steel at Dawn and return to
-Glade and Hearth when A dismisses the result screen. Music continues through dialogue and menus.
+area's song, Morning in the Meadow outdoors. Battles switch to Steel at Dawn and return to
+Morning in the Meadow when A dismisses the result screen. Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
 The runtime starts it immediately when no song is active.
@@ -152,15 +149,15 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves from versions 1–7.** Save version 8 writes the live,
-pointer-free `Game` struct directly from AVM's `.saved` prefix (268 bytes), with no separate
+**This development build rejects saves from versions 1–8.** Save version 9 writes the live,
+pointer-free `Game` struct directly from AVM's `.saved` prefix (267 bytes), with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. The title shows an animated
 scene under the game's name and no menu, with Call of Venlor playing: A or B continues the saved game when the flag is set
 and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
 saved world. NPC casts, the tile cache and the animation
-tick are rebuilt when a save is loaded. Total shipping static RAM is 479 bytes,
-including the save flag and three saved audio options.
+tick are rebuilt when a save is loaded. Total shipping static RAM is 478 bytes,
+including the save flag and two saved audio options.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.

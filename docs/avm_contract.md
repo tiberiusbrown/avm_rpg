@@ -170,14 +170,14 @@ erased, and blocks on flash page programming. LOAD scans matching-size records;
 SAVE_EXISTS only checks the first size word. Changing `.saved` length changes physical
 compatibility. Equal-length new versions still require application validation.
 
-RPG save version 8 stores the complete 268-byte `Game` object directly in `.saved`.
+RPG save version 9 stores the complete 267-byte `Game` object directly in `.saved`.
 It contains no pointers and uses the AVM byte-aligned struct layout; changing that layout
 requires a version bump. There is no separate static save buffer, encoder, decoder or
 checksum. The version byte is the first payload byte. The native host's `sizeof(Game)`
 is not the guest format; device QA reads the packed AVM layout.
 
 Startup calls `avm_load()` and validates the loaded version, area, pixel bounds, facing,
-stats, defined flag bits, NPC residences and the three audio slider levels. The result initializes the ordinary global
+stats, defined flag bits, NPC residences and the two audio slider levels. The result initializes the ordinary global
 `save_exists` flag before new-game defaults are prepared for the title screen. Starting a
 new game preserves that flag and the current audio options. Save calls `avm_save()` and sets the flag to true, without
 readback or validation; the UI reports `Saved`. The title and pause menu use the cached
@@ -202,8 +202,8 @@ compact one-shot tonal/noise effects on voices 1/3. Assets store raw uint16 phas
 increments, and pitch changes preserve oscillator phase;
 pause/resume/volume/stop/direct-tone services exist. Native foreground updates
 and Timer1/Timer4 audio operation require no game update call. RPG plays Call of
-Venlor on the title, fades it into Glade and Hearth when the title starts or continues a game,
-switches to Steel at Dawn for battles, and returns to Glade and Hearth at the result. `music_play` leaves the current
+Venlor on the title, fades it into Morning in the Meadow when the title starts or continues a game,
+switches to Steel at Dawn for battles, and returns to Morning in the Meadow at the result. `music_play` leaves the current
 song alone or queues a different song with `avm_audio_play_fade`. The interpreter
 lowers music attenuation by one every 4 ms and restores the request's captured
 gain before starting the queued song (1.02 seconds at gain 255). Input, display
@@ -214,8 +214,7 @@ The title plays its own song, enabled before the first title frame at 16 kHz wit
 the area's song replaces it through the fade; dialogue and menus let playback continue. The Audio
 panel adjusts music and SFX attenuation independently in 31 positions, from 0–200%,
 leaving shared gain unchanged. Defaults are native 128 (100%); the maximum is native 255
-(200%). Stored level 15 remains 100%, preserving previous saved slider percentages. Its low-pass strength slider maps bypass and progressively smaller coefficients
-(128 down to 1), using the native tonal filter, which includes tonal SFX and bypasses noise.
+(200%). Stored level 15 remains 100%, preserving previous saved slider percentages.
 Settings live in the saved `Game`, are loaded once at startup and are changed only in Audio
 thereafter; saving writes them alongside progress.
 Full-device integration checks song switching, PWM output, and exploration with music enabled.

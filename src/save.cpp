@@ -2,8 +2,7 @@
 #include "npc.h"
 
 bool save_valid() {
-    if(game.options.music > OPTION_VOLUME_MAX || game.options.sfx > OPTION_VOLUME_MAX ||
-       game.options.lowpass > OPTION_SLIDER_MAX)
+    if(game.options.music > OPTION_VOLUME_MAX || game.options.sfx > OPTION_VOLUME_MAX)
         return false;
     if(game.save_version != SAVE_VERSION || game.player.facing > WEST || !game.max_hp ||
        game.hp > game.max_hp || !game.level || !game.rng)

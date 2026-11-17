@@ -17,8 +17,11 @@ flute melody, a battle song as a hard-driven figure, a sad scene as a slow lamen
 reason to show several of those styles inside one song. Within a song, every statement has the
 same notes, the same rhythm, the same chords, the same tempo and the same instruments, as a
 film score restates its main theme. And the song is not the theme repeated: it needs its own
-other melodies. The theme is the landmark that the other music walks between. Aim for it to
-fill roughly a quarter to a third of the bars, returning two to four times.
+other melodies. The theme is the landmark that the other music walks between. In a song built
+around it, like the title, aim for it to fill roughly a quarter to a third of the bars,
+returning two to four times. Most songs should use it far more lightly, as a
+[subtle quotation](#subtle-quotation): present for a listener who knows it, but not what the
+song is about.
 
 ## The theme
 
@@ -103,6 +106,7 @@ Choose these once for a song and keep them for every statement in it.
 | Augmentation | Every note value doubled: eight bars and a half-note pickup. Use for grandeur or grief. |
 | Diminution | Every note value halved: two bars and an eighth-note pickup. Use for speed and urgency. |
 | Harmony | Any chords that contain the theme's pitches; this is the main mood control. |
+| Quotation | The whole theme, or only its first half (pickup and bars 1-2, the question) or its second half (bars 3-4, the answer); see [subtle quotation](#subtle-quotation). |
 | Timbre | Any waveform, duty, envelope, vibrato, tremolo or swell, except effects that move the pitches off the written notes. |
 | Accompaniment | Anything that does not mask the theme. |
 
@@ -110,6 +114,29 @@ Vibrato, a swell and a short slide into a note are decoration and leave the them
 Arpeggio and glissando on the lead would replace its pitches, so do not use them on the voice
 that carries the theme. Dynamics may grow over a song, as any arrangement does, but they are
 not a change of style.
+
+## Subtle quotation
+
+Not every song should be about the theme. A song can instead carry it quietly, so that a
+listener who knows it hears it and one who does not just hears the song's own music. Quote it
+exactly (the same notes, rhythm, and chords as everywhere else, in the song's one style) and use
+these tools for a light touch:
+
+- **Quote a half.** The first half (the pickup and bars 1-2) ends on E in D, the question; the
+  second half (bars 3-4) starts on G and ends on the tonic, the answer. Each half keeps its part
+  of the interval signature, so each is recognisable alone.
+- **Separate the halves.** Put the question in the middle of the song and leave the song's own
+  music to continue from it, and keep the answer for the end, where it becomes the closing
+  cadence. The listener hears one question and, a minute later, its answer.
+- **Keep it a small share.** A song that quotes both halves once spends about a sixth of its
+  bars on the theme or less; the rest is the song's own tune.
+- **Do not alter it to blend in.** The quoted notes stay exact. The song's own music should lead
+  into them and away from them, and the chords under them are the theme's chords (here G D | C G).
+- **Same voice and style as the song.** The quote is sung by the song's lead in its usual
+  voice, not given a special instrument or a special level.
+
+*Morning in the Meadow* is the model: its question opens the second section, and its answer is the
+last cadence ([below](#morning-in-the-meadow)).
 
 ## The theme in each mood
 
@@ -356,7 +383,7 @@ comfortable range, which ends near E6, so prefer C, D, and the keys written at o
 ```
 
 Each line was compiled and found to carry the same interval signature. G is the key of
-*Glade and Hearth*.
+*Morning in the Meadow*, which quotes it there.
 
 ## Using the theme in a song
 
@@ -385,7 +412,8 @@ import sys
 sys.path.insert(0, "tools")  # the repository's tools/ directory
 from avm_audio_render import decode
 
-OPENING = [5, 2, 5, -2, -3]
+QUESTION = [5, 2, 5, -2, -3]  # the pickup and bars 1-2
+ANSWER = [2, 5, 2, -2, -5, -7]  # bars 3-4
 THEME = [5, 2, 5, -2, -3, 3, 2, 5, 2, -2, -5, -7]
 
 
@@ -412,7 +440,8 @@ def count(notes, signature):
 
 
 notes = lead_semitones(sys.argv[1])
-print("opening", count(notes, OPENING), "whole theme", count(notes, THEME))
+print("question", count(notes, QUESTION), "answer", count(notes, ANSWER),
+      "whole theme", count(notes, THEME))
 ```
 
 Run it from the repository root with `python3 count_theme.py score.bin`, where `score.bin`
@@ -423,6 +452,7 @@ comes from `python3 tools/avm_music.py score.avms score.bin`.
 | Song | File | Style | Key |
 | --- | --- | --- | --- |
 | Call of Venlor | [`title.avms`](../assets/music/title.avms) | Epic march | D major |
+| Morning in the Meadow | [`peaceful.avms`](../assets/music/peaceful.avms) | Pastoral, quiet | G major |
 
 Add a row, and a bar map if the song is long, whenever a score quotes the theme.
 
@@ -450,7 +480,29 @@ staccato fanfare figures, the flowing tune moves by step in eighth notes, and th
 arpeggios, so the theme stays the one long, singing line. The riff closes on D the first time
 and hands the pickup to the finale the second.
 
-## Playback notes
+### Morning in the Meadow
+
+The song of the outdoors, the interiors and the dungeon runs 24 bars at 76 BPM (75.8 seconds)
+in G major and one quiet style: a breathy flute, a rocking harp and slow saw roots, no drums. It
+quotes the theme in G, once per half, and the rest is its own music. The count by the snippet
+above is one question, one answer and no whole theme.
+
+| Bars | Part | Music |
+| --- | --- | --- |
+| 1-8 | A | The song's own tune over G Em C D, twice; its last note, D4, is the quotation's pickup |
+| 9-10 | B | **The question** (`D4 | G4 A4 | D5 C5 A4`) over G D |
+| 11-16 | B | New music over Em Am D, Am D, Em D that rises and returns |
+| 17-20 | A' | The first half of the song's tune again over G Em C D |
+| 21-22 | End | **The answer** (`C5 D5 G5 A5 | G5 D5 G4`) over C G, the song's closing cadence |
+| 23-24 | End | The last G rings and fades |
+
+The theme takes four of the 24 bars. The song's own tune moves by thirds and scale steps in
+quarter and half notes, and the quote enters on the same flute with no special treatment, so it
+sounds like part of the tune. The score compiles to about 14.2 KB and sends at most four events in any
+20 ms frame; its lead and harp never rest for a whole beat, which the pause animation's frame-timing
+check needs.
+
+## Playback notes (title song)
 
 - The game enables 16 kHz audio and music looping before the title screen starts, then calls
   `music_play(MUSIC_TITLE)`. When A or B ends the title, `music_play_area()` fades the title

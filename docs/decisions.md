@@ -156,10 +156,9 @@ its own loop with an 88-pixel panel easing in from the right. Both use the battl
 half-distance easing, with a steady half-faded world during handoff. Music and SFX each
 have independent 0..30 volume sliders displayed as 0–200%, mapped to native attenuation
 0..255. Both default to level 15 (100%, native 128), with shared master gain at its maximum
-255. The stored levels retain their prior percentage meaning. Low-pass has
-16 strengths, from bypass to coefficient 1. Up/down selects; left/right adjusts and repeats
+255. The stored levels retain their prior percentage meaning. Up/down selects; left/right adjusts and repeats
 while held. B closes Audio directly to gameplay, easing the world back to full brightness.
-The three levels live in `Game::options` and are saved with progress. Startup applies valid
+The two levels live in `Game::options` and are saved with progress. Startup applies valid
 saved values or defaults; a new game and later loads preserve the current values. Finishing
 an outstanding song fade before a music-volume edit prevents its saved gain undoing the edit.
 

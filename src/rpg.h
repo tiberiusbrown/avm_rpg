@@ -35,7 +35,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 8;
+inline constexpr uint8_t SAVE_VERSION = 9;
 
 enum {
     BTN_B = 4,
@@ -88,7 +88,6 @@ inline constexpr uint8_t OPTION_VOLUME_MAX = OPTION_SLIDER_MAX * 2;
 struct AudioOptions {
     uint8_t music = OPTION_SLIDER_MAX;
     uint8_t sfx = OPTION_SLIDER_MAX;
-    uint8_t lowpass = 0;
 };
 
 struct Game {
@@ -232,11 +231,7 @@ enum PAUSE_ITEM : uint8_t {
 
 enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PASS, MENU_RESIGN };
 
-enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_LOWPASS, OPTION_ITEM_COUNT };
-
-constexpr uint8_t option_max(OPTION_ITEM item) {
-    return item == OPTION_LOWPASS ? OPTION_SLIDER_MAX : OPTION_VOLUME_MAX;
-}
+enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_ITEM_COUNT };
 
 inline constexpr uint8_t AUDIO_WIDTH = 88;
 
