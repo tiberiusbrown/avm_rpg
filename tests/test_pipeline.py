@@ -394,6 +394,88 @@ class Pipeline(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rows of 16"):
             generate(self.root)
 
+    def test_face_sprites_match_the_sheet(self):
+        source = generate(self.root)["sprites.cpp"]
+        body = source.split(" FACE_SPRITES[] = {", 1)[1].split("};", 1)[0]
+        body = re.sub(r"//[^\n]*", "", body)
+        data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
+        self.assertEqual(data[:2], [32, 32])
+        image = Image.open(self.root / "assets" / "images" / "faces32.png").convert("RGBA")
+        frames = image.height // 32 * 2
+        self.assertEqual(len(data), 2 + frames * 128)
+        for frame in range(frames):
+            for y in range(32):
+                for x in range(32):
+                    r = image.getpixel((frame % 2 * 32 + x, frame // 2 * 32 + y))[0]
+                    byte = data[2 + frame * 128 + y // 8 * 32 + x]
+                    self.assertEqual((byte >> (y % 8)) & 1, bool(r))
+
+    def test_face_rows_follow_npc_ids(self):
+        path = self.root / "assets/images/faces32.png"
+        image = Image.open(path).convert("RGBA")
+        rows = image.height // 32
+        source = generate(self.root)["sprites.cpp"]
+        self.assertIn(f"static_assert(NPC_ID_LIMIT == {rows},", source)
+        present = re.search(r"FACE_PRESENT\[\] = \{([^}]*)\}", source).group(1).split(", ")
+        self.assertEqual(len(present), rows)
+        self.assertEqual(present[0], "0")  # NPC_NONE has no portrait
+        # A portrait that is all black counts as absent.
+        image.paste(Image.new("RGBA", (64, 32), (0, 0, 0, 255)), (0, 32))
+        image.save(path)
+        edited = re.search(r"FACE_PRESENT\[\] = \{([^}]*)\}", generate(self.root)["sprites.cpp"])
+        self.assertEqual(edited.group(1).split(", ")[1], "0")
+
+    def test_face_sheet_is_validated(self):
+        path = self.root / "assets/images/faces32.png"
+        original = Image.open(path).convert("RGBA")
+        self.assertEqual(original.width, 64)
+        for image in [
+            original.crop((0, 0, 48, original.height)),
+            original.crop((0, 0, 64, original.height - 8)),
+        ]:
+            image.save(path)
+            with self.assertRaisesRegex(ValueError, "expected a PNG 64 pixels wide"):
+                generate(self.root)
+        for pixel, color in [((0, 0), (0, 0, 0, 0)), ((1, 1), (128, 128, 128, 255))]:
+            edited = original.copy()
+            edited.putpixel(pixel, color)
+            edited.save(path)
+            with self.assertRaisesRegex(ValueError, "opaque black and white"):
+                generate(self.root)
+
+    def test_prompt_sprites_match_the_sheet(self):
+        source = generate(self.root)["sprites.cpp"]
+        self.assertIn("static_assert(PROMPT_FRAME_COUNT == 4,", source)
+        body = source.split(" PROMPT_SPRITES[] = {", 1)[1].split("};", 1)[0]
+        body = re.sub(r"//[^\n]*", "", body)
+        data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
+        self.assertEqual(data[:2], [7, 7])
+        # One page of seven columns per frame.
+        self.assertEqual(len(data), 2 + 4 * 7)
+        image = Image.open(self.root / "assets" / "images" / "dialogue_prompts7.png").convert("RGBA")
+        for frame in range(4):
+            for x in range(7):
+                byte = data[2 + frame * 7 + x]
+                self.assertEqual(byte >> 7, 0)  # the bit below the last row is padding
+                for y in range(7):
+                    r = image.getpixel((frame * 7 + x, y))[0]
+                    self.assertEqual((byte >> y) & 1, bool(r))
+
+    def test_prompt_sheet_is_validated(self):
+        path = self.root / "assets/images/dialogue_prompts7.png"
+        original = Image.open(path).convert("RGBA")
+        self.assertEqual(original.size, (28, 7))
+        for image in [original.crop((0, 0, 21, 7)), original.crop((0, 0, 28, 6))]:
+            image.save(path)
+            with self.assertRaisesRegex(ValueError, "expected a PNG 28 pixels wide"):
+                generate(self.root)
+        for pixel, color in [((0, 0), (0, 0, 0, 0)), ((1, 1), (128, 128, 128, 255))]:
+            edited = original.copy()
+            edited.putpixel(pixel, color)
+            edited.save(path)
+            with self.assertRaisesRegex(ValueError, "opaque black and white"):
+                generate(self.root)
+
     def test_battle_target_sheet_is_validated(self):
         path = self.root / "assets/images/battle_targets16.png"
         original = Image.open(path).convert("RGBA")

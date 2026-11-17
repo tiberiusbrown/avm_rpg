@@ -198,7 +198,11 @@ helpers that return before input waits; no page buffer or glyph table is stored.
 Facing plus proximity identifies an NPC on an A edge; `npc_talk` records the request
 and `npc_dialogue` shows that NPC's line in the Dialogue phase. Iona's ordinary function
 calls show an introduction, ask a question, and apply its result; accepting sets
-the lantern flag and grants five gold once. Menu B opens/closes;
+the lantern flag and grants five gold once. An NPC's portrait is a 32x32 tab above the
+dialogue panel, not inside it, so the text keeps its full 124-pixel width: beside a portrait
+the column would hold about 30% fewer characters per page, and dialogue is expected to grow
+longer and span several pages. The panel is 31 pixels tall with four text lines; the prompt
+shares the last line, as an indicator at its right end, instead of taking a line of its own. Menu B opens/closes;
 A activates the selected pause item. Startup loads and validates the physical record to set
 `save_exists`, then prepares new-game defaults without clearing that flag. Save writes once
 and sets the flag immediately, without reading the record back. Menu visibility uses the

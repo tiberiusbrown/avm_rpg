@@ -1280,6 +1280,88 @@ def read_sprite_sheet(name, columns, root=ROOT):
     return frames, masks
 
 
+# The dialogue prompt indicators, dialogue_prompts7.png: opaque black and white 7x7 frames side by side.
+# Frames 0 and 1 are the A button filled and outlined, which blink at the last page of a dialogue,
+# and frames 2 and 3 are a down arrow in two positions, which bobs at a page that is followed by more.
+PROMPT_SIZE = 7
+PROMPT_FRAMES = 4
+
+
+def read_prompt_frames(root=ROOT):
+    path = root / "assets" / "images" / "dialogue_prompts7.png"
+    with Image.open(path) as image:
+        require(
+            image.format == "PNG" and image.size == (PROMPT_FRAMES * PROMPT_SIZE, PROMPT_SIZE),
+            path,
+            f"expected a PNG {PROMPT_FRAMES * PROMPT_SIZE} pixels wide holding "
+            f"{PROMPT_FRAMES} frames of {PROMPT_SIZE}",
+        )
+        pixels = image.convert("RGBA")
+        require(
+            all(
+                (r, g, b, a) in ((0, 0, 0, 255), (255, 255, 255, 255))
+                for r, g, b, a in pixel_values(pixels)
+            ),
+            path,
+            "use opaque black and white pixels",
+        )
+    return [
+        [
+            "".join(
+                "#" if pixels.getpixel((frame * PROMPT_SIZE + x, y))[0] else "."
+                for x in range(PROMPT_SIZE)
+            )
+            for y in range(PROMPT_SIZE)
+        ]
+        for frame in range(PROMPT_FRAMES)
+    ]
+
+
+# The NPC faces, faces32.png: opaque black and white 32x32 frames in two columns (mouth closed, mouth
+# open) and one row per NPC_ID, so frame NPC_ID * 2 + open is that NPC's face. A row that is all
+# black has no portrait.
+FACE_SIZE = 32
+FACE_COLUMNS = 2
+
+
+def read_face_frames(root=ROOT):
+    """Read the face sheet; its height selects the row count, which NPC_ID_LIMIT must match."""
+    path = root / "assets" / "images" / "faces32.png"
+    with Image.open(path) as image:
+        rows = image.height // FACE_SIZE
+        require(
+            image.format == "PNG"
+            and image.size == (FACE_COLUMNS * FACE_SIZE, rows * FACE_SIZE)
+            and 1 <= rows <= 256,
+            path,
+            f"expected a PNG {FACE_COLUMNS * FACE_SIZE} pixels wide holding 1..256 rows of {FACE_SIZE}",
+        )
+        pixels = image.convert("RGBA")
+        require(
+            all(
+                (r, g, b, a) in ((0, 0, 0, 255), (255, 255, 255, 255))
+                for r, g, b, a in pixel_values(pixels)
+            ),
+            path,
+            "use opaque black and white pixels",
+        )
+    frames = []
+    for frame_y in range(rows):
+        for frame_x in range(FACE_COLUMNS):
+            frames.append(
+                [
+                    "".join(
+                        "#"
+                        if pixels.getpixel((frame_x * FACE_SIZE + x, frame_y * FACE_SIZE + y))[0]
+                        else "."
+                        for x in range(FACE_SIZE)
+                    )
+                    for y in range(FACE_SIZE)
+                ]
+            )
+    return frames
+
+
 CURSOR_SIZE = 22
 CURSOR_FRAMES = 4  # One frame per dash phase, side by side in cursor22.png.
 
@@ -1592,6 +1674,9 @@ def generate(root=ROOT):
     phase_sheets = read_tileset_phase_frames(root)
     actor_frames, actor_masks = read_sprite_sheet("actors16.png", ACTOR_COLUMNS, root)
     actor_rows = len(actor_frames) // ACTOR_COLUMNS
+    face_frames = read_face_frames(root)
+    face_rows = len(face_frames) // FACE_COLUMNS
+    prompt_frames = read_prompt_frames(root)
     cursor_frames, cursor_masks = read_cursor_frames(root)
     target_frames, target_masks = read_battle_target_frames(root)
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
@@ -1603,7 +1688,7 @@ def generate(root=ROOT):
     title_pines = {name: read_title_pine(name, root) for name in TITLE_PINES}
     title_rock, title_rock_mask = read_picture("title_rock.png", root, masked=True)
     art = [
-        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, and the title screen's picture, logo, foreground layers and plus-mask frames. */",
+        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, the 32x32 NPC faces, the 7x7 dialogue prompt indicators, and the title screen's picture, logo, foreground layers and plus-mask frames. */",
         '#include "rpg.h"',
         '#include "ambient.h"',
         '#include "title.h"',
@@ -1626,6 +1711,16 @@ def generate(root=ROOT):
                 emitted.append((phase_frames, match))
             phase_names[name, phase] = match
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
+    art.append("")
+    art += sprite_lines("FACE_SPRITES", face_frames, None, FACE_SIZE)
+    art.append("")
+    present = [
+        int(any("#" in row for frame in face_frames[r * FACE_COLUMNS:(r + 1) * FACE_COLUMNS] for row in frame))
+        for r in range(face_rows)
+    ]
+    art.append(f"constexpr uint8_t PROGMEM FACE_PRESENT[] = {{{', '.join(map(str, present))}}};")
+    art.append("")
+    art += sprite_lines("PROMPT_SPRITES", prompt_frames, None, PROMPT_SIZE)
     art.append("")
     art += sprite_lines("CURSOR_SPRITES", cursor_frames, cursor_masks, CURSOR_SIZE)
     art.append("")
@@ -1652,6 +1747,10 @@ def generate(root=ROOT):
         "",
         f"static_assert(ACTOR_ROW_COUNT == {actor_rows}, "
         '"ACTOR_ROW_COUNT must match the rows in actors16.png");',
+        f"static_assert(NPC_ID_LIMIT == {face_rows}, "
+        '"NPC_ID_LIMIT must match the rows in faces32.png");',
+        f"static_assert(PROMPT_FRAME_COUNT == {PROMPT_FRAMES}, "
+        '"PROMPT_FRAME_COUNT must match the frames in dialogue_prompts7.png");',
         f"static_assert(CURSOR_FRAME_COUNT == {CURSOR_FRAMES}, "
         '"CURSOR_FRAME_COUNT must match the frames in cursor22.png");',
         f"static_assert(BATTLE_TARGET_FRAMES == {TARGET_FRAMES}, "

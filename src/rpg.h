@@ -237,7 +237,8 @@ inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 Camera game_camera(uint8_t view_height = 64);
 // Block until acknowledged (true) or dismissed with B (false).
 bool dialogue_show(char const PROGMEM* words);
-// Show the speaker's name in a left-aligned panel above the dialogue.
+// Show the speaker's name in a left-aligned panel above the dialogue. An ID with a portrait also
+// shows it in a tab above the panel's left end, with the name beside it.
 // NPC_NONE and unknown IDs use the unnamed overlay.
 bool dialogue_show(NPC_ID id, char const PROGMEM* words);
 // Announce a successful recruitment with a jingle; called by party_add after updating the party.
@@ -324,6 +325,14 @@ uint8_t const PROGMEM* tileset_sprites(uint8_t tileset);
 // tileset_sprites(). Selecting the sheet is the whole cost of the animation.
 uint8_t const PROGMEM* tileset_phase_sprites(uint8_t tileset, uint8_t phase);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
+// 32x32 NPC faces, two frames per NPC_ID: frame NPC_ID * 2 is the mouth closed, +1 the mouth open.
+extern uint8_t const PROGMEM FACE_SPRITES[];
+// One byte per NPC_ID: nonzero when the ID has a portrait. An all-black row of faces32.png has none.
+extern uint8_t const PROGMEM FACE_PRESENT[];
+// 7x7 dialogue prompt indicators: the A button filled and outlined (0, 1), and a down arrow
+// high and low (2, 3).
+inline constexpr uint8_t PROMPT_FRAME_COUNT = 4;
+extern uint8_t const PROGMEM PROMPT_SPRITES[];
 // The ambient creatures and effects, ambient16.png: 16x16 plus-mask frames that ambient.h names.
 extern uint8_t const PROGMEM AMBIENT_SPRITES[];
 // The title screen: the whole 128x64 background picture, the game's name as one plus-mask

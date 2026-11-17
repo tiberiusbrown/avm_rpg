@@ -76,7 +76,7 @@ void npc_dialogue() {
             break;
         case NPC_VILLAGER:
             dialogue_show(id,
-                F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove."));
+                F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove. I hope you decide to stay here. It's a quiet place, and the trees are kind to those who respect them."));
             // Talking sends the villager to the other end of the clearing, named by map markers.
             npc_set_destination(NPC_VILLAGER,
                                 game.npcs.residence[NPC_VILLAGER] == positions::VillagerEast

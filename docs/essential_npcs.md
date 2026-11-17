@@ -9,6 +9,16 @@ The sample names NPC_VILLAGER Iona, NPC_WANDERER Silas, and NPC_ROWAN Rowan.
 `npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
 `dialogue_show(id, F("..."))` shows that name in a fitted panel above the main
 dialogue panel, aligned with its left edge. The name remains visible across pages.
+An ID with a portrait in `faces32.png` (`FACE_PRESENT`) also shows it in a 32x32 tab above
+the panel's left end, and the name panel moves beside it, one pixel clear of the portrait
+inside a black outline. The panel, its text width and its paging do not change. The mouth
+opens and closes every five letters while text types, and is closed while the panel waits
+for input and while it eases in or out. The portrait slides up with the panel.
+The panel is 31 pixels tall and shows four lines of text. Its last line carries the prompt at
+its right end, so text on that line stops short of it. When A starts to work, half a second
+after the page finishes, a bobbing arrow shows that more text follows and a blinking A button
+shows the last page. A question shows the legend `A yes  B no` right-aligned instead. B still
+leaves at a page of text and closes at the end.
 Dialogue panels slide up from the bottom with the name panel attached, and the render
 camera centers the player in the remaining view. The gameplay camera, tile cache and
 simulation remain unchanged throughout the animation. Successive dialogue, questions

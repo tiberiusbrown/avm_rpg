@@ -115,11 +115,14 @@ Used by Rowan (`NPC_ROWAN`, the archer) and shared with the Spearman enemy.
 - **Hair:** hidden. The hood covers the whole head, so no hair colour is shown.
 - **Head covering:** a white hood with a pointed top. From behind it has a centre
   seam. From the front a dark band runs across the brow and the face sits in a
-  framed opening.
+  framed opening. In profile the hood is a cone over the head that overhangs the
+  brow, with a dark rim between the cloth and the face and the cloth continuing
+  behind the cheek.
 - **Clothing:** tunic and belt, with a dark mark at the collar and another at the
   hem, the same from front and back. They read as a strap or tunic lacing.
 - **Basis:** S frame rows 0-4 form the pointed hood; N frame has a vertical seam
-  on pixel column 7.
+  on pixel column 7; E frame rows 0-4 form the cone, row 5 is the shadow under it,
+  and a rim runs down pixel column 8.
 
 ### Row 4: eyepatch
 

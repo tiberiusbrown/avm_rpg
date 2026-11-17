@@ -6,27 +6,47 @@
 
 // Overlay geometry. Changing the visible line count recomputes every position below.
 static constexpr uint8_t DISPLAY_WIDTH = 128, DISPLAY_HEIGHT = 64;
-static constexpr uint8_t DIALOGUE_VISIBLE_LINES = 3;
+static constexpr uint8_t DIALOGUE_VISIBLE_LINES = 4;
 static constexpr uint8_t BORDER = 1, PADDING = 1, GAP_ABOVE = 1;
 
 // AVM_FONT_BR5D: seven-pixel line spacing, five pixels above the baseline, and
 // descenders that reach the baseline row.
 static constexpr uint8_t LINE_HEIGHT = 7, ASCENT = 5;
-static constexpr uint8_t PROMPT_GAP = 1, PROMPT_ROWS = ASCENT + 1;
-static constexpr uint8_t NAME_HEIGHT = 2 * BORDER + 2 * PADDING + ASCENT + 1;
+// Rows from the top of a letter to its baseline row, which descenders reach.
+static constexpr uint8_t GLYPH_ROWS = ASCENT + 1;
+static constexpr uint8_t NAME_HEIGHT = 2 * BORDER + 2 * PADDING + GLYPH_ROWS;
 
 static constexpr uint8_t OVERLAY_HEIGHT =
-    2 * BORDER + 2 * PADDING + DIALOGUE_VISIBLE_LINES * LINE_HEIGHT + PROMPT_GAP + PROMPT_ROWS;
+    2 * BORDER + 2 * PADDING + (DIALOGUE_VISIBLE_LINES - 1) * LINE_HEIGHT + GLYPH_ROWS;
 static constexpr uint8_t OVERLAY_TOP = DISPLAY_HEIGHT - OVERLAY_HEIGHT;
+
+// A speaker with a portrait shows it in a tab above the left end of the panel, and the name panel
+// moves beside it. The tab leaves the panel, the text width and the paging untouched. The name
+// panel starts one pixel past the portrait, inside a black outline that joins the portrait's edge.
+static constexpr uint8_t FACE_SIZE = 32;
+static constexpr int8_t FACE_TOP = OVERLAY_TOP - GAP_ABOVE - FACE_SIZE;
+static constexpr uint8_t NAME_LEFT_BESIDE_FACE = FACE_SIZE + 1;
+
+// While a speaker types, the mouth flips between open and closed every few letters.
+static constexpr uint8_t MOUTH_LETTERS = 5;
 
 static constexpr uint8_t LEFT = BORDER + PADDING;
 static constexpr uint8_t RIGHT = DISPLAY_WIDTH - BORDER - PADDING;
 static constexpr uint8_t FIRST_LINE = OVERLAY_TOP + BORDER + PADDING + ASCENT;
 static constexpr uint8_t LAST_LINE = FIRST_LINE + (DIALOGUE_VISIBLE_LINES - 1) * LINE_HEIGHT;
-static constexpr uint8_t PROMPT_BASELINE = DISPLAY_HEIGHT - BORDER - PADDING - 1;
+
+// The last line carries the prompt at its right end, so text on that line stops short of it. A page
+// waiting for A shows a 7x7 indicator, and a question shows its legend. Easing in and out draws
+// the indicator in its first frame.
+static constexpr uint8_t PROMPT_SIZE = 7, PROMPT_GAP = 2;
+static constexpr uint8_t PROMPT_X = RIGHT - PROMPT_SIZE;
+static constexpr uint8_t PROMPT_Y = LAST_LINE - ASCENT - 1;
+static constexpr uint8_t PROMPT_TEXT_RIGHT = PROMPT_X - PROMPT_GAP;
+static constexpr uint8_t PROMPT_BLINK_FRAMES = 25;
 
 // Frames run at 50 Hz. Each letter appears on its own frame and blips for that frame.
-// A prompt ignores A for half a second so a press that finished typing cannot advance.
+// A prompt ignores A for half a second so a press that finished typing cannot advance. Its
+// indicator appears when A starts to work.
 static constexpr uint8_t ADVANCE_GUARD_FRAMES = 25;
 static constexpr uint8_t BLIP_AMPLITUDE = 15;
 static constexpr int8_t BLIP_OFFSET = -12;
@@ -78,7 +98,50 @@ static void clear_overlay() {
     dialogue_prompt = DIALOGUE_TYPING;
 }
 
-static void draw_name(NPC_ID id, uint8_t offset = 0) {
+static bool has_face(NPC_ID id) {
+    return id < NPC_ID_LIMIT && FACE_PRESENT[id];
+}
+
+// The portrait tab sits above the panel and moves with it, so it takes the same offset.
+__attribute__((noinline)) static void draw_face(NPC_ID id, bool open, uint8_t offset = 0) {
+    int16_t top = FACE_TOP + offset;
+    if(top >= DISPLAY_HEIGHT)
+        return;
+    avm_draw_sprite_overwrite(0, top, FACE_SPRITES, id * 2 + open);
+}
+
+// What typing keeps on its caller's stack. last_right is where the last line stops, which leaves
+// room for the prompt. While a speaker with a portrait types, the mouth flips between open and
+// closed every few letters; the caller starts it closed. The mouth never moves without text
+// arriving, so a caller closes it before the panel waits for input. That call sits beside
+// wait_for_input, not inside it, to stay off the deepest call chain. Easing in and out always
+// draws the mouth closed.
+struct Typing {
+    bool face;
+    bool mouth_open;
+    uint8_t mouth_letters;
+    uint8_t last_right;
+};
+
+__attribute__((noinline)) static void set_mouth(Typing& typing, bool open) {
+    if(!typing.face || open == typing.mouth_open)
+        return;
+    typing.mouth_open = open;
+    draw_face(dialogue_page.speaker, open);
+}
+
+__attribute__((noinline)) static void tick_mouth(Typing& typing) {
+    if(!typing.face || ++typing.mouth_letters < MOUTH_LETTERS)
+        return;
+    typing.mouth_letters = 0;
+    set_mouth(typing, !typing.mouth_open);
+}
+
+static uint8_t right_edge(Typing const& typing) {
+    return dialogue_y == LAST_LINE ? typing.last_right : RIGHT;
+}
+
+__attribute__((noinline)) static void draw_name(NPC_ID id, uint8_t offset = 0) {
     char const PROGMEM* name = npc_name(id);
     if(!name || !*name)
         return;
@@ -86,14 +149,18 @@ static void draw_name(NPC_ID id, uint8_t offset = 0) {
     uint8_t top = OVERLAY_TOP - GAP_ABOVE - NAME_HEIGHT + offset;
     if(top >= DISPLAY_HEIGHT)
         return;
+    uint8_t left = has_face(id) ? NAME_LEFT_BESIDE_FACE : 0;
+    uint8_t outline = left ? left - 1 : 0;
     uint16_t width = avm_text_width(name) + 2 * LEFT;
-    if(width > DISPLAY_WIDTH)
-        width = DISPLAY_WIDTH;
-    avm_draw_filled_rect_black(0, top - GAP_ABOVE, width + (width < DISPLAY_WIDTH),
+    if(left + width > DISPLAY_WIDTH)
+        width = DISPLAY_WIDTH - left;
+    avm_draw_filled_rect_black(outline, top - GAP_ABOVE,
+                               left - outline + width + (left + width < DISPLAY_WIDTH),
                                NAME_HEIGHT + GAP_ABOVE);
-    avm_draw_filled_rect_white(0, top, width, NAME_HEIGHT);
-    avm_draw_filled_rect_black(BORDER, top + BORDER, width - 2 * BORDER, NAME_HEIGHT - 2 * BORDER);
-    avm_draw_text(LEFT, top + BORDER + PADDING + ASCENT, name);
+    avm_draw_filled_rect_white(left, top, width, NAME_HEIGHT);
+    avm_draw_filled_rect_black(left + BORDER, top + BORDER, width - 2 * BORDER,
+                               NAME_HEIGHT - 2 * BORDER);
+    avm_draw_text(left + LEFT, top + BORDER + PADDING + ASCENT, name);
 }
 
 static void open_overlay(NPC_ID id = NPC_NONE) {
@@ -113,24 +180,41 @@ static void open_overlay(NPC_ID id = NPC_NONE) {
     rpg_render_world(OVERLAY_HEIGHT);
     clear_overlay();
     draw_name(id);
+    if(has_face(id))
+        draw_face(id, false);
 }
 
-static void draw_prompt(DIALOGUE_PROMPT prompt, uint8_t offset = 0) {
-    avm_draw_text(LEFT, PROMPT_BASELINE + offset,
-                  prompt == DIALOGUE_MORE     ? F("A more / B leave")
-                  : prompt == DIALOGUE_CHOICE ? F("A yes / B no")
-                                              : F("A / B close"));
+static char const PROGMEM* choice_legend() {
+    return F("A yes  B no");
+}
+
+// A question shows its legend right-aligned on the last line. The other prompts show an arrow
+// that bobs while more text follows, or the A button, which blinks, after the last page.
+// The phase picks the arrow's height or the button's fill.
+__attribute__((noinline)) static void draw_prompt(DIALOGUE_PROMPT prompt, uint8_t offset = 0,
+                                                  bool phase = false) {
+    if(prompt == DIALOGUE_CHOICE) {
+        char const PROGMEM* legend = choice_legend();
+        avm_draw_text(RIGHT - avm_text_width(legend), LAST_LINE + offset, legend);
+        return;
+    }
+    avm_draw_sprite_overwrite(PROMPT_X, PROMPT_Y + offset, PROMPT_SPRITES,
+                              (prompt == DIALOGUE_MORE ? 2 : 0) + phase);
 }
 
 static bool wait_for_input(DIALOGUE_PROMPT prompt) {
     dialogue_page.prompt = prompt;
-    draw_prompt(prompt);
-    avm_display(false);
+    bool indicator = prompt != DIALOGUE_CHOICE;
+    // A legend is there at once. An indicator appears when A starts to work.
+    if(!indicator) {
+        draw_prompt(prompt);
+        avm_display(false);
+    }
     dialogue_prompt = prompt;
 
     input_wait_release(BTN_A | BTN_B);
-    uint8_t guard = ADVANCE_GUARD_FRAMES;
-    bool accepted;
+    uint8_t guard = ADVANCE_GUARD_FRAMES, blink = 0;
+    bool accepted, phase = false;
     for(;;) {
         input_wait_frame();
         uint8_t pressed = input_pressed();
@@ -142,23 +226,35 @@ static bool wait_for_input(DIALOGUE_PROMPT prompt) {
             accepted = true;
             break;
         }
-        if(guard)
-            --guard;
+        if(guard) {
+            if(!--guard && indicator) {
+                draw_prompt(prompt);
+                avm_display(false);
+            }
+        } else if(indicator && ++blink == PROMPT_BLINK_FRAMES) {
+            blink = 0;
+            phase = !phase;
+            draw_prompt(prompt, 0, phase);
+            avm_display(false);
+        }
     }
     dialogue_prompt = DIALOGUE_CLOSED;
     return accepted;
 }
 
-static bool next_line() {
+static bool next_line(Typing& typing) {
     if(dialogue_y + LINE_HEIGHT <= LAST_LINE) {
         dialogue_x = LEFT;
         dialogue_y += LINE_HEIGHT;
         return true;
     }
 
+    set_mouth(typing, false);
     if(!wait_for_input(DIALOGUE_MORE))
         return false;
     clear_overlay();
+    // The first letter of the next page opens the mouth.
+    typing.mouth_letters = MOUTH_LETTERS - 1;
     return true;
 }
 
@@ -190,10 +286,11 @@ static void type_frame() {
 
 // Draws one letter at the pen with its blip. A letter that would pass the right
 // edge starts a new line first, so oversized words still break at glyph boundaries.
-__attribute__((noinline)) static bool reveal_letter(char const PROGMEM* words, bool blips) {
+__attribute__((noinline)) static bool reveal_letter(char const PROGMEM* words, bool blips,
+                                                    Typing& typing) {
     char c = *words;
     char letter[2] = {c, 0};
-    if(dialogue_x + avm_text_width(letter) > RIGHT && !next_line())
+    if(dialogue_x + avm_text_width(letter) > right_edge(typing) && !next_line(typing))
         return false;
 
     if(!dialogue_page.first)
@@ -202,6 +299,8 @@ __attribute__((noinline)) static bool reveal_letter(char const PROGMEM* words, b
         dialogue_page.lines[(dialogue_y - FIRST_LINE) / LINE_HEIGHT - 1] = words;
     dialogue_page.end = words + 1;
     dialogue_x = (uint8_t)avm_draw_text(dialogue_x, dialogue_y, letter).x;
+    if(!dialogue_skip)
+        tick_mouth(typing);
     avm_display(false);
     if(dialogue_skip)
         return true;
@@ -214,7 +313,7 @@ __attribute__((noinline)) static bool reveal_letter(char const PROGMEM* words, b
     return true;
 }
 
-static bool stream_text(char const PROGMEM* words, bool blips = true) {
+static bool stream_text(char const PROGMEM* words, bool blips, Typing& typing) {
     if(dialogue_page.first)
         dialogue_page.second = words;
     while(*words) {
@@ -228,7 +327,7 @@ static bool stream_text(char const PROGMEM* words, bool blips = true) {
                     ++next;
                 if(!*next)
                     return true;
-                if(!next_line())
+                if(!next_line(typing))
                     return false;
             }
             continue;
@@ -236,8 +335,8 @@ static bool stream_text(char const PROGMEM* words, bool blips = true) {
 
         if(dialogue_x != LEFT) {
             uint8_t space = (uint8_t)avm_text_width(F(" "));
-            if(dialogue_x + space + word_width(words) > RIGHT) {
-                if(!next_line())
+            if(dialogue_x + space + word_width(words) > right_edge(typing)) {
+                if(!next_line(typing))
                     return false;
             } else {
                 dialogue_x += space;
@@ -246,7 +345,7 @@ static bool stream_text(char const PROGMEM* words, bool blips = true) {
 
         // Word placement above has already decided this word's line.
         while(*words && !separator(*words)) {
-            if(!reveal_letter(words++, blips))
+            if(!reveal_letter(words++, blips, typing))
                 return false;
         }
     }
@@ -300,6 +399,8 @@ static void draw_transition(uint8_t offset) {
     avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     uint8_t covered = offset < OVERLAY_HEIGHT ? OVERLAY_HEIGHT - offset : 0;
     rpg_render_world(covered);
+    if(has_face(dialogue_page.speaker))
+        draw_face(dialogue_page.speaker, false, offset);
     draw_name(dialogue_page.speaker, offset);
     if(offset < OVERLAY_HEIGHT) {
         draw_overlay(offset);
@@ -316,7 +417,9 @@ static void draw_transition(uint8_t offset) {
 
 static void animate_overlay(bool closing) {
     uint8_t travel = OVERLAY_HEIGHT;
-    if(npc_name(dialogue_page.speaker))
+    if(has_face(dialogue_page.speaker))
+        travel += GAP_ABOVE + FACE_SIZE;
+    else if(npc_name(dialogue_page.speaker))
         travel += GAP_ABOVE + NAME_HEIGHT;
     // Use the same normalized smoothstep and frame count in both directions,
     // including panels with names. Only the total travel distance varies.
@@ -352,13 +455,23 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
         return true;
 
     open_overlay(id);
-    bool accepted = stream_text(words) && wait_for_input(DIALOGUE_DONE);
+    // The mouth starts closed, and the first letter opens it.
+    Typing typing = {has_face(id), false, MOUTH_LETTERS - 1, PROMPT_TEXT_RIGHT};
+    bool accepted = false;
+    if(stream_text(words, true, typing)) {
+        set_mouth(typing, false);
+        accepted = wait_for_input(DIALOGUE_DONE);
+    }
     return accepted;
 }
 
 bool dialogue_ask(char const PROGMEM* question) {
     open_overlay();
-    bool accepted = (!question || stream_text(question)) && wait_for_input(DIALOGUE_CHOICE);
+    // The legend sits at the right end of the last line, so the question stops short of it.
+    Typing typing = {false, false, 0,
+                     (uint8_t)(RIGHT - avm_text_width(choice_legend()) - PROMPT_GAP)};
+    bool accepted =
+        (!question || stream_text(question, true, typing)) && wait_for_input(DIALOGUE_CHOICE);
     return accepted;
 }
 
@@ -370,6 +483,7 @@ void party_joined(NPC_ID id) {
     open_overlay();
     sfx_play(SFX_PARTY_JOIN);
     // Typing blips share the jingle's voice, so let the jingle play uninterrupted.
-    if(stream_text(name, false) && stream_text(F("has joined the party!"), false))
+    Typing typing = {false, false, 0, PROMPT_TEXT_RIGHT};
+    if(stream_text(name, false, typing) && stream_text(F("has joined the party!"), false, typing))
         wait_for_input(DIALOGUE_DONE);
 }
