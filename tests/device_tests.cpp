@@ -39,7 +39,7 @@ struct Cost {
 struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
     unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
-    unsigned battle_pointer_addr = 0, battle_ready_addr = 0;
+    unsigned battle_pointer_addr = 0, battle_ready_addr = 0, panel_addr = 0;
     uint8_t previous_phase = 0;
     uint64_t phase_begin = 0;
     Cost stages;
@@ -209,7 +209,15 @@ struct Device {
             if(phase != BATTLE_QA_BUSY &&
                (previous_activations == 256 || battle_state().activations != previous_activations))
                 return;
-            require(ab->core_state.cpu.cycle_count < deadline, "battle readiness timeout");
+            if(ab->core_state.cpu.cycle_count >= deadline) {
+                auto state = battle_state();
+                std::cerr << "battle wait: phase=" << unsigned(phase)
+                          << " previous=" << previous_activations
+                          << " activations=" << unsigned(state.activations)
+                          << " turn=" << unsigned(state.turn) << " ended=" << state.ended
+                          << " prompt=" << unsigned(prompt()) << '\n';
+                require(false, "battle readiness timeout");
+            }
             step();
         }
     }
@@ -849,10 +857,60 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.frame();
     d.tap(BTN_A);
     require(d.prompt() != DIALOGUE_CLOSED, "talking to Rowan did not open dialogue");
-    while(d.prompt() != DIALOGUE_CLOSED) {
-        d.wait_for_prompt();
-        d.tap(BTN_A);
+    d.wait_for_prompt();
+    Game before = d.state();
+    require(d.panel_addr && d.ab->core_state.cpu.data[d.panel_addr], "dialogue panel is not open");
+
+    // The speech and recruitment announcement must share a single open panel.
+    struct PanelTrace {
+        Device& device;
+        bool closed = false;
+        bool reloaded = false;
+    } trace{d};
+
+    require(!d.cycle_observer, "another device observer is attached");
+    d.observer_context = &trace;
+    d.cycle_observer = [](void* context, bool after) {
+        auto& trace = *static_cast<PanelTrace*>(context);
+        if(after) {
+            auto const& ram = trace.device.ab->core_state.cpu.data;
+            if(!ram[trace.device.panel_addr])
+                trace.closed = true;
+            if(ram[trace.device.phase_addr] == 4)
+                trace.reloaded = true;
+        }
+    };
+    d.tap(BTN_A);
+    d.wait_for_prompt();
+    d.cycle_observer = nullptr;
+    d.observer_context = nullptr;
+    require(!trace.closed, "panel closed between speech and recruitment announcement");
+    require(!trace.reloaded, "dialogue reloaded the tile cache");
+    Game announced = d.state();
+    require(announced.ticks == before.ticks &&
+                !memcmp(&announced.cache, &before.cache, sizeof(TileCache)) &&
+                !memcmp(&announced.camera, &before.camera, sizeof(Camera)),
+            "dialogue moved the gameplay camera, reloaded tiles or advanced simulation");
+    d.capture(out / "party-joined.pgm");
+    // Directional input during closing cannot move the player or advance simulation/cache work.
+    d.buttons = BTN_B | BTN_RIGHT;
+    uint64_t deadline = d.ab->core_state.cpu.cycle_count + 4000000;
+    while(d.ab->core_state.cpu.data[d.panel_addr]) {
+        d.step();
+        require(d.ab->core_state.cpu.cycle_count < deadline,
+                "dialogue close did not finish promptly");
+        if(d.ab->core_state.cpu.data[d.panel_addr]) {
+            require(d.ab->core_state.cpu.data[d.phase_addr] != 4,
+                    "dialogue closing reloaded the tile cache");
+            Game closing = d.state();
+            require(closing.ticks == announced.ticks &&
+                        !memcmp(&closing.player, &announced.player, sizeof(Actor)) &&
+                        !memcmp(&closing.camera, &announced.camera, sizeof(Camera)) &&
+                        !memcmp(&closing.cache, &announced.cache, sizeof(TileCache)),
+                    "dialogue closing changed gameplay state");
+        }
     }
+    d.advance(0, 1600000);
     auto joined = d.state().party;
     require(joined.count == 2 && joined.members[1].id == NPC_ROWAN &&
                 joined.members[1].hp == 18 && joined.members[1].max_hp == 18 &&
@@ -1199,7 +1257,13 @@ static void play_grove_battle(Device& d, bool verify_transition = false) {
     BattleState fixture;
     battle_fixture_begin(fixture, &BATTLE_TEST_GROVE);
     d.set_battle(fixture);
-    GroveCell cursor{2, 1}; // The encounter and fixture share the first deployment cell.
+    // Replacing BattleState does not reset the screen's cursor after menu fixtures.
+    // Clamp it to a known corner before driving the victory plan.
+    for(unsigned i = 1; i < BATTLE_COLUMNS; ++i)
+        d.tap(BTN_LEFT);
+    for(unsigned i = 1; i < BATTLE_ROWS; ++i)
+        d.tap(BTN_UP);
+    GroveCell cursor{0, 0};
     for(auto const& action : GROVE_VICTORY_PLAN) {
         grove_move_cursor(d, cursor, action.hero);
         d.tap(BTN_A); // Select the hero.
@@ -1390,10 +1454,10 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
 }
 
 int main(int argc, char** argv) try {
-    require(argc >= 9 && argc <= 11,
+    require(argc >= 9 && argc <= 12,
             "device_tests package game_address marker_address serial_address "
             "output_directory normal|fxc|proof|smoke|pause|battle dialogue_address phase_address "
-            "[battle_pointer_address [battle_ready_address]]");
+            "[battle_pointer_address [battle_ready_address [panel_address]]]");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
@@ -1402,8 +1466,10 @@ int main(int argc, char** argv) try {
     d.phase_addr = std::stoul(argv[8]);
     if(argc >= 10)
         d.battle_pointer_addr = std::stoul(argv[9]);
-    if(argc == 11)
+    if(argc >= 11)
         d.battle_ready_addr = std::stoul(argv[10]);
+    if(argc == 12)
+        d.panel_addr = std::stoul(argv[11]);
     if(d.proof) {
         d.frame();
         summary("m0_proof", d, 30);
@@ -1799,6 +1865,7 @@ int main(int argc, char** argv) try {
     require(restarted.music_enabled(), "the continue title has no music");
     unsigned continue_title_song = audio_pointer(restarted, AUDIO_MUSIC_START);
     restarted.tap(BTN_A);
+    restarted.frame();
     auto loaded = restarted.state();
     require(restarted.serial() != 0 && loaded.area == saved.area &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y &&

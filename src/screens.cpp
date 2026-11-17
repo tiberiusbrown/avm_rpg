@@ -202,6 +202,7 @@ __attribute__((noinline)) void explore() {
     input_sync();
 
     for(;;) {
+        dialogue_close();
         input_wait_frame();
         uint8_t pressed = input_pressed();
 
@@ -241,6 +242,7 @@ __attribute__((noinline)) void explore() {
         RPG_QA_MARK(rpg_frame_begin());
         if(game_update(input_held()))
             music_play_area();
+        dialogue_close();
         RPG_QA_MARK(rpg_render_begin());
         rpg_render_world();
         avm_display(true);

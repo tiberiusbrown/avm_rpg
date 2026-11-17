@@ -9,6 +9,13 @@ The sample names NPC_VILLAGER Iona, NPC_WANDERER Silas, and NPC_ROWAN Rowan.
 `npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
 `dialogue_show(id, F("..."))` shows that name in a fitted panel above the main
 dialogue panel, aligned with its left edge. The name remains visible across pages.
+Dialogue panels slide up from the bottom with the name panel attached, and the render
+camera centers the player in the remaining view. The gameplay camera, tile cache and
+simulation remain unchanged throughout the animation. Successive dialogue, questions
+and recruitment announcements reuse the open panel; exploration closes it with the
+same easing curve and frame count in reverse before accepting gameplay input. Battle/area fade-out also closes it first.
+Only the open flag and flash pointers for the visible page persist outside `Game`; no
+framebuffer copy or tile reload is needed for the motion.
 The text-only overload and `dialogue_ask` use the unnamed panel.
 Successful `party_add` calls for NPCs then show "<name> has joined the party!"
 and play the `party_join` jingle. Failed additions and the initial traveler setup

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <initializer_list>
 
 static unsigned checks;
 #define CHECK(value)                                                                               \
@@ -253,7 +254,42 @@ static void saves() {
           game.player.y != positions::GroveSign.y * TILE);
 }
 
+// Every uncovered view must fit the original cache, including pixel phases and map edges.
+static void dialogue_camera_bounds() {
+    game_new();
+    for(uint8_t height_tiles : {uint8_t(1), uint8_t(3), uint8_t(4), uint8_t(7), uint8_t(248)}) {
+        game.dimensions.height_tiles = height_tiles;
+        for(uint16_t y = 0; y <= (height_tiles - 1) * TILE; ++y) {
+            game.player.y = y;
+            game.camera = game_camera();
+            uint8_t origin = (uint8_t)(game.camera.y >> TILE_SHIFT);
+            if(origin >= CACHE_MARGIN)
+                origin -= CACHE_MARGIN;
+            Game before = game;
+            uint16_t previous_y = game.camera.y;
+            for(uint8_t covered = 0; covered <= 32; ++covered) {
+                uint8_t height = 64 - covered;
+                Camera camera = game_camera(height);
+                CHECK(camera.x == game.camera.x);
+                CHECK(camera.y >= previous_y);
+                CHECK(camera.y >= game.camera.y);
+                CHECK(camera.y + height <= game.camera.y + 64);
+                CHECK((camera.y >> TILE_SHIFT) >= origin);
+                CHECK(((camera.y + height - 1) >> TILE_SHIFT) < origin + CACHE_HEIGHT);
+                int16_t centered = (int16_t)y - ((int16_t)height - TILE) / 2;
+                int16_t maximum = (int16_t)height_tiles * TILE - height;
+                if(centered >= 0 && centered <= maximum)
+                    CHECK(camera.y == centered);
+                previous_y = camera.y;
+            }
+            CHECK(!memcmp(&before, &game, sizeof(Game)));
+        }
+    }
+    game_new();
+}
+
 int main() {
+    dialogue_camera_bounds();
     animate();
     movement();
     sign();

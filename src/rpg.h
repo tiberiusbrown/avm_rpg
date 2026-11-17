@@ -233,7 +233,8 @@ bool actor_move(Actor* actor, DIRECTION dir, uint8_t pixels);
 inline constexpr uint8_t PLAYER_PIXELS_PER_FRAME = 1;
 // A blocked step is passed by sidestepping this many pixels or fewer.
 inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
-Camera game_camera();
+// Center the player in the uncovered viewport, clamped to the map.
+Camera game_camera(uint8_t view_height = 64);
 // Block until acknowledged (true) or dismissed with B (false).
 bool dialogue_show(char const PROGMEM* words);
 // Show the speaker's name in a left-aligned panel above the dialogue.
@@ -247,7 +248,11 @@ bool dialogue_ask(char const PROGMEM* question);
 bool save_valid();
 // Validate and place the loaded player, rebuilding transient state. The caller refreshes the world.
 bool save_restore();
-void rpg_render_world();
+// Rendering may shrink the world viewport without changing Game or reloading tiles.
+void rpg_render_world(uint8_t covered = 0);
+extern bool dialogue_panel_open;
+// Non-dialogue screens close the retained panel before taking over. Blocks through the animation.
+void dialogue_close();
 // Eight 20 ms steps per half, using flash-resident ordered-dither erase masks.
 inline constexpr uint8_t FADE_STEPS = 8;
 void show_fade(uint8_t step);

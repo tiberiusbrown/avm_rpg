@@ -193,11 +193,11 @@ bool actor_move(Actor* a, DIRECTION dir, uint8_t pixels) {
     return moved;
 }
 
-Camera game_camera() {
+Camera game_camera(uint8_t view_height) {
     int16_t x = (int16_t)game.player.x - (128 - TILE) / 2,
-            y = (int16_t)game.player.y - (64 - TILE) / 2;
+            y = (int16_t)game.player.y - ((int16_t)view_height - TILE) / 2;
     int16_t mx = (int16_t)game.dimensions.width_tiles * TILE - 128;
-    int16_t my = (int16_t)game.dimensions.height_tiles * TILE - 64;
+    int16_t my = (int16_t)game.dimensions.height_tiles * TILE - view_height;
     Camera c;
 
     if(mx < 0)
