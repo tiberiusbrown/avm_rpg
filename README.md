@@ -44,6 +44,8 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 | Song | Character | Key / meter | BPM | Loop |
 |---|---|---|---:|---:|
 | Morning in the Meadow | Original pastoral theme: breathy pulse flute, rocking harp, slow saw roots, no drums; quotes the Venlor theme in two halves | G major / 4/4 | 76 | 75.789 s |
+| Glade and Hearth | Original woodland-village theme: breathy pulse flute, lute and rolled chords, saw bass, two bird calls (`peaceful2.avms`) | G major / 6/8 | 96 | 60.000 s |
+| Peaceful Village | Original NES-inspired town theme over a stepwise descending bass (`peaceful3.avms`) | D major / 4/4 | 96 | 60.000 s |
 | Steel at Dawn | Original fantasy battle theme | D minor / 4/4 | 152 | About 12.6 s |
 | Call of Venlor | Epic main title: a galloping march in which the singing Venlor theme returns between new tunes | D major / 4/4 | 160 | 63.000 s |
 

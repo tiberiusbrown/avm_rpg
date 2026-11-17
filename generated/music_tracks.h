@@ -3,16 +3,22 @@
 #include "music_battle.h"
 #include "music_cave.h"
 #include "music_peaceful.h"
+#include "music_peaceful2.h"
+#include "music_peaceful3.h"
 #include "music_title.h"
 
 constexpr char AVM_PROGMEM MUSIC_BATTLE_TITLE[] = "Steel at Dawn";
 constexpr char AVM_PROGMEM MUSIC_CAVE_TITLE[] = "Where the Light Ends";
 constexpr char AVM_PROGMEM MUSIC_PEACEFUL_TITLE[] = "Morning in the Meadow";
+constexpr char AVM_PROGMEM MUSIC_PEACEFUL2_TITLE[] = "Glade and Hearth";
+constexpr char AVM_PROGMEM MUSIC_PEACEFUL3_TITLE[] = "Peaceful Village";
 constexpr char AVM_PROGMEM MUSIC_TITLE_TITLE[] = "Call of Venlor";
 
 constexpr MusicTrack AVM_PROGMEM MUSIC_TRACKS[] = {
     {MUSIC_BATTLE_DATA, MUSIC_BATTLE_TITLE},
     {MUSIC_CAVE_DATA, MUSIC_CAVE_TITLE},
     {MUSIC_PEACEFUL_DATA, MUSIC_PEACEFUL_TITLE},
+    {MUSIC_PEACEFUL2_DATA, MUSIC_PEACEFUL2_TITLE},
+    {MUSIC_PEACEFUL3_DATA, MUSIC_PEACEFUL3_TITLE},
     {MUSIC_TITLE_DATA, MUSIC_TITLE_TITLE},
 };
