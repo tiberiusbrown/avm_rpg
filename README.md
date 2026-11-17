@@ -19,7 +19,17 @@ immediately after saving. Party opens an eased sliding roster with four slots, s
 A new game starts with the traveler (20/20 HP, fighter movement and attack). Rowan waits southeast
 of the starting point; talking to him recruits him once (18/18 HP, fighter movement, archer attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
-Party membership and statistics are saved. The version 10 save layout rejects older saves. Journal and Map are placeholders. The world stays frozen while the menu is open; music continues.
+Party membership and statistics are saved. The version 10 save layout rejects older saves. Journal is a placeholder. The world stays frozen while the menu is open; music continues.
+
+Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
+building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
+pattern. The cursor starts at the player; a separate blinking square marks the player
+after the cursor moves away. The crosshair gently expands and contracts, with an opaque
+black outline around its arms and an open center. D-pad taps adjust its position precisely;
+holding accelerates over sixteen frames independently to one pixel per frame on each axis,
+so diagonal movement is faster. Scrolling starts within twelve pixels of a screen edge.
+B returns to the pause menu with Map selected.
+The map reveals the whole exterior; A is reserved for future marker and travel actions.
 Save writes the existing single save slot and immediately sets the save flag, without readback. Selecting Load eases the panel out
 while fading the world completely to black, restores the saved world while hidden, then
 fades it completely back in before play resumes.

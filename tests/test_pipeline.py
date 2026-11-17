@@ -29,10 +29,28 @@ from generate_assets import (
     tile_wind_block,
     tileset_overlays,
     TILE_PHASES,
+    world_map_image,
+    world_map_sprite,
 )
 
 
 class Pipeline(unittest.TestCase):
+    def test_world_map_size_and_binary_pixels(self):
+        image = world_map_image(ROOT)
+        self.assertEqual(image.size, (MAX_WIDTH, MAX_HEIGHT))
+        self.assertEqual(image.mode, "1")
+        packed = world_map_sprite(image)
+        self.assertEqual(packed[:2], [MAX_WIDTH, MAX_HEIGHT])
+        self.assertEqual(len(packed), 2 + MAX_WIDTH * MAX_HEIGHT // 8)
+        for y in range(MAX_HEIGHT):
+            for x in range(MAX_WIDTH):
+                byte = packed[2 + (y // 8) * MAX_WIDTH + x]
+                self.assertEqual(bool(byte & (1 << (y % 8))), bool(image.getpixel((x, y))))
+
+    def test_world_map_partial_page_padding(self):
+        image = Image.new("1", (3, 9), 1)
+        self.assertEqual(world_map_sprite(image), [3, 9, 255, 255, 255, 1, 1, 1])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(
             prefix="rpg16-test-", dir=ROOT / "build"

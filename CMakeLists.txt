@@ -86,6 +86,10 @@ add_executable(rpg_world_tests tests/test_world.cpp)
 target_link_libraries(rpg_world_tests PRIVATE rpg_rules rpg_story_stubs)
 target_include_directories(rpg_world_tests PRIVATE generated)
 add_test(NAME chunk_world COMMAND rpg_world_tests)
+add_executable(rpg_world_map_tests tests/test_world_map.cpp)
+target_include_directories(rpg_world_map_tests PRIVATE src generated)
+add_dependencies(rpg_world_map_tests rpg_assets)
+add_test(NAME world_map COMMAND rpg_world_map_tests)
 add_executable(rpg_ambient_tests tests/test_ambient.cpp)
 target_link_libraries(rpg_ambient_tests PRIVATE rpg_rules rpg_story_stubs)
 target_include_directories(rpg_ambient_tests PRIVATE generated)
@@ -242,7 +246,7 @@ if(RPG_BUILD_GUEST)
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/ambient.h src/title.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/world_map.h src/ambient.h src/title.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()

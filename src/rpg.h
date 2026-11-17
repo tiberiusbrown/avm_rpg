@@ -277,7 +277,19 @@ enum PAUSE_ITEM : uint8_t {
     PAUSE_ITEM_COUNT
 };
 
-enum MENU_EXIT : uint8_t { MENU_RESUME, MENU_LOAD, MENU_AUDIO, MENU_PARTY, MENU_PASS, MENU_RESIGN };
+enum MENU_EXIT : uint8_t {
+    MENU_RESUME,
+    MENU_LOAD,
+    MENU_AUDIO,
+    MENU_PARTY,
+    MENU_MAP,
+    MENU_PASS,
+    MENU_RESIGN
+};
+
+constexpr bool menu_opens_screen(MENU_EXIT action) {
+    return action >= MENU_AUDIO && action <= MENU_MAP;
+}
 
 enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_ITEM_COUNT };
 
@@ -313,6 +325,10 @@ void explore();
 MENU_EXIT menu_screen(BattleScreen const* battle = nullptr, PAUSE_ITEM initial = PAUSE_RESUME);
 void audio_screen(BattleScreen const* battle = nullptr);
 void party_screen();
+void map_screen();
+struct WorldMapView;
+void render_world_map(WorldMapView const& view, uint8_t ticks);
+extern uint8_t const PROGMEM WORLD_MAP_SPRITE[];
 void game_save();
 bool game_load();
 char const PROGMEM* music_next();
@@ -327,7 +343,8 @@ uint8_t const PROGMEM* tileset_phase_sprites(uint8_t tileset, uint8_t phase);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
 // 32x32 NPC faces, two frames per NPC_ID: frame NPC_ID * 2 is the mouth closed, +1 the mouth open.
 extern uint8_t const PROGMEM FACE_SPRITES[];
-// One byte per NPC_ID: nonzero when the ID has a portrait. An all-black row of faces32.png has none.
+// One byte per NPC_ID: nonzero when the ID has a portrait. An all-black row of faces32.png has
+// none.
 extern uint8_t const PROGMEM FACE_PRESENT[];
 // 7x7 dialogue prompt indicators: the A button filled and outlined (0, 1), and a down arrow
 // high and low (2, 3).

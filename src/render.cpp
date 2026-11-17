@@ -5,11 +5,59 @@
 #include "ambient.h"
 #include "title.h"
 #include "world_assets.h"
+#include "world_map.h"
 
 #include <avm.h>
 #include <string.h>
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
+
+// Breathing crosshair: opaque black halo around every white arm, open target center.
+static constexpr auto MAP_CURSOR PROGMEM = [] {
+    struct Sprite {
+        uint8_t width, height;
+        uint8_t frames[2][44];
+    } sprite{11, 16, {}};
+    for(uint8_t phase = 0; phase < 2; ++phase) {
+        for(int8_t y = 0; y < 11; ++y) {
+            for(int8_t x = 0; x < 11; ++x) {
+                bool white = false, opaque = false;
+                for(int8_t dy = -1; dy <= 1; ++dy) {
+                    for(int8_t dx = -1; dx <= 1; ++dx) {
+                        int8_t ax = x - 5 + dx, ay = y - 5 + dy;
+                        int8_t distance = ax < 0 ? -ax : ax;
+                        if(!ax)
+                            distance = ay < 0 ? -ay : ay;
+                        bool arm = (!ax || !ay) && distance >= 2 && distance <= 3 + phase;
+                        opaque |= arm;
+                        if(!dx && !dy)
+                            white = arm;
+                    }
+                }
+                uint8_t offset = ((y / 8) * 11 + x) * 2;
+                if(white)
+                    sprite.frames[phase][offset] |= (uint8_t)(1 << (y % 8));
+                if(opaque)
+                    sprite.frames[phase][offset + 1] |= (uint8_t)(1 << (y % 8));
+            }
+        }
+    }
+    return sprite;
+}();
+
+void render_world_map(WorldMapView const& view, uint8_t ticks) {
+    avm_draw_sprite_overwrite(-view.camera_x, -view.camera_y, WORLD_MAP_SPRITE, 0);
+    int16_t player_x = (game.player.x + FOOT_CENTER_X) / TILE - view.camera_x;
+    int16_t player_y = (game.player.y + FOOT_CENTER_Y) / TILE - view.camera_y;
+    if(!(ticks & 16)) {
+        avm_draw_filled_rect_black(player_x - 2, player_y - 2, 5, 5);
+        avm_draw_filled_rect_white(player_x - 1, player_y - 1, 3, 3);
+    }
+    uint8_t phase = (ticks / 8) % 4;
+    avm_draw_sprite_plus_mask(map_pixel(view.x) - view.camera_x - 5,
+                              map_pixel(view.y) - view.camera_y - 5, &MAP_CURSOR,
+                              phase == 1 || phase == 2);
+}
 
 // Eight 20 ms steps per half of the transition. Seven intermediate erase masks live in flash;
 // the endpoints need no sprite. A 16x64 strip repeats eight times across the framebuffer, keeping
@@ -397,9 +445,9 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
     else
         rpg_render_world();
     uint8_t fade = (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / width);
-    draw_fade((action == MENU_AUDIO || action == MENU_PARTY) ? FADE_STEPS / 2
-              : action == MENU_LOAD                          ? FADE_STEPS - fade
-                                                             : fade);
+    draw_fade(menu_opens_screen(action) ? FADE_STEPS / 2
+              : action == MENU_LOAD     ? FADE_STEPS - fade
+                                        : fade);
     if(!revealed)
         return;
 

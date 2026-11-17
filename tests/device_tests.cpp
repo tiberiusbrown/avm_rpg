@@ -816,7 +816,7 @@ static void set_test_options(Device& d) {
     d.frame();
 }
 
-static void verify_pause_party(Device& d) {
+static void verify_pause_party(Device& d, fs::path const& out) {
     d.tap(BTN_B);
     d.advance(0, 1600000);
     auto before = pause_frame(d).pixels;
@@ -824,6 +824,17 @@ static void verify_pause_party(Device& d) {
     d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_A); // Map
+    d.advance(0, 8000000);
+    d.capture(out / "world-map.pgm");
+    d.advance(BTN_RIGHT | BTN_DOWN, 16000000);
+    d.advance(BTN_RIGHT, 32000000);
+    d.advance(0, 800000);
+    d.capture(out / "world-map-scrolled.pgm");
+    Game mapped = d.state();
+    require(!memcmp(&frozen, &mapped, sizeof(Game)), "Map changed paused game state");
+    d.verify_music();
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
     d.tap(BTN_UP);
     d.tap(BTN_A); // Journal
     d.tap(BTN_LEFT);
@@ -1501,7 +1512,7 @@ int main(int argc, char** argv) try {
     // attenuation while it runs, so the audio checks wait for it.
     require(settled_song(d) != title_song, "starting a game kept the title song");
     verify_options(d, out);
-    verify_pause_party(d);
+    verify_pause_party(d, out);
     if(std::string(argv[6]) == "pause") {
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"Audio and pause redraw\"}\n";
         return 0;
@@ -1765,17 +1776,24 @@ int main(int argc, char** argv) try {
     require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
             "overworld menu did not show Map or hid an invalid save incorrectly");
 
-    // Up wraps to Audio. Pass it to exercise the remaining placeholders.
+    // Up wraps to Audio. Map owns its loop and returns to the same menu selection.
     d.tap(BTN_UP);
     d.tap(BTN_UP); // Map
     d.tap(BTN_A);
+    d.advance(0, 8000000);
+    auto after_map = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_map, sizeof(Game)),
+            "world map advanced or changed gameplay");
+    d.verify_music();
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
     d.tap(BTN_UP); // Journal
     d.tap(BTN_A);
     d.tap(BTN_LEFT);
     d.tap(BTN_RIGHT);
     auto after_placeholders = d.state();
     require(d.serial() == menu_serial && !memcmp(&menu_state, &after_placeholders, sizeof(Game)),
-            "pause placeholders advanced simulation");
+            "Journal advanced simulation");
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "Audio changed the audio rate");
 
     d.tap(BTN_UP); // Party

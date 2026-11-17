@@ -774,6 +774,69 @@ def map_preview_path(symbol):
     return f"{MAP_PREVIEW_DIR}/{symbol}_preview.png"
 
 
+def world_map_image(root=ROOT):
+    """Cartographic overview, one pixel per tile; patterns use world coordinates."""
+    maps, _, _ = load_world(root)
+    outdoor = next(m for m in maps if m.symbol == "OUTDOOR")
+    image = Image.new("1", (outdoor.width, outdoor.height))
+    buildings = {
+        78, 79, *range(128, 134), *range(144, 152),
+        *range(160, 168), *range(176, 184), *range(192, 200),
+    }
+
+    def symbol_at(x, y):
+        if not (0 <= x < outdoor.width and 0 <= y < outdoor.height):
+            return ""
+        tile = outdoor.data[y * outdoor.width + x]
+        return outdoor.tiles.get(tile, {}).get("symbol", "")
+
+    def water_at(x, y):
+        name = symbol_at(x, y)
+        return name.startswith("WATER") or name == "REEDS"
+
+    for index, tile in enumerate(outdoor.data):
+        if tile == 255:
+            continue
+        x, y = index % outdoor.width, index // outdoor.width
+        name = outdoor.tiles[tile]["symbol"]
+        if name.startswith("TREE"):
+            lit = x % 2 == 0 and y % 2 == 0
+        elif name.startswith("WATER") or name == "REEDS":
+            lit = (x + y) % 2 == 0
+            # Keep thin channels visible regardless of their checkerboard phase.
+            lit |= not water_at(x - 1, y) and not water_at(x + 1, y)
+            lit |= not water_at(x, y - 1) and not water_at(x, y + 1)
+        elif name.startswith(("ROAD", "BRIDGE")):
+            lit = True
+        elif tile in buildings:
+            lit = tile not in (132, 133)  # Door notch in the building silhouette.
+        elif name.startswith("CLIFF"):
+            edge = any(
+                not symbol_at(x + dx, y + dy).startswith("CLIFF")
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))
+            )
+            lit = edge and (x + y) % 3 != 0
+        elif name.startswith(("ROCK", "BOULDER")):
+            lit = (x + y) % 3 == 0
+        else:
+            lit = False
+        image.putpixel((x, y), 255 if lit else 0)
+    return image
+
+
+def world_map_sprite(image):
+    """AVM page-major sprite, padded only to the last eight-pixel page."""
+    width, height = image.size
+    return [width, height] + [
+        sum(
+            1 << bit for bit in range(8)
+            if page + bit < height and image.getpixel((x, page + bit))
+        )
+        for page in range(0, height, 8)
+        for x in range(width)
+    ]
+
+
 def map_previews(root=ROOT):
     """1x PNG per map, keyed by its generated path: every tile is its atlas cell at
     native 16x16 pixels. Unpainted outside cells (runtime ID 255) are flat gray, so
@@ -1704,6 +1767,8 @@ def generate(root=ROOT):
         "",
         "// clang-format off: preserve frame byte groups.",
     ]
+    art += array_lines("constexpr uint8_t PROGMEM WORLD_MAP_SPRITE[]",
+                       world_map_sprite(world_map_image(root)))
     # A phase whose frames all match an earlier sheet of its tileset shares that sheet.
     phase_names = {}
     for name, frames in sheets.items():
@@ -1830,6 +1895,9 @@ def main():
     images = {ROOT / COLLISION_OVERLAY: collision_overlay(ROOT)}
     images.update({ROOT / name: data for name, data in tileset_overlays(ROOT).items()})
     images.update({ROOT / name: data for name, data in map_previews(ROOT).items()})
+    overview = io.BytesIO()
+    world_map_image(ROOT).save(overview, format="PNG")
+    images[ROOT / "assets/images/OUTDOOR_world_map.png"] = overview.getvalue()
     for path, data in images.items():
         if args.check:
             if not path.exists() or path.read_bytes() != data:

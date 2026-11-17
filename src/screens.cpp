@@ -2,6 +2,8 @@
 #include "battle_cursor.h"
 #include "music_catalog.h"
 #include "title.h"
+#include "world_map.h"
+#include "world_assets.h"
 
 #include <avm.h>
 
@@ -48,6 +50,25 @@ __attribute__((noinline)) void party_screen() {
     }
 }
 
+__attribute__((noinline)) void map_screen() {
+    int16_t x = (game.player.x + FOOT_CENTER_X) / TILE;
+    int16_t y = (game.player.y + FOOT_CENTER_Y) / TILE;
+    WorldMapView view{{(int16_t)(map_clamp(x, OUTDOOR_WIDTH - 1) * MAP_SUBPIXELS)},
+                      {(int16_t)(map_clamp(y, OUTDOOR_HEIGHT - 1) * MAP_SUBPIXELS)},
+                      map_clamp(x - 64, OUTDOOR_WIDTH > 128 ? OUTDOOR_WIDTH - 128 : 0),
+                      map_clamp(y - 32, OUTDOOR_HEIGHT > 64 ? OUTDOOR_HEIGHT - 64 : 0)};
+    uint8_t ticks = 0;
+    input_sync();
+    for(;;) {
+        input_wait_frame();
+        if(input_pressed() & BTN_B)
+            return;
+        update_world_map(view, input_held(), OUTDOOR_WIDTH, OUTDOOR_HEIGHT);
+        render_world_map(view, ticks++);
+        avm_display(true);
+    }
+}
+
 bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle) {
     switch(item) {
         case PAUSE_SAVE:
@@ -89,8 +110,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
         uint8_t pressed = input_pressed();
 
         if(closing) {
-            if(!revealed ||
-               ((action == MENU_AUDIO || action == MENU_PARTY) && !cursor_pixel(revealed)))
+            if(!revealed || (menu_opens_screen(action) && !cursor_pixel(revealed)))
                 return action;
             continue;
         }
@@ -127,6 +147,11 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
                     break;
                 case PAUSE_PARTY:
                     action = MENU_PARTY;
+                    closing = true;
+                    feedback = nullptr;
+                    break;
+                case PAUSE_MAP:
+                    action = MENU_MAP;
                     closing = true;
                     feedback = nullptr;
                     break;
@@ -215,8 +240,11 @@ __attribute__((noinline)) void explore() {
                 if(action == MENU_PARTY) {
                     party_screen();
                     initial = PAUSE_PARTY;
+                } else if(action == MENU_MAP) {
+                    map_screen();
+                    initial = PAUSE_MAP;
                 }
-            } while(action == MENU_PARTY);
+            } while(action == MENU_PARTY || action == MENU_MAP);
             if(action == MENU_LOAD) {
                 game_load();
                 update_visible_world(0, false);
