@@ -173,8 +173,8 @@ swaps in.
   it: levers as `SWITCH_LEFT`, plates up, gates closed, bridges absent. The handler shows the
   other state while the mechanism's world flag is set.
 - **Handlers.** Each mechanism cell takes a handler point, and each handler is listed with its
-  flag and its set tile in `MECHANISMS` in `src/logic/handlers.h`. A cell that is missing from
-  the table fails to compile.
+  flag and its set tile in `AreaMechanisms<AREA_CAVE>` in `src/logic/area_cave.h`. A cell that is
+  missing from the table fails to compile.
 
   | Handler | On | What it does |
   | --- | --- | --- |
@@ -183,7 +183,7 @@ swaps in.
   | `show_state` | a gate, or a rectangle of chasm cells | Shows the set tile while the flag is set. |
   | `open_chest` | `CHEST_CLOSED` | Pressing A gives gold once and opens the chest. |
   | `steam_vent` | `VENT` | Blows for 96 ticks of every 256, on the game clock. |
-  | `read_notice` | `SIGN` | Pressing A shows the notice's words, which `read_notice` holds. |
+  | `show_message` | `SIGN` | Pressing A shows the notice's words, listed in `AreaMessages<AREA_CAVE>`. |
   | `take_passage` | an exit or a doorway | Walking onto it leaves the cave. See [Exits](#exits). |
 
 - **One flag can drive several cells.** A lever and the gate it opens share a flag, and each
@@ -214,7 +214,7 @@ of one thing take the same shape. See [AUTHORING.md](AUTHORING.md#what-solidity-
 | `0x53` | `ORE_PILE` | partly | Pile of ore that glints. |
 | `0x54` | `TOOLS` | partly | Pickaxe and shovel. |
 | `0x56` | `BARRICADE` | partly | Plank barrier on trestles. |
-| `0x58` | `SIGN` | no | Wooden notice. `read_notice` belongs on it. |
+| `0x58` | `SIGN` | no | Wooden notice. `show_message` belongs on it. |
 | `0x59` | `SKELETON` | partly | Remains of a miner. |
 | `0x38` | `POT` | partly | Unbroken pot. Collectible. |
 | `0x39` | `POT_BROKEN` | partly | Broken pot. The collected state of `POT`. |
@@ -254,8 +254,9 @@ The edge exits and the doorways follow [AUTHORING_INTERIOR.md](AUTHORING_INTERIO
 A cave joins the outdoor map through passages.
 
 - **A passage is a pair of markers**: an entrance outdoors and a doorway in the cave. Put a
-  point with the handler `take_passage` on each, and add the pair to `PASSAGES` in
-  `src/logic/handlers.h`. A marker that is missing from the table fails to compile.
+  point with the handler `take_passage` on each, and add the pair to
+  `AreaPassages<AREA_CAVE>` in `src/logic/area_cave.h`. A marker that is missing from the tables fails
+  to compile.
 - **A cave mouth pairs with an `EDGE_TOP_EXIT`.** The player walks north into `CLIFF_CAVE`
   outdoors and arrives on the floor cell above the exit, facing north. Walking south onto the
   exit returns the player to the cell below the cave mouth. The table entry's `inside_step`
@@ -311,7 +312,7 @@ A cave joins the outdoor map through passages.
 - Every gate fills a passage one cell wide, and `GATE_SIDE` is used only across a passage that
   runs west to east.
 - Mechanisms are painted in their clear state. Each has a handler point on its tile and a row
-  in `MECHANISMS`, and each exit has a row in `PASSAGES`.
+  in `AreaMechanisms<AREA_CAVE>`, and each exit has a row in `AreaPassages<AREA_CAVE>`.
 - Every walkable cell can be reached once the mechanisms are open.
 - An animated tile is in sight of every floor cell.
 - The spawn is on a walkable cell with no handler.

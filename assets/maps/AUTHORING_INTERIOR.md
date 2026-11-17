@@ -184,7 +184,7 @@ ID and one tileset, and it keeps every house of a region in one place.
 - **Link each room to its door.** Put a point named `<House>Exit` on the room's
   `EDGE_TOP_EXIT`, with the handler `leave_house`. The outdoor door carries a point named
   `<House>Door` with the handler `enter_house`. Add the pair to `HOUSE_LINKS` in
-  `src/logic/handlers.h`.
+  `src/logic/area_village.h`.
 - **Entering and leaving.** `enter_house` runs when the player faces the door and presses
   A. It moves the player to the floor cell above the exit, facing north. `leave_house`
   runs when the player walks onto the exit. It moves the player to the cell below the

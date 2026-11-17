@@ -476,41 +476,47 @@ static void walk_through(uint8_t button) {
     CHECK(game.area != area);
 }
 
+// Both ends of one passage are walked through, and the doorway leads back to the ground below the
+// entrance.
+static void walk_passage(handler_impl::Passage const& passage) {
+    bool wall_row = passage.inside_step > 0;
+    TilePos floor{passage.inside.area, passage.inside.x,
+                  (uint8_t)(passage.inside.y + passage.inside_step)};
+    // Both ends are walkable, and so is the floor on each side.
+    stand(below(passage.outside), NORTH);
+    CHECK(!tile_solid(cached_tile(passage.outside)) && !tile_portal(cached_tile(passage.outside)));
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+    game_update(0, 0);
+    CHECK(game.area == passage.outside.area && !game.can_interact);
+    walk_through(BTN_UP);
+    CHECK(player_at(floor, wall_row ? SOUTH : NORTH));
+    CHECK(!tile_solid(cached_tile(passage.inside)) && !tile_solid(cached_tile(floor)));
+    CHECK(player_terrain_clear(game.player.x, game.player.y));
+    // Standing still does nothing. Walking back onto the doorway leaves.
+    game_update(0, 0);
+    CHECK(game.area == passage.inside.area);
+    walk_through(wall_row ? BTN_UP : BTN_DOWN);
+    CHECK(player_at(below(passage.outside), SOUTH));
+    game_update(0, 0);
+    CHECK(game.area == passage.outside.area);
+}
+
 // The cave mouth, the mine door and the ladder hole are walked into, and each interior doorway
 // leads back to the ground below its entrance.
 static void passages() {
     using namespace handler_impl;
     game_new();
     CHECK(area_tileset(AREA_CAVE) == TILESET_CAVE && area_tileset(AREA_DUNGEON) == TILESET_DUNGEON);
-    for(Passage const& passage : PASSAGES) {
-        bool wall_row = passage.inside_step > 0;
-        TilePos floor{passage.inside.area, passage.inside.x,
-                      (uint8_t)(passage.inside.y + passage.inside_step)};
-        // Both ends are walkable, and so is the floor on each side.
-        stand(below(passage.outside), NORTH);
-        CHECK(!tile_solid(cached_tile(passage.outside)) &&
-              !tile_portal(cached_tile(passage.outside)));
-        CHECK(player_terrain_clear(game.player.x, game.player.y));
-        game_update(0, 0);
-        CHECK(game.area == passage.outside.area && !game.can_interact);
-        walk_through(BTN_UP);
-        CHECK(player_at(floor, wall_row ? SOUTH : NORTH));
-        CHECK(!tile_solid(cached_tile(passage.inside)) && !tile_solid(cached_tile(floor)));
-        CHECK(player_terrain_clear(game.player.x, game.player.y));
-        // Standing still does nothing. Walking back onto the doorway leaves.
-        game_update(0, 0);
-        CHECK(game.area == passage.inside.area);
-        walk_through(wall_row ? BTN_UP : BTN_DOWN);
-        CHECK(player_at(below(passage.outside), SOUTH));
-        game_update(0, 0);
-        CHECK(game.area == passage.outside.area);
-    }
+    for(Passage const& passage : AreaPassages<AREA_CAVE>::TABLE)
+        walk_passage(passage);
+    for(Passage const& passage : AreaPassages<AREA_DUNGEON>::TABLE)
+        walk_passage(passage);
     static_assert(
-        passage_arrival(positions::CaveExit) ==
+        passage_arrival<positions::CaveExit>() ==
         TilePos{AREA_OUTDOOR, positions::CaveMouth.x, (uint8_t)(positions::CaveMouth.y + 1)});
-    static_assert(passage_facing(positions::CaveMouth) == NORTH &&
-                  passage_facing(positions::CaveHole) == SOUTH &&
-                  passage_facing(positions::CaveLadder) == SOUTH);
+    static_assert(passage_facing<positions::CaveMouth>() == NORTH &&
+                  passage_facing<positions::CaveHole>() == SOUTH &&
+                  passage_facing<positions::CaveLadder>() == SOUTH);
 }
 
 // The cave has a song of its own. The other areas play Morning in the Meadow until they get theirs.
@@ -523,41 +529,47 @@ static_assert(area_music(AREA_CAVE) != MUSIC_CREEPY && area_music(AREA_OUTDOOR) 
               area_music(AREA_INTERIORS) != MUSIC_CREEPY &&
               area_music(AREA_DUNGEON) != MUSIC_CREEPY && MUSIC_DEFAULT != MUSIC_CREEPY);
 
-// Every mechanism cell shows the map's tile while its flag is clear and its own tile while the
-// flag is set, from the tile pass alone: the cache holds no state between frames.
-static void mechanism_states() {
-    using namespace handler_impl;
-    for(Mechanism const& entry : MECHANISMS) {
-        Area const& area = *world_area(entry.cells.origin.area);
-        for(uint8_t dy = 0; dy < entry.cells.height; ++dy) {
-            for(uint8_t dx = 0; dx < entry.cells.width; ++dx) {
-                TilePos cell{entry.cells.origin.area, (uint8_t)(entry.cells.origin.x + dx),
-                             (uint8_t)(entry.cells.origin.y + dy)};
-                game_new();
-                // Watch from the nearest walkable cell that is not the cell itself.
-                game.area = cell.area;
-                TilePos vantage = cell;
-                for(int oy = -2; oy <= 2 && vantage == cell; ++oy)
-                    for(int ox = -3; ox <= 3 && vantage == cell; ++ox)
-                        if((ox || oy) &&
-                           tile_collision(authored_tile(area, cell.x + ox, cell.y + oy)) == 0)
-                            vantage = {cell.area, (uint8_t)(cell.x + ox), (uint8_t)(cell.y + oy)};
-                CHECK(!(vantage == cell));
-                stand(vantage, SOUTH);
-                CHECK(!game.get_flag(entry.flag));
-                CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
-                CHECK(cached_tile(cell) != entry.tile);
-                game.set_flag(entry.flag);
-                update_visible_world(0, false);
-                CHECK(cached_tile(cell) == entry.tile);
-                update_visible_world(0, false);
-                CHECK(cached_tile(cell) == entry.tile);
-                game.clear_flag(entry.flag);
-                update_visible_world(0, false);
-                CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
-            }
+// Every cell of one mechanism shows the map's tile while its flag is clear and its own tile while
+// the flag is set, from the tile pass alone: the cache holds no state between frames.
+static void mechanism_state(handler_impl::Mechanism const& entry) {
+    Area const& area = *world_area(entry.cells.origin.area);
+    for(uint8_t dy = 0; dy < entry.cells.height; ++dy) {
+        for(uint8_t dx = 0; dx < entry.cells.width; ++dx) {
+            TilePos cell{entry.cells.origin.area, (uint8_t)(entry.cells.origin.x + dx),
+                         (uint8_t)(entry.cells.origin.y + dy)};
+            game_new();
+            // Watch from the nearest walkable cell that is not the cell itself.
+            game.area = cell.area;
+            TilePos vantage = cell;
+            for(int oy = -2; oy <= 2 && vantage == cell; ++oy)
+                for(int ox = -3; ox <= 3 && vantage == cell; ++ox)
+                    if((ox || oy) &&
+                       tile_collision(authored_tile(area, cell.x + ox, cell.y + oy)) == 0)
+                        vantage = {cell.area, (uint8_t)(cell.x + ox), (uint8_t)(cell.y + oy)};
+            CHECK(!(vantage == cell));
+            stand(vantage, SOUTH);
+            CHECK(!game.get_flag(entry.flag));
+            CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
+            CHECK(cached_tile(cell) != entry.tile);
+            game.set_flag(entry.flag);
+            update_visible_world(0, false);
+            CHECK(cached_tile(cell) == entry.tile);
+            update_visible_world(0, false);
+            CHECK(cached_tile(cell) == entry.tile);
+            game.clear_flag(entry.flag);
+            update_visible_world(0, false);
+            CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
         }
     }
+}
+
+// Every mechanism of the cave and of the dungeon.
+static void mechanism_states() {
+    using namespace handler_impl;
+    for(Mechanism const& entry : AreaMechanisms<AREA_CAVE>::TABLE)
+        mechanism_state(entry);
+    for(Mechanism const& entry : AreaMechanisms<AREA_DUNGEON>::TABLE)
+        mechanism_state(entry);
 }
 
 static void press_a() {
@@ -732,13 +744,13 @@ static void dungeon_mechanisms() {
     CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
 }
 
-// Each notice answers a press from the cell in front of it.
-static void notices() {
+// Each message answers a press from the cell in front of it.
+static void messages() {
     TilePos const all[] = {positions::CaveSign, positions::CaveNotice, positions::DungeonPlaque};
-    for(TilePos notice : all) {
+    for(TilePos cell : all) {
         game_new();
-        stand(below(notice), NORTH);
-        CHECK(tile_solid(cached_tile(notice)));
+        stand(below(cell), NORTH);
+        CHECK(tile_solid(cached_tile(cell)));
         game_update(0, 0);
         CHECK(game.can_interact);
     }
@@ -751,7 +763,7 @@ int main() {
     mechanism_states();
     cave_mechanisms();
     dungeon_mechanisms();
-    notices();
+    messages();
     window_edges();
     terrain_footprints();
     foot_triangle_windows();

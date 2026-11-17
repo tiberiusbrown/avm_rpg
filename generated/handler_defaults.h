@@ -21,9 +21,9 @@ void open_door(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
 void press_plate(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
-void read_notice(Tag<POS, STAGE>) {}
-template <TilePos POS, HandlerStage STAGE>
 void read_sign(Tag<POS, STAGE>) {}
+template <TilePos POS, HandlerStage STAGE>
+void show_message(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
 void show_state(Tag<POS, STAGE>) {}
 template <TilePos POS, HandlerStage STAGE>
@@ -59,12 +59,12 @@ void dispatch_press_plate() {
     press_plate(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
-void dispatch_read_notice() {
-    read_notice(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
 void dispatch_read_sign() {
     read_sign(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_show_message() {
+    show_message(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_show_state() {
@@ -107,11 +107,11 @@ struct Handler {
     void press_plate() {
         handler_impl::dispatch_press_plate<POS, STAGE>();
     }
-    void read_notice() {
-        handler_impl::dispatch_read_notice<POS, STAGE>();
-    }
     void read_sign() {
         handler_impl::dispatch_read_sign<POS, STAGE>();
+    }
+    void show_message() {
+        handler_impl::dispatch_show_message<POS, STAGE>();
     }
     void show_state() {
         handler_impl::dispatch_show_state<POS, STAGE>();

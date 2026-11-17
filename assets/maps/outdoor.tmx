@@ -357,7 +357,7 @@
     </object>
     <object id="19" name="CaveSign" x="456" y="72">
       <properties>
-        <property name="handler" value="read_notice" />
+        <property name="handler" value="show_message" />
       </properties>
       <point />
     </object>

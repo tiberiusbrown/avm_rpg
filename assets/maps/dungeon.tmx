@@ -52,7 +52,7 @@
     </object>
     <object id="3" name="DungeonPlaque" x="376" y="360">
       <properties>
-        <property name="handler" value="read_notice" />
+        <property name="handler" value="show_message" />
       </properties>
       <point />
     </object>

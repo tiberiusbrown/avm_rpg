@@ -25,7 +25,7 @@ template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_1_3_1() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
-    Handler<positions::CaveSign, STAGE>{}.read_notice();
+    Handler<positions::CaveSign, STAGE>{}.show_message();
     if constexpr(STAGE != STAGE_TILES) {
         if(teleported)
             return;
@@ -367,7 +367,7 @@ template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_3_2_5() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
-    Handler<positions::CaveNotice, STAGE>{}.read_notice();
+    Handler<positions::CaveNotice, STAGE>{}.show_message();
     if constexpr(STAGE != STAGE_TILES) {
         if(teleported)
             return;
@@ -491,7 +491,7 @@ template <HandlerStage STAGE> RPG_NOINLINE static void run_chunk_4_2_5() {
 #ifndef RPG_AVM
     ++feature_trace_count[STAGE];
 #endif
-    Handler<positions::DungeonPlaque, STAGE>{}.read_notice();
+    Handler<positions::DungeonPlaque, STAGE>{}.show_message();
     if constexpr(STAGE != STAGE_TILES) {
         if(teleported)
             return;

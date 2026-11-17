@@ -322,6 +322,8 @@ class Pipeline(unittest.TestCase):
         out = generate(self.root)
         areas, ids = out["area_ids.h"], out["tile_ids.h"]
         self.assertIn("TILESET_WORLD = 0;", areas)
+        self.assertIn(f"inline constexpr uint8_t NUM_AREAS = {len(maps)};", areas)
+        self.assertEqual(sorted(m.area for m in maps), list(range(1, len(maps) + 1)))
         self.assertEqual(by_symbol["CAVE"].tileset, "cave")
         self.assertEqual(by_symbol["DUNGEON"].tileset, "dungeon")
         for index, name in enumerate(("WORLD", "CAVE", "DUNGEON", "HOUSE")):
@@ -348,6 +350,10 @@ class Pipeline(unittest.TestCase):
         self.assertIn("HOUSE_TILE_SPRITES[] = {", sprites)
         self.assertIn("case TILESET_HOUSE: return HOUSE_TILE_SPRITES;", sprites)
         self.assertIn("default: return TILE_SPRITES;", sprites)
+
+    def test_area_ids_have_no_gaps(self):
+        self.tree.find("properties/property[@name='area_id']").set("value", "9")
+        self.fails("area_id values must run 1..N with no gaps")
 
     def test_a_map_uses_exactly_one_tileset(self):
         root = self.tree.getroot()

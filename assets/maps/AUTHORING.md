@@ -497,9 +497,10 @@ Three cells mark a way in or down. All three are fully walkable.
   ground below. They exist on the south side only.
 - `HOLE_LADDER` goes on open ground, with at least one walkable cell beside it.
 - Entering is content code. Put a point with the handler `take_passage` on the cell and on
-  the doorway inside, and add the pair to `PASSAGES` in `src/logic/handlers.h`. The handler
-  calls `player_is_walking_onto<POS>()` and then `teleport_player<TARGET>()`. No tile sets
-  `portal`. A marker that is missing from the table fails to compile.
+  the doorway inside, and add the pair to `AreaPassages` in the header of the environment that
+  it leads into (`src/logic/area_cave.h` or `src/logic/area_dungeon.h`). The handler calls
+  `player_is_walking_onto<POS>()` and then `teleport_player<TARGET>()`. No tile sets `portal`.
+  A marker that is missing from the tables fails to compile.
 - The outdoor map has three: `CaveMouth` and `CaveHole` lead into `cave.tmx`, and
   `MineEntrance` leads into `dungeon.tmx`. [AUTHORING_CAVE.md](AUTHORING_CAVE.md#exits)
   describes both ends of a passage.
@@ -656,7 +657,7 @@ the player to the cell in front of the door. See
 - Put a point named `<House>Door` on the door tile, with the handler `enter_house`.
 - Put a point named `<House>Exit` on the room's exit cell in `interiors.tmx`, with the
   handler `leave_house`.
-- Add the pair to `HOUSE_LINKS` in `src/logic/handlers.h`. A door or exit that is missing
+- Add the pair to `HOUSE_LINKS` in `src/logic/area_village.h`. A door or exit that is missing
   from the table fails to compile.
 - The cell below the door is where the player returns. Keep it fully walkable.
 
@@ -912,7 +913,8 @@ author a map by hand.
   8x4 tiles (128x64 pixels).
 - Align room edges and handler regions to the 8x4 chunk grid. Each chunk dispatches
   its own handlers, and a handler point belongs to the chunk that contains it.
-- Map properties: `area_id` must be unique in 1..255. `symbol` must be unique. `spawn`
+- Map properties: `area_id` must be unique, and the area IDs of all maps must run 1..N with no
+  gaps, where N is `NUM_AREAS` in `area_ids.h`. `symbol` must be unique. `spawn`
   names a single named point in the same area. That tile must be passable and must not
   carry a handler.
 - Floors use the eight grass cells in a mix of sparse and dense. Add flowers sparingly,
@@ -1039,7 +1041,7 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   [Raised areas](#raised-areas) selects. Ramps, caves and mines replace a `CLIFF_WALL`.
 - Every fence arm meets a matching arm, every run ends in an end piece or a corner, and
   every pen has an opening.
-- Every cave, mine and hole has a `take_passage` point on its cell and a row in `PASSAGES`.
+- Every cave, mine and hole has a `take_passage` point on its cell and a row in `AreaPassages`.
 - Every object's mask is one of the convex shapes, states of one thing share a mask, and a
   torch stands clear of the path.
 - No tile holds a checkerboard stipple, and every piece is lit from the top left.

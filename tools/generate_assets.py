@@ -691,6 +691,11 @@ def load_world(root):
             "safe spawn must not overlap a native handler",
         )
     maps.sort(key=lambda m: m.area)
+    require(
+        [m.area for m in maps] == list(range(1, len(maps) + 1)),
+        "world",
+        "area_id values must run 1..N with no gaps",
+    )
     return maps, tilesets[tileset_order(maps)[0]][1], names
 
 
@@ -892,6 +897,10 @@ def export_world(root=ROOT):
     by_name = {m.tileset: m.tiles for m in maps}
     areas = [prologue, "#pragma once", "#include <stdint.h>", '#include "tile_ids.h"']
     areas += [f"inline constexpr uint8_t AREA_{m.symbol} = {m.area};" for m in maps]
+    areas += [
+        "// Area IDs run from 1 to NUM_AREAS, with no gaps.",
+        f"inline constexpr uint8_t NUM_AREAS = {len(maps)};",
+    ]
     areas += [
         f"inline constexpr uint8_t TILESET_{name.upper()} = {index};"
         for index, name in enumerate(order)

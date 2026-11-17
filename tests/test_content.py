@@ -110,7 +110,7 @@ assert {o["handler"] for o in m.objects if o["handler"]} == {
     "update_wanderer",
     "enter_house",
     "take_passage",
-    "read_notice",
+    "show_message",
 }
 assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house"}
 # Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
@@ -310,7 +310,7 @@ assert 255 not in interiors.data, "interior void is painted with EMPTY (0x00), n
 doors = sorted(name[:-4] for name, o in names.items() if name.endswith("Door") and o["area"] == m.area)
 exits = sorted(name[:-4] for name, o in names.items() if name.endswith("Exit") and o["area"] == interiors.area)
 assert doors == exits and len(doors) >= 8, (doors, exits)
-logic = (ROOT / "src/logic/handlers.h").read_text()
+logic = (ROOT / "src/logic/area_village.h").read_text()
 room_cells = {}
 for name in doors:
     door, way_out = names[name + "Door"], names[name + "Exit"]
@@ -554,7 +554,7 @@ for path in sorted((ROOT / "assets/images").glob("*.png")):
                     ), f"{path.name}: checkerboard stipple in cell {(left // 16, top // 16)}"
 
 # The cave and the dungeon. Each is one map with its own tileset, built on the room model.
-logic = (ROOT / "src/logic/handlers.h").read_text()
+LOGIC = ROOT / "src/logic"
 WALL_ROWS = {
     "cave": set(range(0x10, 0x20)),
     "dungeon": (set(range(0x10, 0x24)) | set(range(0x40, 0x4A))) - {0x1C, 0x44},
@@ -577,7 +577,7 @@ EDGE_OF = {
 # The tile that each handler belongs on, and the handlers whose cells open during play.
 HANDLER_TILES = {
     "take_passage": {"EDGE_TOP_EXIT", "LADDER_UP"},
-    "read_notice": {"SIGN", "PLAQUE"},
+    "show_message": {"SIGN", "PLAQUE"},
     "use_lever": {"SWITCH_LEFT"},
     "press_plate": {"PRESSURE_PLATE"},
     "open_chest": {"CHEST_CLOSED"},
@@ -595,6 +595,7 @@ for map_symbol in ("CAVE", "DUNGEON"):
     area = by_symbol[map_symbol]
     kind = area.tileset
     sheet = area.tiles
+    logic = (LOGIC / f"area_{kind}.h").read_text()
     index_of = {tile["symbol"]: index for index, tile in sheet.items()}
     assert 255 not in area.data, f"{map_symbol}: void is painted with EMPTY (0x00)"
 
@@ -662,8 +663,8 @@ for map_symbol in ("CAVE", "DUNGEON"):
             if o["handler"] in OPENS:
                 opening.add((point["tx"], point["ty"]))
         marker = o["name"] + ("Region" if o["rectangle"] else "")
-        if o["handler"] not in ("read_notice", "steam_vent"):
-            assert f"positions::{marker}" in logic, f"{o['name']} is missing from the tables in handlers.h"
+        if o["handler"] != "steam_vent":
+            assert f"positions::{marker}" in logic, f"{o['name']} is missing from the tables in src/logic/area_{kind}.h"
     # Every walkable cell can be reached once the mechanisms are open. A barred cell that no
     # handler opens is scenery, and the flood passes its door.
     spawn_point = names[area.spawn]
@@ -706,6 +707,7 @@ for map_symbol in ("CAVE", "DUNGEON"):
             )
     assert lights & set(area.data)
 # Both ends of every passage are in the table, and the outdoor ends are the right entrances.
+logic = "\n".join((LOGIC / f"area_{name}.h").read_text() for name in ("cave", "dungeon"))
 for name, tile_name in (("CaveMouth", "CLIFF_CAVE"), ("MineEntrance", "CLIFF_MINE"), ("CaveHole", "HOLE_LADDER")):
     o = names[name]
     assert o["handler"] == "take_passage" and at(o["tx"], o["ty"]) == symbol_index[tile_name]

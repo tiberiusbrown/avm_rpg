@@ -47,7 +47,7 @@ Each replaces a `WALL` face. A decorated piece cannot stand next to a room cell.
 | `0x42` | `WALL_FOUNTAIN` | no | Carved head that pours water into a basin. |
 | `0x43` | `WALL_NICHE` | no | Niche with a skull. |
 | `0x45` | `WALL_RUNES` | no | Two lines of carved runes that glint. |
-| `0x49` | `PLAQUE` | no | Inscribed tablet. `read_notice` belongs on it. |
+| `0x49` | `PLAQUE` | no | Inscribed tablet. `show_message` belongs on it. |
 | `0x47` | `BOOKCASE` | no | Tall bookcase against the wall. |
 | `0x48` | `WEAPON_RACK` | no | Shield over crossed swords. |
 | `0x19` | `BARS` | no | Iron bars across the wall row. The front of a cell. |
@@ -134,8 +134,8 @@ swaps in.
   it: levers as `SWITCH_LEFT`, plates up, barriers closed, runes and orbs dark. The handler
   shows the other state while the mechanism's world flag is set.
 - **Handlers.** Each mechanism cell takes a handler point, and each is listed with its flag and
-  its set tile in `MECHANISMS` in `src/logic/handlers.h`. A cell that is missing from the
-  table fails to compile.
+  its set tile in `AreaMechanisms<AREA_DUNGEON>` in `src/logic/area_dungeon.h`. A cell that is
+  missing from the table fails to compile.
 
   | Handler | On | What it does |
   | --- | --- | --- |
@@ -145,7 +145,7 @@ swaps in.
   | `light_orb` | `ORB_DARK` | Pressing A sets the flag for good and says what happened. |
   | `show_state` | a gate, spikes, blocks, a rune, a portcullis | Shows the set tile while the flag is set. |
   | `open_chest` | `CHEST_CLOSED` | Pressing A gives gold once and opens the chest. |
-  | `read_notice` | `PLAQUE` | Pressing A shows the notice's words, which `read_notice` holds. |
+  | `show_message` | `PLAQUE` | Pressing A shows the plaque's words, listed in `AreaMessages<AREA_DUNGEON>`. |
   | `take_passage` | an exit or a doorway | Walking onto it leaves the dungeon. See [Exits](#exits). |
 
 - **One flag can drive several cells.** The orb, both runes and the vault's portcullis share
@@ -211,8 +211,9 @@ The edge exits and the doorways follow [AUTHORING_INTERIOR.md](AUTHORING_INTERIO
 A dungeon joins the outdoor map through passages.
 
 - **A passage is a pair of markers**: an entrance outdoors and a doorway in the dungeon. Put a
-  point with the handler `take_passage` on each, and add the pair to `PASSAGES` in
-  `src/logic/handlers.h`. A marker that is missing from the table fails to compile.
+  point with the handler `take_passage` on each, and add the pair to
+  `AreaPassages<AREA_DUNGEON>` in `src/logic/area_dungeon.h`. A marker that is missing from the tables
+  fails to compile.
 - **A mine door pairs with an `EDGE_TOP_EXIT`.** The player walks north into `CLIFF_MINE`
   outdoors and arrives on the floor cell above the exit, facing north. Walking south onto the
   exit returns the player to the cell below the door. The table entry's `inside_step` is `-1`.
@@ -260,7 +261,7 @@ bar, stone and light.
 - Every barrier fills its passage, and `GATE_SIDE` is used only across a passage one cell wide
   that runs west to east.
 - Mechanisms are painted in their clear state. Each has a handler point on its tile and a row
-  in `MECHANISMS`, and each exit has a row in `PASSAGES`.
+  in `AreaMechanisms<AREA_DUNGEON>`, and each exit has a row in `AreaPassages<AREA_DUNGEON>`.
 - Every walkable cell can be reached once the mechanisms are open, except inside a cell whose
   door has no handler.
 - An animated tile is in sight of every flagstone cell, and every room has a light.

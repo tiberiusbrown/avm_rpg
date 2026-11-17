@@ -198,6 +198,14 @@ template <TilePos POS> void read_sign(Dialogue<POS>) {
 }
 ```
 
+The overloads live in `src/logic/`, one header per environment (`area_village.h`,
+`area_cave.h`, `area_dungeon.h`), and `handlers.h` only includes them. `mechanisms.h` holds what
+the environments share: the lever, plate, door and chest handlers read each area's
+`AreaMechanisms` table, `show_message` shows the words that the area's `AreaMessages` table lists
+for a sign or a plaque, and `take_passage` reads the `AreaPassages` tables. A marker that does more than these gets a handler
+name of its own in the map and its overloads in its environment's header. A cell that is missing
+from its table fails to compile.
+
 Overload `Gameplay<POS>`, `Tiles<POS>` or `Dialogue<POS>`. Finish the entire
 gameplay pass, reload the baseline cache, finish all tile handlers, then run
 dialogue. Generated dependent calls use ADL; do not qualify them. New named or

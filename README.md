@@ -207,7 +207,12 @@ including the save flag and two saved audio options.
   north/east/south/west order.
 - `assets/images/battle_damage16.png`: the damage indicators, nine 16x16 frames for losses of
   1 to 9 HP. Each is the same spiky burst with its own 3x5 digit in the black middle.
-- `src/logic/`: sign dialogue and sample NPC definitions, separate from generic mechanics.
+- `src/logic/`: the handlers that the maps name, split by environment, and the sample NPC
+  definitions, separate from generic mechanics. `handlers.h` only includes the others.
+  `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
+  chests), messages that only show words, and passages between areas. `area_village.h` has the
+  Grove sign and the houses, `area_cave.h` and `area_dungeon.h` have the mechanism, message and
+  passage tables of their own areas and their own handlers.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
   encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
   `src/battle_ai.*` holds the enemy's budgeted negamax search, its static evaluation, and the greedy
