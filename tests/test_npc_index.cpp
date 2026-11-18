@@ -25,8 +25,18 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     return id == NPC_VILLAGER ? &ONE : id == NPC_WANDERER ? &TWO : nullptr;
 }
 
-void npc_on_activate(Npc&) {}
-void npc_on_event(Npc&, NPC_EVENT) {}
+static unsigned activations;
+
+void npc_on_activate(Npc&) {
+    ++activations;
+}
+
+static unsigned target_events;
+
+void npc_on_event(Npc&, NPC_EVENT event) {
+    if(event == NPC_EVENT_TARGET_REACHED)
+        ++target_events;
+}
 void npc_on_retire(Npc const&, NPC_RETIRE_REASON) {}
 void npc_logic_restore() {}
 void npc_talk(NPC_ID) {}
@@ -188,7 +198,57 @@ static void test_exact_clearance_and_clipped_retirement() {
     CHECK(c.y == game.dimensions.height_tiles * TILE - 64);
 }
 
+// Frame 180's lifecycle case: feet cross the top cache boundary, but the
+// logical home remains fully cached and offscreen. No retirement/recasting.
+static void test_uncached_wanderer_retains_local_home() {
+    game_new();
+    TilePos home = positions::WandererHome;
+    game.player.x = home.x * TILE + 4 * TILE;
+    game.player.y = home.y * TILE + 3 * TILE;
+    update_visible_world(0, false);
+    Npc* n = npc_find(NPC_WANDERER);
+    CHECK(n);
+    n->actor.x = home.x * TILE - TILE;
+    n->actor.y = home.y * TILE - 12;
+    n->behavior = NPC_WANDER;
+    n->timer = 7;
+    n->detour = 0x31;
+    n->state = NPC_WALK_PHASE;
+    Npc saved = *n;
+    unsigned before = activations;
+    for(unsigned frame = 0; frame < 4; ++frame) {
+        update_visible_world(0, false);
+        CHECK(npc_find(NPC_WANDERER) == n);
+        npc_update();
+        CHECK(memcmp(n, &saved, sizeof(saved)) == 0);
+        CHECK(activations == before);
+        ++game.ticks;
+    }
+    // Scripted travel is not retained by the home rule.
+    n->behavior = NPC_TRAVEL;
+    unsigned events_before = target_events;
+    npc_stage_begin();
+    CHECK(!npc_find(NPC_WANDERER));
+    CHECK(target_events == events_before + 1);
+    npc_stage_end();
+    // Reenter, then move far enough that actor and home both leave the cache.
+    game_new();
+    game.player.x = home.x * TILE + 4 * TILE;
+    game.player.y = home.y * TILE + 3 * TILE;
+    update_visible_world(0, false);
+    n = npc_find(NPC_WANDERER);
+    CHECK(n);
+    n->actor.x = home.x * TILE - TILE;
+    n->actor.y = home.y * TILE - 12;
+    n->behavior = NPC_WANDER;
+    game.player.x += CACHE_WIDTH * TILE;
+    game.player.y += CACHE_HEIGHT * TILE;
+    update_visible_world(0, false);
+    CHECK(!npc_find(NPC_WANDERER));
+}
+
 int main() {
+    test_uncached_wanderer_retains_local_home();
     test_exact_clearance_and_clipped_retirement();
     test_four_direction_approaches();
     test_entry_casts_residents();

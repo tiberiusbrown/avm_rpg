@@ -85,10 +85,14 @@ chunks. Begin examines only active slots, refreshes their derived `assigned_site
 retires safely unloadable actors. Chunk specializations check only policy sites in their
 chunk and evaluate only their compile-time location policy. `npc_offer_candidate` owns
 area, party, active identity, definition, cache, visibility, portal and collision checks.
-Cheap checks precede terrain/player/actor collision. Candidates store their definition
+The inline admission front door owns cheap area/party/active-identity rejection;
+its outlined `npc_detail::offer_candidate` slow path handles the remaining validation.
+This preserves constant site IDs without putting eligibility back into `NpcSite::run`.
+Candidates store their definition
 priority, avoiding repeated ROM definition lookups during sorting. End admits candidates
-in descending definition priority, then ascending stable ID. The buffer holds at most eight candidates. Saturation waits without evicting
-visible or pinned actors; conflicting candidates retry next frame.
+in descending definition priority, then ascending stable ID. The buffer holds at most
+eight candidates. Saturation waits without evicting visible or pinned actors;
+conflicting candidates retry next frame.
 
 Scene entry permits activation throughout the whole stage, including after a teleport.
 Later activation tests the rendered 16x16 sprite at the actor origin, without the
@@ -102,7 +106,15 @@ is lost, including fractional camera phases. No extra tile of clearance is neede
 Retirement uses the same sprite geometry but additionally requires an uncached
 footprint, and never unloads unfinished targets/routes. This deliberately stricter
 lifecycle condition retains partially clipped sprites even when their feet leave the
-cache. Its hook receives
+cache. Ordinary `NPC_STAND`/`NPC_WANDER` actors also retain their slots while their
+same-area logical home's full footprint remains cached. Their uncached feet freeze
+simulation, preserving movement state until the cache covers them again. They unload
+once both actor and home leave the cache and the sprite is safely offscreen. This avoids
+retiring a local wanderer only to reconstruct it immediately at its home. Policy changes
+are applied first; `NPC_TRAVEL` still completes off cache and emits its target event,
+regardless of destination caching. A full pool waits without evicting retained residents,
+including for a higher-priority candidate; no pressure-based eviction is added.
+The retirement hook receives
 `NPC_RETIRED_UNLOADED` exactly once before prefix compaction. Recruitment uses
 `NPC_RETIRED_PARTY`; reset uses `NPC_RETIRED_RESET`. Reacquire `Npc*` after stage processing
 because compaction can change slot addresses.

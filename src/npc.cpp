@@ -242,6 +242,18 @@ RPG_NOINLINE void npc_stage_begin() {
             n.state = NPC_STATE_NONE;
         }
         if(!foot_cached(n) && !protected_view(n.actor.x, n.actor.y)) {
+            // A wanderer may leave the cache while its home is still local.
+            // Keep its state and slot: npc_update freezes uncached feet. Retiring
+            // here would immediately admit the same identity back at its home.
+            // Travel must still complete and emit its event before unloading.
+            if((n.behavior == NPC_STAND || n.behavior == NPC_WANDER) &&
+               n.assigned_site.area == game.area &&
+               foot_cached_at((uint16_t)n.assigned_site.x * TILE,
+                              (uint16_t)n.assigned_site.y * TILE)) {
+                ++i;
+                ++current;
+                continue;
+            }
             if(n.behavior == NPC_TRAVEL) {
                 n.behavior = NPC_STAND;
                 n.actor.walking = 0;
@@ -263,9 +275,7 @@ RPG_NOINLINE void npc_stage_begin() {
     }
 }
 
-RPG_NOINLINE void npc_offer_candidate(NPC_ID id, TilePos site) {
-    if(site.area != game.area || party_contains(id) || npc_find(id))
-        return;
+RPG_NOINLINE void npc_detail::offer_candidate(NPC_ID id, TilePos site) {
     auto def = npc_definition(id);
     if(!def)
         return;

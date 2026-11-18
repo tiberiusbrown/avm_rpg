@@ -29,6 +29,29 @@ template <unsigned A, HandlerStage STAGE, typename SEQUENCE> struct ChunkTable;
 template <unsigned A, HandlerStage STAGE, std::size_t... I>
 struct ChunkTable<A, STAGE, std::index_sequence<I...>> {
     static constexpr ChunkFunction PROGMEM functions[] = {StaticChunk<A, I, STAGE>::function()...};
+
+    struct RowSpan {
+        uint8_t first, end;
+    };
+
+    static constexpr auto rows PROGMEM = [] {
+        struct Rows {
+            RowSpan span[STATIC_AREAS[A].rows];
+        } result{};
+        constexpr bool entries[] = {StaticChunk<A, I, STAGE>::Work::occupied...};
+        constexpr auto area = STATIC_AREAS[A];
+        for(unsigned y = 0; y < area.rows; ++y) {
+            uint8_t first = area.columns, end = 0;
+            for(uint8_t x = 0; x < area.columns; ++x)
+                if(entries[y * area.columns + x]) {
+                    if(first == area.columns)
+                        first = x;
+                    end = x + 1;
+                }
+            result.span[y] = {first, end};
+        }
+        return result;
+    }();
     static constexpr bool occupied = [] {
         constexpr bool entries[] = {StaticChunk<A, I, STAGE>::Work::occupied...};
         for(bool entry : entries)
@@ -69,12 +92,24 @@ template <unsigned A, HandlerStage STAGE> static CHUNK_INLINE void process_area(
         bottom = area.height - 1;
     for(uint8_t cy = (uint8_t)(top / CHUNK_HEIGHT); cy <= bottom / CHUNK_HEIGHT; ++cy) {
         uint16_t row = (uint16_t)cy * area.columns;
-        for(uint8_t cx = (uint8_t)(left / CHUNK_WIDTH); cx <= right / CHUNK_WIDTH; ++cx) {
-            uint16_t index = row + cx;
+        uint8_t first = (uint8_t)(left / CHUNK_WIDTH);
+        uint8_t end = (uint8_t)(right / CHUNK_WIDTH + 1);
 #ifndef RPG_AVM
+        // Native instrumentation describes the requested cache window, including
+        // empty chunks, independently of the immutable empty-entry optimization.
+        for(uint8_t cx = first; cx < end; ++cx)
             if(chunk_trace_count[STAGE] < CHUNK_TRACE_CAPACITY)
-                chunk_trace[STAGE][chunk_trace_count[STAGE]++] = index;
+                chunk_trace[STAGE][chunk_trace_count[STAGE]++] = row + cx;
 #endif
+        // Immutable per-stage row bounds skip only compile-time empty entries.
+        // Dense function tables and cached-chunk ordering remain unchanged.
+        auto const& span = AreaTable<A, STAGE>::rows.span[cy];
+        if(first < span.first)
+            first = span.first;
+        if(end > span.end)
+            end = span.end;
+        for(uint8_t cx = first; cx < end; ++cx) {
+            uint16_t index = row + cx;
             if(auto function = AreaTable<A, STAGE>::functions[index])
                 function();
             if constexpr(STAGE == STAGE_GAMEPLAY || STAGE == STAGE_DIALOGUE)

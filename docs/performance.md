@@ -1,5 +1,175 @@
 # Performance evidence
 
+## Exploration regression diagnosis and correction (2026-11-18)
+
+The starting RPG checkout is `6d57b70` (the previous NPC fixes, committed by the
+repository owner before this follow-up). Archived pre-fix packages correspond to
+`824452b`. This work leaves changes uncommitted. Both archives identify the same
+AVM Clang 24 compiler build, `4b9f44402c8c3bcc40b921827e03e196b213c690`, with
+`-O2 -flto=full`, RelWithDebInfo and the existing generator. The installed compiler
+binary, interpreter firmware, Ardens library, guest ELF/package hashes and checkout
+revisions are recorded in workspace `build/npc-regression/provenance.json`.
+The source checkout's LLVM revision is not substituted for the installed compiler's
+actual build identifier.
+
+The device configuration is unchanged: 16 MHz AVR, deterministic initial state,
+Cathy3K USB handoff, observed SPI writes, and normal or FXC/PORTE2 firmware. The
+320,000-cycle exploration limit and the replay inputs remain unchanged.
+
+### Demonstrated causes
+
+The old global maximum was frame **90**, 323,373 cycles. The post-fix maximum was
+frame **180**, 357,776 cycles; these are different workloads. Frame 0 was 307,312
+cycles after the previous fix, with its three actors already cast during entry.
+Frame 74 had the same three actor identities, positions and states in both archives.
+Its 2,173-cycle regression was not an additional sprite or activation: source/PC
+attribution shows the populated NPC chunk plus admission calls increasing from
+4,869 to 8,218 attributed cycles. Previously active identities were rejected in the
+specialized site; after centralization they made three generic admission calls.
+There was still only one eligibility check per identity. Other code-generation and
+interrupt-alignment differences partially offset that call-path cost.
+
+Frame 180 moves the test player from (432,416) to (448,432). Camera changes from
+(376,392) to (392,408), and cache origin from (22,23) to (23,24). Silas is at
+(368,372), fully offscreen with uncached feet, while his home (384,384) has cached
+feet and is safely offscreen. Both archives retire him. Only the corrected guard
+permits immediate readmission at home; the newly initialized wanderer then steps to
+(384,385). The old executable ends with two actors, the corrected executable with
+three. That extra actor is **not drawn**: its sprite is vertically outside the view.
+Actors/collision increases by **40,639 cycles** (88,129 to 128,768), whereas rendering
+increases by only **343** (168,492 to 168,835). At equivalent frame 180, total cost
+increases from 316,821 to 357,776. This establishes a lifecycle cost, rather than
+attributing the 34,403-cycle change between different global maxima to rendering.
+
+### Measured changes
+
+1. Ordinary standing/wandering actors retain their slot and movement state while
+   their same-area logical home's footprint is cached. Uncached feet freeze through
+   the existing update path; once actor and home both leave the cache, safe retirement
+   frees the slot. Policy changes are processed first. Targets/routes remain pinned;
+   `NPC_TRAVEL` still completes and emits its event even with a cached destination.
+   This removes frame 180's retirement/readmission rather than postponing activation.
+2. Compile-time per-stage row spans bound dense chunk-table traversal to the first
+   and last potentially occupied columns in each row. Empty entries outside those
+   spans cannot run a handler. Cached-window intersection, ordering, dense 24-bit
+   function tables and declarative policies remain intact. Native tests exercise the
+   same bounds; their instrumentation still reports the requested cache window.
+3. `terrain_clear()` selects the area's collision-atlas base once per footprint,
+   retaining `cached_tile()` and its row-major short circuit for up to four cells.
+   This removes three repeated area switches/address-base calculations in the
+   four-cell case. Native collision overrides retain their original path.
+4. `npc_offer_candidate()` owns an inline area/party/active-identity front door;
+   `npc_detail::offer_candidate()` owns the outlined definition/cache/visibility/
+   collision/priority work. Constant site IDs permit cheap rejection without a generic
+   admission call for active residents. `NpcSite::run()` still checks only policy and
+   offers the site. Eligibility is not duplicated; post-hook revalidation is unchanged.
+
+All timings in this experiment table use ordinary device stepping:
+
+| Experiment | Frame 74 | Main scenario maximum | Serial | Code | Read-only | Static RAM | Complete stack |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Starting NPC fixes | 322,592 | 357,776 | 180 | 57,471 | 329,581 | 668 | 231 |
+| Row spans only | 311,027 | 343,961 | 180 | 57,735 | 330,063 | 668 | 233 |
+| Lifecycle only | 323,037 | 325,727 | 90 | 57,561 | 329,581 | 668 | 231 |
+| Lifecycle + row spans | 311,442 | 317,829 | 892 | 57,825 | 330,063 | 668 | 233 |
+| Plus collision-atlas hoisting | 310,822 | 318,582 | 892 | 57,703 | 330,063 | 668 | 233 |
+| Plus inline admission front door | 307,388 | 316,673 | 892 | 58,225 | 330,063 | 668 | 233 |
+
+The full integration target exposed an additional **sounds** replay failure not
+contained in the main scenario: frame 226, 322,476 cycles. It has no lifecycle churn,
+but performs player overlap validation and NPC collision. Atlas hoisting lowers this
+to 320,525; the inline admission front door lowers the sounds maximum to **316,022**.
+Atlas hoisting is retained for the worse sounds workload despite its intermediate
+main-scenario maximum increasing by 753 cycles. Both final workloads improve; an
+improved frame 74 alone was never used as the acceptance criterion.
+
+The final main maximum is **316,673 cycles at serial 892**, in both normal and FXC
+modes: **3,327 cycles** below the unchanged limit. The sounds maximum is **316,022**.
+Saved Game remains 309 bytes. Relative to the starting fixes, code grows 754 bytes,
+read-only data grows 482 bytes (row metadata), static RAM is unchanged at 668 bytes,
+and complete stack grows two bytes to **233/256**. QA uses 675 static bytes and the
+same complete stack bound. No heap, identity-wide production arrays, dirty-chunk
+state, actor/save-layout change or new eviction policy is introduced. The ROM tradeoff
+is deliberate: predictable frame cost takes priority over code size.
+
+### Final frame contexts and attribution
+
+The ordinary marker breakdowns are directly comparable with the previous timings:
+
+| Frame | Total | Render/display | Reload | Chunks | Actors/collision | Other |
+|---|---:|---:|---:|---:|---:|---:|
+| Prior fixes, 74 | 322,592 | 164,850 | 12,192 | 44,362 | 92,734 | 8,454 |
+| Final, 74 | 307,388 | 164,495 | 12,254 | 37,773 | 84,200 | 8,666 |
+| Prior fixes, 180 | 357,776 | 168,835 | 12,205 | 39,461 | 128,768 | 8,507 |
+| Final, 180 | 287,803 | 167,690 | 12,262 | 28,007 | 71,593 | 8,251 |
+| Final maximum, 892 | 316,673 | 176,221 | 12,724 | 37,841 | 82,714 | 7,173 |
+
+Frame 74 retains Iona (496,416), Rowan (464,432), and Silas (383,372). Final frame 180
+retains Silas at (368,372), without activation/retirement; his state is preserved.
+Frame 892 is at player (496,400), camera (440,376), cache (26,22), with Iona traveling
+at (580,442) and Rowan standing at (464,432). Neither that frame nor frame 74 has
+lifecycle churn. All three frames visit four indexed sites. Frames 74 and 180 have
+zero admission slow-path entries. Frame 892 has one, for uncached Silas, rejected
+before terrain/collision work. Existing residents are rejected by the inline front door. Counter metadata in each profiling report identifies
+whether `candidate_offers` counts the former generic function or the new slow path.
+
+`tools/profile_frames.py` records every exploration frame's serial, elapsed cycles,
+area/player/camera/cache, actor identities/positions/state, activation/retirement counts,
+site checks and execution-region costs. Guest-PC histograms retain frame 74, frame 180,
+all new maxima and frames over 310,000 cycles. DWARF inline ranges distinguish gameplay,
+tiles, dialogue, NPC dispatch, overlap repair, lifecycle, simulation, movement/collision,
+interaction, terrain/actor/overlay drawing and display. Categories are **exclusive**;
+shared collision helpers have separate rows, and interrupt time is charged to the
+interrupted guest instruction. Function size is not used as a proxy for hotness.
+
+Instruction attribution explicitly restores Ardens `no_merged` after display captures
+reset it. This changes peripheral/marker sampling slightly: final instruction profiles
+peak at **316,678** at frame 892, versus **316,673** with ordinary stepping. Earlier
+experiments differed by up to 1,526 cycles at that frame. `--frame-only` observes ordinary
+stepping without PC attribution; `--no-trace` and `--strict` run ordinary tests. Final
+budget claims use ordinary stepping and unchanged strict assertions, not diagnostic
+figures. Both normal/FXC instruction profiles reconcile every frame's region and PC
+cycles to its total.
+
+At the final instruction-profile maximum, the largest exclusive regions are terrain
+rendering 70,189, overlays 61,359, display submission 23,548, gameplay dispatch 16,222,
+NPC dispatch 18,746, NPC simulation 13,548, NPC movement/collision 13,943 and shared
+terrain collision 11,463 cycles. Actor drawing is 10,560. The remaining cost is now
+predominantly rendering, not repeated NPC activation. Full region/function/line tables
+are retained in the profiling summaries rather than inferred from the old source profile.
+
+Native verification passes all 22 tests, including the 64-identity/128-site fixture,
+all-direction fractional-camera approaches and the 16,120-frame continuity run.
+New regression cases check retained identity/slot/timer/detour state and no activation
+hook, eventual unloading, cached-destination travel events, and a saturated eight-slot
+pool retaining ordinary residents while a higher-priority candidate waits.
+
+Raw evidence, immutable experiment packages and final disassemblies are retained under
+workspace `build/npc-regression/`. Final ordinary context is in `optimized-ordinary`,
+instruction/source profiles in `fast-normal` and `fast-fxc`, and the sounds diagnosis
+in `sounds-baseline` and `fast-sounds-profile`. The complete strict integration log is
+`optimized-integration.log`; the final package inputs are `fast-admission-artifacts`.
+Both playable packages are refreshed. The complete `rpg_integration_full` target
+passes, including normal/FXC main and sounds strict replays, guest geometry/lookup
+checks and fresh AVM source/native profiles. Existing 24-bit code pointers and complete
+LTO stack/resource checks pass. The final formatting rebuild has byte-identical
+allocated code/data sections to the measured packages; only embedded debug/source
+metadata differs (`format-equivalence.json`).
+
+Reproduce a diagnostic run from the workspace root (use a fresh output directory):
+
+```sh
+python3 projects/avm_rpg/tools/profile_frames.py \
+  --artifacts projects/avm_rpg/build/artifacts --build projects/avm_rpg/build \
+  --sdk build/avm-sdk-install --dwarfdump build/llvm-build/bin/llvm-dwarfdump \
+  --output build/frame-profile --mode normal
+```
+
+Use `--mode fxc` for FXC, `--scenario sounds` for the separate sounds replay,
+`--frame-only` for ordinary marker/context tracing, or `--strict` for unchanged timing
+checks without tracing. Diagnostic timing is disabled only in the explicit functional
+modes. No production instructions are added for profiling.
+
 ## NPC admission continuity and validation (2026-11-18)
 
 Comparable local RelWithDebInfo builds use the existing `-O2 -flto=full` AVM settings.

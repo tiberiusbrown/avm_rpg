@@ -152,5 +152,32 @@ int main() {
                                    game.npcs.actors[j].actor.x, game.npcs.actors[j].actor.y));
         activation_mutation = 0;
     }
+    // Full pool of ordinary off-cache residents with cached homes. Even a
+    // higher-priority offer must wait; retention neither evicts nor duplicates.
+    game_new();
+    game.set_flag(FLAG_VILLAGER_EAST);
+    world_enter(positions::TestField.area, positions::TestField.x * TILE,
+                positions::TestField.y * TILE, SOUTH);
+    npc_reset();
+    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    note_tile_edit();
+    for(unsigned i = 0; i < NPC_CAPACITY; ++i) {
+        auto& n = game.npcs.actors[i];
+        n = {};
+        n.id = (NPC_ID)(1 + 3 * i);
+        n.assigned_site = npc_location(n.id);
+        n.behavior = NPC_WANDER;
+        n.actor.x = n.actor.y = 0;
+    }
+    stage(false);
+    CHECK(!npc_find((NPC_ID)2));
+    for(unsigned i = 0; i < NPC_CAPACITY; ++i)
+        CHECK(game.npcs.actors[i].id == (NPC_ID)(1 + 3 * i));
+    // Both the actors and homes are now outside the effective cache and view.
+    game.cache.origin_tx += CACHE_WIDTH;
+    game.cache.origin_ty += CACHE_HEIGHT;
+    npc_stage_begin();
+    CHECK(!game.npcs.actors[0].id);
+    npc_stage_end();
     std::puts("64-identity policy and bounded activation checks passed");
 }

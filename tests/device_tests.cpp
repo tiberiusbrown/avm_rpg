@@ -43,6 +43,137 @@ struct Cost {
     uint64_t reload = 0, chunks = 0, collision = 0;
 };
 
+// Optional emulator-only tracing; no guest instructions are added.
+// Exact PC attribution uses single AVR stepping; marker-only tracing preserves ordinary stepping.
+// The interpreter boundary is checked against interp-boundary.json by the driver.
+struct FrameTrace {
+    static inline unsigned next_instance;
+    unsigned instance = next_instance++, sequence = 0, active_pc = 0;
+    fs::path directory;
+    std::ofstream frames;
+    std::vector<uint64_t> cycles;
+    std::array<bool, 256> present{};
+    unsigned activated = 0, retired = 0, offers = 0, site_checks = 0;
+    std::vector<std::pair<unsigned, unsigned>> events;
+    std::vector<unsigned> region_ids;
+    std::array<uint64_t, 22> regions{};
+    unsigned active_region = 0;
+    uint64_t worst = 0;
+    bool instruction_profile = std::getenv("RPG_FRAME_COARSE") == nullptr;
+    Game initial{};
+
+    FrameTrace() {
+        if(auto path = std::getenv("RPG_FRAME_TRACE")) {
+            directory = path;
+            fs::create_directories(directory);
+            frames.open(directory / ("frames-" + std::to_string(instance) + ".jsonl"));
+            ensure_pc(65535);
+            if(auto file = std::getenv("RPG_FRAME_EVENTS")) {
+                std::ifstream input(file);
+                unsigned pc, sites, offer, region;
+                while(input >> pc >> sites >> offer >> region)
+                    if(region < regions.size()) {
+                        ensure_pc(pc);
+                        events[pc] = {sites, offer};
+                        region_ids[pc] = region;
+                    }
+            }
+        }
+    }
+
+    explicit operator bool() const {
+        return frames.is_open();
+    }
+
+    void ensure_pc(unsigned pc) {
+        require(pc < (1u << 24), "frame trace PC exceeds AVM code address range");
+        if(pc < cycles.size())
+            return;
+        cycles.resize(pc + 1);
+        events.resize(pc + 1);
+        region_ids.resize(pc + 1);
+    }
+
+    void begin(Game const& g) {
+        initial = g;
+        std::fill(cycles.begin(), cycles.end(), 0);
+        regions.fill(0);
+        present.fill(false);
+        for(auto const& n : g.npcs.actors)
+            if(n.id)
+                present[(uint8_t)n.id] = true;
+        activated = retired = offers = site_checks = 0;
+    }
+
+    void boundary(Game const& g, unsigned pc) {
+        active_pc = pc;
+        ensure_pc(pc);
+        if(pc < events.size()) {
+            active_region = region_ids[pc];
+            site_checks += events[pc].first;
+            offers += events[pc].second;
+        }
+        std::array<bool, 256> now{};
+        for(auto const& n : g.npcs.actors)
+            if(n.id)
+                now[(uint8_t)n.id] = true;
+        for(unsigned id = 1; id < NPC_ID_LIMIT; ++id) {
+            activated += now[id] && !present[id];
+            retired += !now[id] && present[id];
+        }
+        present = now;
+    }
+
+    void finish(Game const& g, unsigned serial, Cost const& cost, bool exploration) {
+        frames << "{\"instance\":" << instance << ",\"sequence\":" << sequence
+               << ",\"serial\":" << serial << ",\"cycles\":" << cost.total
+               << ",\"instruction_profile\":" << instruction_profile
+               << ",\"exploration\":" << exploration << ",\"render\":" << cost.render
+               << ",\"reload\":" << cost.reload << ",\"chunks\":" << cost.chunks
+               << ",\"actors_collision\":" << cost.collision << ",\"area\":" << unsigned(g.area)
+               << ",\"player\":[" << g.player.x << ',' << g.player.y << "],\"camera\":["
+               << g.camera.x << ',' << g.camera.y << "],\"cache\":[" << unsigned(g.cache.origin_tx)
+               << ',' << unsigned(g.cache.origin_ty) << "],\"initial_camera\":[" << initial.camera.x
+               << ',' << initial.camera.y << "],\"initial_cache\":["
+               << unsigned(initial.cache.origin_tx) << ',' << unsigned(initial.cache.origin_ty)
+               << "],\"activations\":" << (instruction_profile ? std::to_string(activated) : "null")
+               << ",\"retirements\":" << (instruction_profile ? std::to_string(retired) : "null")
+               << ",\"site_checks\":"
+               << (instruction_profile ? std::to_string(site_checks) : "null")
+               << ",\"candidate_offers\":"
+               << (instruction_profile ? std::to_string(offers) : "null") << ",\"actors\":[";
+        bool comma = false;
+        for(auto const& n : g.npcs.actors) {
+            if(!n.id)
+                break;
+            if(comma)
+                frames << ',';
+            comma = true;
+            frames << '[' << unsigned(n.id) << ',' << n.actor.x << ',' << n.actor.y << ','
+                   << unsigned(n.behavior) << ',' << unsigned(n.state) << ']';
+        }
+        frames << "],\"regions\":[";
+        for(unsigned i = 0; i < regions.size(); ++i) {
+            if(i)
+                frames << ',';
+            frames << regions[i];
+        }
+        frames << "]}\n";
+        if(instruction_profile && exploration &&
+           (cost.total > worst || cost.total >= 310000 || serial == 74 || serial == 180)) {
+            std::ofstream out(directory / ("pcs-" + std::to_string(instance) + "-" +
+                                           std::to_string(sequence) + ".csv"));
+            out << "pc,cycles\n";
+            for(unsigned pc = 0; pc < cycles.size(); ++pc)
+                if(cycles[pc])
+                    out << pc << ',' << cycles[pc] << '\n';
+        }
+        if(exploration)
+            worst = std::max(worst, cost.total);
+        ++sequence;
+    }
+};
+
 struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
     unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
@@ -50,6 +181,7 @@ struct Device {
     uint8_t previous_phase = 0;
     uint64_t phase_begin = 0;
     Cost stages;
+    FrameTrace trace;
     uint8_t buttons = 0, previous_marker = 0;
     bool started = false;
     bool proof = false;
@@ -145,6 +277,18 @@ struct Device {
         if(cycle_observer)
             cycle_observer(observer_context, false);
         pins();
+        // Display refreshes call advance(0), which resets no_merged. Exact PC
+        // attribution needs single AVR instructions throughout diagnostic runs.
+        if(trace && trace.instruction_profile)
+            ab->core_state.cpu.no_merged = true;
+        auto const& before_cpu = ab->core_state.cpu;
+        uint64_t before_cycle = before_cpu.cycle_count;
+        if(trace && trace.instruction_profile && previous_marker) {
+            unsigned pc = before_cpu.pc;
+            if(pc >= 256 && pc < 1280 && (pc - 256) % 4 == 0)
+                trace.boundary(state(), before_cpu.data[4] | unsigned(before_cpu.data[5]) << 8 |
+                                            unsigned(before_cpu.data[6]) << 16);
+        }
         ab->cycle();
         ab->core_state.cpu.update_all();
         if(cycle_observer)
@@ -152,6 +296,12 @@ struct Device {
 
         auto const& cpu = ab->core_state.cpu;
         require(!cpu.should_autobreak(), "native interpreter fault");
+        if(trace && trace.instruction_profile && previous_marker &&
+           trace.active_pc < trace.cycles.size()) {
+            uint64_t elapsed = cpu.cycle_count - before_cycle;
+            trace.cycles[trace.active_pc] += elapsed;
+            trace.regions[trace.active_region] += elapsed;
+        }
 
         uint8_t marker = cpu.data[marker_addr];
         if(marker != previous_marker) {
@@ -159,6 +309,8 @@ struct Device {
                 begin = cpu.cycle_count;
                 frame_area = proof ? 0 : state().area;
                 stages = {};
+                if(trace)
+                    trace.begin(state());
                 previous_phase = 0;
                 phase_begin = begin;
                 if(proof || (state().area == AREA_OUTDOOR && state().party.members[0].hp == 20))
@@ -184,6 +336,8 @@ struct Device {
                 require(!check_timing || (!proof && state().area != frame_area) ||
                             last.total <= 320000,
                         "exploration frame exceeded the 320000-cycle budget");
+                if(trace)
+                    trace.finish(state(), serial(), last, proof || state().area == frame_area);
                 frames.push_back(last);
             }
             previous_marker = marker;
@@ -1678,14 +1832,16 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
 }
 
 int main(int argc, char** argv) try {
-    require(argc >= 9 && argc <= 12,
-            "device_tests package game_address marker_address serial_address "
-            "output_directory normal|fxc|proof|smoke|pause|battle|sounds|functional "
-            "dialogue_address phase_address "
-            "[battle_pointer_address [battle_ready_address [panel_address]]]");
-    check_timing = std::string(argv[6]) != "functional";
+    require(
+        argc >= 9 && argc <= 12,
+        "device_tests package game_address marker_address serial_address "
+        "output_directory normal|fxc|proof|smoke|pause|battle|sounds|functional|sounds-functional "
+        "dialogue_address phase_address "
+        "[battle_pointer_address [battle_ready_address [panel_address]]]");
+    check_timing =
+        std::string(argv[6]) != "functional" && std::string(argv[6]) != "sounds-functional";
     if(!check_timing)
-        std::cout << "{\"timing_checks_enforced\":false,\"mode\":\"functional\"}\n";
+        std::cout << "{\"timing_checks_enforced\":false,\"mode\":\"" << argv[6] << "\"}\n";
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
@@ -1728,9 +1884,12 @@ int main(int argc, char** argv) try {
     // The title song fades out and the area's song takes over; the fade lowers the music
     // attenuation while it runs, so the audio checks wait for it.
     require(settled_song(d) != title_song, "starting a game kept the title song");
-    if(std::string(argv[6]) == "sounds") {
+    if(std::string(argv[6]) == "sounds" || std::string(argv[6]) == "sounds-functional") {
         verify_sounds(d);
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"menu, ambient and mechanism sounds\"}\n";
+        std::cout << "{\"worst_exploration_cycles\":" << worst_exploration_cycles
+                  << ",\"within_frame_budget\":"
+                  << (worst_exploration_cycles <= 320000 ? "true" : "false") << "}\n";
         return 0;
     }
     verify_options(d, out);

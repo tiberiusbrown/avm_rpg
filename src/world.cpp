@@ -346,6 +346,16 @@ bool player_terrain_clear(uint16_t x, uint16_t y) {
 bool terrain_clear(uint16_t x, uint16_t y) {
     if(!game.dimensions.pixel_bounds(x, y))
         return false;
+        // Every tile in this footprint uses the same collision atlas. Resolve its
+        // program-memory base once, rather than repeating the area switch and base
+        // address arithmetic for each of up to four cached tile reads.
+#ifdef RPG_AVM
+    auto const* masks = &TILE_COLLISION[(uint16_t)area_tileset(game.area) << 8];
+    auto solid = [masks](TilePos pos) { return masks[cached_tile(pos)] != 0; };
+#else
+    // Native collision overrides remain observable by the rules tests.
+    auto solid = [](TilePos pos) { return tile_solid(cached_tile(pos)); };
+#endif
     // Pixel bounds checked before narrowing to byte tile coordinates.
     uint8_t x1 = (uint8_t)((x + FOOT_LEFT) >> TILE_SHIFT),
             x2 = (uint8_t)((x + FOOT_RIGHT) >> TILE_SHIFT);
@@ -354,14 +364,14 @@ bool terrain_clear(uint16_t x, uint16_t y) {
     // A foot box intersects at most two columns and two rows. Preserve the
     // row-major short circuit without loop counters or duplicate tile reads.
     static_assert(FOOT_WIDTH <= TILE && FOOT_HEIGHT <= TILE);
-    if(tile_solid(cached_tile({game.area, x1, y1})))
+    if(solid({game.area, x1, y1}))
         return false;
-    if(x2 != x1 && tile_solid(cached_tile({game.area, x2, y1})))
+    if(x2 != x1 && solid({game.area, x2, y1}))
         return false;
     if(y2 != y1) {
-        if(tile_solid(cached_tile({game.area, x1, y2})))
+        if(solid({game.area, x1, y2}))
             return false;
-        if(x2 != x1 && tile_solid(cached_tile({game.area, x2, y2})))
+        if(x2 != x1 && solid({game.area, x2, y2}))
             return false;
     }
     return true;

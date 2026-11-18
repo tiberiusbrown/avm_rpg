@@ -49,9 +49,21 @@ TilePos npc_location(NPC_ID id);
 // Derived policy metadata, queried once when activating a slot.
 bool npc_location_is_fixed(NPC_ID id);
 void npc_stage_begin();
-void npc_offer_candidate(NPC_ID id, TilePos site);
 void npc_stage_end();
 Npc* npc_find(NPC_ID id);
+
+namespace npc_detail {
+// Admission's slow path; the public front door has already checked these identities.
+void offer_candidate(NPC_ID id, TilePos site);
+} // namespace npc_detail
+
+// Keep cheap rejection at the admission boundary, where site IDs are constants.
+// Active residents need no slow-path call, definition lookup or collision work.
+inline void npc_offer_candidate(NPC_ID id, TilePos site) {
+    if(site.area == game.area && !party_contains(id) && !npc_find(id))
+        npc_detail::offer_candidate(id, site);
+}
+
 // Called after adding a party member. Retires its map actor, preserving the occupied prefix.
 void npc_recruit(NPC_ID id);
 bool npc_visible(uint16_t x, uint16_t y);
