@@ -82,9 +82,8 @@ static void saturate(uint8_t& value) {
         ++value;
 }
 
-static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
-    if(!terrain_clear(x, y))
-        return false;
+// Whether the feet at (x, y) are free of the player and the other NPCs. Terrain is not checked.
+static bool occupancy_clear(Npc const* self, uint16_t x, uint16_t y) {
     if((!self || !(self->state & NPC_PASS_PLAYER)) &&
        npc_overlap(x, y, game.player.x, game.player.y))
         return false;
@@ -95,6 +94,18 @@ static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
             return false;
     }
     return true;
+}
+
+static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
+    return terrain_clear(x, y) && occupancy_clear(self, x, y);
+}
+
+// Whether a one-pixel step of n to (x, y) is clear. Known-clear feet need only the tiles the step
+// enters; otherwise the whole footprint is checked.
+static bool step_clear(Npc const& n, uint16_t x, uint16_t y, DIRECTION dir) {
+    if(!(n.policy_pending & 4))
+        return position_clear(&n, x, y);
+    return terrain_step_clear(x, y, dir) && occupancy_clear(&n, x, y);
 }
 
 static bool foot_cached_at(uint16_t x, uint16_t y) {
@@ -346,7 +357,7 @@ static bool step(Npc& n, DIRECTION dir) {
     if(dir == WEST)
         --x;
     if(x < 0 || y < 0 || !leashed(n, (uint16_t)x, (uint16_t)y) ||
-       !position_clear(&n, (uint16_t)x, (uint16_t)y))
+       !step_clear(n, (uint16_t)x, (uint16_t)y, dir))
         return false;
     n.policy_pending |= 4;
     n.actor.x = (uint16_t)x;

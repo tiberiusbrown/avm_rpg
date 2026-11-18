@@ -208,6 +208,8 @@ bool tile_portal(uint8_t tile);
 // Wrong-area and out-of-window reads return the solid TILE_OUTSIDE sentinel.
 uint8_t cached_tile(TilePos p);
 bool terrain_clear(uint16_t x, uint16_t y);
+// One pixel of a step, from a footprint already known clear: checks only the tiles it enters.
+bool terrain_step_clear(uint16_t x, uint16_t y, DIRECTION dir);
 // Player foot box against collision masks. Full tiles block the whole box.
 bool player_terrain_clear(uint16_t x, uint16_t y);
 // Bit i is set when pixel i of the foot box's leading edge is blocked: the right or left

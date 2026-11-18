@@ -21,10 +21,20 @@ static bool player_foot_clear_known() {
            foot_clear_y == game.player.y;
 }
 
+// Terrain changed under the NPCs: none keeps known-clear feet until a full check confirms them.
+static void npc_feet_unknown() {
+    for(auto& n : game.npcs.actors) {
+        if(!n.id)
+            break;
+        n.policy_pending &= (uint8_t)~4;
+    }
+    game.npcs.terrain_dirty = 1;
+}
+
 void note_tile_edit() {
     foot_clear_known = false;
     cache_edited = true;
-    game.npcs.terrain_dirty = 1;
+    npc_feet_unknown();
 }
 
 #ifndef RPG_AVM
@@ -185,7 +195,7 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
 void reload_tile_cache() {
     game.camera = game_camera();
     if(cache_edited) {
-        game.npcs.terrain_dirty = 1;
+        npc_feet_unknown();
         foot_clear_known = false;
         cache_edited = false;
     }
@@ -372,6 +382,37 @@ bool terrain_clear(uint16_t x, uint16_t y) {
         if(solid({game.area, x1, y2}))
             return false;
         if(x2 != x1 && solid({game.area, x2, y2}))
+            return false;
+    }
+    return true;
+}
+
+// One pixel of a step from a footprint already known clear. Every tile the old footprint covered
+// was clear, so a tile can block only if the step enters it. (x, y) is the new position.
+bool terrain_step_clear(uint16_t x, uint16_t y, DIRECTION dir) {
+    if(!game.dimensions.pixel_bounds(x, y))
+        return false;
+    bool horizontal = dir == EAST || dir == WEST;
+    // The leading edge of the step, and the edge it leaves one pixel behind.
+    uint16_t lead = horizontal ? (uint16_t)(x + (dir == EAST ? FOOT_RIGHT : FOOT_LEFT))
+                               : (uint16_t)(y + (dir == SOUTH ? FOOT_BOTTOM : FOOT_TOP));
+    uint16_t trail = dir == EAST || dir == SOUTH ? (uint16_t)(lead - 1) : (uint16_t)(lead + 1);
+    if((lead >> TILE_SHIFT) == (trail >> TILE_SHIFT))
+        return true;
+    // The entered column or row, and the tiles it spans along the edge.
+    uint8_t entered = (uint8_t)(lead >> TILE_SHIFT);
+    uint16_t first = horizontal ? (uint16_t)(y + FOOT_TOP) : (uint16_t)(x + FOOT_LEFT);
+    uint16_t last = horizontal ? (uint16_t)(y + FOOT_BOTTOM) : (uint16_t)(x + FOOT_RIGHT);
+#ifdef RPG_AVM
+    auto const* masks = &TILE_COLLISION[(uint16_t)area_tileset(game.area) << 8];
+    auto solid = [masks](TilePos pos) { return masks[cached_tile(pos)] != 0; };
+#else
+    auto solid = [](TilePos pos) { return tile_solid(cached_tile(pos)); };
+#endif
+    for(uint16_t along = first >> TILE_SHIFT; along <= (last >> TILE_SHIFT); ++along) {
+        TilePos pos = horizontal ? TilePos{game.area, entered, (uint8_t)along}
+                                 : TilePos{game.area, (uint8_t)along, entered};
+        if(solid(pos))
             return false;
     }
     return true;
