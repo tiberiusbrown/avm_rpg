@@ -1,0 +1,22 @@
+// Spikes thrust up out of the floor: a metallic scrape that slides up, and a sharp clink as they
+// lock in place.
+sfx
+volume max
+automation 8ms
+instrument slide {
+    wave pulse duty 12.5% volume 6
+    frequency_slide { delta 1200cents over 160ms }
+    volume_slide { to 10 over 160ms }
+}
+instrument grit {
+    wave noise volume 5
+    noise_retrigger { every 12ms seed 9 }
+    volume_slide { to 9 over 160ms }
+}
+instrument clink {
+    wave pulse duty 12.5% volume 12
+    volume_slide { to 0 over 50ms }
+}
+instrument snap { wave noise volume 12 volume_slide { to 0 over 30ms } }
+channel 1 octave 4 { c:160ms@slide b'':50ms@clink }
+channel 3 octave 4 { c:160ms@grit c:30ms@snap }

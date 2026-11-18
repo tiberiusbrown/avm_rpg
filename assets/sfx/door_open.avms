@@ -1,0 +1,13 @@
+// A house door swings open as the player goes in: a creak of old hinges, then the latch.
+sfx
+volume max
+automation 8ms
+instrument hinge {
+    wave pulse duty 12.5% volume 9
+    frequency_slide { delta 400cents over 130ms }
+    lfo { target pitch depth 60cents period 26ms }
+    volume_slide { to 3 over 130ms }
+}
+instrument latch { wave noise volume 11 volume_slide { to 0 over 24ms } }
+channel 1 hinge octave 3 { a:130ms }
+channel 3 latch octave 4 { r:130ms c:24ms }

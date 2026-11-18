@@ -1,0 +1,16 @@
+// Spikes sink into the floor: a thin metallic scrape that slides down, over a gritty hiss.
+sfx
+volume max
+automation 8ms
+instrument slide {
+    wave pulse duty 12.5% volume 9
+    frequency_slide { delta -1200cents over 200ms }
+    volume_slide { to 2 over 200ms }
+}
+instrument grit {
+    wave noise volume 7
+    noise_retrigger { every 12ms seed 9 }
+    volume_slide { to 0 over 200ms }
+}
+channel 1 slide octave 5 { c:200ms }
+channel 3 grit octave 4 { c:200ms }

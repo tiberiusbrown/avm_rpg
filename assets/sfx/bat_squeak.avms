@@ -1,0 +1,10 @@
+// A bat wheels overhead: three thin squeaks, each sliding up and each a little higher.
+sfx
+volume 140%
+automation 8ms
+instrument squeak {
+    wave pulse duty 12.5% volume 5
+    frequency_slide { delta 1200cents over 28ms }
+    volume_slide { to 0 over 34ms }
+}
+channel 1 squeak octave 6 { c:36ms r:30ms d:36ms r:30ms e:36ms }

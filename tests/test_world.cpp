@@ -5,6 +5,8 @@
 #include "npc.h"
 #include "logic/handlers.h"
 #include "music_catalog.h"
+#include "story_stub.h"
+#include <initializer_list>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +35,30 @@ bool dialogue_ask(char const PROGMEM*) {
 }
 
 #include "world_scenarios.h"
+
+// The sounds that the rules asked for since the last sfx_stub_reset, in order. An ambient request
+// is one that the platform drops while another effect plays, so mechanisms are judged on the
+// others: a trigger's sound and the sound of what it moves are one request, with its follow-up.
+static unsigned played(bool ambient = false) {
+    unsigned count = 0;
+    for(unsigned i = 0; i < sfx_stub_count(); ++i)
+        count += sfx_stub_record(i).ambient == ambient;
+    return count;
+}
+
+static SfxRecord const& nth_played(unsigned n, bool ambient = false) {
+    for(unsigned i = 0, seen = 0; i < sfx_stub_count(); ++i)
+        if(sfx_stub_record(i).ambient == ambient && seen++ == n)
+            return sfx_stub_record(i);
+    fprintf(stderr, "FAIL no sound number %u\n", n);
+    exit(1);
+}
+
+#define EXPECT_SOUND(effect_, then_)                                                               \
+    do {                                                                                           \
+        CHECK(played() == 1);                                                                      \
+        CHECK(nth_played(0).effect == (effect_) && nth_played(0).then == (then_));                 \
+    } while(0)
 
 static uint8_t authored_tile(Area const& area, unsigned x, unsigned y) {
     if(x >= area.width || y >= area.height)
@@ -426,8 +452,10 @@ static void house_doors() {
     game_update(0, 0);
     CHECK(game.area == AREA_OUTDOOR && game.can_interact);
 
+    sfx_stub_reset();
     game_update(0, BTN_A);
     CHECK(game.area == AREA_INTERIORS);
+    EXPECT_SOUND(SFX_DOOR_OPEN, SFX_NONE);
     CHECK(game.dimensions.width_tiles == INTERIORS_WIDTH &&
           game.dimensions.height_tiles == INTERIORS_HEIGHT);
     CHECK(game.player.x == way_out.x * TILE && game.player.y == (way_out.y - 1) * TILE &&
@@ -441,9 +469,11 @@ static void house_doors() {
     // Standing still inside does nothing. Walking down onto the exit leaves, with no button.
     game_update(0, 0);
     CHECK(game.area == AREA_INTERIORS);
+    sfx_stub_reset();
     for(unsigned i = 0; i < 2 * TILE && game.area == AREA_INTERIORS; ++i)
         game_update(BTN_DOWN, 0);
     CHECK(game.area == AREA_OUTDOOR);
+    EXPECT_SOUND(SFX_DOOR_CLOSE, SFX_NONE);
     CHECK(game.player.x == door.x * TILE && game.player.y == (door.y + 1) * TILE &&
           game.player.facing == SOUTH);
     CHECK(tile_solid(TILE_BOULDER_TALL));
@@ -538,6 +568,7 @@ static void mechanism_state(handler_impl::Mechanism const& entry) {
             TilePos cell{entry.cells.origin.area, (uint8_t)(entry.cells.origin.x + dx),
                          (uint8_t)(entry.cells.origin.y + dy)};
             game_new();
+            sfx_stub_reset();
             // Watch from the nearest walkable cell that is not the cell itself.
             game.area = cell.area;
             TilePos vantage = cell;
@@ -559,6 +590,9 @@ static void mechanism_state(handler_impl::Mechanism const& entry) {
             game.clear_flag(entry.flag);
             update_visible_world(0, false);
             CHECK(cached_tile(cell) == authored_tile(area, cell.x, cell.y));
+            // A flag that a load or a test sets changes the cells without a sound: only the
+            // player's own operation of a mechanism is heard.
+            CHECK(played() == 0);
         }
     }
 }
@@ -570,6 +604,42 @@ static void mechanism_states() {
         mechanism_state(entry);
     for(Mechanism const& entry : AreaMechanisms<AREA_DUNGEON>::TABLE)
         mechanism_state(entry);
+}
+
+// The kinds say what a cell does and sounds like, and every table row has one.
+static void mechanism_kinds() {
+    using namespace handler_impl;
+    for(uint8_t index = 0; index <= MECHANISM_RUNE; ++index) {
+        MechanismTraits traits = mechanism_traits((MECHANISM_KIND)index);
+        // Whatever the player works is heard, and what is thrown back is heard going back.
+        CHECK(traits.input == INPUT_NONE || traits.on != SFX_NONE);
+        CHECK(!traits.toggles || (traits.input != INPUT_NONE && traits.off != SFX_NONE));
+        // Every sound that a kind names is a real effect.
+        CHECK(traits.on == SFX_NONE || traits.on < SFX_COUNT);
+        CHECK(traits.off == SFX_NONE || traits.off < SFX_COUNT);
+    }
+    // A lever is the one kind that toggles, and a plate is the one that the player steps on.
+    CHECK(mechanism_traits(MECHANISM_LEVER).toggles && !mechanism_traits(MECHANISM_PLATE).toggles);
+    CHECK(mechanism_traits(MECHANISM_PLATE).input == INPUT_STEP &&
+          mechanism_traits(MECHANISM_LEVER).input == INPUT_FACE);
+    CHECK(mechanism_traits(MECHANISM_GATE).input == INPUT_NONE &&
+          mechanism_traits(MECHANISM_BRIDGE).input == INPUT_NONE);
+    // The gate that a lever throws open and shut is heard to open and to close.
+    CHECK(mechanism_traits(MECHANISM_GATE).on != mechanism_traits(MECHANISM_GATE).off);
+    CHECK(mechanism_traits(MECHANISM_LEVER).on != mechanism_traits(MECHANISM_LEVER).off);
+
+    // Every flag of every table can be changed by the player, and every kind is a real one.
+    auto check_table = [](auto const& table) {
+        for(Mechanism const& entry : table) {
+            CHECK(entry.kind <= MECHANISM_RUNE);
+            bool worked = false;
+            for(Mechanism const& other : table)
+                worked |= other.flag == entry.flag && mechanism_traits(other.kind).input != INPUT_NONE;
+            CHECK(worked);
+        }
+    };
+    check_table(AreaMechanisms<AREA_CAVE>::TABLE);
+    check_table(AreaMechanisms<AREA_DUNGEON>::TABLE);
 }
 
 static void press_a() {
@@ -585,7 +655,10 @@ static void cave_mechanisms() {
     // The lever opens the vault gate, and throwing it back closes the gate.
     stand(below(positions::CaveLever), NORTH);
     CHECK(cached_tile(positions::CaveLever) == CAVE_TILE_SWITCH_LEFT);
+    sfx_stub_reset();
     press_a();
+    // The lever clicks on, and then the gate that it opens is heard to grind.
+    EXPECT_SOUND(SFX_LEVER_ON, SFX_GRIND_OPEN);
     CHECK(game.get_flag(FLAG_CAVE_GATE) &&
           cached_tile(positions::CaveLever) == CAVE_TILE_SWITCH_RIGHT);
     stand(below(positions::CaveGate), NORTH);
@@ -594,7 +667,9 @@ static void cave_mechanisms() {
         game_update(BTN_UP, 0);
     CHECK(game.player.y == (positions::CaveGate.y - 1) * TILE);
     stand(below(positions::CaveLever), NORTH);
+    sfx_stub_reset();
     press_a();
+    EXPECT_SOUND(SFX_LEVER_OFF, SFX_GRIND_CLOSE);
     CHECK(!game.get_flag(FLAG_CAVE_GATE) &&
           cached_tile(positions::CaveLever) == CAVE_TILE_SWITCH_LEFT);
     stand(below(positions::CaveGate), NORTH);
@@ -608,9 +683,18 @@ static void cave_mechanisms() {
     TilePos plate = positions::CavePlate;
     stand({plate.area, (uint8_t)(plate.x + 1), plate.y}, WEST);
     CHECK(!game.get_flag(FLAG_CAVE_BRIDGE) && cached_tile(plate) == CAVE_TILE_PRESSURE_PLATE);
+    sfx_stub_reset();
     for(unsigned i = 0; i < TILE; ++i)
         game_update(BTN_LEFT, 0);
     CHECK(game.get_flag(FLAG_CAVE_BRIDGE) && cached_tile(plate) == CAVE_TILE_PRESSURE_PLATE_DOWN);
+    // Standing on the plate for many frames presses it once, and the bridge runs out.
+    EXPECT_SOUND(SFX_PLATE_DOWN, SFX_BRIDGE_EXTEND);
+    for(unsigned i = 0; i < TILE; ++i)
+        game_update(BTN_RIGHT, 0);
+    // Stepping off and back on takes no second sound: the plate stays down.
+    for(unsigned i = 0; i < TILE; ++i)
+        game_update(BTN_LEFT, 0);
+    CHECK(played() == 1);
     for(unsigned i = 0; i < TILE; ++i)
         game_update(BTN_RIGHT, 0);
     CHECK(game.get_flag(FLAG_CAVE_BRIDGE) && cached_tile(plate) == CAVE_TILE_PRESSURE_PLATE_DOWN);
@@ -633,11 +717,15 @@ static void cave_mechanisms() {
     uint16_t gold = game.gold;
     stand(below(positions::CaveChest), NORTH);
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_CLOSED);
+    sfx_stub_reset();
     press_a();
     CHECK(game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold + CHEST_GOLD);
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
+    EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
+    // The empty chest is silent.
     press_a();
     CHECK(game.gold == gold + CHEST_GOLD);
+    CHECK(played() == 1);
 
     // The vent blows by the clock alone and blocks its passage while it blows.
     static_assert(vent_blows(0) && vent_blows(VENT_BLOW_TICKS - 1) &&
@@ -651,6 +739,21 @@ static void cave_mechanisms() {
     update_visible_world(0, false);
     CHECK(cached_tile(positions::CaveVent) == CAVE_TILE_VENT_ACTIVE &&
           tile_solid(CAVE_TILE_VENT_ACTIVE));
+    // The vent hisses on the tick that it starts to blow, and not while it rests or keeps
+    // blowing. The hiss is ambient, so it never cuts off a sound that answers the player.
+    for(uint16_t ticks : {(uint16_t)255, (uint16_t)1, (uint16_t)VENT_BLOW_TICKS,
+                          (uint16_t)(VENT_BLOW_TICKS + 1)}) {
+        sfx_stub_reset();
+        game.ticks = ticks;
+        update_visible_world(0, false);
+        CHECK(played(true) == 0 && played() == 0);
+    }
+    sfx_stub_reset();
+    game.ticks = 512;
+    update_visible_world(0, false);
+    CHECK(played() == 0 && played(true) >= 1);
+    for(unsigned i = 0; i < played(true); ++i)
+        CHECK(nth_played(i, true).effect == SFX_STEAM_HISS);
     // A player caught on the vent when it blows is moved off it, not trapped.
     game.ticks = VENT_BLOW_TICKS;
     stand(positions::CaveVent, NORTH);
@@ -673,7 +776,9 @@ static void dungeon_mechanisms() {
         game_update(BTN_UP, 0);
     CHECK(game.player.y == (positions::DungeonSpikes_1.y + 1) * TILE - FOOT_TOP);
     stand(below(positions::DungeonLever), NORTH);
+    sfx_stub_reset();
     press_a();
+    EXPECT_SOUND(SFX_LEVER_ON, SFX_SCRAPE_OPEN);
     CHECK(game.get_flag(FLAG_DUNGEON_SPIKES));
     stand(below(positions::DungeonSpikes_1), NORTH);
     CHECK(cached_tile(positions::DungeonSpikes_0) == DUNGEON_TILE_SPIKES_DOWN &&
@@ -686,16 +791,21 @@ static void dungeon_mechanisms() {
     TilePos door = positions::DungeonCellDoor;
     stand(below(door), NORTH);
     CHECK(cached_tile(door) == DUNGEON_TILE_BARS_DOOR && tile_solid(DUNGEON_TILE_BARS_DOOR));
+    sfx_stub_reset();
     press_a();
     CHECK(game.get_flag(FLAG_DUNGEON_CELL) && cached_tile(door) == DUNGEON_TILE_BARS_DOOR_OPEN);
-    // The open door takes no more presses.
+    EXPECT_SOUND(SFX_DOOR_UNLOCK, SFX_NONE);
+    // The open door takes no more presses, and makes no more sound.
     game_update(0, 0);
     CHECK(!game.can_interact);
+    CHECK(played() == 1);
     CHECK(positions::DungeonPlate.x == door.x && positions::DungeonPlate.y == door.y - 1);
     CHECK(!game.get_flag(FLAG_DUNGEON_GATE));
+    sfx_stub_reset();
     for(unsigned i = 0; i < 2 * TILE; ++i)
         game_update(BTN_UP, 0);
     CHECK(game.player.y == positions::DungeonPlate.y * TILE && game.get_flag(FLAG_DUNGEON_GATE));
+    EXPECT_SOUND(SFX_PLATE_DOWN, SFX_GRIND_OPEN);
     CHECK(cached_tile(positions::DungeonPlate) == DUNGEON_TILE_PRESSURE_PLATE_DOWN);
     TilePos gate = positions::DungeonGate;
     stand({gate.area, (uint8_t)(gate.x - 1), gate.y}, EAST);
@@ -710,7 +820,9 @@ static void dungeon_mechanisms() {
           cached_tile(positions::DungeonBlocks_1) == DUNGEON_TILE_BLOCK_RAISED);
     TilePos lever = positions::DungeonBlockLever;
     stand({lever.area, (uint8_t)(lever.x + 1), lever.y}, WEST);
+    sfx_stub_reset();
     press_a();
+    EXPECT_SOUND(SFX_LEVER_ON, SFX_GRIND_OPEN);
     CHECK(game.get_flag(FLAG_DUNGEON_BLOCKS));
     stand(below(positions::DungeonBlocks_0), NORTH);
     CHECK(cached_tile(positions::DungeonBlocks_0) == DUNGEON_TILE_BLOCK_LOWERED &&
@@ -723,7 +835,10 @@ static void dungeon_mechanisms() {
     TilePos orb = positions::DungeonOrb, vault = positions::DungeonVaultDoor;
     stand(below(orb), NORTH);
     CHECK(cached_tile(orb) == DUNGEON_TILE_ORB_DARK);
+    sfx_stub_reset();
     press_a();
+    // The runes only light, so the vault door is what is heard to move after the chime.
+    EXPECT_SOUND(SFX_ORB_LIGHT, SFX_GRIND_OPEN);
     CHECK(game.get_flag(FLAG_DUNGEON_ORB) && cached_tile(orb) == DUNGEON_TILE_ORB_LIT);
     game_update(0, 0);
     CHECK(cached_tile(positions::DungeonRuneWest) == DUNGEON_TILE_RUNE_LIT &&
@@ -739,7 +854,9 @@ static void dungeon_mechanisms() {
 
     uint16_t gold = game.gold;
     stand(below(positions::DungeonChest), NORTH);
+    sfx_stub_reset();
     press_a();
+    EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
     CHECK(game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold + CHEST_GOLD);
     CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
 }
@@ -761,6 +878,7 @@ int main() {
     house_doors();
     passages();
     mechanism_states();
+    mechanism_kinds();
     cave_mechanisms();
     dungeon_mechanisms();
     messages();

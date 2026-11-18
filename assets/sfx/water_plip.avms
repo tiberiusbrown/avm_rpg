@@ -1,0 +1,15 @@
+// A drop plips into still water: a quick rising bubble, then a smaller one.
+sfx
+volume 140%
+automation 8ms
+instrument bubble {
+    wave pulse duty 50% volume 7
+    frequency_slide { delta 900cents over 36ms }
+    volume_slide { to 0 over 48ms }
+}
+instrument tiny {
+    wave pulse duty 50% volume 4
+    frequency_slide { delta 700cents over 30ms }
+    volume_slide { to 0 over 40ms }
+}
+channel 1 octave 5 { c:48ms@bubble r:70ms g:40ms@tiny }

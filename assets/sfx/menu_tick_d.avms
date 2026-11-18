@@ -1,0 +1,4 @@
+// A menu cursor moves: one of five small ticks, each a different pitch and voice.
+sfx
+instrument tick { wave pulse duty 25% volume 14 note_cut { after 24ms } }
+channel 1 tick octave 5 { a:28ms }

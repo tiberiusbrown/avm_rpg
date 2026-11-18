@@ -1,5 +1,6 @@
 #include "battle.h"
 #include "rpg.h"
+#include "sfx.h"
 #include <avm.h>
 
 volatile uint8_t world_phase;
@@ -10,6 +11,11 @@ void fade_world_out() {}
 void fade_world_in() {}
 
 void party_joined(NPC_ID) {}
+
+// The probes make no sound.
+void sfx_play(SFX, SFX) {}
+
+void sfx_ambient(SFX) {}
 
 static void check(bool value, uint16_t line) {
     probe_checks = (uint16_t)(probe_checks + 1);

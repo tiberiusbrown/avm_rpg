@@ -118,24 +118,73 @@ special-purpose track held back for a later scene (20 bars at 56 BPM, D Phrygian
 drone, drips a semitone or a tritone off the drone, a limping music box, a heartbeat and a scream). No area plays
 it, and `tests/test_world.cpp` asserts so. Play it with `music_play(MUSIC_CREEPY)`.
 
-Battles have sound effects. Each `assets/sfx/*.avms` score is a one-shot effect, and the
-build compiles them all with `tools/compile_sfx.py` into `generated/sfx_ids.h` and
-`generated/sfx_data.h`; add a score and it becomes `SFX_<FILE>`, played with
-`sfx_play` from `src/sfx.h`. Only one effect plays at a time, and it borrows the
-music's harmony voice, its noise voice, or both, while the melody and bass continue.
-Noise carries the impacts.
+Sound effects cover battles, menus, mechanisms, doors and the places themselves. Each
+`assets/sfx/*.avms` score is a one-shot effect, and the build compiles them all with
+`tools/compile_sfx.py` into `generated/sfx_ids.h` and `generated/sfx_data.h`; add a score and it
+becomes `SFX_<FILE>`, played with `sfx_play` from `src/sfx.h`. Only one effect plays at a time, and it
+borrows the music's harmony voice, its noise voice, or both, while the melody and bass continue.
+Noise carries the impacts. Nothing plays while the SFX option is zero, because a muted effect would
+still take the music's voices.
+
+`sfx_play(effect, then)` can chain two effects: `then` starts as soon as `effect` ends, unless
+something else starts first. A lever's click is followed by the grind of the gate it opens that way.
+The platform starts the second from `input_wait_frame`, which every loop that shows frames waits in,
+so the chain needs one byte of static RAM and works in menus, dialogue and fades alike.
+`sfx_ambient` plays an effect only when none is playing or waiting, so the sounds of the
+surroundings never cut off a sound that answers the player.
 
 | Effect | Heard when |
 |---|---|
 | `battle_start`, `victory`, `defeat` | A battle opens, and its result appears |
 | `cursor_move`, `cursor_edge` | The cursor moves a cell, or is pushed against the board's edge |
-| `select`, `cancel`, `error` | A hero is selected, the selection is cancelled, or A changes nothing |
+| `select`, `cancel`, `error` | A hero is selected, the selection is cancelled, or A changes nothing. Menus use `select` for A and `cancel` for B |
 | `step`, `leap` | Each footfall of a walking unit, and a rogue's jump and landing |
 | `strike`, `thrust`, `bite`, `smash` | A fighter's or rogue's, spearman's, wolf's, or brute's attack lands |
 | `bow`, `arrow_hit` | An archer shoots and the arrow flies, then lands |
 | `clash`, `price` | A move engages adjacent enemies, or costs only its blood price |
 | `fall` | A unit is defeated, after the blow that defeated it |
 | `enemy_turn` | The enemy's turn starts |
+| `menu_tick_a` to `menu_tick_e` | The cursor moves through a menu, one of the five picked at random |
+| `lever_on`, `lever_off` | A lever is thrown on, and back off |
+| `plate_down` | A pressure plate sinks under the player |
+| `door_unlock`, `orb_light`, `chest_open` | A barred door is forced, the orb wakes, a chest opens |
+| `grind_open`, `grind_close` | A gate, a vault archway or a block of stone slides open or shut |
+| `scrape_open`, `scrape_close` | Spikes sink into the floor, or thrust up out of it |
+| `bridge_extend`, `bridge_retract` | A bridge runs out over a chasm, or folds away |
+| `door_open`, `door_close` | The player enters a house, and leaves it |
+| `bird_chirp`, `bird_coo`, `bird_trill`, `bird_tweet` | Outdoors, a bird sings from the trees |
+| `bee_buzz`, `water_plip`, `water_splash`, `wind` | A bee works the flowers, a drop or a fish stirs the water, and a gust of wind reaches the player |
+| `creak`, `fire_crackle` | A house floor creaks, and a hearth, stove, campfire or torch crackles |
+| `drip_a`, `drip_b`, `bat_squeak`, `crystal_chime`, `steam_hiss`, `rumble` | In the cave, drops fall, bats wheel, crystals ring, a vent starts to blow and stone settles |
+| `wisp_moan`, `chain_rattle` | In the dungeon, a wisp moans and a chain stirs in the dark |
+
+The pause menu ticks as it opens and with every move through its list, with one of five small
+sounds chosen at random, so a list never sounds mechanical. A plays `select` and B plays `cancel`.
+The Audio screen ticks as a slider moves, at the new SFX level, and a slider at its end bumps once
+per press. Every menu picks its tick from the millisecond clock at the press, which keeps no
+state and leaves the game's random numbers alone.
+
+**Mechanisms** have a kind (`MECHANISM_LEVER`, `MECHANISM_PLATE`, `MECHANISM_DOOR`, `MECHANISM_ORB`,
+`MECHANISM_CHEST`, and `MECHANISM_GATE`, `MECHANISM_BLOCKS`, `MECHANISM_SPIKES`, `MECHANISM_BRIDGE` and
+`MECHANISM_RUNE` for the cells that only follow a flag). The kind in a table row of
+`src/logic/mechanisms.h` says how the player works the cell, whether a second operation undoes the
+first, and what each change sounds like. Every operation goes through one function, which sets or
+clears the flag and plays the cell's own sound and then the sound of what its flag moves, so the cave's
+lever clicks and its gate grinds, and the dungeon's plate sinks and the east gate grinds. A flag that a
+load or a test sets changes the cells without a sound, because only the player's operation is heard.
+
+**Environment sounds** come from `src/soundscape.h`, which finds them the way `src/ambient.h` finds
+animation: from the game tick, the area and a tile, with no state, nothing in the save, and nothing
+heard while the tick is frozen. Each 256-tick epoch (5.12 seconds) holds at most one sound, and it
+is there about two times in three. It looks at up to three tiles within five columns and three rows
+of the player, and the ambient class of the first tile that has a voice decides what is heard: a bird
+from the trees, perches and grass, a bee over flowers, a fish or a drop at the water, a creak on a house
+floor, the crackle of a stove or a torch, a drip, a bat or a ringing crystal in the cave, and a moan,
+a rattling chain or settling stone in the crypt. Outdoors a gust of wind is heard on the tick when
+its line reaches the player, as the grass bends there, and a cave vent hisses on the tick that it
+starts to blow, which warns that it is about to bar the way. Standing still, the player hears about
+eight sounds a minute outdoors (a third of them wind), five in the cave, three in the dungeon and
+two in a house. Ambient effects are quieter than the ones that answer the player.
 
 Playback starts with Call of Venlor on the title screen. Starting or continuing a game fades it into the
 area's song: Morning in the Meadow outdoors, in the interiors and in the dungeon, and Stone and Shadow in the
@@ -177,7 +226,8 @@ the roof, bats wheel through the caves and pale wisps drift over the dungeon's f
 All of it is a pure function of the game tick and a world position (`src/ambient.h`), so it
 adds no static RAM, nothing to the save, and stays frozen with the world behind menus and
 dialogue. Animated tiles cost nothing per tile: each of the four phases has its own sprite
-sheet. The tile and map rules are in `assets/maps/AUTHORING.md`.
+sheet. The tile and map rules are in `assets/maps/AUTHORING.md`. The same tiles decide what the
+player hears: see the environment sounds under the music section above.
 
 The overworld is one 240x248-tile map with a village in its north-west corner, beside
 a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
@@ -223,7 +273,8 @@ including the save flag and two saved audio options.
 - `src/logic/`: the handlers that the maps name, split by environment, and the sample NPC
   definitions, separate from generic mechanics. `handlers.h` only includes the others.
   `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
-  chests), messages that only show words, and passages between areas. `area_village.h` has the
+  chests), each with a mechanism kind that decides how it is worked and how it sounds, messages
+  that only show words, and passages between areas. `area_village.h` has the
   Grove sign and the houses, `area_cave.h` and `area_dungeon.h` have the mechanism, message and
   passage tables of their own areas and their own handlers.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
@@ -232,11 +283,12 @@ including the save flag and two saved audio options.
   choice it falls back on. `src/battle_screen.cpp` is the AVM screen behind `battle_show()`.
   `tests/test_battle.cpp` covers the rules and checks the search against an unpruned reference
   in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
-  `tests/story_stub.*` records story calls on the host.
+  `tests/story_stub.*` records story calls and sound requests on the host.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
   each `generated/*_music.h` constexpr header and automatically updates the song list.
-- `assets/sfx/*.avms`: the battle sound effects, one score per effect.
+- `assets/sfx/*.avms`: the sound effects of battles, menus, mechanisms, doors and the environment,
+  one score per effect. `src/soundscape.h` and `src/soundscape.cpp` choose the environment sounds.
 - `assets/music/imported/`: FamiTracker reference files, retained for provenance.
 - `generated/`: deterministic program-memory assets and compile-time handler dispatch.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
@@ -359,8 +411,9 @@ python tools/collect_evidence.py --build build --write-docs
 ```
 
 `rpg_integration` runs focused guest checks, short native profiles, and normal/FXC
-device smoke checks (boot, input, drawing, pause, save and restart). With current
-artifacts it targets a 10–20 second run. `rpg_integration_full` retains the exhaustive
+device smoke checks (boot, input, drawing, pause, save and restart) and sound checks
+(menu ticks, a gust heard as wind, the muted option, and a lever's chained effects, in the
+device mode `sounds`). With current artifacts it targets a 10–20 second run. `rpg_integration_full` retains the exhaustive
 guest collision matrix, full device scenarios and 8-second profiles; run it before
 collecting performance evidence. Both targets print per-stage wall times and retain
 logs/captures in a fresh `build/verification-*` directory. Compilation is additional.

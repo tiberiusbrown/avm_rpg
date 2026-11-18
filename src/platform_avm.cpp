@@ -1,6 +1,7 @@
 #include "rpg.h"
 
 #include <avm.h>
+#include "ambient.h"
 #include "music.h"
 #include "sfx.h"
 
@@ -42,8 +43,46 @@ char const PROGMEM* music_next() {
     return MUSIC_TRACKS[next].title;
 }
 
-RPG_NOINLINE void sfx_play(SFX effect) {
+// The effect that waits for the playing one to end, plus one, so that zero means none.
+static uint8_t sfx_waiting;
+
+// The status bit that says an effect is playing.
+constexpr uint8_t SFX_STATUS_PLAYING = 4;
+
+RPG_NOINLINE void sfx_play(SFX effect, SFX then) {
+    sfx_waiting = 0;
+    if(effect == SFX_NONE) {
+        effect = then;
+        then = SFX_NONE;
+    }
+    // A muted effect still takes the music's voices, so silence means no effect at all.
+    if(effect == SFX_NONE || !game.options.sfx)
+        return;
+
     avm_audio_sfx(SFX_TRACKS[effect].data);
+    if(then != SFX_NONE)
+        sfx_waiting = (uint8_t)(then + 1);
+}
+
+RPG_NOINLINE void sfx_ambient(SFX effect) {
+    if(effect == SFX_NONE || sfx_waiting || (avm_audio_status() & SFX_STATUS_PLAYING))
+        return;
+    sfx_play(effect);
+}
+
+RPG_NOINLINE void sfx_update() {
+    if(!sfx_waiting || (avm_audio_status() & SFX_STATUS_PLAYING))
+        return;
+    SFX effect = (SFX)(sfx_waiting - 1);
+    sfx_waiting = 0;
+    // The player may have muted the effects while the first one played, in the Audio screen.
+    if(game.options.sfx)
+        avm_audio_sfx(SFX_TRACKS[effect].data);
+}
+
+void sfx_menu_tick() {
+    // Frames are 20 ms apart, so the clock at a press depends on when the player pressed.
+    sfx_play(sfx_variant(SFX_MENU_TICKS_FIRST, SFX_MENU_TICKS_LAST, ambient_hash(avm_millis())));
 }
 
 uint8_t option_level(OPTION_ITEM item) {

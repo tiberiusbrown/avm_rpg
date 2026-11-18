@@ -5,6 +5,7 @@
 #include "battle.h"
 #include "battle_fixtures.h"
 #include "battle_ai.h"
+#include "sfx.h"
 #include <avm.h>
 
 volatile uint8_t probe_phase;
@@ -21,6 +22,11 @@ void fade_world_out() {}
 void fade_world_in() {}
 
 void party_joined(NPC_ID) {}
+
+// The probes make no sound.
+void sfx_play(SFX, SFX) {}
+
+void sfx_ambient(SFX) {}
 
 // The probe stops here at every phase boundary. avm-lldb sets a breakpoint on this function.
 extern "C" RPG_NOINLINE void probe_mark() {

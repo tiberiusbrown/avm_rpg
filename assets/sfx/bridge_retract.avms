@@ -1,0 +1,18 @@
+// A bridge folds away: a creak, then the planks knock back out of place, each a little lower than
+// the last.
+sfx
+volume max
+automation 8ms
+instrument knock {
+    wave pulse duty 50% volume 11
+    volume_slide { to 0 over 36ms }
+}
+instrument tick { wave noise volume 9 volume_slide { to 0 over 20ms } }
+instrument creak {
+    wave pulse duty 12.5% volume 7
+    frequency_slide { delta -300cents over 120ms }
+    lfo { target pitch depth 60cents period 30ms }
+    volume_slide { to 0 over 140ms }
+}
+channel 1 octave 3 { a':140ms@creak d':40ms@knock bb:40ms@knock g#:40ms@knock f#:40ms@knock e:40ms@knock }
+channel 3 tick octave 4 { r:140ms repeat 5 { c:20ms r:20ms } }

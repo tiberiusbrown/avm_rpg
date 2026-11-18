@@ -1,0 +1,12 @@
+// A fire snaps and crackles, heard by a hearth, a stove, a campfire or a wall torch: irregular
+// noise pops, some soft and some sharp.
+sfx
+volume 140%
+automation 8ms
+instrument pop { wave noise volume 4 note_cut { after 4ms } }
+instrument snap { wave noise volume 7 note_cut { after 8ms } }
+channel 3 pop octave 4 {
+    c:8ms r:44ms c:8ms@snap r:20ms c:8ms r:76ms
+    c:8ms r:12ms c:8ms r:32ms c:8ms@snap r:88ms
+    c:8ms r:28ms c:8ms
+}

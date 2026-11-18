@@ -1,5 +1,7 @@
 #include "rpg.h"
 
+#include "sfx.h"
+
 #include <avm.h>
 
 static uint8_t previous_buttons;
@@ -47,4 +49,6 @@ void input_wait_frame() {
     while(!avm_next_frame()) {
         avm_idle();
     }
+    // Every loop that shows frames waits here, so a chained sound starts in any of them.
+    sfx_update();
 }

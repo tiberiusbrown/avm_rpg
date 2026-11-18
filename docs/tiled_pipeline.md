@@ -208,7 +208,9 @@ template <TilePos POS> void read_sign(Dialogue<POS>) {
 The overloads live in `src/logic/`, one header per environment (`area_village.h`,
 `area_cave.h`, `area_dungeon.h`), and `handlers.h` only includes them. `mechanisms.h` holds what
 the environments share: the lever, plate, door and chest handlers read each area's
-`AreaMechanisms` table, `show_message` shows the words that the area's `AreaMessages` table lists
+`AreaMechanisms` table, whose rows give every cell a mechanism kind (what it is, how the player
+works it and what it sounds like), and operate it through one shared function that plays the change.
+`show_message` shows the words that the area's `AreaMessages` table lists
 for a sign or a plaque, and `take_passage` reads the `AreaPassages` tables. A marker that does more than these gets a handler
 name of its own in the map and its overloads in its environment's header. A cell that is missing
 from its table fails to compile.

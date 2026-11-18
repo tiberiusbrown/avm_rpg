@@ -1,0 +1,9 @@
+// A menu cursor moves: one of five small ticks, each a different pitch and voice. Menus pick one
+// at random so that moving through a list never sounds mechanical.
+sfx
+instrument tick {
+    wave pulse duty 25% volume 14
+    frequency_slide { delta 200cents over 16ms }
+    note_cut { after 20ms }
+}
+channel 1 tick octave 6 { c:24ms }

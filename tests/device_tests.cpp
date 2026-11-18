@@ -5,6 +5,7 @@
 
 #pragma pack(push, 1)
 #include "rpg.h"
+#include "soundscape.h"
 #include "map_positions.h"
 #include "world_assets.h"
 #include "tile_ids.h"
@@ -1391,6 +1392,176 @@ static void verify_area_music(Device& d) {
     d.advance(0, 1600000);
 }
 
+// The one-shot effect stream's status byte in the interpreter's audio RAM, beside the music's:
+// nonzero while an effect plays. The platform's sfx_ambient and chained effects read the same fact
+// through avm_audio_status.
+constexpr unsigned AUDIO_SFX_STATUS = 0xa58;
+
+// How the effect stream behaved over a stretch of emulated time.
+struct SfxWatch {
+    std::vector<uint64_t> runs; // The cycles of each separate run of an effect playing.
+    uint64_t gap = 0;           // The longest silence between two runs.
+};
+
+// Runs the device with buttons held, and stops after `cycles` or, when `wanted` runs have played,
+// as soon as the last of them ends.
+static SfxWatch watch_sfx(Device& d, uint8_t held, uint64_t cycles, unsigned wanted = 0) {
+    auto& cpu = d.ab->core_state.cpu;
+    SfxWatch watch;
+    d.buttons = held;
+    uint64_t end = cpu.cycle_count + cycles, last = cpu.cycle_count, quiet_since = last;
+    bool was = cpu.data[AUDIO_SFX_STATUS] != 0;
+    while(cpu.cycle_count < end) {
+        d.step();
+        bool now = cpu.data[AUDIO_SFX_STATUS] != 0;
+        uint64_t elapsed = cpu.cycle_count - last;
+        last = cpu.cycle_count;
+        if(now && !was) {
+            if(!watch.runs.empty())
+                watch.gap = std::max(watch.gap, cpu.cycle_count - quiet_since);
+            watch.runs.push_back(0);
+        }
+        if(now)
+            watch.runs.back() += elapsed;
+        if(was && !now) {
+            quiet_since = cpu.cycle_count;
+            if(wanted && watch.runs.size() >= wanted)
+                break;
+        }
+        was = now;
+    }
+    return watch;
+}
+
+// Lets an effect that is already playing finish, so a watch starts from silence.
+static void wait_for_quiet_sfx(Device& d) {
+    for(unsigned i = 0; d.ab->core_state.cpu.data[AUDIO_SFX_STATUS]; ++i) {
+        require(i < 200, "an effect never ended");
+        d.advance(0, 160000);
+    }
+}
+
+constexpr uint64_t CYCLES_PER_MS = 16000;
+
+// Menus tick as the cursor moves through them, and answer a cancel with a longer note.
+static void verify_menu_sounds(Device& d) {
+    wait_for_quiet_sfx(d);
+    d.advance(0, 800000);
+
+    // Opening the pause menu ticks once, and every move through its list ticks once.
+    SfxWatch open = watch_sfx(d, BTN_B, 4800000, 1);
+    require(open.runs.size() == 1 && open.runs[0] > 10 * CYCLES_PER_MS &&
+                open.runs[0] < 70 * CYCLES_PER_MS,
+            "opening the pause menu did not tick");
+    d.advance(0, 1600000);
+    for(unsigned i = 0; i < 4; ++i) {
+        SfxWatch step = watch_sfx(d, BTN_DOWN, 4800000, 1);
+        require(step.runs.size() == 1 && step.runs[0] > 10 * CYCLES_PER_MS &&
+                    step.runs[0] < 70 * CYCLES_PER_MS,
+                "moving the pause menu cursor did not tick once");
+        d.advance(0, 1600000);
+    }
+    // Closing the menu is a cancel, the longer falling chirp.
+    SfxWatch close = watch_sfx(d, BTN_B, 6400000, 1);
+    require(close.runs.size() == 1 && close.runs[0] > 75 * CYCLES_PER_MS,
+            "closing the pause menu did not play the cancel sound");
+    d.advance(0, 3200000);
+}
+
+// A gust that reaches the player is heard as wind, which is long and soft, and no effect plays when
+// the SFX option is zero, because a muted effect would still take the music's voices.
+static void verify_ambient_sounds(Device& d) {
+    Game spawn = d.state();
+    require(spawn.area == AREA_OUTDOOR, "the wind test starts outdoors");
+
+    // Listen in front of a house door, where paving and walls leave the gust little grass to bend.
+    d.frame();
+    Game street = d.state();
+    street.player = {(uint16_t)(positions::ElderDoor.x * TILE),
+                     (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
+    d.set_state(street);
+    d.advance(0, 1600000);
+    street = d.state();
+    uint8_t px = (uint8_t)((street.player.x + FOOT_CENTER_X) >> TILE_SHIFT);
+    uint8_t py = (uint8_t)((street.player.y + FOOT_CENTER_Y) >> TILE_SHIFT);
+
+    // A moment when the gust line reaches the player, with no other sound due near it, so that
+    // the wind is the only effect that the soundscape starts.
+    auto quiet_near = [](uint16_t ticks) {
+        for(int offset = -8; offset <= 64; ++offset) {
+            uint16_t moment = (uint16_t)(ticks + offset);
+            if(sound_due(moment))
+                return false;
+        }
+        return true;
+    };
+    uint16_t gust = (uint16_t)(street.ticks + 32);
+    for(;; ++gust)
+        if(wind_passes(gust, px, py) && quiet_near(gust))
+            break;
+
+    for(bool muted : {false, true}) {
+        wait_for_quiet_sfx(d);
+        d.frame();
+        Game g = d.state();
+        g.ticks = (uint16_t)(gust - 4);
+        g.options.sfx = muted ? 0 : spawn.options.sfx;
+        g.player.walking = 0;
+        d.set_state(g);
+        SfxWatch wind = watch_sfx(d, 0, 24000000, 1);
+        if(muted) {
+            require(wind.runs.empty(), "a muted SFX option still played an effect");
+        } else {
+            require(wind.runs.size() == 1 && wind.runs[0] > 600 * CYCLES_PER_MS,
+                    "the gust that reached the player was not heard as wind");
+        }
+        d.advance(0, 1600000);
+    }
+    d.frame();
+    d.set_state(spawn);
+    d.advance(0, 1600000);
+}
+
+// A lever's click is followed by the grind of the gate it opens, as two effects with a short gap,
+// and throwing it back plays the pair again.
+static void verify_mechanism_sounds(Device& d) {
+    Game at_mouth = d.state();
+    at_mouth.player = {(uint16_t)(positions::CaveMouth.x * TILE),
+                       (uint16_t)((positions::CaveMouth.y + 1) * TILE), NORTH, 0};
+    d.set_state(at_mouth);
+    d.advance(0, 1600000);
+    walk_to_area(d, BTN_UP, AREA_CAVE, "walking onto the cave mouth did not teleport");
+
+    d.frame();
+    Game at_lever = d.state();
+    at_lever.player = {(uint16_t)(positions::CaveLever.x * TILE),
+                       (uint16_t)((positions::CaveLever.y + 1) * TILE), NORTH, 0};
+    d.set_state(at_lever);
+    d.advance(0, 1600000);
+    require(d.state().can_interact, "the cave lever did not become interactive");
+
+    for(bool on : {true, false}) {
+        wait_for_quiet_sfx(d);
+        d.advance(0, 800000);
+        SfxWatch thrown = watch_sfx(d, BTN_A, 32000000, 2);
+        d.advance(0, 1600000);
+        require(d.state().get_flag(FLAG_CAVE_GATE) == on, "the lever did not toggle its gate");
+        require(thrown.runs.size() == 2, "the lever and its gate were not two effects");
+        // The click is short, the grind is long, and the second starts when the first ends.
+        require(thrown.runs[0] < 250 * CYCLES_PER_MS && thrown.runs[1] > 400 * CYCLES_PER_MS,
+                "the lever's click and the gate's grind had the wrong lengths");
+        require(thrown.gap < 60 * CYCLES_PER_MS, "the gate's grind did not follow the click");
+    }
+}
+
+// Menus tick, a gust is heard as wind, and a lever and its gate are heard in turn. The cave comes
+// last, because it leaves the player there.
+static void verify_sounds(Device& d) {
+    verify_menu_sounds(d);
+    verify_ambient_sounds(d);
+    verify_mechanism_sounds(d);
+}
+
 static void press_with_music_fade(Device& d) {
     struct Trace {
         Device& device;
@@ -1475,7 +1646,7 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
 int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 12,
             "device_tests package game_address marker_address serial_address "
-            "output_directory normal|fxc|proof|smoke|pause|battle dialogue_address phase_address "
+            "output_directory normal|fxc|proof|smoke|pause|battle|sounds dialogue_address phase_address "
             "[battle_pointer_address [battle_ready_address [panel_address]]]");
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
@@ -1519,6 +1690,11 @@ int main(int argc, char** argv) try {
     // The title song fades out and the area's song takes over; the fade lowers the music
     // attenuation while it runs, so the audio checks wait for it.
     require(settled_song(d) != title_song, "starting a game kept the title song");
+    if(std::string(argv[6]) == "sounds") {
+        verify_sounds(d);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"menu, ambient and mechanism sounds\"}\n";
+        return 0;
+    }
     verify_options(d, out);
     verify_pause_party(d, out);
     if(std::string(argv[6]) == "pause") {

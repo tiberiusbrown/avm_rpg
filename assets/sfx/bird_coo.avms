@@ -1,0 +1,11 @@
+// A dove's coo, heard outdoors: a low, soft "oo-oo-ooo" whose notes sag as they sound.
+sfx
+volume 140%
+automation 8ms
+instrument coo {
+    wave pulse duty 50% volume 6
+    frequency_slide { delta -400cents over 110ms }
+    lfo { target pitch depth 25cents period 36ms }
+    volume_slide { to 2 over 140ms }
+}
+channel 1 coo octave 4 { g:90ms r:70ms g:90ms r:70ms g:150ms }

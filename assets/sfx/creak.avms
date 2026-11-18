@@ -1,0 +1,11 @@
+// A floorboard creaks somewhere in the house: a low, thin, wavering note that sags.
+sfx
+volume 140%
+automation 8ms
+instrument board {
+    wave pulse duty 12.5% volume 5
+    frequency_slide { delta -300cents over 160ms }
+    lfo { target pitch depth 70cents period 28ms }
+    volume_slide { to 1 over 170ms }
+}
+channel 1 board octave 3 { d:170ms }

@@ -1,0 +1,24 @@
+// A gate, block or archway slides back into place: the same grinding with a rising groan, and a
+// heavier boom as it shuts.
+sfx
+volume max
+automation 8ms
+instrument grind {
+    wave noise volume 6
+    noise_retrigger { every 36ms seed 17 }
+    volume_slide { delta 3 over 440ms }
+}
+instrument growl {
+    wave pulse duty 50% volume 5
+    frequency_slide { delta 200cents over 440ms }
+    lfo { target pitch depth 80cents period 56ms }
+    volume_slide { to 8 over 440ms }
+}
+instrument slam { wave noise volume 15 volume_slide { to 0 over 100ms } }
+instrument boom {
+    wave pulse duty 50% volume 13
+    frequency_slide { delta -1200cents over 100ms }
+    volume_slide { to 0 over 120ms }
+}
+channel 1 octave 2 { e:440ms@growl g:120ms@boom }
+channel 3 octave 4 { c:440ms@grind c:100ms@slam }

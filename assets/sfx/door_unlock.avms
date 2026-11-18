@@ -1,0 +1,21 @@
+// A barred door is forced open: a ringing clank of iron, then a long grating slide as the bars
+// swing clear.
+sfx
+volume max
+automation 8ms
+instrument clank {
+    wave pulse duty 12.5% volume 11
+    volume_slide { to 0 over 70ms }
+}
+instrument grate {
+    wave noise volume 8
+    noise_retrigger { every 24ms seed 5 }
+    volume_slide { to 0 over 260ms }
+}
+instrument bar {
+    wave pulse duty 25% volume 6
+    frequency_slide { delta -500cents over 240ms }
+    volume_slide { to 0 over 260ms }
+}
+channel 1 octave 5 { b:20ms@clank f#':50ms@clank r:20ms c:240ms@bar }
+channel 3 grate octave 4 { r:70ms c:260ms }

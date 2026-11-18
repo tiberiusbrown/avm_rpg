@@ -188,9 +188,23 @@ swaps in.
 
 - **One flag can drive several cells.** A lever and the gate it opens share a flag, and each
   has its own row in the table.
+- **Every row has a kind.** The kind is the first field of a row in the table, and it says what
+  the cell is: `MECHANISM_LEVER`, `MECHANISM_PLATE`, `MECHANISM_DOOR`, `MECHANISM_ORB` or
+  `MECHANISM_CHEST` for a cell that the player works, and `MECHANISM_GATE`, `MECHANISM_BLOCKS`,
+  `MECHANISM_SPIKES`, `MECHANISM_BRIDGE` or `MECHANISM_RUNE` for a cell that only follows its
+  flag. `mechanism_traits` in `src/logic/mechanisms.h` gives each kind its input (face and press
+  A, stand on it, or none), whether a second operation undoes the first, and its sounds. A
+  handler that does not suit its row's kind fails to compile, so `use_lever` on a `MECHANISM_PLATE`
+  row is an error. Every flag needs a row that the player works.
+- **Sounds.** The player's operation is heard: the worked cell makes its own sound, and then the
+  first cell of the same flag that moves and makes a noise is heard after it. A lever that opens
+  a gate clicks and then the gate grinds. A rune only lights, so it has no sound, and the
+  cell that moves next to it is what is heard. A kind that never switches back has no sound for
+  switching back. A flag that a load sets changes the cells silently.
 - **A vent needs no flag.** It reads the clock, so it keeps no state. A player who stands on
   it when it blows is moved off it. Put a vent in a passage one cell wide to make the player
-  wait for it.
+  wait for it. The vent hisses on the tick that it starts to blow, so the sound warns the
+  player that it is about to bar the way.
 
 ## Objects
 
@@ -311,8 +325,8 @@ A cave joins the outdoor map through passages.
 - Every rail end meets another rail, a wall or an exit.
 - Every gate fills a passage one cell wide, and `GATE_SIDE` is used only across a passage that
   runs west to east.
-- Mechanisms are painted in their clear state. Each has a handler point on its tile and a row
-  in `AreaMechanisms<AREA_CAVE>`, and each exit has a row in `AreaPassages<AREA_CAVE>`.
+- Mechanisms are painted in their clear state. Each has a handler point on its tile and a row,
+  with its kind, in `AreaMechanisms<AREA_CAVE>`, and each exit has a row in `AreaPassages<AREA_CAVE>`.
 - Every walkable cell can be reached once the mechanisms are open.
 - An animated tile is in sight of every floor cell.
 - The spawn is on a walkable cell with no handler.

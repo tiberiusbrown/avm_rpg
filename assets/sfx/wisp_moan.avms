@@ -1,0 +1,23 @@
+// A pale light drifts through the crypt and moans: a low note that swells upward, then sinks.
+sfx
+volume 140%
+automation 8ms
+envelope wail {
+    points 0ms:15%, 260ms:100%
+    release 120ms:0%
+}
+envelope sigh {
+    points 0ms:100%, 360ms:45%
+    release 80ms:0%
+}
+instrument rise {
+    wave pulse duty 50% volume 5 envelope wail gate 70%
+    frequency_slide { delta 400cents over 300ms }
+    lfo { target pitch depth 40cents period 90ms }
+}
+instrument sink {
+    wave pulse duty 50% volume 5 envelope sigh gate 85%
+    frequency_slide { delta -500cents over 440ms }
+    lfo { target pitch depth 40cents period 90ms }
+}
+channel 1 octave 3 { e:380ms@rise d:440ms@sink }

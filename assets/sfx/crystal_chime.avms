@@ -1,0 +1,9 @@
+// A crystal catches the light and rings: three rising notes, the last one long and fading.
+sfx
+volume 140%
+automation 8ms
+instrument ring {
+    wave pulse duty 12.5% volume 6
+    volume_slide { to 0 over 300ms }
+}
+channel 1 ring octave 6 { e:70ms g#:70ms b:300ms }

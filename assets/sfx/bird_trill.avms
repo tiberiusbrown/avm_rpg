@@ -1,0 +1,17 @@
+// A warbling trill, heard outdoors: two close notes alternate and climb, and a falling flick ends
+// the song.
+sfx
+volume 140%
+automation 8ms
+instrument trill { wave pulse duty 25% volume 6 note_cut { after 18ms } }
+instrument flick {
+    wave pulse duty 25% volume 6
+    frequency_slide { delta -700cents over 50ms }
+    volume_slide { to 0 over 60ms }
+}
+channel 1 octave 6 {
+    repeat 4 { f#:22ms@trill g#:22ms@trill }
+    repeat 2 { a:22ms@trill b:22ms@trill }
+    r:16ms
+    b:60ms@flick
+}

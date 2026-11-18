@@ -225,6 +225,27 @@ def main():
             device_measurements = [
                 json.loads(row) for row in output.splitlines() if row.startswith("{")
             ]
+            if mode != "proof":
+                # Menu ticks, the wind and a lever's chained sounds, on their own, so that they
+                # run whether or not the long scenarios pass.
+                sounds = run(
+                    [
+                        device,
+                        artifacts / f"{name}{variant}.arduboy",
+                        *addresses,
+                        work / f"{mode}-sounds",
+                        "sounds",
+                        refs["dialogue_prompt"]["address"],
+                        refs["world_phase"]["address"],
+                        refs["battle_qa_state"]["address"],
+                        refs["battle_qa_ready"]["address"],
+                        refs["dialogue_panel_open"]["address"],
+                    ],
+                    work / f"{mode}-sounds.log",
+                )
+                device_measurements += [
+                    json.loads(row) for row in sounds.splitlines() if row.startswith("{")
+                ]
             if mode == "fxc":
                 for measurement in device_measurements:
                     if "workload" in measurement:

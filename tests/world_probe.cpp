@@ -2,6 +2,7 @@
 #include "chunk.h"
 #include "map_positions.h"
 #include "tile_ids.h"
+#include "sfx.h"
 #include <avm.h>
 #include <string.h>
 
@@ -17,6 +18,11 @@ void fade_world_out() {}
 void fade_world_in() {}
 
 void party_joined(NPC_ID) {}
+
+// The probes make no sound.
+void sfx_play(SFX, SFX) {}
+
+void sfx_ambient(SFX) {}
 
 bool dialogue_show(char const PROGMEM*) {
     ++dialogues;

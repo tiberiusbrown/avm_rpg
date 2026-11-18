@@ -151,6 +151,20 @@ swaps in.
 - **One flag can drive several cells.** The orb, both runes and the vault's portcullis share
   one flag, and each has its own row in the table. A rectangle covers a barrier of several
   cells with one object.
+- **Every row has a kind.** The kind is the first field of a row in the table, and it says what
+  the cell is: `MECHANISM_LEVER`, `MECHANISM_PLATE`, `MECHANISM_DOOR`, `MECHANISM_ORB` or
+  `MECHANISM_CHEST` for a cell that the player works, and `MECHANISM_GATE`, `MECHANISM_BLOCKS`,
+  `MECHANISM_SPIKES`, `MECHANISM_BRIDGE` or `MECHANISM_RUNE` for a cell that only follows its
+  flag. `mechanism_traits` in `src/logic/mechanisms.h` gives each kind its input (face and press
+  A, stand on it, or none), whether a second operation undoes the first, and its sounds. A
+  handler that does not suit its row's kind fails to compile, so `use_lever` on a `MECHANISM_PLATE`
+  row is an error. Every flag needs a row that the player works.
+- **Sounds.** The player's operation is heard: the worked cell makes its own sound, and then the
+  first cell of the same flag that moves and makes a noise is heard after it. A lever that opens
+  a gate clicks and then the gate grinds. A rune only lights, so it has no sound, and the
+  cell that moves next to it is what is heard. A kind that never switches back has no sound for
+  switching back. A flag that a load sets changes the cells silently.
+
 - **A lever toggles. A plate, a door and an orb latch.** Use a lever where the player may need
   to close the way again, and the others where a step should stay solved.
 
@@ -260,8 +274,9 @@ bar, stone and light.
 - Carpets are at least 2x2, tombs are complete, and channels run straight from wall to wall.
 - Every barrier fills its passage, and `GATE_SIDE` is used only across a passage one cell wide
   that runs west to east.
-- Mechanisms are painted in their clear state. Each has a handler point on its tile and a row
-  in `AreaMechanisms<AREA_DUNGEON>`, and each exit has a row in `AreaPassages<AREA_DUNGEON>`.
+- Mechanisms are painted in their clear state. Each has a handler point on its tile and a row,
+  with its kind, in `AreaMechanisms<AREA_DUNGEON>`, and each exit has a row in
+  `AreaPassages<AREA_DUNGEON>`.
 - Every walkable cell can be reached once the mechanisms are open, except inside a cell whose
   door has no handler.
 - An animated tile is in sight of every flagstone cell, and every room has a light.

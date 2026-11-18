@@ -1,6 +1,8 @@
 #include "rpg.h"
 #include "battle_cursor.h"
 #include "music_catalog.h"
+#include "sfx.h"
+#include "soundscape.h"
 #include "title.h"
 #include "world_map.h"
 #include "world_assets.h"
@@ -45,8 +47,10 @@ __attribute__((noinline)) void party_screen() {
         if(closing) {
             if(!revealed)
                 return;
-        } else if(input_pressed() & (BTN_A | BTN_B))
+        } else if(input_pressed() & (BTN_A | BTN_B)) {
+            sfx_play(SFX_CANCEL);
             closing = true;
+        }
     }
 }
 
@@ -63,6 +67,7 @@ __attribute__((noinline)) void map_screen() {
     for(;;) {
         input_wait_frame();
         if(input_pressed() & BTN_B) {
+            sfx_play(SFX_CANCEL);
             transition_world_map(view, (uint8_t)(ticks - 1), true);
             return;
         }
@@ -101,6 +106,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
     uint8_t confirmation = 0;
     constexpr uint8_t CONFIRM_GUARD_FRAMES = 12;
     input_sync();
+    sfx_menu_tick();
 
     for(;;) {
         input_wait_frame();
@@ -118,9 +124,11 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
             continue;
         }
         if(confirmation) {
-            if(pressed & BTN_B)
+            if(pressed & BTN_B) {
+                sfx_play(SFX_CANCEL);
                 confirmation = 0;
-            else if(confirmation == 1 && (pressed & BTN_A)) {
+            } else if(confirmation == 1 && (pressed & BTN_A)) {
+                sfx_play(SFX_SELECT);
                 confirmation = 0;
                 action = selection == PAUSE_PASS ? MENU_PASS : MENU_RESIGN;
                 closing = true;
@@ -129,9 +137,11 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
             continue;
         }
         if(pressed & BTN_B) {
+            sfx_play(SFX_CANCEL);
             closing = true;
             feedback = nullptr;
         } else if(pressed & (BTN_DOWN | BTN_UP)) {
+            sfx_menu_tick();
             do {
                 selection =
                     (PAUSE_ITEM)((selection + (pressed & BTN_DOWN ? 1 : PAUSE_ITEM_COUNT - 1)) %
@@ -139,6 +149,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
             } while(!menu_item_visible(selection, save_exists, battle != nullptr));
             feedback = nullptr;
         } else if(pressed & BTN_A) {
+            sfx_play(SFX_SELECT);
             switch(selection) {
                 case PAUSE_RESUME:
                     closing = true;
@@ -199,10 +210,12 @@ __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
             continue;
         }
         if(pressed & BTN_B) {
+            sfx_play(SFX_CANCEL);
             closing = true;
             continue;
         }
         if(pressed & (BTN_UP | BTN_DOWN)) {
+            sfx_menu_tick();
             selection =
                 (OPTION_ITEM)((selection + (pressed & BTN_DOWN ? 1 : OPTION_ITEM_COUNT - 1)) %
                               OPTION_ITEM_COUNT);
@@ -212,17 +225,25 @@ __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
         uint8_t held = input_held() & (BTN_LEFT | BTN_RIGHT);
         if(held == (BTN_LEFT | BTN_RIGHT))
             held = 0;
-        bool adjust = false;
+        bool adjust = false, fresh = false;
         if(held != horizontal || !held) {
             horizontal = held;
             repeat = 12;
-            adjust = held != 0;
+            adjust = fresh = held != 0;
         } else if(repeat && !--repeat) {
             adjust = true;
             repeat = 3;
         }
-        if(adjust)
+        if(adjust) {
+            uint8_t before = option_level(selection);
             option_adjust(selection, held == BTN_RIGHT);
+            // The tick plays at the new SFX level. A slider at its end bumps once per press, so a
+            // held direction does not buzz.
+            if(option_level(selection) != before)
+                sfx_menu_tick();
+            else if(fresh)
+                sfx_play(SFX_CURSOR_EDGE);
+        }
     }
 }
 
@@ -266,6 +287,10 @@ __attribute__((noinline)) void explore() {
         RPG_QA_MARK(rpg_frame_begin());
         if(game_update(input_held()))
             music_play_area();
+        // The soundscape judges every eighth tick, is silent on almost all of those, and never cuts
+        // off another effect.
+        if(sound_listening(game.ticks))
+            sfx_ambient(ambient_sound_now());
         dialogue_close();
         RPG_QA_MARK(rpg_render_begin());
         rpg_render_world();

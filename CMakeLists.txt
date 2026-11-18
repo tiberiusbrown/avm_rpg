@@ -40,7 +40,7 @@ endif()
 set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
 file(GLOB_RECURSE LOGIC_HEADERS CONFIGURE_DEPENDS src/logic/*.h src/logic/*.inc)
-set(RULES src/game.cpp src/world.cpp src/save.cpp src/npc.cpp src/logic/npc_logic.cpp
+set(RULES src/game.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
     src/battle.cpp src/battle_ai.cpp generated/map_assets.cpp generated/chunk_dispatch.cpp generated/npc_routes.cpp)
 add_library(rpg_rules STATIC ${RULES})
 target_compile_features(rpg_rules PUBLIC cxx_std_20)
@@ -94,6 +94,10 @@ add_executable(rpg_ambient_tests tests/test_ambient.cpp)
 target_link_libraries(rpg_ambient_tests PRIVATE rpg_rules rpg_story_stubs)
 target_include_directories(rpg_ambient_tests PRIVATE generated)
 add_test(NAME ambient COMMAND rpg_ambient_tests)
+add_executable(rpg_soundscape_tests tests/test_soundscape.cpp)
+target_link_libraries(rpg_soundscape_tests PRIVATE rpg_rules rpg_story_stubs)
+target_include_directories(rpg_soundscape_tests PRIVATE generated)
+add_test(NAME soundscape COMMAND rpg_soundscape_tests)
 add_executable(rpg_battle_tests tests/test_battle.cpp tests/battle_game.cpp)
 target_link_libraries(rpg_battle_tests PRIVATE rpg_rules)
 target_include_directories(rpg_battle_tests PRIVATE generated)
@@ -154,7 +158,9 @@ add_custom_command(OUTPUT ${HANDLER_FIXTURE_OUTPUTS}
     DEPENDS tests/test_pipeline.py tools/generate_assets.py ${ASSET_INPUTS}
     VERBATIM)
 add_library(rpg_handler_fixture OBJECT "${HANDLER_FIXTURE_DIR}/chunk_dispatch.cpp")
-target_include_directories(rpg_handler_fixture PRIVATE src "${HANDLER_FIXTURE_DIR}")
+# The fixture's own generated headers come first. The sound catalog is shared, so it comes last.
+target_include_directories(rpg_handler_fixture PRIVATE src "${HANDLER_FIXTURE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 add_dependencies(rpg_world_tests rpg_handler_fixture)
 
 if(TARGET rpg_device_tests)
@@ -246,7 +252,7 @@ if(RPG_BUILD_GUEST)
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/world_map.h src/ambient.h src/title.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/world_map.h src/ambient.h src/sfx.h src/soundscape.h ${SFX_OUTPUTS} src/title.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()

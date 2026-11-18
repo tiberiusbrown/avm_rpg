@@ -1,0 +1,8 @@
+// A gust of wind sweeps past, in step with the line of bending grass: a breath of noise that
+// swells and dies away.
+sfx
+volume 140%
+automation 8ms
+instrument rise { wave noise volume 1 volume_slide { to 6 over 380ms } }
+instrument fade { wave noise volume 6 volume_slide { to 0 over 460ms } }
+channel 3 octave 4 { c:380ms@rise c:460ms@fade }

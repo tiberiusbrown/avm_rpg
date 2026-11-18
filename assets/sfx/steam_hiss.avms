@@ -1,0 +1,8 @@
+// A vent starts to blow: a sudden rush of steam that thins out. Cave vents play it as they begin
+// to blow, so it warns that the vent is about to bar the way.
+sfx
+volume 140%
+automation 8ms
+instrument rush { wave noise volume 2 volume_slide { to 7 over 90ms } }
+instrument thin { wave noise volume 7 volume_slide { to 0 over 520ms } }
+channel 3 octave 4 { c:90ms@rush c:520ms@thin }

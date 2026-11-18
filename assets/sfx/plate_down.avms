@@ -1,0 +1,17 @@
+// A stone plate sinks under the player's weight: a dull thud as it drops, then a small click as it
+// locks down.
+sfx
+volume max
+automation 8ms
+instrument thud { wave noise volume 13 volume_slide { to 0 over 90ms } }
+instrument sink {
+    wave pulse duty 50% volume 12
+    frequency_slide { delta -900cents over 80ms }
+    volume_slide { to 0 over 100ms }
+}
+instrument lock {
+    wave pulse duty 12.5% volume 8
+    volume_slide { to 0 over 24ms }
+}
+channel 3 thud octave 3 { c:100ms }
+channel 1 octave 3 { c:100ms@sink r:20ms c':24ms@lock }

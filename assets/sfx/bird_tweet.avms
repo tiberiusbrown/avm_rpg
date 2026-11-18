@@ -1,0 +1,11 @@
+// A small bird's tweet, heard outdoors: two notes that both bend upward, the second higher and
+// softer. Ambient effects are quiet, and they never interrupt another effect.
+sfx
+volume 140%
+automation 8ms
+instrument peep {
+    wave pulse duty 25% volume 7
+    frequency_slide { delta 600cents over 40ms }
+    volume_slide { to 2 over 70ms }
+}
+channel 1 peep octave 6 { e:50ms r:30ms a:70ms }

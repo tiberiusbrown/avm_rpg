@@ -730,6 +730,19 @@ assert not re.search(
     r"\bFLAG_\w+|\bNPC_(?:VILLAGER|WANDERER)\b|\bpositions::|\broutes::", npc_core
 )
 assert "#define PROGMEM" in (ROOT / "src/rpg.h").read_text()
+
+# Every sound effect is a one-shot score that the game plays: a score that nothing asks for is dead
+# weight in flash, and a score without the `sfx` setting would compile as music.
+code = "".join(
+    path.read_text() for path in (ROOT / "src").rglob("*") if path.suffix in {".h", ".cpp"}
+)
+scores = sorted((ROOT / "assets/sfx").glob("*.avms"))
+assert len(scores) > 50
+for path in scores:
+    assert re.search(r"^sfx$", path.read_text(), re.MULTILINE), f"{path.name} lacks the sfx setting"
+    symbol = "SFX_" + re.sub(r"[^A-Za-z0-9_]", "_", path.stem).upper()
+    assert re.search(rf"\b{symbol}\b", code), f"{symbol} is never played"
 print(
-    "PASS connected village, sealed border, linked houses, tile semantics and no guest allocations"
+    "PASS connected village, sealed border, linked houses, tile semantics, no guest allocations "
+    "and only played sound effects"
 )

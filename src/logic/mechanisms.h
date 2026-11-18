@@ -3,6 +3,7 @@
 
 #include "handler_defaults.h"
 #include "area_ids.h"
+#include "sfx.h"
 #include "tile_ids.h"
 
 // The machinery that the environments share: flag-driven cells (levers, plates, doors, chests and
@@ -12,10 +13,66 @@
 
 namespace handler_impl {
 
+// What a mechanism cell is. The kind decides how the player works the cell, whether a second
+// operation undoes the first, and what each change sounds like, so a new lever or plate is one
+// table row and the kinds are the one place that says what levers and plates do. A cell that the
+// player does not work only follows its flag.
+enum MECHANISM_KIND : uint8_t {
+    // Cells that the player works.
+    MECHANISM_LEVER, // Facing it and pressing A throws it, and pressing A again throws it back.
+    MECHANISM_PLATE, // Standing on it presses it down for good.
+    MECHANISM_DOOR,  // Facing it and pressing A opens it for good. The open door is walked through.
+    MECHANISM_ORB,   // Touching it wakes it for good, with words.
+    MECHANISM_CHEST, // Opening it pays out once.
+    // Cells that only follow their flag.
+    MECHANISM_GATE,   // A gate, a portcullis or an archway.
+    MECHANISM_BLOCKS, // Blocks that sink into the floor.
+    MECHANISM_SPIKES, // Spikes that sink into the floor.
+    MECHANISM_BRIDGE, // A bridge over a chasm.
+    MECHANISM_RUNE    // A rune that only lights up: its flag's other cells make the noise.
+};
+
+enum MECHANISM_INPUT : uint8_t {
+    INPUT_NONE, // The cell only follows its flag.
+    INPUT_FACE, // The player faces the cell and presses A.
+    INPUT_STEP  // The player stands on the cell.
+};
+
+struct MechanismTraits {
+    MECHANISM_INPUT input;
+    bool toggles; // A second operation switches the flag off again, and otherwise the flag latches.
+    SFX on, off;  // Heard when the cell's flag turns on or off; SFX_NONE is silence.
+};
+
+constexpr MechanismTraits mechanism_traits(MECHANISM_KIND kind) {
+    switch(kind) {
+        case MECHANISM_LEVER:
+            return {INPUT_FACE, true, SFX_LEVER_ON, SFX_LEVER_OFF};
+        case MECHANISM_PLATE:
+            return {INPUT_STEP, false, SFX_PLATE_DOWN, SFX_NONE};
+        case MECHANISM_DOOR:
+            return {INPUT_FACE, false, SFX_DOOR_UNLOCK, SFX_NONE};
+        case MECHANISM_ORB:
+            return {INPUT_FACE, false, SFX_ORB_LIGHT, SFX_NONE};
+        case MECHANISM_CHEST:
+            return {INPUT_FACE, false, SFX_CHEST_OPEN, SFX_NONE};
+        case MECHANISM_GATE:
+        case MECHANISM_BLOCKS:
+            return {INPUT_NONE, false, SFX_GRIND_OPEN, SFX_GRIND_CLOSE};
+        case MECHANISM_SPIKES:
+            return {INPUT_NONE, false, SFX_SCRAPE_OPEN, SFX_SCRAPE_CLOSE};
+        case MECHANISM_BRIDGE:
+            return {INPUT_NONE, false, SFX_BRIDGE_EXTEND, SFX_BRIDGE_RETRACT};
+        default:
+            return {INPUT_NONE, false, SFX_NONE, SFX_NONE};
+    }
+}
+
 // A mechanism is every cell that one world flag changes. The map shows each cell as it is while
 // the flag is clear, and the cell shows `tile` while the flag is set. The cache is rebuilt from the
 // map when it reloads, so the tile pass applies the set state on every frame.
 struct Mechanism {
+    MECHANISM_KIND kind;
     TileRegion cells;
     FLAG flag;
     uint8_t tile;
@@ -40,6 +97,33 @@ template <TilePos CELL> consteval Mechanism mechanism() {
     return AreaMechanisms<CELL.area>::TABLE[0];
 }
 
+// The sound of what the cell's flag moves, for the flag turning on or off: the first row of the
+// same flag that the player does not work and that makes a noise. A lever is heard to click and
+// then the gate that it opens is heard to grind.
+template <TilePos CELL> constexpr SFX moved_sound(bool on) {
+    constexpr Mechanism self = mechanism<CELL>();
+    for(auto const& entry : AreaMechanisms<CELL.area>::TABLE) {
+        MechanismTraits traits = mechanism_traits(entry.kind);
+        SFX sound = on ? traits.on : traits.off;
+        if(entry.flag == self.flag && traits.input == INPUT_NONE && sound != SFX_NONE)
+            return sound;
+    }
+    return SFX_NONE;
+}
+
+// Switches the cell's flag and plays the change: the cell's own sound, then the sound of what its
+// flag moves. Every operation of a mechanism goes through here.
+template <TilePos POS> void switch_mechanism(bool on) {
+    constexpr Mechanism entry = mechanism<POS>();
+    constexpr MechanismTraits traits = mechanism_traits(entry.kind);
+    constexpr SFX moved_on = moved_sound<POS>(true), moved_off = moved_sound<POS>(false);
+    if(on)
+        game.set_flag(entry.flag);
+    else
+        game.clear_flag(entry.flag);
+    sfx_play(on ? traits.on : traits.off, on ? moved_on : moved_off);
+}
+
 // Shows the cell's set state. Every handler of a mechanism cell runs this in the tile pass.
 template <TilePos POS> void apply_state() {
     constexpr Mechanism entry = mechanism<POS>();
@@ -47,15 +131,38 @@ template <TilePos POS> void apply_state() {
         set_tile<POS>(entry.tile);
 }
 
+// Whether the player works the cell this frame. Facing it consumes the press of A.
+template <TilePos POS, MECHANISM_INPUT INPUT> bool operated() {
+    static_assert(INPUT != INPUT_NONE, "a cell that follows its flag is never operated");
+    if constexpr(INPUT == INPUT_FACE)
+        return player_just_interacted<POS>();
+    else
+        return game.player_is_on_tile<POS>();
+}
+
+// Works a cell of the given kind. The handler's kind must be the kind of the cell's table row, so a
+// handler on the wrong row fails to compile. A latched cell takes no more presses.
+template <TilePos POS, MECHANISM_KIND KIND> void work_mechanism() {
+    constexpr Mechanism entry = mechanism<POS>();
+    constexpr MechanismTraits traits = mechanism_traits(KIND);
+    static_assert(entry.kind == KIND, "the handler does not match the kind of the cell's row");
+    bool on = game.get_flag(entry.flag);
+    if(on && !traits.toggles)
+        return;
+    if(operated<POS, traits.input>())
+        switch_mechanism<POS>(!on);
+}
+
 // A gate, a bridge, spikes, blocks or any other cell that only follows its flag.
 template <TilePos POS> void show_state(Tiles<POS>) {
+    static_assert(mechanism_traits(mechanism<POS>().kind).input == INPUT_NONE,
+                  "show_state belongs on a cell that the player does not work");
     apply_state<POS>();
 }
 
 // Facing a lever and pressing A throws it, and pressing A again throws it back.
 template <TilePos POS> void use_lever(Gameplay<POS>) {
-    if(player_just_interacted<POS>())
-        game.toggle_flag(mechanism<POS>().flag);
+    work_mechanism<POS, MECHANISM_LEVER>();
 }
 
 template <TilePos POS> void use_lever(Tiles<POS>) {
@@ -64,8 +171,7 @@ template <TilePos POS> void use_lever(Tiles<POS>) {
 
 // A pressure plate goes down under the player and stays down.
 template <TilePos POS> void press_plate(Gameplay<POS>) {
-    if(game.player_is_on_tile<POS>())
-        game.set_flag(mechanism<POS>().flag);
+    work_mechanism<POS, MECHANISM_PLATE>();
 }
 
 template <TilePos POS> void press_plate(Tiles<POS>) {
@@ -74,9 +180,7 @@ template <TilePos POS> void press_plate(Tiles<POS>) {
 
 // Facing a closed door and pressing A opens it for good. The open door is walked through.
 template <TilePos POS> void open_door(Gameplay<POS>) {
-    constexpr FLAG flag = mechanism<POS>().flag;
-    if(!game.get_flag(flag) && player_just_interacted<POS>())
-        game.set_flag(flag);
+    work_mechanism<POS, MECHANISM_DOOR>();
 }
 
 template <TilePos POS> void open_door(Tiles<POS>) {
@@ -88,13 +192,14 @@ inline constexpr uint8_t CHEST_GOLD = 25;
 // A chest gives its gold once. The open lid is drawn before the words appear.
 template <TilePos POS> void open_chest(Dialogue<POS>) {
     constexpr Mechanism entry = mechanism<POS>();
+    static_assert(entry.kind == MECHANISM_CHEST, "the handler does not match the kind of the row");
     if(!player_just_interacted<POS>())
         return;
     if(game.get_flag(entry.flag)) {
         dialogue_show(F("The chest is empty."));
         return;
     }
-    game.set_flag(entry.flag);
+    switch_mechanism<POS>(true);
     game.gold += CHEST_GOLD;
     set_tile<POS>(entry.tile);
     dialogue_show(F("You find 25 gold coins."));

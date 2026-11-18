@@ -1,0 +1,19 @@
+// A chest opens: its lid creaks up on stiff hinges, and then coins chime.
+sfx
+volume max
+automation 8ms
+instrument hinge {
+    wave pulse duty 12.5% volume 8
+    frequency_slide { delta 500cents over 200ms }
+    lfo { target pitch depth 80cents period 32ms }
+}
+instrument coin { wave pulse duty 25% volume 11 gate 80% }
+instrument last {
+    wave pulse duty 25% volume 11
+    volume_slide { to 0 over 200ms }
+}
+channel 1 octave 3 {
+    d:200ms@hinge
+    r:20ms
+    octave 5 g:50ms@coin b:50ms@coin d':50ms@coin g':200ms@last
+}

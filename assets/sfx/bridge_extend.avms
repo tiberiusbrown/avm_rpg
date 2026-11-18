@@ -1,0 +1,18 @@
+// A bridge runs out over a chasm: planks knock into place one after another, each a little higher
+// than the last, and the span ends with a creak.
+sfx
+volume max
+automation 8ms
+instrument knock {
+    wave pulse duty 50% volume 11
+    volume_slide { to 0 over 36ms }
+}
+instrument tick { wave noise volume 9 volume_slide { to 0 over 20ms } }
+instrument creak {
+    wave pulse duty 12.5% volume 7
+    frequency_slide { delta 300cents over 120ms }
+    lfo { target pitch depth 60cents period 30ms }
+    volume_slide { to 0 over 140ms }
+}
+channel 1 octave 3 { e:40ms@knock f#:40ms@knock g#:40ms@knock bb:40ms@knock d':40ms@knock a':140ms@creak }
+channel 3 tick octave 4 { repeat 5 { c:20ms r:20ms } }

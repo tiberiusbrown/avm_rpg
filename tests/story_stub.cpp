@@ -10,6 +10,9 @@ static unsigned join_count;
 static NPC_ID last_join = NPC_NONE;
 static BATTLE_RESULT next_result = BATTLE_VICTORY;
 
+static SfxRecord sounds[SFX_LOG_CAPACITY];
+static unsigned sound_count;
+
 void fade_world_out() {}
 
 void fade_world_in() {}
@@ -68,4 +71,31 @@ unsigned story_stub_joins() {
 
 NPC_ID story_stub_last_join() {
     return last_join;
+}
+
+// The requests are kept up to the log's capacity, and later ones only count against the total.
+static void record_sound(SfxRecord record) {
+    if(sound_count < SFX_LOG_CAPACITY)
+        sounds[sound_count] = record;
+    ++sound_count;
+}
+
+void sfx_play(SFX effect, SFX then) {
+    record_sound({effect, then, false});
+}
+
+void sfx_ambient(SFX effect) {
+    record_sound({effect, SFX_NONE, true});
+}
+
+void sfx_stub_reset() {
+    sound_count = 0;
+}
+
+unsigned sfx_stub_count() {
+    return sound_count;
+}
+
+SfxRecord const& sfx_stub_record(unsigned index) {
+    return sounds[index];
 }

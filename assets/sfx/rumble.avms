@@ -1,0 +1,13 @@
+// Stone settles far underground: a low rumble that wavers, over a soft roll of noise.
+sfx
+volume 140%
+automation 8ms
+instrument roll { wave noise volume 1 volume_slide { to 4 over 260ms } }
+instrument ebb { wave noise volume 4 volume_slide { to 0 over 420ms } }
+instrument groan {
+    wave pulse duty 50% volume 5
+    lfo { target pitch depth 110cents period 70ms }
+    volume_slide { to 0 over 680ms }
+}
+channel 3 octave 4 { c:260ms@roll c:420ms@ebb }
+channel 1 groan octave 2 { g:680ms }

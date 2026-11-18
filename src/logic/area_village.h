@@ -66,14 +66,19 @@ consteval TilePos house_front(TilePos exit) {
 
 // Facing a door and pressing A enters the house.
 template <TilePos POS> void enter_house(Gameplay<POS>) {
-    if(player_just_interacted<POS>())
+    if(player_just_interacted<POS>()) {
+        // The door is heard while the world fades out.
+        sfx_play(SFX_DOOR_OPEN);
         teleport_player<house_inside(POS)>(NORTH);
+    }
 }
 
 // Walking onto the exit leaves the house. No button is needed.
 template <TilePos POS> void leave_house(Gameplay<POS>) {
-    if(player_is_walking_onto<POS>())
+    if(player_is_walking_onto<POS>()) {
+        sfx_play(SFX_DOOR_CLOSE);
         teleport_player<house_front(POS)>(SOUTH);
+    }
 }
 
 } // namespace handler_impl

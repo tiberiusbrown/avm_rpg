@@ -1,0 +1,12 @@
+// An orb wakes at the player's touch: a bright run of notes climbs a major chord and holds its
+// top note as a shimmering ring that fades.
+sfx
+volume max
+automation 8ms
+instrument shimmer {
+    wave pulse duty 25% volume 11
+    arpeggio { offsets 0,4,7,12,16 step 50ms once }
+    lfo { target pitch depth 20cents period 70ms }
+    volume_slide { to 0 over 620ms }
+}
+channel 1 shimmer octave 5 { c:620ms }

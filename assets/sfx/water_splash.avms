@@ -1,0 +1,13 @@
+// A fish leaps and falls back: a short hush of spray, then a round plop as it lands.
+sfx
+volume 140%
+automation 8ms
+instrument spray { wave noise volume 2 volume_slide { to 6 over 60ms } }
+instrument fall { wave noise volume 6 volume_slide { to 0 over 120ms } }
+instrument plop {
+    wave pulse duty 50% volume 7
+    frequency_slide { delta -500cents over 60ms }
+    volume_slide { to 0 over 80ms }
+}
+channel 3 octave 4 { c:60ms@spray c:120ms@fall }
+channel 1 plop octave 4 { r:90ms d:80ms }

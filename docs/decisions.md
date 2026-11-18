@@ -603,3 +603,71 @@ under ignored `build/exhaustive-optimization/`. Baseline measurements use
 rerun with `python3 build/exhaustive-optimization/measure.py LABEL --frames 1024`, adding
 `--mode fxc` for FXC. `summarize.py` reconciles components and checks sequence hashes before
 writing the comparison.
+
+## Sound design (2026-11-17)
+
+Sound effects now cover menus, mechanisms, doors and the environment, not only battles. The
+catalog grows from 21 to 58 effects and its compiled data from 1,929 to 7,307 bytes. Against the
+build before the change, shipping resources are: static RAM **606 to 607 bytes** (the one byte is
+`sfx_waiting` in `src/platform_avm.cpp`), complete stack bound **235 to 235 bytes**, text
+**52,336 to 54,763 bytes** and read-only data **306,217 to 311,848 bytes**. Idle exploration frames
+cost about 700 cycles more on average (0.3 percent, with the worst idle frame unchanged); a frame
+that starts a sound costs about 12,000 more, and the cave's heaviest 30-frame window stays below
+233,000 of the 320,000-cycle budget.
+
+Two things held the stack bound and the frame cost down, and both are easy to undo by accident.
+First, the first build of the change raised the stack bound to 251: link-time inlining folded the
+soundscape into `explore()`, whose frame every path through the game's deepest calls stands on.
+`ambient_sound_now`, `sfx_ambient` and `sfx_update` are therefore out of line, which keeps
+`explore()` at its 16 bytes. Second, the guest pays dozens of cycles for each instruction and
+dozens more for each call, so a check that looks free costs real frame time: a two-round 16-bit
+hash and two calls on every frame added 3,900 cycles. The soundscape now judges every eighth tick,
+`explore()` makes that one-instruction test itself, and the hash runs once per epoch.
+
+- **The environment's sounds follow its animation's rules.** `src/soundscape.h` is a pure function
+  of the game tick, the area and a tile, so it adds no state and nothing to the save. An epoch of
+  256 ticks holds at most one sound, due at an offset that eight-bit invertible steps derive from
+  the epoch's number, so every grain of the epoch comes round and consecutive epochs are not a fixed
+  distance apart. Only grain ticks (multiples of eight, the gusts' step) are judged, and a frozen
+  tick repeats one answer. `explore()` asks once per simulated frame, so a moment is judged exactly
+  once. The tick's wrap (65,536) is a multiple of the epoch, so the pattern has no seam. The sound
+  is chosen by the ambient class of the first of three tiles near the player that has a voice,
+  because those classes already say what each place contains. The rates (about eight sounds a minute
+  outdoors, five in the cave, three in the dungeon and two in a house, standing still) were
+  measured with a probe over four 65,536-tick cycles at one spot of each area, and tuned for
+  variety, not silence; ambient effects peak at a quarter to a half of the level of the effects that
+  answer the player, which the sample-accurate renderer measures without clipping.
+- **Wind and the steam vent follow their visuals exactly.** A gust is heard on the tick when its
+  first line reaches the player's tile, the tick that the grass there bends. A vent hisses on the
+  tick it starts to blow, so the hiss also warns that the vent is about to become solid. These
+  are the only sounds that come from a pass other than the soundscape, and both are ambient:
+  they never replace another effect.
+- **Ambient sounds never interrupt.** `sfx_ambient` plays only when no effect is playing or waiting,
+  and runs only from exploration. Menus, dialogue and battles are silent apart from their own
+  effects.
+- **A muted SFX option plays nothing.** A muted effect still owns the music's harmony and noise
+  voices, so every effect, new and old, is skipped while the option is zero. Without this, each
+  chirp would silence the music's harmony voice for its length.
+- **Mechanism kinds generalize levers and plates.** The first field of a table row is a kind, and
+  `mechanism_traits` gives each kind its input (face and press A, stand on it, or none), whether a
+  second operation toggles, and its sounds. All operations go through `switch_mechanism`, so no
+  handler writes a flag directly, and a handler on a row of the wrong kind fails to compile. The
+  handler names stay as they are in the maps, because `test_content.py` checks each against the
+  tile that it sits on. A load or a test that sets a flag directly makes no sound.
+- **A trigger is heard, and then what it moves.** A lever clicks and then its gate grinds; a plate
+  sinks and then the bridge runs out. One effect plays at a time, so `sfx_play(effect, then)`
+  chains them: the platform keeps the follow-up in one byte and starts it from `input_wait_frame`
+  when the first ends, which every loop that shows frames waits in. Runes are silent so that the
+  vault door is what is heard after the orb's chime.
+- **Menu ticks are random and keep no state.** The pause menu and the Audio screen pick one of
+  five ticks from `ambient_hash(avm_millis())`. A press lands on a frame boundary plus jitter, so
+  the clock is effectively random, and unlike `avm_random` and the game's own generator it adds
+  no RAM and does not disturb replays. A slider at its end bumps once per press, so a held
+  direction does not buzz.
+- **Tests.** The host tests check which effects each mechanism asks for (`tests/test_world.cpp`,
+  through the request log in `tests/story_stub.*`), that loading a flag is silent, the soundscape's
+  moments, rates, voices and places (`tests/test_soundscape.cpp`), that every score is played
+  and declares `sfx` (`tests/test_content.py`), and, at compile time, that every sound group is
+  contiguous in the generated catalog. The device mode `sounds` runs on both interpreters: a menu
+  ticks once per move and cancels with the longer note, a gust is heard as a long soft effect and a
+  muted option is silent, and a lever plays two effects with a gap under 60 ms.

@@ -1,0 +1,15 @@
+// A drop falls into a pool somewhere in the dark: a lower plink, and an echo that comes later.
+sfx
+volume 140%
+automation 8ms
+instrument plink {
+    wave pulse duty 25% volume 7
+    frequency_slide { delta -600cents over 56ms }
+    volume_slide { to 0 over 80ms }
+}
+instrument echo {
+    wave pulse duty 25% volume 3
+    frequency_slide { delta -600cents over 56ms }
+    volume_slide { to 0 over 80ms }
+}
+channel 1 octave 5 { b:80ms@plink r:190ms b:80ms@echo }

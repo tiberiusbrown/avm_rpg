@@ -1,0 +1,14 @@
+// A bee passes among the flowers: a low buzz that swells, wavers and sinks away.
+sfx
+volume 140%
+automation 8ms
+envelope pass {
+    points 0ms:20%, 170ms:100%
+    release 200ms:0%
+}
+instrument buzz {
+    wave saw volume 5 envelope pass gate 55%
+    frequency_slide { delta -300cents over 420ms }
+    lfo { target pitch depth 90cents period 24ms }
+}
+channel 1 buzz octave 3 { a:420ms }

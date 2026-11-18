@@ -1,0 +1,16 @@
+// A house door closes behind the player: a soft wooden thud and the click of the latch.
+sfx
+volume max
+automation 8ms
+instrument thud { wave noise volume 11 volume_slide { to 0 over 70ms } }
+instrument knock {
+    wave pulse duty 50% volume 11
+    frequency_slide { delta -600cents over 60ms }
+    volume_slide { to 0 over 80ms }
+}
+instrument latch {
+    wave pulse duty 12.5% volume 8
+    volume_slide { to 0 over 24ms }
+}
+channel 3 thud octave 3 { c:70ms }
+channel 1 octave 3 { g:80ms@knock r:20ms c'':24ms@latch }

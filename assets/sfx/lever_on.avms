@@ -1,0 +1,13 @@
+// A lever is thrown on: a short scrape of iron, then a clunk that rises as the lever seats.
+sfx
+volume max
+automation 8ms
+instrument scrape { wave noise volume 5 volume_slide { to 9 over 40ms } }
+instrument clack { wave noise volume 12 volume_slide { to 0 over 30ms } }
+instrument clunk {
+    wave pulse duty 50% volume 12
+    frequency_slide { delta 300cents over 40ms }
+    volume_slide { to 0 over 70ms }
+}
+channel 3 octave 4 { c:40ms@scrape c:30ms@clack }
+channel 1 clunk octave 3 { r:40ms g:70ms }

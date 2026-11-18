@@ -1,0 +1,10 @@
+// A sparrow's cheeps, heard outdoors: three short falling notes, the last a little lower.
+sfx
+volume 140%
+automation 8ms
+instrument cheep {
+    wave pulse duty 12.5% volume 6
+    frequency_slide { delta -500cents over 30ms }
+    volume_slide { to 1 over 34ms }
+}
+channel 1 cheep octave 6 { g:36ms r:44ms g:36ms r:44ms f#:44ms }
