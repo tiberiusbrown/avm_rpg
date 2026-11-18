@@ -208,12 +208,15 @@ static uint8_t gust_origin(Camera camera) {
 }
 
 RPG_NOINLINE static void draw_gusts(Camera camera, uint8_t height) {
-    TileFrames wind = tile_wind_frames(area_tileset(game.area));
+    uint8_t tileset = area_tileset(game.area);
+    TileFrames wind = tile_wind_frames(tileset);
     if(!wind.count)
         return;
     uint8_t origin = gust_origin(camera);
     // The wind frames follow the atlas frames in the tileset's first sheet.
-    avm_set_sprite(tileset_sprites(area_tileset(game.area)));
+    avm_set_sprite(tileset_sprites(tileset));
+    // The tileset's ambient classes, resolved once rather than per gust tile.
+    auto const* classes = &TILE_AMBIENT[(uint16_t)tileset << 8];
     View view = world_view(camera);
     uint8_t rows = (uint8_t)((height + (camera.y & (TILE - 1)) + TILE - 1) >> TILE_SHIFT);
     GustPlan plan;
@@ -230,7 +233,7 @@ RPG_NOINLINE static void draw_gusts(Camera camera, uint8_t height) {
         int16_t x = view.left + column * TILE, y = view.top + row * TILE;
         for(uint8_t count = line.count; count; --count) {
             uint8_t tile = *tiles;
-            uint8_t ambient = tile_ambient(tile);
+            uint8_t ambient = classes[tile];
             if(ambient == AMBIENT_GRASS || ambient == AMBIENT_FLOWERS)
                 avm_draw_overwrite(x, y, (uint16_t)(wind.base + (uint8_t)(tile - wind.first)));
             if(count > 1)
