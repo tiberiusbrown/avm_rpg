@@ -28,7 +28,7 @@ and recruitment announcements reuse the open panel; exploration closes it with t
 same easing curve and frame count in reverse before accepting gameplay input. Battle/area fade-out also closes it first.
 Only the open flag and flash pointers for the visible page persist outside `Game`; no
 framebuffer copy or tile reload is needed for the motion.
-The text-only overload and `dialogue_ask` use the unnamed panel.
+The text-only overloads use the unnamed panel. `dialogue_show(id, ...)` and `dialogue_ask(id, ...)` name the speaker, and NPC_NONE uses the unnamed panel.
 Successful `party_add` calls for NPCs then show "<name> has joined the party!"
 and play the `party_join` jingle. Failed additions and the initial traveler setup
 remain silent; the announcement uses the ordinary close/dismiss prompt.
@@ -240,7 +240,7 @@ and target reached/failed. Retirement reports reset, recruitment or safe unloadi
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 11 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 12 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage

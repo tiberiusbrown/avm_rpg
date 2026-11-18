@@ -29,6 +29,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 // The effects are constant expressions, so the guest can fold them and they keep no state.
 static_assert(tile_phase(0) == 0 && tile_phase(TILE_PHASE_TICKS) == 1 &&
               tile_phase((uint16_t)(TILE_PHASES * TILE_PHASE_TICKS)) == 0);

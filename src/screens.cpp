@@ -1,6 +1,8 @@
 #include "rpg.h"
 #include "battle_cursor.h"
+#include "journal.h"
 #include "music_catalog.h"
+#include "quest.h"
 #include "sfx.h"
 #include "soundscape.h"
 #include "title.h"
@@ -50,6 +52,67 @@ __attribute__((noinline)) void party_screen() {
         } else if(input_pressed() & (BTN_A | BTN_B)) {
             sfx_play(SFX_CANCEL);
             closing = true;
+        }
+    }
+}
+
+// Tracking A toggles the open quest. Only an active quest can be tracked, so any other quest
+// answers with the cursor-edge sound instead.
+static void journal_track(QUEST_ID id) {
+    if(quest_status(id) != QUEST_ACTIVE) {
+        sfx_play(SFX_CURSOR_EDGE);
+        return;
+    }
+    sfx_play(SFX_SELECT);
+    if(quest_selected() == id)
+        quest_deselect();
+    else
+        quest_select(id);
+}
+
+// The list highlights and opens quests. The detail view tracks, scrolls and goes back. The world
+// does not simulate while the Journal is open, and the view lives only in this frame.
+__attribute__((noinline)) void journal_screen() {
+    JournalView view{};
+    int16_t revealed = 0;
+    bool closing = false;
+    input_sync();
+
+    for(;;) {
+        input_wait_frame();
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(JOURNAL_WIDTH));
+        render_journal((uint8_t)cursor_pixel(revealed), closing, view);
+        avm_display(true);
+        if(closing) {
+            if(!revealed)
+                return;
+            continue;
+        }
+        uint8_t pressed = input_pressed();
+        if(view.open == QUEST_NONE) {
+            uint8_t count = quest_journal_count();
+            if(pressed & BTN_B) {
+                sfx_play(SFX_CANCEL);
+                closing = true;
+            } else if(count && (pressed & (BTN_UP | BTN_DOWN))) {
+                sfx_menu_tick();
+                view.selection =
+                    (uint8_t)((view.selection + (pressed & BTN_DOWN ? 1 : count - 1)) % count);
+            } else if(count && (pressed & BTN_A)) {
+                sfx_play(SFX_SELECT);
+                journal_open(view, quest_journal_entry(view.selection));
+            }
+        } else if(pressed & BTN_B) {
+            sfx_play(SFX_CANCEL);
+            view.open = QUEST_NONE;
+        } else if(pressed & BTN_A) {
+            journal_track(view.open);
+        } else if((pressed & BTN_UP) && view.scroll) {
+            --view.scroll;
+            sfx_menu_tick();
+        } else if((pressed & BTN_DOWN) && view.scroll + JOURNAL_DETAIL_LINES < view.line_count) {
+            ++view.scroll;
+            sfx_menu_tick();
         }
     }
 }
@@ -164,6 +227,11 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
                     closing = true;
                     feedback = nullptr;
                     break;
+                case PAUSE_JOURNAL:
+                    action = MENU_JOURNAL;
+                    closing = true;
+                    feedback = nullptr;
+                    break;
                 case PAUSE_MAP:
                     action = MENU_MAP;
                     closing = true;
@@ -260,6 +328,8 @@ __attribute__((noinline)) void explore() {
             MENU_EXIT action = menu_screen();
             if(action == MENU_PARTY)
                 party_screen();
+            else if(action == MENU_JOURNAL)
+                journal_screen();
             else if(action == MENU_MAP)
                 map_screen();
             if(action == MENU_LOAD) {

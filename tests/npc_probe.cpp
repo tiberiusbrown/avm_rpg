@@ -43,6 +43,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 // The probes do not run the battle screen. Every battle is a win.
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM*) {
     return BATTLE_VICTORY;

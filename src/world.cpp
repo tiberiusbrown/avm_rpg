@@ -1,5 +1,6 @@
 #include "chunk.h"
 #include "logic/npc_logic.h"
+#include "quest.h"
 #include "world_assets.h"
 
 #include <string.h>
@@ -520,6 +521,9 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
             npc_stage_end();
         }
     }
+    // Quest evaluation runs after every world stage and dialogue, and before the frame ends. It
+    // never runs inside a stage, so it cannot reenter the world update.
+    quest_settle();
     RPG_PHASE(6);
     game.previous_player_tile = {game.area,
                                  (uint8_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),

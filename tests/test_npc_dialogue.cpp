@@ -3,6 +3,7 @@
 #include "story_stub.h"
 #include "map_positions.h"
 #include "logic/npc_logic.h"
+#include "quest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,20 @@ bool dialogue_show(char const PROGMEM* words) {
 bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     last_speaker = id;
     return dialogue_show(words);
+}
+
+// Questions take the scripted answer. Silas's offer is accepted unless a test changes it.
+static bool answer_yes = true;
+static unsigned questions;
+
+bool dialogue_ask(char const PROGMEM* question) {
+    ++questions;
+    return question && answer_yes;
+}
+
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
 }
 
 static void interaction_geometry() {
@@ -108,11 +123,20 @@ int main() {
     npc_dialogue();
     CHECK(shown == 2 && strstr(last_text, "old oak"));
     CHECK(last_speaker == NPC_WANDERER);
+    // The first conversation with Silas asks him to find Iona, and an answer of yes starts it.
+    CHECK(questions == 1 && quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
 
     // NPCs without a line stay silent, and the request still clears.
     npc_talk(NPC_NONE);
     npc_dialogue();
     CHECK(shown == 2);
+    // Declining leaves the quest unstarted, and Silas asks again on the next conversation.
+    game_new();
+    answer_yes = false;
+    npc_talk(NPC_WANDERER);
+    npc_dialogue();
+    CHECK(questions == 2 && quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
+    answer_yes = true;
 
     story_stub_reset(BATTLE_VICTORY);
     game_new();

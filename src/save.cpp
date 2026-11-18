@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "npc.h"
+#include "quest.h"
 #include <string.h>
 
 bool save_valid() {
@@ -22,6 +23,9 @@ bool save_valid() {
     }
     if(FLAG_COUNT % 8 && (game.flags.bytes[WorldFlags::BYTE_COUNT - 1] >> (FLAG_COUNT % 8)))
         return false;
+    // Malformed quest IDs and impossible quest-specific states are rejected, not repaired.
+    if(!quest_saved_state_valid())
+        return false;
     Area const PROGMEM* area = world_area(game.area);
     if(!area)
         return false;
@@ -38,5 +42,7 @@ bool save_restore() {
     memset(&game.npcs, 0, sizeof(game.npcs));
     game.ticks = 0;
     game.can_interact = false;
+    // A loaded save resumes with no pending evaluation. A stale tracked quest is dropped.
+    quest_restore();
     return world_place(game.area, game.player.x, game.player.y, game.player.facing);
 }

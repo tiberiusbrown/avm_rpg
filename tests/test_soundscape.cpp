@@ -32,6 +32,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 // The soundscape is a constant expression of the tick, so the guest can fold it and it keeps no
 // state. The epoch divides the tick's wrap, so the pattern has no seam when the tick overflows.
 static_assert(65536 % SOUND_EPOCH_TICKS == 0 && 65536 % (GUST_STEP_TICKS * GUST_SPACING) == 0);

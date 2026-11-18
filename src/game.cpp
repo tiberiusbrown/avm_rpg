@@ -1,6 +1,7 @@
 #include "rpg.h"
 #include "map_positions.h"
 #include "npc.h"
+#include "quest.h"
 
 #include <string.h>
 
@@ -49,6 +50,7 @@ void game_start() {
 
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
+    quest_reset();
     party_add({20, 20, MOVEMENT_FIGHTER, ATTACK_FIGHTER, NPC_NONE});
     game.level = 1;
 

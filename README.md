@@ -19,7 +19,8 @@ immediately after saving. Party opens an eased sliding roster with four slots, s
 A new game starts with the traveler (20/20 HP, fighter movement and attack). Rowan waits southeast
 of the starting point; talking to him recruits him once (18/18 HP, fighter movement, archer attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
-Party membership and statistics are saved. The version 11 save layout rejects older saves. Journal is a placeholder. The world stays frozen while the menu is open; music continues.
+Party membership and statistics are saved. The version 12 save layout rejects older saves. The world stays frozen while the menu is open; music continues.
+Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
 building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
@@ -241,7 +242,7 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 11.** Version 11 writes the live,
+**This development build rejects saves older than version 12.** Version 12 writes the live,
 pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. The title shows an animated
@@ -284,6 +285,10 @@ reports are verified by the full-LTO guest link.
   `tests/test_battle.cpp` covers the rules and checks the search against an unpruned reference
   in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
   `tests/story_stub.*` records story calls and sound requests on the host.
+- `src/quest.h`, `src/quest_dispatch.h`, `src/quest_runtime.cpp` and `src/quests/`: the quest interface,
+  compile-time event dispatch and the Find Iona quest. `src/journal.h` and the Journal screen show them.
+  `docs/quests.md` describes the architecture. `tests/test_quests.cpp`, `tests/test_quest_catalog.cpp`
+  and `tests/test_quest_validation.py` cover them.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
   each `generated/*_music.h` constexpr header and automatically updates the song list.

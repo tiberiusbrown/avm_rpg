@@ -29,6 +29,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 // A party member is drawn in battle with the sprite row of the NPC it was recruited as. The
 // traveler (NPC_NONE) has no definition and uses the player's row.
 static void party_sprites_follow_npcs() {

@@ -468,7 +468,11 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
 }
 
 bool dialogue_ask(char const PROGMEM* question) {
-    open_overlay();
+    return dialogue_ask(NPC_NONE, question);
+}
+
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    open_overlay(id);
     // The legend sits at the right end of the last line, so the question stops short of it.
     Typing typing = {false, false, 0,
                      (uint8_t)(RIGHT - avm_text_width(choice_legend()) - PROMPT_GAP)};

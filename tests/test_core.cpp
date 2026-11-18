@@ -40,6 +40,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 static void animate() {
     for(uint8_t row = 0; row < ACTOR_ROW_COUNT; ++row) {
         for(DIRECTION dir = NORTH; dir <= WEST; dir = (DIRECTION)(dir + 1)) {

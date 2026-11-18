@@ -30,7 +30,7 @@ namespace fs = std::filesystem;
 static bool check_timing = true;
 static uint64_t worst_exploration_cycles;
 
-static_assert(sizeof(Game) == 104 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions),
+static_assert(sizeof(Game) == 104 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -1033,8 +1033,20 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_A); // Journal
-    d.tap(BTN_LEFT);
-    d.tap(BTN_RIGHT);
+    d.advance(0, 8000000);
+    Game journal = d.state();
+    require(!memcmp(&frozen, &journal, sizeof(Game)) && d.serial() == serial,
+            "Journal changed paused game state");
+    d.tap(BTN_B); // Journal returns directly to gameplay, where B reopens the pause menu.
+    d.advance(0, 8000000);
+    require(d.serial() != serial, "Journal B did not return directly to gameplay");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    frozen = d.state();
+    serial = d.serial();
+    d.tap(BTN_UP);
+    d.tap(BTN_UP);
+    d.tap(BTN_UP);
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
     d.advance(0, 8000000);
@@ -2169,6 +2181,11 @@ int main(int argc, char** argv) try {
     require(d.serial() != menu_serial, "Map did not resume exploration");
     d.tap(BTN_B);
     d.advance(0, 1600000);
+    // Start Find Iona for this menu, so the Journal lists it and its detail view has text to draw.
+    Game before_quest = d.state();
+    Game quest = before_quest;
+    quest.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
+    d.set_state(quest);
     menu_state = d.state();
     menu_serial = d.serial();
     d.tap(BTN_UP);
@@ -2177,11 +2194,31 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     d.tap(BTN_LEFT);
     d.tap(BTN_RIGHT);
-    auto after_placeholders = d.state();
-    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_placeholders, sizeof(Game)),
+    d.advance(0, 8000000);
+    d.capture(out / "journal.pgm");
+    auto after_journal = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &after_journal, sizeof(Game)),
             "Journal advanced simulation");
     require(d.ab->core_state.cpu.timer1.ocrNa == 127, "Audio changed the audio rate");
-
+    // A opens the quest's detail view, where the summary is wrapped and the goal is drawn.
+    d.tap(BTN_A);
+    d.advance(0, 8000000);
+    d.capture(out / "journal-detail.pgm");
+    auto detail = d.state();
+    require(d.serial() == menu_serial && !memcmp(&menu_state, &detail, sizeof(Game)),
+            "Journal detail advanced simulation");
+    d.tap(BTN_B); // The detail view returns to the list.
+    d.advance(0, 8000000);
+    d.set_state(before_quest); // Later device checks keep the state they had before this menu.
+    d.tap(BTN_B); // Back to gameplay, then reopen the pause menu for Party.
+    d.advance(0, 8000000);
+    require(d.serial() != menu_serial, "Journal did not resume exploration");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    menu_serial = d.serial();
+    d.tap(BTN_UP);
+    d.tap(BTN_UP);
+    d.tap(BTN_UP);
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
     d.advance(0, 8000000);

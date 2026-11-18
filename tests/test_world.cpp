@@ -34,6 +34,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 #include "world_scenarios.h"
 
 // The sounds that the rules asked for since the last sfx_stub_reset, in order. An ambient request

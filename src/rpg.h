@@ -5,6 +5,7 @@
 #include "world_types.h"
 #include "area_ids.h"
 #include "npc_ids.h"
+#include "quest_ids.h"
 
 #ifdef RPG_AVM
 #include <avm/pgmspace.h>
@@ -35,7 +36,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 11;
+inline constexpr uint8_t SAVE_VERSION = 12;
 
 enum {
     BTN_B = 4,
@@ -126,6 +127,9 @@ bool party_contains(NPC_ID id);
 // Successful NPC recruitment shows a blocking announcement and plays a jingle.
 bool party_add(PartyMember member);
 
+// Records that a flag changed value, so quests that watch it are evaluated at the next settle.
+void quest_flag_changed(FLAG flag);
+
 struct Game {
     // The live object is AVM's saved prefix. Bump the version when its byte layout changes.
     uint8_t save_version;
@@ -141,21 +145,27 @@ struct Game {
     bool can_interact;
     NpcPool npcs;
     AudioOptions options;
+    // The tracked quest, or QUEST_NONE. Only an active quest is tracked; see quest.h.
+    QUEST_ID selected_quest;
 
     bool get_flag(FLAG flag) const {
         return flags.get_flag(flag);
     }
 
+    // Mutators notify quests only when they change a flag, so no-op writes cost nothing.
     void set_flag(FLAG flag) {
-        flags.set_flag(flag);
+        if(flags.set_flag(flag))
+            quest_flag_changed(flag);
     }
 
     void clear_flag(FLAG flag) {
-        flags.clear_flag(flag);
+        if(flags.clear_flag(flag))
+            quest_flag_changed(flag);
     }
 
     void toggle_flag(FLAG flag) {
-        flags.toggle_flag(flag);
+        if(flags.toggle_flag(flag))
+            quest_flag_changed(flag);
     }
 
     bool player_is_on_tile(TilePos tile) const;
@@ -245,8 +255,10 @@ bool dialogue_show(char const PROGMEM* words);
 bool dialogue_show(NPC_ID id, char const PROGMEM* words);
 // Announce a successful recruitment with a jingle; called by party_add after updating the party.
 void party_joined(NPC_ID id);
-// Wrap/page the question, then return A = yes or B = no.
+// Wrap/page the question, then return A = yes or B = no. NPC_NONE and unknown IDs use the unnamed
+// overlay, as dialogue_show does.
 bool dialogue_ask(char const PROGMEM* question);
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question);
 // Validate the loaded live object before using saved world or quest state.
 bool save_valid();
 // Validate and place the loaded player, rebuilding transient state. The caller refreshes the world.
@@ -284,6 +296,7 @@ enum MENU_EXIT : uint8_t {
     MENU_LOAD,
     MENU_AUDIO,
     MENU_PARTY,
+    MENU_JOURNAL,
     MENU_MAP,
     MENU_PASS,
     MENU_RESIGN
@@ -312,6 +325,10 @@ void options_apply();
 void option_adjust(OPTION_ITEM item, bool increase);
 inline constexpr uint8_t PARTY_WIDTH = 128;
 void render_party(uint8_t revealed, bool closing);
+struct JournalView;
+// Fills the detail view's wrapped summary for a quest, after its name has been chosen.
+void journal_open(JournalView& view, QUEST_ID id);
+void render_journal(uint8_t revealed, bool closing, JournalView const& view);
 
 void input_sync();
 uint8_t input_held();
@@ -327,6 +344,7 @@ void explore();
 MENU_EXIT menu_screen(BattleScreen const* battle = nullptr, PAUSE_ITEM initial = PAUSE_RESUME);
 void audio_screen(BattleScreen const* battle = nullptr);
 void party_screen();
+void journal_screen();
 void map_screen();
 struct WorldMapView;
 void render_world_map(WorldMapView const& view, uint8_t ticks, bool markers = true);

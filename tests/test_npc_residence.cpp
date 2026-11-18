@@ -27,6 +27,16 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
+// Questions are declined by these binaries, which do not script Silas's offer.
+bool dialogue_ask(char const PROGMEM*) {
+    return false;
+}
+
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 static bool quest_site(TilePos site) {
     if(site == positions::VillagerHome) {
         game.clear_flag(FLAG_VILLAGER_MOVED);

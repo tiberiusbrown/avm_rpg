@@ -90,7 +90,7 @@ PROGMEM battlefield rather than the chunk cache.
 The generic flags, staged handlers, movement, route and save mechanisms remain.
 Quest flags include Iona's moved/east state, used to derive her current logical site.
 
-SAVE_VERSION is 11. Older records are deliberately rejected. The live pointer-free
+SAVE_VERSION is 12. Older records are deliberately rejected. The live pointer-free
 `Game` occupies `.saved`, with no duplicate serialization buffer or checksum. Loads
 validate version, stats, party, flags and bounds before placing the player. Terrain cache,
 ticks, active slots, assigned-site snapshots and candidate scratch are rebuilt through

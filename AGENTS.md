@@ -24,4 +24,4 @@
 
 - Define every NPC identity with `NpcPolicy<ID> : AtOneOf<...>` in `logic/npc_policies.h`; use `When<POS, predicate>` for saved quest conditions. Keep possible sites and conditions together, without a second location registry or per-identity coordinates. Add positions in Tiled. Identity, portrait row and active slot are independent.
 - Preserve the eight-slot compact actor prefix, bounded candidate priority (higher priority then lower ID), guarded offscreen activation/retirement and pinned unfinished target/route actors. Reacquire actor pointers after NPC-stage compaction. Run the full NPC stage every frame and throughout destination scene preparation.
-- Python emits map catalogs and area dimensions; C++20 owns chunk specialization and dense PROGMEM function tables. Keep 24-bit code pointers, full LTO and complete stack bounds. Save version 11 reconstructs transient actors from quest policies.
+- Python emits map catalogs and area dimensions; C++20 owns chunk specialization and dense PROGMEM function tables. Keep 24-bit code pointers, full LTO and complete stack bounds. Save version 12 reconstructs transient actors from quest policies.

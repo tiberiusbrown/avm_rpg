@@ -20,6 +20,10 @@ enum FLAG : uint16_t {
     FLAG_DUNGEON_CHEST,
     FLAG_VILLAGER_MOVED,
     FLAG_VILLAGER_EAST,
+    // Find Iona's history. Its status is derived from these two bits, and completion is never set
+    // without the start bit.
+    FLAG_QUEST_FIND_IONA_STARTED,
+    FLAG_QUEST_FIND_IONA_DONE,
     FLAG_COUNT
 };
 
@@ -32,19 +36,26 @@ template <uint16_t COUNT> struct FlagSet {
         return flag < COUNT && (bytes[flag / 8] & (uint8_t)(1u << (flag % 8))) != 0;
     }
 
-    void set_flag(uint16_t flag) {
-        if(flag < COUNT)
-            bytes[flag / 8] |= (uint8_t)(1u << (flag % 8));
+    // Each mutator returns true only when it changed a valid flag, so callers can notify on change.
+    bool set_flag(uint16_t flag) {
+        if(flag >= COUNT || get_flag(flag))
+            return false;
+        bytes[flag / 8] |= (uint8_t)(1u << (flag % 8));
+        return true;
     }
 
-    void clear_flag(uint16_t flag) {
-        if(flag < COUNT)
-            bytes[flag / 8] &= (uint8_t)~(1u << (flag % 8));
+    bool clear_flag(uint16_t flag) {
+        if(flag >= COUNT || !get_flag(flag))
+            return false;
+        bytes[flag / 8] &= (uint8_t)~(1u << (flag % 8));
+        return true;
     }
 
-    void toggle_flag(uint16_t flag) {
-        if(flag < COUNT)
-            bytes[flag / 8] ^= (uint8_t)(1u << (flag % 8));
+    bool toggle_flag(uint16_t flag) {
+        if(flag >= COUNT)
+            return false;
+        bytes[flag / 8] ^= (uint8_t)(1u << (flag % 8));
+        return true;
     }
 };
 

@@ -3,6 +3,8 @@
 #include "npc.h"
 #include "actor_draw_order.h"
 #include "ambient.h"
+#include "journal.h"
+#include "quest.h"
 #include "title.h"
 #include "world_assets.h"
 #include "world_map.h"
@@ -45,6 +47,19 @@ static constexpr auto MAP_CURSOR PROGMEM = [] {
     return sprite;
 }();
 
+// A black-edged white diamond, centered on the tracked objective. Its rows are the black outline
+// (radius 3) and the white fill (radius 2), so it needs no sprite asset.
+static void draw_quest_marker(int16_t x, int16_t y) {
+    for(int8_t dy = -3; dy <= 3; ++dy) {
+        int8_t reach = (int8_t)(3 - (dy < 0 ? -dy : dy));
+        avm_draw_filled_rect_black(x - reach, y + dy, 2 * reach + 1, 1);
+    }
+    for(int8_t dy = -2; dy <= 2; ++dy) {
+        int8_t reach = (int8_t)(2 - (dy < 0 ? -dy : dy));
+        avm_draw_filled_rect_white(x - reach, y + dy, 2 * reach + 1, 1);
+    }
+}
+
 void render_world_map(WorldMapView const& view, uint8_t ticks, bool markers) {
     avm_draw_sprite_overwrite(-view.camera_x, -view.camera_y, WORLD_MAP_SPRITE, 0);
     if(!markers)
@@ -55,6 +70,12 @@ void render_world_map(WorldMapView const& view, uint8_t ticks, bool markers) {
         avm_draw_filled_rect_black(player_x - 2, player_y - 2, 5, 5);
         avm_draw_filled_rect_white(player_x - 1, player_y - 1, 3, 3);
     }
+    // The tracked quest alone is queried. Its marker blinks opposite the player's.
+    TilePos objective;
+    int16_t objective_x, objective_y;
+    if((ticks & 16) && quest_map_marker(AREA_OUTDOOR, objective) &&
+       map_tile_on_screen(objective, view, objective_x, objective_y))
+        draw_quest_marker(objective_x, objective_y);
     uint8_t phase = (ticks / 8) % 4;
     avm_draw_sprite_plus_mask(map_pixel(view.x) - view.camera_x - 5,
                               map_pixel(view.y) - view.camera_y - 5, &MAP_CURSOR,
@@ -553,6 +574,139 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
         avm_draw_filled_rect_black(knob - 1, y + 1, 5, 9);
         avm_draw_filled_rect_white(knob, y + 2, 3, 7);
     }
+}
+
+// Measures text[from, to) four characters at a time, as the dialogue measures words. Each chunk is
+// a short NUL-terminated scratch string on the stack, and the text itself stays in program memory.
+// Advances are additive, so the width of a range is the sum of its chunks.
+__attribute__((noinline)) static uint16_t journal_range_width(char const PROGMEM* text,
+                                                              uint8_t from, uint8_t to) {
+    char chunk[5];
+    uint16_t width = 0;
+    while(from < to) {
+        uint8_t count = 0;
+        while(count < 4 && from < to)
+            chunk[count++] = text[from++];
+        chunk[count] = 0;
+        width += avm_text_width(chunk);
+    }
+    return width;
+}
+
+// Draws text[from, to) in chunks from the pen at (x, y), and returns the pen's x after the last one.
+__attribute__((noinline)) static int16_t journal_draw_range(int16_t x, int16_t y,
+                                                            char const PROGMEM* text,
+                                                            uint8_t from, uint8_t to) {
+    char chunk[5];
+    while(from < to) {
+        uint8_t count = 0;
+        while(count < 4 && from < to)
+            chunk[count++] = text[from++];
+        chunk[count] = 0;
+        x = avm_draw_text(x, y, chunk).x;
+    }
+    return x;
+}
+
+// The wrap's width callback. It holds no state, so no program-memory pointer is captured or passed
+// by value. A captured flash pointer was truncated to 16 bits when the closure was coerced.
+struct JournalRangeWidth {
+    uint16_t operator()(char const PROGMEM* text, uint8_t from, uint8_t to) const {
+        return journal_range_width(text, from, to);
+    }
+};
+
+void journal_open(JournalView& view, QUEST_ID id) {
+    view.open = id;
+    view.scroll = 0;
+    view.line_count = journal_wrap(quest_summary(id), JournalRangeWidth{}, view.starts,
+                                   JOURNAL_SUMMARY_LINES);
+}
+
+static char const PROGMEM* journal_status_label(QUEST_ID id) {
+    switch(quest_status(id)) {
+        case QUEST_ACTIVE:
+            return F("Active");
+        case QUEST_COMPLETED:
+            return F("Completed");
+        case QUEST_FAILED:
+            return F("Failed");
+        default:
+            return F("");
+    }
+}
+
+static void render_journal_list(int16_t x, JournalView const& view) {
+    avm_draw_text(x + 4, 8, F("Journal"));
+    avm_draw_text(x + 89, 8, F("B back"));
+    uint8_t count = quest_journal_count();
+    if(!count) {
+        char const PROGMEM* empty = F("No quests yet.");
+        avm_draw_text(x + (JOURNAL_WIDTH - avm_text_width(empty)) / 2, 34, empty);
+        return;
+    }
+    // The window keeps the highlighted row on its last line once the list scrolls.
+    uint8_t first = view.selection >= JOURNAL_ROWS ? view.selection - (JOURNAL_ROWS - 1) : 0;
+    for(uint8_t row = 0; row < JOURNAL_ROWS && first + row < count; ++row) {
+        uint8_t index = first + row;
+        QUEST_ID id = quest_journal_entry(index);
+        int16_t y = 20 + row * 10;
+        if(index == view.selection)
+            avm_draw_text(x + 4, y, F(">"));
+        avm_draw_text(x + 10, y, quest_title(id));
+        char const PROGMEM* state = quest_selected() == id ? F("Tracked") : journal_status_label(id);
+        avm_draw_text(x + 118 - avm_text_width(state), y, state);
+    }
+}
+
+static void render_journal_detail(int16_t x, JournalView const& view) {
+    QUEST_ID id = view.open;
+    avm_draw_text(x + 4, 8, quest_title(id));
+    avm_draw_text(x + 89, 8, F("B back"));
+    avm_draw_text(x + 4, 18, F("Status:"));
+    avm_draw_text(x + 4 + avm_text_width(F("Status: ")), 18, journal_status_label(id));
+    if(quest_status(id) == QUEST_ACTIVE) {
+        char const PROGMEM* track = quest_selected() == id ? F("A untrack") : F("A track");
+        avm_draw_text(x + 124 - avm_text_width(track), 18, track);
+    }
+
+    // Each line stops at its last word, so the trailing spaces that join it to the next line are
+    // not drawn.
+    char const PROGMEM* summary = quest_summary(id);
+    for(uint8_t row = 0; row < JOURNAL_DETAIL_LINES && view.scroll + row < view.line_count; ++row) {
+        uint8_t line = view.scroll + row;
+        uint8_t from = view.starts[line], to = view.starts[line + 1];
+        while(to > from && summary[to - 1] == ' ')
+            --to;
+        journal_draw_range(x + 4, 27 + 7 * row, summary, from, to);
+    }
+    if(view.scroll)
+        avm_draw_text(x + 118, 27, F("^"));
+    if(view.scroll + JOURNAL_DETAIL_LINES < view.line_count)
+        avm_draw_text(x + 118, 48, F("v"));
+
+    char const PROGMEM* objective = quest_objective(id);
+    if(objective) {
+        avm_draw_text(x + 4, 57, F("Goal:"));
+        avm_draw_text(x + 4 + avm_text_width(F("Goal: ")), 57, objective);
+    }
+}
+
+void render_journal(uint8_t revealed, bool closing, JournalView const& view) {
+    rpg_render_world();
+    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / JOURNAL_WIDTH)
+                      : FADE_STEPS / 2);
+    if(!revealed)
+        return;
+
+    int16_t x = DISPLAY_WIDTH - revealed;
+    avm_draw_filled_rect_black(x, 0, JOURNAL_WIDTH, 64);
+    avm_draw_filled_rect_white(x + 1, 1, JOURNAL_WIDTH - 2, 62);
+    avm_draw_filled_rect_black(x + 2, 2, JOURNAL_WIDTH - 4, 60);
+    if(view.open == QUEST_NONE)
+        render_journal_list(x, view);
+    else
+        render_journal_detail(x, view);
 }
 
 void render_party(uint8_t revealed, bool closing) {

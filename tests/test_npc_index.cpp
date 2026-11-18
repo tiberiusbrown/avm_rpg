@@ -52,6 +52,16 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
+// Questions are declined by these binaries, which do not script Silas's offer.
+bool dialogue_ask(char const PROGMEM*) {
+    return false;
+}
+
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 static void place_player(uint8_t tx, uint8_t ty) {
     game.player.x = (uint16_t)tx * TILE;
     game.player.y = (uint16_t)ty * TILE;

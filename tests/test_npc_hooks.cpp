@@ -77,6 +77,11 @@ bool dialogue_ask(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
+    (void)id;
+    return dialogue_ask(question);
+}
+
 int main() {
     game_new();
     CHECK(activated == 1 && restored == 1);
