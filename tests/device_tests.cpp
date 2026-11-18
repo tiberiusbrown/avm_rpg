@@ -819,8 +819,8 @@ static void set_test_options(Device& d) {
 static void verify_pause_party(Device& d, fs::path const& out) {
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    auto before = pause_frame(d).pixels;
     Game frozen = d.state();
+    unsigned serial = d.serial();
     d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_A); // Map
@@ -835,6 +835,13 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     d.verify_music();
     d.tap(BTN_B);
     d.advance(0, 8000000);
+    require(d.serial() != serial, "Map did not return directly to gameplay");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    frozen = d.state();
+    serial = d.serial();
+    d.tap(BTN_UP);
+    d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_A); // Journal
     d.tap(BTN_LEFT);
@@ -842,20 +849,22 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
     d.advance(0, 8000000);
+    Game shown = d.state();
+    require(!memcmp(&frozen, &shown, sizeof(Game)), "Party changed paused game state");
     d.tap(BTN_B);
     d.advance(0, 8000000);
-    auto after = pause_frame(d).pixels;
-    Game returned = d.state();
-    require(!memcmp(&frozen, &returned, sizeof(Game)), "Party changed paused game state");
-    for(unsigned i = 0; i < before.size(); ++i) {
-        if(i % 128 >= 39 && before[i] != after[i]) {
-            std::cerr << "Party pixels at " << i << ": " << unsigned(before[i]) << " -> "
-                      << unsigned(after[i]) << '\n';
-            require(false, "Party changed the paused world image");
-        }
-    }
+    require(d.serial() != serial, "Party B did not return directly to gameplay");
+    // A has the same direct return behavior as B.
     d.tap(BTN_B);
-    d.frame();
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 8000000);
+    serial = d.serial();
+    d.tap(BTN_A);
+    d.advance(0, 8000000);
+    require(d.serial() != serial, "Party A did not return directly to gameplay");
 }
 
 static void verify_party_recruitment(Device& d, fs::path const& out) {
@@ -944,7 +953,6 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     require(!memcmp(&joined, &shown, sizeof(Party)), "Party panel changed member statistics");
     d.tap(BTN_B);
     d.advance(0, 8000000);
-    d.tap(BTN_B);
     d.frame();
     // Start a real encounter with a recruited party and full-byte HP, then verify result writeback.
     Game combat = d.state();
@@ -1772,11 +1780,10 @@ int main(int argc, char** argv) try {
             "menu did not pause exploration");
     d.verify_music();
     d.capture(out / "menu.pgm");
-    auto menu_pixels = pause_frame(d).pixels;
     require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
             "overworld menu did not show Map or hid an invalid save incorrectly");
 
-    // Up wraps to Audio. Map owns its loop and returns to the same menu selection.
+    // Up wraps to Audio. Map owns its loop and returns directly to gameplay.
     d.tap(BTN_UP);
     d.tap(BTN_UP); // Map
     d.tap(BTN_A);
@@ -1787,6 +1794,13 @@ int main(int argc, char** argv) try {
     d.verify_music();
     d.tap(BTN_B);
     d.advance(0, 8000000);
+    require(d.serial() != menu_serial, "Map did not resume exploration");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    menu_state = d.state();
+    menu_serial = d.serial();
+    d.tap(BTN_UP);
+    d.tap(BTN_UP);
     d.tap(BTN_UP); // Journal
     d.tap(BTN_A);
     d.tap(BTN_LEFT);
@@ -1803,12 +1817,11 @@ int main(int argc, char** argv) try {
     require(d.serial() == menu_serial, "Party advanced simulation");
     d.tap(BTN_B);
     d.advance(0, 8000000);
-    auto after_party_pixels = pause_frame(d).pixels;
-    for(unsigned i = 0; i < menu_pixels.size(); ++i)
-        if(i % 128 >= 39)
-            require(menu_pixels[i] == after_party_pixels[i],
-                    "Party changed the paused world image");
-    d.tap(BTN_UP); // Save
+    require(d.serial() != menu_serial, "Party did not resume exploration");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    menu_serial = d.serial();
+    d.tap(BTN_DOWN); // Save
     d.tap(BTN_A);
     require(pause_row_visible(d, 6), "successful Save did not reveal Load immediately");
     d.capture(out / "menu-saved.pgm");

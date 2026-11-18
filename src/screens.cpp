@@ -58,11 +58,14 @@ __attribute__((noinline)) void map_screen() {
                       map_clamp(x - 64, OUTDOOR_WIDTH > 128 ? OUTDOOR_WIDTH - 128 : 0),
                       map_clamp(y - 32, OUTDOOR_HEIGHT > 64 ? OUTDOOR_HEIGHT - 64 : 0)};
     uint8_t ticks = 0;
+    transition_world_map(view, ticks, false);
     input_sync();
     for(;;) {
         input_wait_frame();
-        if(input_pressed() & BTN_B)
+        if(input_pressed() & BTN_B) {
+            transition_world_map(view, (uint8_t)(ticks - 1), true);
             return;
+        }
         update_world_map(view, input_held(), OUTDOOR_WIDTH, OUTDOOR_HEIGHT);
         render_world_map(view, ticks++);
         avm_display(true);
@@ -233,18 +236,11 @@ __attribute__((noinline)) void explore() {
 
         if(pressed & BTN_B) {
             // Refresh after the menu's locals have left the stack: chunk dialogue can enter battle.
-            MENU_EXIT action;
-            PAUSE_ITEM initial = PAUSE_RESUME;
-            do {
-                action = menu_screen(nullptr, initial);
-                if(action == MENU_PARTY) {
-                    party_screen();
-                    initial = PAUSE_PARTY;
-                } else if(action == MENU_MAP) {
-                    map_screen();
-                    initial = PAUSE_MAP;
-                }
-            } while(action == MENU_PARTY || action == MENU_MAP);
+            MENU_EXIT action = menu_screen();
+            if(action == MENU_PARTY)
+                party_screen();
+            else if(action == MENU_MAP)
+                map_screen();
             if(action == MENU_LOAD) {
                 game_load();
                 update_visible_world(0, false);

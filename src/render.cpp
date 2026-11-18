@@ -45,8 +45,10 @@ static constexpr auto MAP_CURSOR PROGMEM = [] {
     return sprite;
 }();
 
-void render_world_map(WorldMapView const& view, uint8_t ticks) {
+void render_world_map(WorldMapView const& view, uint8_t ticks, bool markers) {
     avm_draw_sprite_overwrite(-view.camera_x, -view.camera_y, WORLD_MAP_SPRITE, 0);
+    if(!markers)
+        return;
     int16_t player_x = (game.player.x + FOOT_CENTER_X) / TILE - view.camera_x;
     int16_t player_y = (game.player.y + FOOT_CENTER_Y) / TILE - view.camera_y;
     if(!(ticks & 16)) {
@@ -91,6 +93,32 @@ static void draw_fade(uint8_t step) {
         avm_set_sprite(&FADE_SPRITE);
         for(uint8_t x = 0; x < DISPLAY_WIDTH; x += 16)
             avm_draw_erase(x, 0, step - 1);
+    }
+}
+
+// Entry starts at the menu's half-dimmed world (240 ms). Exit restores the fully
+// visible world (320 ms). Rebuild frames without advancing gameplay or adding a second buffer.
+__attribute__((noinline)) void transition_world_map(WorldMapView const& view, uint8_t ticks,
+                                                    bool closing) {
+    uint8_t first = closing ? 1 : FADE_STEPS / 2 + 1;
+    for(uint8_t step = first; step <= FADE_STEPS; ++step) {
+        input_wait_frame();
+        if(closing)
+            render_world_map(view, ticks);
+        else
+            rpg_render_world();
+        draw_fade(step);
+        avm_display(true);
+    }
+
+    for(int8_t step = FADE_STEPS - 1; step >= 0; --step) {
+        input_wait_frame();
+        if(closing)
+            rpg_render_world();
+        else
+            render_world_map(view, ticks, step == 0);
+        draw_fade((uint8_t)step);
+        avm_display(true);
     }
 }
 
