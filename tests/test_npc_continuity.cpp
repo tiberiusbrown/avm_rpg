@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Property test: random play must never remove, jump, or visibly create an NPC. Every frame is
-// checked against the invariants that npc.cpp is built to keep.
+// Property test: random play preserves NPC continuity, except residence travel may complete
+// outside the cache and view. Every frame is checked against the invariants in npc.cpp.
 
 static unsigned checks, frames_run, moves, entries, escapes;
 
@@ -51,6 +51,8 @@ struct Snapshot {
     bool present[NPC_ID_LIMIT];
     uint16_t x[NPC_ID_LIMIT], y[NPC_ID_LIMIT];
     bool clear[NPC_ID_LIMIT];
+    bool traveling[NPC_ID_LIMIT];
+    TilePos residence[NPC_ID_LIMIT];
 };
 
 static Snapshot take() {
@@ -61,6 +63,8 @@ static Snapshot take() {
             s.x[id] = n->actor.x;
             s.y[id] = n->actor.y;
             s.clear[id] = terrain_clear(n->actor.x, n->actor.y);
+            s.traveling[id] = n->behavior == NPC_TRAVEL;
+            s.residence[id] = game.npcs.residence[id];
         }
     return s;
 }
@@ -82,8 +86,18 @@ static void check_frame(Snapshot const& before, Snapshot const& after, Camera cb
         int dx = (int)after.x[id] - (int)before.x[id];
         int dy = (int)after.y[id] - (int)before.y[id];
         int jump = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
-        if(jump > 1)
-            fail("NPC moved more than one pixel in a frame", frame, id);
+        if(jump > 1) {
+            uint16_t left = (uint16_t)game.cache.origin_tx * TILE;
+            uint16_t top = (uint16_t)game.cache.origin_ty * TILE;
+            bool cached = before.x[id] + FOOT_LEFT >= left && before.y[id] + FOOT_TOP >= top &&
+                          before.x[id] + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
+                          before.y[id] + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
+            Npc* n = npc_find((NPC_ID)id);
+            if(!before.traveling[id] || cached || in_view(before.x[id], before.y[id], cb) ||
+               after.x[id] != before.residence[id].x * TILE ||
+               after.y[id] != before.residence[id].y * TILE || n->behavior != NPC_STAND)
+                fail("NPC jumped without completing off-cache residence travel", frame, id);
+        }
         bool moved = jump != 0;
         if(moved)
             ++moves;

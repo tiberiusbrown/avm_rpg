@@ -70,20 +70,25 @@ scene, with these changes:
 - **Recruitment.** Adding an NPC to the party retires its map actor with `NPC_RETIRED_PARTY`.
   Remaining actors are compacted without changing their state. Party members are excluded from casting.
 
-An NPC appears on screen only by walking there, by the camera moving onto it, or as part
-of the scene entry itself. Recruitment is the only removal during a scene.
+An NPC appears on screen by walking there, by the camera moving onto it, as part
+of the scene entry itself, or by completing off-cache residence travel. Recruitment is the
+only removal during a scene.
 
 Static NPCs keep their home for the scene, and `npc_set_destination` refuses them. Dynamic
 NPCs have a residence (`NpcPool::residence`, indexed by ID), saved with the game.
 `npc_set_destination` changes the residence and the behavior only; it never moves an NPC at
 once. For an NPC in the current area the behavior becomes `NPC_TRAVEL`, which walks it toward
-the residence. A destination in another area leaves the NPC standing where it is until the
+the residence. Once its feet leave the cache and its sprite is fully out of view, it
+teleports to the residence and stands there. If the destination is cached, terrain and actor
+collisions defer arrival until it is clear; uncached destinations require no terrain reads.
+A destination in another area leaves the NPC standing where it is until the
 scene ends, and then it is cast at its residence in that area.
 
 ## Motion
 
-Every position change is one pixel. Walking, targets, routes, yields and terrain escapes all
-go through `step()` or the escape step, and a frame moves an NPC at most once.
+Apart from completing off-cache residence travel, every position change is one pixel.
+Walking, targets, routes, yields and terrain escapes all go through `step()` or the escape
+step, and a frame moves an NPC at most once.
 
 - **Cadence.** An NPC steps once every `period` frames. Timers, pauses and stuck limits count
   frames: a blocked attempt adds the NPC's period to its stuck count.
@@ -112,8 +117,9 @@ An NPC simulates only while its feet are inside the effective terrain cache, and
 outside the cache are solid for collision. The cache is 11x7 tiles: the 9x5 view span plus
 one margin tile on every side, so it always extends at least 16 pixels past the view. An NPC
 that walks out of view keeps walking inside that margin, then freezes in place at the cache
-edge. Its sprite is entirely out of view there, and it resumes from the same pixel when the
-camera brings the cache back over it. The device QA shuttle checks this. The margin costs
+edge. Residence travel instead finishes by teleporting once the NPC is outside the cache
+and fully out of view. Other behaviors resume from the same pixel when the camera brings
+the cache back over the NPC. The device QA shuttle checks this. The margin costs
 32 bytes of RAM and roughly 15–23% more reload work per frame (see `decisions.md`).
 
 ## Movement and collision

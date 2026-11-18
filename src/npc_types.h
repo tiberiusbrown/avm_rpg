@@ -4,7 +4,7 @@
 #include "npc_ids.h"
 
 
-// NPC_TRAVEL walks toward the residence and never gives up while visible.
+// NPC_TRAVEL walks toward the residence, then teleports there once outside the cache and view.
 enum NPC_BEHAVIOR : uint8_t { NPC_STAND, NPC_WANDER, NPC_TARGET, NPC_ROUTE, NPC_TRAVEL };
 
 enum NPC_ROUTE_MODE : uint8_t { ROUTE_ONCE, ROUTE_LOOP, ROUTE_REVERSE };

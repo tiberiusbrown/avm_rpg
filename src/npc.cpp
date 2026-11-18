@@ -107,8 +107,8 @@ static bool foot_cached(Npc const& n) {
 }
 
 // A scene casts its NPCs when it is entered. Afterwards a cast may happen only out of view, so an
-// NPC is never seen appearing. Only the one-pixel steps below move an NPC; no NPC is removed while
-// its scene lasts.
+// NPC is never seen appearing. Travel outside the cache may finish at the residence;
+// otherwise only the one-pixel steps below move an NPC. No NPC is removed while its scene lasts.
 // Casts id at its home. A home that is blocked, or in view after entry, waits until it is clear
 // and out of view. The lifecycle functions stay out of line so their frames do not grow the frame
 // of update_visible_world, which the stack budget counts on every path.
@@ -483,6 +483,20 @@ void npc_update() {
         // against the outside sentinel or simulate uncached terrain.
         if(!foot_cached(n)) {
             n.actor.walking = 0;
+            if(n.behavior == NPC_TRAVEL && !npc_visible(n.actor.x, n.actor.y)) {
+                TilePos home = game.npcs.residence[n.id];
+                uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
+                // Uncached destinations are resolved without reading offscreen terrain.
+                // A cached destination still has to be clear of terrain and actors.
+                if(!foot_cached_at(x, y) || position_clear(nullptr, x, y)) {
+                    n.actor.x = x;
+                    n.actor.y = y;
+                    n.behavior = NPC_STAND;
+                    n.timer = n.stuck = n.push = n.detour = 0;
+                    n.state = NPC_STATE_NONE;
+                    npc_on_event(n, NPC_EVENT_TARGET_REACHED);
+                }
+            }
             continue;
         }
         auto def = npc_definition(n.id);

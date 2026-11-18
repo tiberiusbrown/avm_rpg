@@ -123,6 +123,49 @@ static uint16_t home_y() {
     return (uint16_t)(positions::VillagerHome.y * TILE);
 }
 
+static void test_travel_finishes_outside_cache() {
+    game_new();
+    Npc* villager = npc_find(NPC_VILLAGER);
+    CHECK(villager);
+    CHECK(npc_set_destination(NPC_VILLAGER, positions::VillagerEast));
+
+    // Being blocked while cached must not complete the journey.
+    memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    for(unsigned frame = 0; frame < 100; ++frame) {
+        game.ticks = frame;
+        npc_update();
+    }
+    CHECK(villager->behavior == NPC_TRAVEL);
+    CHECK(villager->actor.x == home_x() && villager->actor.y == home_y());
+
+    // Moving far away leaves both the NPC and its destination outside the cache.
+    place_player(positions::TestField.x, positions::TestField.y);
+    update_visible_world(0, true);
+    CHECK(villager->behavior == NPC_STAND);
+    CHECK(villager->actor.x == positions::VillagerEast.x * TILE &&
+          villager->actor.y == positions::VillagerEast.y * TILE);
+    CHECK(!villager->actor.walking && !villager->stuck && !villager->detour);
+
+    // Returning to the destination finds the same actor already there, without an area reset.
+    place_player(positions::VillagerEast.x - 1, positions::VillagerEast.y);
+    update_visible_world(0, true);
+    CHECK(npc_find(NPC_VILLAGER) == villager);
+    CHECK(villager->actor.x == positions::VillagerEast.x * TILE &&
+          villager->actor.y == positions::VillagerEast.y * TILE);
+
+    // A cached destination cannot receive a teleport while the player occupies it.
+    place_player(positions::VillagerWest.x, positions::VillagerWest.y);
+    CHECK(npc_set_destination(NPC_VILLAGER, positions::VillagerWest));
+    update_visible_world(0, true);
+    CHECK(villager->behavior == NPC_TRAVEL);
+    CHECK(villager->actor.x == positions::VillagerEast.x * TILE);
+    place_player(positions::PlayerStart.x, positions::PlayerStart.y);
+    update_visible_world(0, true);
+    CHECK(villager->behavior == NPC_STAND);
+    CHECK(villager->actor.x == positions::VillagerWest.x * TILE &&
+          villager->actor.y == positions::VillagerWest.y * TILE);
+}
+
 // An NPC outside the terrain cache is not simulated, and it resumes from the same place.
 static void test_npc_outside_cache_is_frozen() {
     game_new();
@@ -171,6 +214,7 @@ int main() {
     test_destination_admission_and_travel();
     test_save_round_trip_and_rejection();
     test_leaving_view_is_continuous();
+    test_travel_finishes_outside_cache();
     test_npc_outside_cache_is_frozen();
     test_npc_steps_every_other_frame();
     printf("npc residence checks passed: %u\n", checks);
