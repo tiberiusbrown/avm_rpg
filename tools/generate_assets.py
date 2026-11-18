@@ -1208,6 +1208,9 @@ def export_world(root=ROOT):
     )
     defaults += [
         "namespace handler_impl {",
+        "struct EmptyHandler {};",
+        "template <typename T> inline constexpr bool authored_handler = false;",
+        "template <> inline constexpr bool authored_handler<void> = true;",
         "template <TilePos POS, HandlerStage STAGE> struct Tag {};",
     ]
     for name, stage in [
@@ -1219,10 +1222,14 @@ def export_world(root=ROOT):
     for name in handler_names:
         defaults += [
             "template <TilePos POS, HandlerStage STAGE>",
-            f"void {name}(Tag<POS, STAGE>) {{}}",
+            f"EmptyHandler {name}(Tag<POS, STAGE>) {{ return {{}}; }}",
         ]
     for name in handler_names:
         defaults += [
+            "template <TilePos POS, HandlerStage STAGE>",
+            f"constexpr bool implemented_{name}() {{",
+            f"    return authored_handler<decltype({name}(Tag<POS, STAGE>{{}}))>;",
+            "}",
             "template <TilePos POS, HandlerStage STAGE>",
             f"void dispatch_{name}() {{",
             f"    {name}(Tag<POS, STAGE>{{}});",
@@ -1236,66 +1243,25 @@ def export_world(root=ROOT):
             "    }",
         ]
     defaults.append("};")
-    dispatch = [prologue, '#include "logic/handlers.h"']
+    catalog = [prologue, '#pragma once', '#include "logic/handlers.h"',
+               '#include "static_chunk_dispatch.h"']
+    for name in handler_names:
+        catalog += [f"struct MapOperation_{name} {{",
+                    "    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =",
+                    f"        handler_impl::implemented_{name}<POS, STAGE>();",
+                    "    template <TilePos POS, HandlerStage STAGE> static void run() {",
+                    f"        Handler<POS, STAGE>{{}}.{name}();", "    }", "};"]
+    sites = []
     for m in maps:
-        for cy in range(m.rows):
-            for cx in range(m.columns):
-                points = entries(m, cx, cy)
-                if not points:
-                    continue
-                fn = f"run_chunk_{m.area}_{cx}_{cy}"
-                dispatch.append(f"template <HandlerStage STAGE> RPG_NOINLINE static void {fn}() {{")
-                for o, point in points:
-                    dispatch += [
-                        "#ifndef RPG_AVM",
-                        "    ++feature_trace_count[STAGE];",
-                        "#endif",
-                    ]
-                    dispatch.append(
-                        f"    Handler<{point['symbol']}, STAGE>{{}}.{o['handler']}();"
-                    )
-                    dispatch += [
-                        "    if constexpr(STAGE != STAGE_TILES) {",
-                        "        if(teleported)",
-                        "            return;",
-                        "    }",
-                    ]
-                dispatch.append("}")
-    dispatch += [
-        "template <HandlerStage STAGE> RPG_NOINLINE void run_chunk(uint8_t area, uint8_t x, uint8_t y) {",
-        "#ifndef RPG_AVM",
-        "    if(chunk_trace_count[STAGE] < CHUNK_TRACE_CAPACITY)",
-        "        chunk_trace[STAGE][chunk_trace_count[STAGE]++] = "
-        "(uint16_t)y * world_area(area)->chunk_columns + x;",
-        "#endif",
-        "    switch(area) {",
-    ]
-    for m in maps:
-        if not any(o["handler"] for o in m.objects):
-            continue
-        dispatch += [
-            f"        case {m.area}:",
-            f"            switch((uint16_t)y * {m.columns} + x) {{",
-        ]
-        for cy in range(m.rows):
-            for cx in range(m.columns):
-                if entries(m, cx, cy):
-                    dispatch.append(
-                        f"                case {cy * m.columns + cx}: run_chunk_{m.area}_{cx}_{cy}<STAGE>(); break;"
-                    )
-        dispatch += [
-            "                default: break;",
-            "            }",
-            "            break;",
-        ]
-    dispatch += [
-        "        default: break;",
-        "    }",
-        "}",
-        "template void run_chunk<STAGE_GAMEPLAY>(uint8_t, uint8_t, uint8_t);",
-        "template void run_chunk<STAGE_TILES>(uint8_t, uint8_t, uint8_t);",
-        "template void run_chunk<STAGE_DIALOGUE>(uint8_t, uint8_t, uint8_t);",
-    ]
+        for o in m.objects:
+            if o["handler"]:
+                for point in o["points"]:
+                    sites.append(f"    MapSite<{point['symbol']}, MapOperation_{o['handler']}>")
+    catalog += ["using AllMapHandlers = TypeList<", ",\n".join(sites), ">;"]
+    header += ["struct StaticArea { uint8_t id, width, height, columns, rows; };",
+               "inline constexpr StaticArea STATIC_AREAS[] = {"]
+    header += [f"    {{{m.area}, {m.width}, {m.height}, {m.columns}, {m.rows}}}," for m in maps]
+    header += ["};"]
     return {
         name: "\n".join(lines) + "\n"
         for name, lines in [
@@ -1305,7 +1271,7 @@ def export_world(root=ROOT):
             ("world_assets.h", header),
             ("handler_defaults.h", defaults),
             ("map_assets.cpp", assets),
-            ("chunk_dispatch.cpp", dispatch),
+            ("map_handler_catalog.h", catalog),
             ("npc_routes.h", route_header),
             ("npc_routes.cpp", route_source),
         ]
@@ -1397,7 +1363,7 @@ FACE_COLUMNS = 2
 
 
 def read_face_frames(root=ROOT):
-    """Read the face sheet; its height selects the row count, which NPC_ID_LIMIT must match."""
+    """Read the independent portrait row count from the face sheet height."""
     path = root / "assets" / "images" / "faces32.png"
     with Image.open(path) as image:
         rows = image.height // FACE_SIZE
@@ -1792,6 +1758,7 @@ def generate(root=ROOT):
         int(any("#" in row for frame in face_frames[r * FACE_COLUMNS:(r + 1) * FACE_COLUMNS] for row in frame))
         for r in range(face_rows)
     ]
+    art.append(f"constexpr uint16_t PROGMEM FACE_ROW_COUNT = {face_rows};")
     art.append(f"constexpr uint8_t PROGMEM FACE_PRESENT[] = {{{', '.join(map(str, present))}}};")
     art.append("")
     art += sprite_lines("PROMPT_SPRITES", prompt_frames, None, PROMPT_SIZE)
@@ -1821,8 +1788,6 @@ def generate(root=ROOT):
         "",
         f"static_assert(ACTOR_ROW_COUNT == {actor_rows}, "
         '"ACTOR_ROW_COUNT must match the rows in actors16.png");',
-        f"static_assert(NPC_ID_LIMIT == {face_rows}, "
-        '"NPC_ID_LIMIT must match the rows in faces32.png");',
         f"static_assert(PROMPT_FRAME_COUNT == {PROMPT_FRAMES}, "
         '"PROMPT_FRAME_COUNT must match the frames in dialogue_prompts7.png");',
         f"static_assert(CURSOR_FRAME_COUNT == {CURSOR_FRAMES}, "

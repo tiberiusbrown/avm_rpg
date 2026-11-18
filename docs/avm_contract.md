@@ -177,7 +177,7 @@ checksum. The version byte is the first payload byte. The native host's `sizeof(
 is not the guest format; device QA reads the packed AVM layout.
 
 Startup calls `avm_load()` and validates the loaded version, area, pixel bounds, facing,
-stats, defined flag bits, NPC residences and the two audio slider levels. The result initializes the ordinary global
+stats, defined flag bits, quest flags and the two audio slider levels. The result initializes the ordinary global
 `save_exists` flag before new-game defaults are prepared for the title screen. Starting a
 new game preserves that flag and the current audio options. Save calls `avm_save()` and sets the flag to true, without
 readback or validation; the UI reports `Saved`. The title and pause menu use the cached

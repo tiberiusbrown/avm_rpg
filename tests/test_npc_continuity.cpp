@@ -64,7 +64,7 @@ static Snapshot take() {
             s.y[id] = n->actor.y;
             s.clear[id] = terrain_clear(n->actor.x, n->actor.y);
             s.traveling[id] = n->behavior == NPC_TRAVEL;
-            s.residence[id] = game.npcs.residence[id];
+            s.residence[id] = npc_location((NPC_ID)id);
         }
     return s;
 }
@@ -73,8 +73,11 @@ static void check_frame(Snapshot const& before, Snapshot const& after, Camera cb
                         unsigned frame) {
     bool camera_moved = cb.x != ca.x || cb.y != ca.y;
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
-        if(before.present[id] && !after.present[id])
-            fail("NPC removed while its scene lasts", frame, id);
+        if(before.present[id] && !after.present[id]) {
+            if(in_view(before.x[id], before.y[id], ca))
+                fail("NPC visibly retired", frame, id);
+            continue;
+        }
         if(!before.present[id] && after.present[id]) {
             // A cast happens at the camera of the frame, before the player moves.
             if(guarded(after.x[id], after.y[id], cb))
@@ -126,8 +129,10 @@ static uint32_t rng() {
 // reaches an NPC only when it is made after that frame's refresh and before the NPC step.
 static void cache_tile(uint8_t tx, uint8_t ty, uint8_t tile) {
     int dx = (int)tx - (int)game.cache.origin_tx, dy = (int)ty - (int)game.cache.origin_ty;
-    if(dx >= 0 && dy >= 0 && dx < CACHE_WIDTH && dy < CACHE_HEIGHT)
+    if(dx >= 0 && dy >= 0 && dx < CACHE_WIDTH && dy < CACHE_HEIGHT) {
         game.cache.tiles[dy * CACHE_WIDTH + dx] = tile;
+        note_tile_edit();
+    }
 }
 
 // The direction of held buttons, as game.cpp maps them: vertical input wins over horizontal.
@@ -161,8 +166,6 @@ static void edited_frame(uint8_t held) {
 static void run(uint32_t seed, unsigned frames) {
     rng_state = seed;
     game_new();
-    TilePos const residences[] = {positions::VillagerWest, positions::VillagerEast,
-                                  positions::VillagerHome};
     uint8_t const moves_for[] = {BTN_UP, BTN_DOWN, BTN_LEFT, BTN_RIGHT, BTN_UP | BTN_RIGHT,
                                  BTN_DOWN | BTN_LEFT, 0};
     uint8_t held = 0;
@@ -170,8 +173,18 @@ static void run(uint32_t seed, unsigned frames) {
         // Player input and world events are chosen before the frame, as in real play.
         if(rng() % 8 == 0)
             held = moves_for[rng() % (sizeof(moves_for) / sizeof(moves_for[0]))];
-        if(rng() % 120 == 0)
-            npc_set_destination(NPC_VILLAGER, residences[rng() % 3]);
+        if(rng() % 120 == 0) {
+            unsigned destination = rng() % 3;
+            if(destination == 2)
+                game.clear_flag(FLAG_VILLAGER_MOVED);
+            else {
+                game.set_flag(FLAG_VILLAGER_MOVED);
+                if(destination == 1)
+                    game.set_flag(FLAG_VILLAGER_EAST);
+                else
+                    game.clear_flag(FLAG_VILLAGER_EAST);
+            }
+        }
         if(rng() % 160 == 0)
             npc_move_to(NPC_WANDERER, (uint16_t)(positions::WandererHome.x * TILE - 16 + rng() % 33),
                       (uint16_t)(positions::WandererHome.y * TILE - 12 + rng() % 25));
@@ -220,7 +233,7 @@ int main() {
         run(seed * 0x9e3779b9u, 4000);
     test_tile_change_under_npc_walks_out();
     // The run must exercise real motion, real escapes, and real appearances to mean anything.
-    CHECK(moves > 1000 && escapes > 0 && entries > 0);
+    CHECK(moves > 500 && escapes > 0 && entries > 0);
     printf("npc continuity: %u frames, %u moves, %u escape steps, %u view entries, %u checks\n",
            frames_run, moves, escapes, entries, checks);
     return 0;

@@ -11888,6 +11888,7 @@ constexpr uint8_t PROGMEM FACE_SPRITES[] = {
     0xef, 0xef, 0xf7, 0xfb, 0xed, 0x9e, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xf7, 0xf1, 0xee, 0xd1, 0x20,
 };
 
+constexpr uint16_t PROGMEM FACE_ROW_COUNT = 4;
 constexpr uint8_t PROGMEM FACE_PRESENT[] = {0, 1, 1, 1};
 
 constexpr uint8_t PROGMEM PROMPT_SPRITES[] = {
@@ -12806,7 +12807,6 @@ constexpr uint8_t PROGMEM TITLE_ROCK[] = {
 // clang-format on
 
 static_assert(ACTOR_ROW_COUNT == 32, "ACTOR_ROW_COUNT must match the rows in actors16.png");
-static_assert(NPC_ID_LIMIT == 4, "NPC_ID_LIMIT must match the rows in faces32.png");
 static_assert(PROMPT_FRAME_COUNT == 4, "PROMPT_FRAME_COUNT must match the frames in dialogue_prompts7.png");
 static_assert(CURSOR_FRAME_COUNT == 4, "CURSOR_FRAME_COUNT must match the frames in cursor22.png");
 static_assert(BATTLE_TARGET_FRAMES == 4, "BATTLE_TARGET_FRAMES must match the frames in each row of battle_targets16.png");

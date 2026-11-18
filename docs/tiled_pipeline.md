@@ -161,9 +161,10 @@ share one grid in every face: eyes are three pixels wide on rows 15-16 at column
 and 18-20, the nose ends on row 18, and the closed mouth is columns 14-17 of row 21. Every figure
 has a thin white line around its black outline, so skin and cloth read as a white fill,
 a black line, then the white line, and dark masses such as hair are black inside that
-white line. Append whole 32-pixel rows to add NPCs. `tools/generate_assets.py` emits the
-sheet as `FACE_SPRITES` (frame `NPC_ID * 2 + open`) with a `FACE_PRESENT` byte per ID, and
-fails when the row count differs from `NPC_ID_LIMIT`. The dialogue overlay draws it above
+white line. Append whole 32-pixel rows when adding portraits. `tools/generate_assets.py` emits the
+sheet as `FACE_SPRITES` (frame `NPC_ID * 2 + open`) with a `FACE_PRESENT` byte per portrait row, and
+exports `FACE_ROW_COUNT`, independent of `NPC_ID_LIMIT`. Identities outside the portrait
+range use text dialogue. The dialogue overlay draws it above
 the panel (see `docs/essential_npcs.md`). See `assets/images/AUTHORING_FACES.md` for how to
 draw a face.
 
@@ -256,3 +257,18 @@ reads `build/latest-full-verification.txt`, independently of subsequent fast run
 Each integration run records stage times in `results.json` and prints them as it runs.
 The default build refreshes root `rpg.arduboy` and builds the marker-bearing
 `build/artifacts/rpg_qa.arduboy` that device QA reads.
+
+## Compile-time chunk catalogs
+
+The exporter writes `map_handler_catalog.h`, not a C++ dispatch implementation. Its
+`AllMapHandlers` type list preserves map object order, rectangle expansion, overlapping
+operations and private unnamed points. Operation tags call the existing generated
+`Handler<POS, STAGE>` API. Empty fallback overloads return a marker so C++ can detect
+actual stage implementations. New names compile safely before handwritten logic exists.
+`world_assets.h` also exports area IDs, tile dimensions and chunk dimensions as constexpr
+metadata, validated against Tiled. All flattened indices use at least 16 bits.
+
+`src/chunk_dispatch.cpp` builds stage-specific dense PROGMEM tables and retains only
+occupied chunk functions. NPC spatial sites come entirely from C++ `NpcPolicy` declarations;
+Python has no NPC policy knowledge. Native fixture compilation uses its own generated
+catalog and defaults, including unimplemented named and unnamed operations.

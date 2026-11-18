@@ -35,7 +35,7 @@ extern "C" void rpg_render_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 10;
+inline constexpr uint8_t SAVE_VERSION = 11;
 
 enum {
     BTN_B = 4,
@@ -245,7 +245,7 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words);
 void party_joined(NPC_ID id);
 // Wrap/page the question, then return A = yes or B = no.
 bool dialogue_ask(char const PROGMEM* question);
-// Validate the loaded live object before using any saved world coordinates or NPC residences.
+// Validate the loaded live object before using saved world or quest state.
 bool save_valid();
 // Validate and place the loaded player, rebuilding transient state. The caller refreshes the world.
 bool save_restore();
@@ -346,6 +346,7 @@ extern uint8_t const PROGMEM ACTOR_SPRITES[];
 extern uint8_t const PROGMEM FACE_SPRITES[];
 // One byte per NPC_ID: nonzero when the ID has a portrait. An all-black row of faces32.png has
 // none.
+extern uint16_t const PROGMEM FACE_ROW_COUNT;
 extern uint8_t const PROGMEM FACE_PRESENT[];
 // 7x7 dialogue prompt indicators: the A button filled and outlined (0, 1), and a down arrow
 // high and low (2, 3).

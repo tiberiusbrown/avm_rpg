@@ -912,6 +912,8 @@ int main() {
     Area const& map = *world_area(AREA_OUTDOOR);
     Camera camera = game_camera();
     unsigned left = camera.x >> TILE_SHIFT, top = camera.y >> TILE_SHIFT;
+    left = left >= CACHE_MARGIN ? left - CACHE_MARGIN : 0;
+    top = top >= CACHE_MARGIN ? top - CACHE_MARGIN : 0;
     unsigned right = left + CACHE_WIDTH - 1, bottom = top + CACHE_HEIGHT - 1;
     if(right >= game.dimensions.width_tiles)
         right = game.dimensions.width_tiles - 1;
@@ -922,7 +924,7 @@ int main() {
     for(unsigned cy = top / CHUNK_HEIGHT; cy <= bottom / CHUNK_HEIGHT; ++cy)
         for(unsigned cx = left / CHUNK_WIDTH; cx <= right / CHUNK_WIDTH; ++cx)
             expected[chunks++] = (uint16_t)(cy * map.chunk_columns + cx);
-    HandlerStage stages[] = {STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE};
+    HandlerStage stages[] = {STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE, STAGE_NPCS};
     for(HandlerStage stage : stages) {
         CHECK(chunk_trace_count[stage] == chunks);
         for(unsigned i = 0; i < chunks; ++i)

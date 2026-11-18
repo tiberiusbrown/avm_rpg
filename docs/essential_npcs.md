@@ -1,9 +1,11 @@
 # Essential NPC mechanics
 
 One eight-slot pool and the 11x7 effective terrain cache bound NPC RAM/work.
-Each NPC ID owns at most one slot, so no slot is ever evicted, and occupied slots form a
-prefix: scans stop at the first empty slot. IDs are independent of object order, slot and
-coordinates. `Npc` is 18 bytes. `NpcPool` is 160 bytes on both AVM and the host. Definitions, routes, character sprites and dialogue remain in PROGMEM.
+Stable NPC identities are independent of the eight reusable actor slots. Occupied slots
+form a compact prefix; retirement moves full records without resetting other actors.
+`Npc` is 22 bytes and `NpcPool` is 180 bytes on AVM and the host. Definitions, routes,
+character sprites, resolver functions and chunk tables remain in PROGMEM. Stage scratch
+holds at most eight candidates, regardless of the identity count.
 
 The sample names NPC_VILLAGER Iona, NPC_WANDERER Silas, and NPC_ROWAN Rowan.
 `npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
@@ -33,9 +35,8 @@ remain silent; the announcement uses the ordinary close/dismiss prompt.
 
 The replacement sample defines NPC_VILLAGER (standing, actor row 9) and NPC_WANDERER
 (bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The
-villager is dynamic: it roams between two residences at the ends of the clearing, named
-by the map markers `VillagerWest` and `VillagerEast`. The wanderer is static: it stays
-at its generated `WandererHome`. Each has one line of talk dialogue, shown by
+villager follows quest flags between the map markers `VillagerWest` and `VillagerEast`,
+starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded wandering. Each has one line of talk dialogue, shown by
 `npc_dialogue` after `npc_talk`; the sign is the only other dialogue. Its welcome is
 followed by a battle and an outcome line.
 
@@ -55,38 +56,63 @@ frame counts. Rows are 0..15; `talkable=false` excludes a character from A targe
 leaving nearby tile interactions available. Both NPCs and player select directional
 frames through `actor_frame`: north/east/south/west groups of three, idle 0, gait 0,1,0,2.
 
-## Presence: NPCs are cast when a scene starts
+## Declarative locations and presence
 
-A scene is an area entry (`world_place`, which calls `npc_reset`). Presence is decided per
-scene, with these changes:
+`src/logic/npc_policies.h` specializes `NpcPolicy<ID>` for every contiguous identity
+from 1 through `NPC_ID_LIMIT - 1`. Add an identity in `npc_ids.h`, its definition in `logic/npc_definitions.h`,
+name/dialogue and policy. Name positions in Tiled; do not duplicate coordinates in C++.
+For example:
 
-- **Casting.** A reconcile casts each NPC whose home (static) or residence (dynamic) lies
-  in the current area. The NPC is placed at that home when its foot box is cached, clear
-  of terrain, the player and other NPCs, and not on a portal. On entry the cast may land
-  in view, because the whole screen changes at that moment. After entry a cast is allowed
-  only out of view: the sprite box must lie outside the view grown by one tile. A cast
-  that is blocked, or in view, waits and is retried each frame.
-- **Scene exit.** `npc_reset` retires every present NPC with `NPC_RETIRED_RESET`.
-- **Recruitment.** Adding an NPC to the party retires its map actor with `NPC_RETIRED_PARTY`.
-  Remaining actors are compacted without changing their state. Party members are excluded from casting.
+```cpp
+template <> struct NpcPolicy<NPC_VILLAGER> : AtOneOf<positions::VillagerHome,
+    When<positions::VillagerEast, [] {
+        return game.get_flag(FLAG_VILLAGER_MOVED) && game.get_flag(FLAG_VILLAGER_EAST);
+    }>,
+    When<positions::VillagerWest, [] {
+        return game.get_flag(FLAG_VILLAGER_MOVED) && !game.get_flag(FLAG_VILLAGER_EAST);
+    }>> {};
+```
 
-An NPC appears on screen by walking there, by the camera moving onto it, as part
-of the scene entry itself, or by completing off-cache residence travel. Recruitment is the
-only removal during a scene.
+The first matching `When` wins; otherwise `current()` returns the default. Predicates
+must read saved state without side effects. `AtOneOf<POS>` needs no conditional cases.
+The same declaration supplies `locations` for compile-time spatial indexing. Duplicate
+or out-of-bounds sites fail compilation. `NO_LOCATION` represents absence and is excluded
+from the index. Missing policies and invalid template identities fail compilation.
+`npc_location<ID>()` inlines the policy; `npc_location(id)` uses a dense ROM resolver table.
 
-Static NPCs keep their home for the scene, and `npc_set_destination` refuses them. Dynamic
-NPCs have a residence (`NpcPool::residence`, indexed by ID), saved with the game.
-`npc_set_destination` changes the residence and the behavior only; it never moves an NPC at
-once. For an NPC in the current area the behavior becomes `NPC_TRAVEL`, which walks it toward
-the residence. Once its feet leave the cache and its sprite is fully out of view, it
-teleports to the residence and stands there. If the destination is cached, terrain and actor
-collisions defer arrival until it is clear; uncached destinations require no terrain reads.
-A destination in another area leaves the NPC standing where it is until the
-scene ends, and then it is cast at its residence in that area.
+Every frame, after tile updates and overlap repair, `STAGE_NPCS` dispatches only cached
+chunks. Begin examines only active slots, refreshes their derived `assigned_site`, and
+retires safely unloadable actors. Chunk specializations check only policy sites in their
+chunk, exclude party members and duplicates, and offer eligible cached, collision-free,
+nonportal sites. End admits candidates in descending definition priority, then ascending
+stable ID. The buffer holds at most eight candidates. Saturation waits without evicting
+visible or pinned actors; conflicting candidates retry next frame.
+
+Scene entry permits activation throughout the whole stage, including after a teleport.
+Later activation requires a sprite outside the view plus a one-tile guard. Retirement
+requires an uncached footprint and a sprite outside the guarded view; its hook receives
+`NPC_RETIRED_UNLOADED` exactly once before prefix compaction. Recruitment uses
+`NPC_RETIRED_PARTY`; reset uses `NPC_RETIRED_RESET`. Reacquire `Npc*` after stage processing
+because compaction can change slot addresses.
+
+Quest changes retarget active ordinary actors toward the latest assigned site, independently
+of their actual coordinates, so wandering never causes spurious retargeting. Same-area
+travel remains pixel-by-pixel while cached. Once safely outside the cache and view, it
+completes logically and releases its slot; casting at the destination still obeys terrain,
+portal, actor, party and visibility checks. Other-area and absent destinations retain the
+visible actor until safe retirement. No uncached terrain is read.
+
+Unfinished `NPC_TARGET` and `NPC_ROUTE` actors are pinned even off cache. Their targets,
+waypoints, detours and pauses survive until completion or scene reset. Policy changes are
+applied after scripted motion completes. This can temporarily saturate the pool.
+
+Portrait rows are independent of identities: `FACE_ROW_COUNT` bounds `FACE_PRESENT` and
+sprite selection. NPCs without a portrait use text dialogue; sprite rows may be shared.
+Party names use `npc_name` with a safe fallback.
 
 ## Motion
 
-Apart from completing off-cache residence travel, every position change is one pixel.
+Every simulated position change is one pixel.
 Walking, targets, routes, yields and terrain escapes all go through `step()` or the escape
 step, and a frame moves an NPC at most once.
 
@@ -113,14 +139,19 @@ blocking dialogue freezes simulation.
 
 ## Cache margin and freezing
 
-An NPC simulates only while its feet are inside the effective terrain cache, and tiles
-outside the cache are solid for collision. The cache is 11x7 tiles: the 9x5 view span plus
-one margin tile on every side, so it always extends at least 16 pixels past the view. An NPC
-that walks out of view keeps walking inside that margin, then freezes in place at the cache
-edge. Residence travel instead finishes by teleporting once the NPC is outside the cache
-and fully out of view. Other behaviors resume from the same pixel when the camera brings
-the cache back over the NPC. The device QA shuttle checks this. The margin costs
-32 bytes of RAM and roughly 15–23% more reload work per frame (see `decisions.md`).
+An NPC simulates only while its feet are inside the effective 11x7 terrain cache.
+The margin lets a sprite leave view before reaching uncached terrain. A partly visible
+uncached actor freezes; once safely offscreen, ordinary actors retire and travel completes
+logically through slot release. Unfinished targets/routes keep their physical state pinned
+and resume when cached again. No offscreen terrain lookup is introduced.
+
+A successful foot-clear check is derived state within the active actor. Movement validates
+the new foot position; escape steps discard the old answer. Tile edits and reloads that
+discard edits invalidate actor answers, including edits made by synchronous hooks. Test
+fixtures that write cache cells directly must call `note_tile_edit()`, just as runtime setters
+do. This memoization does not skip the NPC stage or use dirty-chunk tracking.
+Single-site policies also need no repeated resolver call: their fixed property is generated
+from the policy itself and stored only as a derived active-actor flag.
 
 ## Movement and collision
 
@@ -173,11 +204,12 @@ deepest paths.
 
 The generic engine calls activation, movement-event, retirement and restore hooks declared in
 `logic/npc_logic.h`. The sample hooks are empty. Events cover route start/completion/invalidity
-and target reached/failed. Retirement is reported only at scene exit. Independent native policy
+and target reached/failed. Retirement reports reset, recruitment or safe unloading. Independent native policy
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Saved state includes each dynamic NPC's residence. Save version 8 writes the complete
-pointer-free live `Game` object, including NPC slots, directly from `.saved`, without a
-separate buffer or checksum. The slots, timers and stuck counts are reset and rebuilt by
-casting when a save is loaded; residences persist. Version-1–6 records are rejected.
+Save version 11 writes the complete pointer-free live `Game` directly from `.saved`,
+without a separate buffer or checksum. Quest flags are the authoritative location state.
+Restoration validates the version, player, party, flags and area bounds, then resets actors,
+scratch and movement state. The normal cache repair and complete scene-entry NPC stage
+reconstruct actors from policies. Older save versions are rejected without migration.

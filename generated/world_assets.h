@@ -31,3 +31,10 @@ inline constexpr uint8_t DUNGEON_CHUNK_COLUMNS = 6;
 inline constexpr uint8_t DUNGEON_CHUNK_ROWS = 8;
 extern uint8_t const PROGMEM DUNGEON_TILES[];
 extern Area const PROGMEM DUNGEON_AREA;
+struct StaticArea { uint8_t id, width, height, columns, rows; };
+inline constexpr StaticArea STATIC_AREAS[] = {
+    {1, 240, 248, 30, 62},
+    {2, 72, 39, 9, 10},
+    {3, 40, 26, 5, 7},
+    {4, 44, 30, 6, 8},
+};

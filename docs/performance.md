@@ -1,4 +1,55 @@
-# M0/M1 performance evidence
+# Performance evidence
+
+## Policy-derived NPC dispatch (2026-11-17)
+
+RelWithDebInfo, full LTO, current AVM SDK built from this checkout. Shipping resources:
+
+| Resource | Before | After |
+|---|---:|---:|
+| Saved live Game | 289 | 309 |
+| Ordinary static RAM | 318 | 351 |
+| Total static RAM / 1024 | 607 | 660 |
+| Code | 55,373 | 58,104 |
+| Read-only data | 311,848 | 329,581 |
+| Complete stack bound / 256 | 233 | 231 |
+
+RAM growth is fixed: 20 bytes in the reusable actor pool and 33 bytes of candidate scratch.
+It does not depend on the identity count. The QA guest uses 667 static bytes and has the
+same complete 231-byte stack bound. Optimized-IR checks verify immutable program-memory
+chunk/resolver tables, 24-bit code pointers, one saved Game and no stored map-position objects.
+The SDK stack analysis now resolves nonwrapping whole-element loads from immutable pointer
+arrays, including packed arrays produced by constant splitting. The RPG raises analysis-only
+target/iteration limits to 256/2048; it retains the 256-byte runtime stack limit.
+
+Native tests include 64 identities with 128 policy-derived sites, reversed chunk traversal,
+priority/ID selection and an eight-actor limit. Separate AVM compilation verifies render,
+dialogue and existing portrait assets with 65 as the identity limit. Portrait art is unchanged.
+
+Device-emulator functional verification passes in normal and FXC modes with timing enforcement
+explicitly disabled for that diagnostic run. Observed QA workloads in either mode:
+
+| Workload | Average cycles | Worst sampled cycles |
+|---|---:|---:|
+| Idle Grove | 280,130 | 299,155 |
+| Pixel scroll | 289,783 | 297,962 |
+| Dense collision | 294,223 | 300,566 |
+| Cave music | 200,631 | 215,045 |
+
+The complete functional scenario observed **323,373 exploration cycles**, exceeding the
+320,000-cycle target. The ordinary strict integration target still fails its unchanged timing
+assertion (first observed miss: 320,419 cycles). Performance optimization is explicitly deferred;
+these results do not establish compliance with the 50 Hz worst-case target. No global settled
+shortcut or camera/dirty-chunk skip is used for NPC discovery. The NPC stage runs each frame;
+work depends on cached chunk sites and the fixed active pool.
+
+The 22 native/asset tests, handler fixture, AVM builds, 184 AVM backend tests and 39 AVM
+linker tests pass separately from this outstanding timing failure. The device QA executable's
+`functional` mode records `within_frame_budget` while continuing behavior checks; its normal
+and FXC modes retain strict timing assertions. Instruction, C and C++ benchmarks retain their generated
+disassemblies and results in the normal benchmark reference location. These are emulator and
+link-time measurements, not physical-device measurements.
+
+## Historical M0/M1 evidence
 
 The measurements below are retained historical evidence. Current 16x16 resource,
 stage-cost and full-device results are in [tiles16_measurements.md](tiles16_measurements.md)

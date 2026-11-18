@@ -13,6 +13,7 @@
 // BattleUnit uses byte-sized bit-field allocation units; packing it would change those offsets.
 #include "battle.h"
 #include "battle_fixtures.h"
+#include "logic/npc_definitions.h"
 #include "music_catalog.h"
 
 #include <filesystem>
@@ -23,6 +24,11 @@
 #include <stdexcept>
 
 namespace fs = std::filesystem;
+
+// Functional diagnostics may continue past measured timing failures. The
+// default device suite still enforces every existing frame budget.
+static bool check_timing = true;
+static uint64_t worst_exploration_cycles;
 
 static_assert(sizeof(Game) == 104 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions),
               "update QA reader if the guest state layout changes");
@@ -168,7 +174,15 @@ struct Device {
                 last.collision = stages.collision;
                 // Cross-area updates now include a blocking fade. FadeTrace checks each of its
                 // display frames; ordinary exploration still has the single-frame CPU budget.
-                require((!proof && state().area != frame_area) || last.total <= 320000,
+                if(check_timing && (proof || state().area == frame_area) && last.total > 320000)
+                    std::cerr << "Over-budget frame: total=" << last.total
+                              << " render=" << last.render << " reload=" << last.reload
+                              << " chunks=" << last.chunks << " actors/collision=" << last.collision
+                              << " serial=" << serial() << '\n';
+                if(proof || state().area == frame_area)
+                    worst_exploration_cycles = std::max(worst_exploration_cycles, last.total);
+                require(!check_timing || (!proof && state().area != frame_area) ||
+                            last.total <= 320000,
                         "exploration frame exceeded the 320000-cycle budget");
                 frames.push_back(last);
             }
@@ -303,6 +317,23 @@ struct Device {
         advance(0, 8000000);
     }
 
+    void dismiss_dialogue() {
+        for(unsigned page = 0; page < 16; ++page) {
+            wait_for_prompt();
+            auto current = prompt();
+            require(current == DIALOGUE_MORE || current == DIALOGUE_DONE,
+                    "expected a text dialogue prompt");
+            tap(BTN_A);
+            if(current == DIALOGUE_DONE) {
+                require(prompt() == DIALOGUE_CLOSED, "dialogue did not close");
+                // Closing animation finishes before the next exploration update.
+                frame();
+                return;
+            }
+        }
+        throw std::runtime_error("dialogue exceeded the page bound");
+    }
+
     void capture(fs::path const& path) {
         // Let the OLED scan out a newly displayed modal page while simulation is paused.
         if(prompt() != DIALOGUE_CLOSED)
@@ -370,8 +401,10 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
     fixture.npcs = {};
     // Deliberately reverse the NPC slots relative to depth, with the player between.
     fixture.npcs.actors[0].id = NPC_VILLAGER;
+    fixture.npcs.actors[0].assigned_site = positions::VillagerHome;
     fixture.npcs.actors[0].actor = {(uint16_t)(spawn_x + 4), (uint16_t)(spawn_y + 12), SOUTH, 0};
     fixture.npcs.actors[1].id = NPC_WANDERER;
+    fixture.npcs.actors[1].assigned_site = positions::WandererHome;
     fixture.npcs.actors[1].actor = {spawn_x, spawn_y, SOUTH, 0};
     d.set_state(fixture);
     d.frame();
@@ -404,11 +437,11 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
             }
         }
     };
-    compose(expected, rendered.npcs.actors[1].actor, 2);
+    compose(expected, rendered.npcs.actors[1].actor, npc_definitions::WANDERER.sprite_row);
     compose(expected, rendered.player, 0);
-    compose(expected, rendered.npcs.actors[0].actor, 1);
-    compose(old_order, rendered.npcs.actors[0].actor, 1);
-    compose(old_order, rendered.npcs.actors[1].actor, 2);
+    compose(expected, rendered.npcs.actors[0].actor, npc_definitions::VILLAGER.sprite_row);
+    compose(old_order, rendered.npcs.actors[0].actor, npc_definitions::VILLAGER.sprite_row);
+    compose(old_order, rendered.npcs.actors[1].actor, npc_definitions::WANDERER.sprite_row);
     compose(old_order, rendered.player, 0);
     require(expected != old_order, "depth fixture does not distinguish the previous draw order");
     d.capture(out / "actor-depth.pgm");
@@ -453,7 +486,7 @@ static void summary(char const* name, Device& d, unsigned n, uint8_t held = 0) {
     }
 
     double fps = n > 1 ? double(n - 1) * 16000000.0 / double(last - first) : 0;
-    require(worst <= 320000, "exploration frame exceeded the 320000-cycle budget");
+    require(!check_timing || worst <= 320000, "exploration frame exceeded the 320000-cycle budget");
     std::cout << "{\"workload\":\"" << name << "\",\"frames\":" << n
               << ",\"average_cycles\":" << sum / n << ",\"worst_cycles\":" << worst
               << ",\"average_render_display_cycles\":" << render / n << ",\"observed_fps\":" << fps
@@ -568,7 +601,7 @@ struct FadeTrace {
                 worst = std::max(worst, frame->cycle - (frame - 1)->cycle);
         }
         // Allow interrupt jitter around the 320,000-cycle frame period, but no missed frame.
-        require(worst < 336000, "battle transition missed its 50 Hz frame budget");
+        require(!check_timing || worst < 336000, "battle transition missed its 50 Hz frame budget");
         std::cout << "{\"workload\":\"" << name << "\",\"fade_frames\":16,"
                   << "\"worst_frame_cycles\":" << worst << ",\"budget_cycles\":320000}\n";
     }
@@ -640,7 +673,7 @@ struct PauseTiming {
         // Preserve the 50 Hz budget with interrupt jitter, without prescribing animation steps.
         if(worst >= 336000)
             std::cerr << name << " worst display interval: " << worst << " cycles\n";
-        require(worst < 336000, "pause display missed its 50 Hz frame budget");
+        require(!check_timing || worst < 336000, "pause display missed its 50 Hz frame budget");
         uint64_t elapsed = device.ab->core_state.cpu.cycle_count - begin;
         require(elapsed < 16000000, "pause interaction exceeded one second");
         std::cout << "{\"workload\":\"" << name << "\",\"display_intervals\":" << intervals
@@ -700,7 +733,8 @@ static void verify_options_handoff(FadeTrace const& trace) {
             if(i % 128 >= 39)
                 require(frame.pixels[i] == source.pixels[i],
                         "world brightened during Audio handoff");
-        require(!previous || frame.cycle - previous < 336000, "pause handoff missed a frame");
+        require(!check_timing || !previous || frame.cycle - previous < 336000,
+                "pause handoff missed a frame");
         previous = frame.cycle;
     } while((position + 8) / 16);
 
@@ -721,7 +755,7 @@ static void verify_options_handoff(FadeTrace const& trace) {
                     "Audio changed the world's half fade");
         // The first Audio image has more drawing work than the outgoing empty pause image.
         // Subsequent presentations must keep the usual 50 Hz cadence.
-        require(frame.cycle - previous < (first_options_frame ? 480000 : 336000),
+        require(!check_timing || frame.cycle - previous < (first_options_frame ? 480000 : 336000),
                 "Audio handoff missed a frame");
         previous = frame.cycle;
     } while(position != AUDIO_WIDTH * 16);
@@ -1646,8 +1680,12 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
 int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 12,
             "device_tests package game_address marker_address serial_address "
-            "output_directory normal|fxc|proof|smoke|pause|battle|sounds dialogue_address phase_address "
+            "output_directory normal|fxc|proof|smoke|pause|battle|sounds|functional "
+            "dialogue_address phase_address "
             "[battle_pointer_address [battle_ready_address [panel_address]]]");
+    check_timing = std::string(argv[6]) != "functional";
+    if(!check_timing)
+        std::cout << "{\"timing_checks_enforced\":false,\"mode\":\"functional\"}\n";
     fs::path package = argv[1], out = argv[5];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[2]), m = std::stoul(argv[3]), s = std::stoul(argv[4]);
@@ -1800,14 +1838,13 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     require(d.prompt() == DIALOGUE_TYPING, "villager talk did not open dialogue");
     d.wait_for_typing();
-    require(d.prompt() == DIALOGUE_DONE, "villager dialogue did not reach its final prompt");
+    require(d.prompt() == DIALOGUE_MORE || d.prompt() == DIALOGUE_DONE,
+            "villager dialogue did not reach a text prompt");
     d.capture(out / "npc-dialogue.pgm");
-    d.advance(0, 8000000);
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CLOSED, "villager dialogue did not close");
+    d.dismiss_dialogue();
 
     // Each conversation sends the villager to the other end of the clearing. It walks while
-    // visible, and leaving view never teleports it: it waits in its slot until seen again.
+    // visible; off-cache travel can then release its slot and finish at the policy site.
     auto villager_in = [](Game const& g) -> Npc const* {
         for(auto const& n : g.npcs.actors)
             if(n.id == NPC_VILLAGER)
@@ -1826,13 +1863,7 @@ int main(int argc, char** argv) try {
         d.set_state(g);
         d.advance(0, 800000);
     };
-    auto close_villager_dialogue = [&]() {
-        d.wait_for_typing();
-        require(d.prompt() == DIALOGUE_DONE, "villager dialogue did not reach its final prompt");
-        d.advance(0, 8000000);
-        d.tap(BTN_A);
-        require(d.prompt() == DIALOGUE_CLOSED, "villager dialogue did not close");
-    };
+    auto close_villager_dialogue = [&]() { d.dismiss_dialogue(); };
     TilePos const west = positions::VillagerWest, east = positions::VillagerEast;
 
     // A device slice must keep the villager in its slot and move it at most a couple of
@@ -1849,19 +1880,18 @@ int main(int argc, char** argv) try {
         d.advance(0, 533334);
         Game g = d.state();
         auto const* v = villager_in(g);
-        require(v, "villager lost its slot instead of walking");
+        if(!v) {
+            require(!(vx < g.camera.x + 128 && vx + TILE > g.camera.x && vy < g.camera.y + 64 &&
+                      vy + TILE > g.camera.y),
+                    "villager retired while visible");
+            return;
+        }
         int dx = (int)v->actor.x - (int)vx, dy = (int)v->actor.y - (int)vy;
         dx = dx < 0 ? -dx : dx;
         dy = dy < 0 ? -dy : dy;
         require(dx + dy <= 2, "villager jumped instead of walking");
         vx = v->actor.x;
         vy = v->actor.y;
-    };
-    auto near_stop = [&](uint16_t x, uint16_t y) {
-        int dx = (int)vx - (int)x, dy = (int)vy - (int)y;
-        dx = dx < 0 ? -dx : dx;
-        dy = dy < 0 ? -dy : dy;
-        return dx + dy <= 4;
     };
     auto villager_visible = [&](Game const& g) {
         auto const* v = villager_in(g);
@@ -1884,8 +1914,15 @@ int main(int argc, char** argv) try {
     // out of view and stays in its slot, where it can walk no farther. It never teleports home.
     {
         Game g = d.state();
-        require(g.npcs.residence[NPC_VILLAGER] == east, "talk did not send the villager east");
+        require(g.get_flag(FLAG_VILLAGER_MOVED) && g.get_flag(FLAG_VILLAGER_EAST),
+                "talk did not send the villager east");
         auto const* v = villager_in(g);
+        if(v && v->behavior != NPC_TRAVEL)
+            std::cerr << "Iona after talk: behavior=" << unsigned(v->behavior)
+                      << " derived=" << unsigned(v->policy_pending)
+                      << " site=" << unsigned(v->assigned_site.area) << ','
+                      << unsigned(v->assigned_site.x) << ',' << unsigned(v->assigned_site.y)
+                      << " pos=" << v->actor.x << ',' << v->actor.y << " ticks=" << g.ticks << '\n';
         require(v && v->behavior == NPC_TRAVEL, "villager did not walk toward the east corner");
     }
     track_villager();
@@ -1897,20 +1934,21 @@ int main(int argc, char** argv) try {
     require(walked > 30, "villager left view without walking");
     for(unsigned i = 0; i < 60; ++i)
         step_villager();
-    require(villager_in(d.state()), "villager vanished after leaving view");
-    require(d.state().npcs.residence[NPC_VILLAGER] == east, "villager lost its east residence");
+    // Safe off-cache retirement is allowed; quest state remains authoritative.
+    require(d.state().get_flag(FLAG_VILLAGER_MOVED) && d.state().get_flag(FLAG_VILLAGER_EAST),
+            "villager lost its east residence");
 
-    // The player walks back east. The villager resumes from where it stopped, not from home.
-    uint16_t stopped_x = vx, stopped_y = vy;
+    // Approach the east site through the cache margin before bringing it into view.
+    place_at((east.x - 6) * TILE + 8, east.y * TILE, EAST);
     place_player(east.x - 1, east.y, EAST);
     track_villager();
-    require(near_stop(stopped_x, stopped_y), "villager was not where it stopped");
+    require(vx == east.x * TILE && vy == east.y * TILE,
+            "villager did not complete its off-cache east journey");
     for(unsigned i = 0; i < 120; ++i)
         step_villager();
     d.capture(out / "npc-east.pgm");
 
-    // Leg two: a talk where it stopped sends it west. It walks out of view on its own, stays in
-    // its slot, and resumes from the same place when the player brings it back into view.
+    // Leg two: another talk sends it west; its visible movement remains continuous.
     {
         Game g = d.state();
         require(villager_in(g), "villager missing before the second talk");
@@ -1919,7 +1957,7 @@ int main(int argc, char** argv) try {
     d.tap(BTN_A);
     require(d.prompt() == DIALOGUE_TYPING, "talking to the villager did not open dialogue");
     close_villager_dialogue();
-    require(d.state().npcs.residence[NPC_VILLAGER] == west,
+    require(d.state().get_flag(FLAG_VILLAGER_MOVED) && !d.state().get_flag(FLAG_VILLAGER_EAST),
             "second talk did not send the villager west");
     track_villager();
     walked = 0;
@@ -1930,12 +1968,11 @@ int main(int argc, char** argv) try {
     require(walked > 30, "villager left view without walking west");
     for(unsigned i = 0; i < 60; ++i)
         step_villager();
-    require(villager_in(d.state()), "villager vanished after leaving view on the way west");
-    stopped_x = vx;
-    stopped_y = vy;
+    place_at((west.x - 6) * TILE + 8, west.y * TILE, EAST);
     place_player(west.x + 2, west.y, EAST);
     track_villager();
-    require(near_stop(stopped_x, stopped_y), "villager was not where it stopped");
+    require(vx == west.x * TILE && vy == west.y * TILE,
+            "villager did not complete its off-cache west journey");
     for(unsigned i = 0; i < 120; ++i)
         step_villager();
     d.capture(out / "npc-west.pgm");
@@ -2129,6 +2166,9 @@ int main(int argc, char** argv) try {
     require(invalid_continue.music_enabled(), "new game after a corrupt save has no music");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
                  "scrolling with the animated pause menu\"}\n";
+    std::cout << "{\"worst_exploration_cycles\":" << worst_exploration_cycles
+              << ",\"within_frame_budget\":"
+              << (worst_exploration_cycles <= 320000 ? "true" : "false") << "}\n";
     return 0;
 } catch(std::exception const& error) {
 

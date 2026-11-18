@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "chunk.h"
 #include "map_positions.h"
 #include "chunk.h"
 #include "world_assets.h"
@@ -26,14 +27,6 @@ static bool replace_route;
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition DEFINITION{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
     return id == NPC_VILLAGER ? &DEFINITION : nullptr;
-}
-
-bool npc_is_dynamic(NPC_ID) {
-    return true;
-}
-
-TilePos npc_home(NPC_ID) {
-    return positions::VillagerHome;
 }
 
 NpcRoute const PROGMEM* npc_route(uint8_t id) {
@@ -107,6 +100,7 @@ int main() {
     CHECK(events[NPC_EVENT_ROUTE_INVALID] == 1 && n.behavior == NPC_STAND);
     CHECK(npc_move_to(n.id, n.actor.x + 1, n.actor.y));
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    note_tile_edit();
     for(unsigned i = 0; i < NPC_STUCK_FRAMES; ++i)
         npc_update();
     CHECK(events[NPC_EVENT_TARGET_FAILED] == 1);
@@ -133,5 +127,46 @@ int main() {
     unsigned count = retired;
     npc_reset();
     CHECK(retired == count + present);
+    // Absence and other-area assignments retain visible actors until safe unloading.
+    game_new();
+    CHECK(npc_find(NPC_VILLAGER));
+    game.set_flag(FLAG_VILLAGER_MOVED);
+    update_visible_world(0, false);
+    CHECK(npc_find(NPC_VILLAGER));
+    game.player.x = positions::TestField.x * TILE;
+    game.player.y = positions::TestField.y * TILE;
+    unsigned before_unload = retired;
+    update_visible_world(0, false);
+    CHECK(!npc_find(NPC_VILLAGER) && retired == before_unload + 1);
+    CHECK(last_retirement == NPC_RETIRED_UNLOADED);
+    update_visible_world(0, false);
+    CHECK(retired == before_unload + 1);
+
+    game_new();
+    game.set_flag(FLAG_VILLAGER_EAST);
+    update_visible_world(0, false);
+    CHECK(npc_find(NPC_VILLAGER) && npc_location(NPC_VILLAGER).area == AREA_CAVE);
+    game.player.x = positions::TestField.x * TILE;
+    game.player.y = positions::TestField.y * TILE;
+    update_visible_world(0, false);
+    CHECK(!npc_find(NPC_VILLAGER));
+    TilePos cave_site = npc_location(NPC_VILLAGER);
+    world_enter(cave_site.area, (cave_site.x - 1) * TILE, cave_site.y * TILE, EAST);
+    CHECK(npc_find(NPC_VILLAGER));
+    CHECK(npc_find(NPC_VILLAGER)->assigned_site == cave_site);
+
+    game_new();
+    CHECK(npc_follow_route(NPC_VILLAGER, 2));
+    game.set_flag(FLAG_VILLAGER_EAST);
+    game.player.x = positions::TestField.x * TILE;
+    game.player.y = positions::TestField.y * TILE;
+    update_visible_world(0, false);
+    auto pinned = npc_find(NPC_VILLAGER);
+    CHECK(pinned && pinned->behavior == NPC_ROUTE && pinned->route == 2);
+    CHECK(pinned->assigned_site.area == AREA_CAVE && pinned->policy_pending);
+    CHECK(npc_move_to(NPC_VILLAGER, pinned->actor.x + 1, pinned->actor.y));
+    update_visible_world(0, false);
+    CHECK(npc_find(NPC_VILLAGER)->behavior == NPC_TARGET);
+
     printf("PASS independent NPC lifecycle policy: %u checks\n", checks);
 }

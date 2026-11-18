@@ -434,12 +434,13 @@ class Pipeline(unittest.TestCase):
                     byte = data[2 + frame * 128 + y // 8 * 32 + x]
                     self.assertEqual((byte >> (y % 8)) & 1, bool(r))
 
-    def test_face_rows_follow_npc_ids(self):
+    def test_face_rows_are_independent_of_npc_ids(self):
         path = self.root / "assets/images/faces32.png"
         image = Image.open(path).convert("RGBA")
         rows = image.height // 32
         source = generate(self.root)["sprites.cpp"]
-        self.assertIn(f"static_assert(NPC_ID_LIMIT == {rows},", source)
+        self.assertIn(f"FACE_ROW_COUNT = {rows};", source)
+        self.assertNotIn("static_assert(NPC_ID_LIMIT", source)
         present = re.search(r"FACE_PRESENT\[\] = \{([^}]*)\}", source).group(1).split(", ")
         self.assertEqual(len(present), rows)
         self.assertEqual(present[0], "0")  # NPC_NONE has no portrait
@@ -672,10 +673,8 @@ class Pipeline(unittest.TestCase):
         after = export_world(self.root)
         self.assertIn(f"GroveSign{{1, {tx}, {ty}}}", before["map_positions.h"])
         self.assertIn(f"GroveSign{{1, {nx}, {ty}}}", after["map_positions.h"])
-        body = after["chunk_dispatch.cpp"].split(
-            f"static void run_chunk_1_{nx // 8}_{ty // 4}()", 1
-        )[1]
-        self.assertIn("Handler<positions::GroveSign, STAGE>{}.read_sign()", body)
+        self.assertIn("MapSite<positions::GroveSign, MapOperation_read_sign>",
+                      after["map_handler_catalog.h"])
 
     def test_maximum_map_and_high_chunk_index(self):
         width, height = MAX_WIDTH, MAX_HEIGHT
@@ -688,9 +687,8 @@ class Pipeline(unittest.TestCase):
         self.assertIn(f"OUTDOOR_CHUNK_COLUMNS = {columns}", result["world_assets.h"])
         self.assertIn(f"OUTDOOR_CHUNK_ROWS = {rows}", result["world_assets.h"])
         last = (rows - 1) * columns + columns - 1
-        self.assertIn(
-            f"case {last}: run_chunk_1_{columns - 1}_{rows - 1}<STAGE>()", result["chunk_dispatch.cpp"]
-        )
+        self.assertEqual(last, 1859)
+        self.assertIn(f"{{1, {width}, {height}, {columns}, {rows}}}", result["world_assets.h"])
         data = (
             result["map_assets.cpp"]
             .split("OUTDOOR_TILES[] = {", 1)[1]
@@ -731,12 +729,9 @@ class Pipeline(unittest.TestCase):
         result = export_world(self.root)
         self.assertIn(f"GroveSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
         for i, (dx, dy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
-            body = (
-                result["chunk_dispatch.cpp"]
-                .split(f"static void run_chunk_1_{rx // 8 + dx}_{ry // 4 + dy}()", 1)[1]
-                .split("\ntemplate <HandlerStage STAGE>", 1)[0]
-            )
-            self.assertIn(f"Handler<positions::GroveSign_{i}, STAGE>", body)
+            self.assertIn(f"MapSite<positions::GroveSign_{i}, MapOperation_read_sign>",
+                          result["map_handler_catalog.h"])
+            self.assertIn(f"GroveSign_{i}{{1, {rx + dx}, {ry + dy}}}", result["map_positions.h"])
 
     def test_fractional_rectangle_edges(self):
         tx, ty = self.tile_of("GroveSign")
@@ -796,12 +791,12 @@ class Pipeline(unittest.TestCase):
         result = export_world(self.root)
         self.assertEqual(
             result["handler_defaults.h"].count(
-                "void pending_action(Tag<POS, STAGE>) {}"
+                "EmptyHandler pending_action(Tag<POS, STAGE>) { return {}; }"
             ),
             1,
         )
         self.assertIn(
-            "Handler<positions::Pending, STAGE>", result["chunk_dispatch.cpp"]
+            "MapSite<positions::Pending, MapOperation_pending_action>", result["map_handler_catalog.h"]
         )
         self.assertIn("GENERATED_TILE_1_", result["handler_defaults.h"])
         self.assertNotIn("GENERATED_TILE", result["map_positions.h"])

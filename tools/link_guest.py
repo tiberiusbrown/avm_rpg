@@ -21,6 +21,9 @@ command = [
     "-flto=full",
     "--avm-startup=crt0_sketch.o",
     "-Wl,--avm-print-stack-usage,--avm-print-stack-gaps,--save-temps=opt",
+    # Bound analysis to the byte-sized identity catalog and its chunk targets.
+    "-Wl,-mllvm,-avm-stack-target-limit=256",
+    "-Wl,-mllvm,-avm-stack-analysis-iterations=2048",
     *args.objects,
     "-o",
     str(elf),

@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "chunk.h"
 #include "npc.h"
 #include "tile_ids.h"
 #include "map_positions.h"
@@ -22,18 +23,6 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition PROGMEM ONE{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
     static constexpr NpcDefinition PROGMEM TWO{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 2, 0};
     return id == NPC_VILLAGER ? &ONE : id == NPC_WANDERER ? &TWO : nullptr;
-}
-
-TilePos npc_home(NPC_ID id) {
-    if(id == NPC_VILLAGER)
-        return positions::VillagerEast; // Outside the start cache.
-    if(id == NPC_WANDERER)
-        return positions::WandererHome;
-    return {};
-}
-
-bool npc_is_dynamic(NPC_ID) {
-    return true;
 }
 
 void npc_on_activate(Npc&) {}
@@ -76,16 +65,21 @@ static void test_entry_casts_residents() {
 // left to the corner-free scenarios.
 static void test_casts_wait_for_spots_out_of_view() {
     game_new();
-    game.npcs.residence[NPC_VILLAGER] = positions::VillagerHome; // Beside the player, in view.
-    game.npcs.residence[NPC_WANDERER] = positions::VillagerEast; // Beyond the cache.
+    game.set_flag(FLAG_VILLAGER_MOVED);
     place_player(positions::VillagerHome.x - 1, positions::VillagerHome.y);
     update_visible_world(0, false); // Refreshes the cache for this view before the edits below.
     npc_reset();
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
-    npc_reconcile(); // Entry finds no clear spot.
+    note_tile_edit();
+    npc_stage_begin();
+    process_all_chunks<STAGE_NPCS>();
+    npc_stage_end(); // Entry finds no clear spot.
     CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
     memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
-    npc_reconcile(); // The villager's home is in view, so it waits. The wanderer's is not cached.
+    note_tile_edit();
+    npc_stage_begin();
+    process_all_chunks<STAGE_NPCS>();
+    npc_stage_end(); // The villager's home is in view, so it waits. The wanderer's is not cached.
     CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
 }
 

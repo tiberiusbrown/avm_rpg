@@ -4,83 +4,138 @@
 #include "chunk.h"
 #include "map_positions.h"
 namespace handler_impl {
+struct EmptyHandler {};
+template <typename T> inline constexpr bool authored_handler = false;
+template <> inline constexpr bool authored_handler<void> = true;
 template <TilePos POS, HandlerStage STAGE> struct Tag {};
 template <TilePos POS> using Gameplay = Tag<POS, STAGE_GAMEPLAY>;
 template <TilePos POS> using Tiles = Tag<POS, STAGE_TILES>;
 template <TilePos POS> using Dialogue = Tag<POS, STAGE_DIALOGUE>;
 template <TilePos POS, HandlerStage STAGE>
-void enter_house(Tag<POS, STAGE>) {}
+EmptyHandler enter_house(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void leave_house(Tag<POS, STAGE>) {}
+EmptyHandler leave_house(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void light_orb(Tag<POS, STAGE>) {}
+EmptyHandler light_orb(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void open_chest(Tag<POS, STAGE>) {}
+EmptyHandler open_chest(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void open_door(Tag<POS, STAGE>) {}
+EmptyHandler open_door(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void press_plate(Tag<POS, STAGE>) {}
+EmptyHandler press_plate(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void read_sign(Tag<POS, STAGE>) {}
+EmptyHandler read_sign(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void show_message(Tag<POS, STAGE>) {}
+EmptyHandler show_message(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void show_state(Tag<POS, STAGE>) {}
+EmptyHandler show_state(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void steam_vent(Tag<POS, STAGE>) {}
+EmptyHandler steam_vent(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void take_passage(Tag<POS, STAGE>) {}
+EmptyHandler take_passage(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void update_wanderer(Tag<POS, STAGE>) {}
+EmptyHandler update_wanderer(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-void use_lever(Tag<POS, STAGE>) {}
+EmptyHandler use_lever(Tag<POS, STAGE>) { return {}; }
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_enter_house() {
+    return authored_handler<decltype(enter_house(Tag<POS, STAGE>{}))>;
+}
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_enter_house() {
     enter_house(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_leave_house() {
+    return authored_handler<decltype(leave_house(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_leave_house() {
     leave_house(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_light_orb() {
+    return authored_handler<decltype(light_orb(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_light_orb() {
     light_orb(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_open_chest() {
+    return authored_handler<decltype(open_chest(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_open_chest() {
     open_chest(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_open_door() {
+    return authored_handler<decltype(open_door(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_open_door() {
     open_door(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_press_plate() {
+    return authored_handler<decltype(press_plate(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_press_plate() {
     press_plate(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_read_sign() {
+    return authored_handler<decltype(read_sign(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_read_sign() {
     read_sign(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_show_message() {
+    return authored_handler<decltype(show_message(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_show_message() {
     show_message(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_show_state() {
+    return authored_handler<decltype(show_state(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_show_state() {
     show_state(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_steam_vent() {
+    return authored_handler<decltype(steam_vent(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_steam_vent() {
     steam_vent(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_take_passage() {
+    return authored_handler<decltype(take_passage(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_take_passage() {
     take_passage(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_update_wanderer() {
+    return authored_handler<decltype(update_wanderer(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
 void dispatch_update_wanderer() {
     update_wanderer(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_use_lever() {
+    return authored_handler<decltype(use_lever(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_use_lever() {

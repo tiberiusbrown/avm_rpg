@@ -29,9 +29,9 @@ width and destination stride equal to CACHE_WIDTH. All consumers read through
    movement's tile-entry information.
 2. Enumerate live chunks in row-major order and finish STAGE_GAMEPLAY. Native
    handlers perform nonblocking changes.
-3. Recompute the camera and reload all 45 baseline cache entries.
+3. Recompute the camera and reload all 77 cache entries.
 4. Finish STAGE_TILES over all live chunks, clipping overrides to the cache.
-5. Repair blocked player terrain; cast NPCs of the area that lack a slot, then
+5. Repair blocked player terrain; complete `STAGE_NPCS` over cached chunks, then
    update each active NPC once. Fresh A freezes ordinary simulation. NPC targeting
    can consume A.
 6. Finish STAGE_DIALOGUE after the complete cache exists. Blocking dialogue
@@ -66,24 +66,32 @@ methods select ordinary `handler_impl` tag overloads with empty fallbacks.
 Rectangles expand into independently owned tile calls. Full LTO verifies one
 Game, no retained Game-reference helper arguments and no stored TilePos constants.
 
+Python exports `AllMapHandlers` in `map_handler_catalog.h` and compile-time area dimensions
+in `world_assets.h`. `src/chunk_dispatch.cpp` combines these with the automatically enumerated
+NPC policies. C++20 folds filter sites by chunk; `if constexpr` retains only occupied function
+specializations. Each area/stage has a dense immutable ROM function-pointer table; lookup
+validates byte coordinates and uses a 16-bit flattened index, including index 1859.
+Generated fallback handlers return a marker, while authored overloads return void. Dependent
+call traits omit no-op stages without a separately authored stage mask. Authored ordering and
+teleport short-circuiting are preserved. Tile and NPC stages always finish destination work.
+
 Named rectangles additionally export query-only TileRegion metadata. `set_tile`
 validates logical area/bounds and clips against the resident cache. A scrolling
-viewport touches at most four chunks. Teleports stop outgoing gameplay/dialogue,
-clear the NPC pool and rebuild destination tiles; destination gameplay begins
+viewport touches at most nine chunks. Teleports stop outgoing gameplay/dialogue,
+clear the NPC pool and rebuild destination tiles and the full NPC stage; destination gameplay begins
 on the next update. Save/load uses the same cache-based terrain repair.
 
 ## Content reset and save boundary
 
 The former gate/bridge/platform, interior, corridor, courier and relocation quests
-are removed. The sample has one clearing, one sign dialogue that starts a battle, and two
-NPC anchors. The battle runs in the Dialogue stage like dialogue, and it uses its own
+are removed. The sample has one clearing, one sign dialogue that starts a battle, and three
+NPC anchors for Iona, Silas and Rowan. The battle runs in the Dialogue stage like dialogue, and it uses its own
 PROGMEM battlefield rather than the chunk cache.
 The generic flags, staged handlers, movement, route and save mechanisms remain.
-There is one reserved flag bit and no current quest state.
+Quest flags include Iona's moved/east state, used to derive her current logical site.
 
-SAVE_VERSION is now 9. Versions 1–8 are deliberately rejected. The live pointer-free
-`Game` object occupies `.saved`, with no duplicate serialization buffer or checksum.
-Startup loads and validates the object before setting `save_exists`, then prepares the title's
-new-game defaults. Saving writes the live object and sets the flag without readback. Loads
-validate version, stats, flags, bounds and NPC residences before placing the player; blocked
-positions are repaired after the area cache loads. Runtime casts, cache and ticks are rebuilt.
+SAVE_VERSION is 11. Older records are deliberately rejected. The live pointer-free
+`Game` occupies `.saved`, with no duplicate serialization buffer or checksum. Loads
+validate version, stats, party, flags and bounds before placing the player. Terrain cache,
+ticks, active slots, assigned-site snapshots and candidate scratch are rebuilt through
+ordinary scene-entry processing. Blocked player positions use cache-based overlap repair.

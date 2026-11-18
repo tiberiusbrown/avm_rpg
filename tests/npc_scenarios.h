@@ -71,6 +71,7 @@ __attribute__((noinline)) static void npc_test_foot_geometry() {
     game.cache.origin_tx = positions::TestField.x;
     game.cache.origin_ty = positions::TestField.y;
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    note_tile_edit();
     set_tile(scene_tile(3, 3), TILE_GRASS_06);
     CHECK(terrain_clear(scene_x(44), scene_y(40)) && terrain_clear(scene_x(52), scene_y(48)));
     CHECK(!terrain_clear(scene_x(43), scene_y(40)) && !terrain_clear(scene_x(53), scene_y(40)));
@@ -105,6 +106,7 @@ __attribute__((noinline)) static void npc_test_corridor(bool can_detour) {
     game.cache.origin_tx = positions::TestField.x;
     game.cache.origin_ty = positions::TestField.y;
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    note_tile_edit();
     for(uint8_t x = 0; x < CACHE_WIDTH; ++x)
         set_tile(scene_tile(x, 3), TILE_GRASS_06);
     uint16_t y = scene_y(can_detour ? 48 : 44);
@@ -144,6 +146,7 @@ __attribute__((noinline)) static void npc_test_yield() {
     game.cache.origin_tx = positions::TestField.x;
     game.cache.origin_ty = positions::TestField.y;
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    note_tile_edit();
     for(uint8_t x = 0; x < CACHE_WIDTH; ++x)
         set_tile(scene_tile(x, 3), TILE_GRASS_06);
     set_tile(scene_tile(3, 2), TILE_GRASS_06);
@@ -237,6 +240,7 @@ static void run_npc_scenarios() {
     CHECK(npc_find(NPC_VILLAGER));
     // With no clear tile left, nothing walks out and no NPC is removed.
     memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    note_tile_edit();
     Npc* stuck = npc_find(NPC_VILLAGER);
     uint16_t sx = stuck->actor.x, sy = stuck->actor.y;
     npc_update();

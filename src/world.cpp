@@ -24,6 +24,7 @@ static bool player_foot_clear_known() {
 void note_tile_edit() {
     foot_clear_known = false;
     cache_edited = true;
+    game.npcs.terrain_dirty = 1;
 }
 
 #ifndef RPG_AVM
@@ -115,9 +116,9 @@ bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y) {
 }
 
 #ifndef RPG_AVM
-uint16_t chunk_trace[3][CHUNK_TRACE_CAPACITY];
-uint8_t chunk_trace_count[3];
-unsigned feature_trace_count[3];
+uint16_t chunk_trace[4][CHUNK_TRACE_CAPACITY];
+uint8_t chunk_trace_count[4];
+unsigned feature_trace_count[4];
 #endif
 
 template <uint8_t ROW = 0>
@@ -184,6 +185,7 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
 void reload_tile_cache() {
     game.camera = game_camera();
     if(cache_edited) {
+        game.npcs.terrain_dirty = 1;
         foot_clear_known = false;
         cache_edited = false;
     }
@@ -410,25 +412,6 @@ static bool eject_actor(Actor& actor) {
     return false;
 }
 
-template <HandlerStage STAGE> void process_all_chunks() {
-    Camera camera = STAGE == STAGE_GAMEPLAY ? game_camera() : game.camera;
-    uint8_t left = (uint8_t)(camera.x >> TILE_SHIFT), top = (uint8_t)(camera.y >> TILE_SHIFT);
-    uint16_t right = (uint16_t)left + CACHE_WIDTH - 1;
-    uint16_t bottom = (uint16_t)top + CACHE_HEIGHT - 1;
-    if(right >= game.dimensions.width_tiles)
-        right = game.dimensions.width_tiles - 1;
-    if(bottom >= game.dimensions.height_tiles)
-        bottom = game.dimensions.height_tiles - 1;
-    for(uint8_t cy = (uint8_t)(top / CHUNK_HEIGHT); cy <= bottom / CHUNK_HEIGHT; ++cy) {
-        for(uint8_t cx = (uint8_t)(left / CHUNK_WIDTH); cx <= right / CHUNK_WIDTH; ++cx) {
-            run_chunk<STAGE>({game.area, cx, cy});
-            if constexpr(STAGE != STAGE_TILES) {
-                if(teleported)
-                    return;
-            }
-        }
-    }
-}
 
 void refresh_tile_cache() {
     RPG_PHASE(4);
@@ -466,7 +449,9 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
     refresh_tile_cache();
     RPG_PHASE(6);
     repair_player_overlap();
-    npc_reconcile();
+    npc_stage_begin();
+    process_all_chunks<STAGE_NPCS>();
+    npc_stage_end();
     if(!teleported) {
         if(simulate && !(pressed & BTN_A))
             npc_update();
@@ -479,6 +464,9 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
             refresh_tile_cache();
             RPG_PHASE(6);
             repair_player_overlap();
+            npc_stage_begin();
+            process_all_chunks<STAGE_NPCS>();
+            npc_stage_end();
         }
     }
     RPG_PHASE(6);
@@ -508,7 +496,3 @@ void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     if(world_place(area, x, y, facing))
         update_visible_world(0, false);
 }
-
-template void process_all_chunks<STAGE_GAMEPLAY>();
-template void process_all_chunks<STAGE_TILES>();
-template void process_all_chunks<STAGE_DIALOGUE>();

@@ -49,12 +49,23 @@ def inspect_lto(compiler, elf):
             r"^@[^\n]*(?:global|constant) %struct\.TilePos\b[^\n]*",
             ir, re.MULTILINE)
         assert not stored_positions, f"map tile position storage survived LTO: {stored_positions}"
+    dispatch_tables = []
+    if elf.stem != "m0_proof":
+        dispatch_tables = [line for line in ir.splitlines()
+                           if line.startswith("@") and "functionsE =" in line
+                           and ("ChunkTable" in line or "Resolvers" in line)]
+        assert dispatch_tables, "expected ROM chunk/resolver tables"
+        assert all("addrspace(1) constant" in line for line in dispatch_tables), (
+            "dispatch tables must be immutable program-memory objects")
+        assert 'p1:24:8' in ir, "code pointers must retain their 24-bit representation"
     result = {
         "game_reference_arguments_eliminated": True,
         "unconditional_global_game": elf.stem != "m0_proof",
         "live_game_saved_without_buffer": elf.stem != "m0_proof",
         "retained_game_rule_functions": signatures,
         "map_tile_position_storage_eliminated": True,
+        "rom_dispatch_tables": len(dispatch_tables),
+        "code_pointer_bits": 24,
         "optimized_ir": ir_path.name,
     }
     Path(str(elf) + ".lto.json").write_text(json.dumps(result, indent=2) + "\n")

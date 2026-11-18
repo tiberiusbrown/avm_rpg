@@ -4,7 +4,7 @@
 #include "rpg.h"
 #include "npc.h"
 
-enum HandlerStage : uint8_t { STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE };
+enum HandlerStage : uint8_t { STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE, STAGE_NPCS };
 
 // Frame events are shared by gameplay handlers and reset for each update.
 extern uint8_t frame_pressed;
@@ -104,9 +104,9 @@ void refresh_tile_cache();
 // Test-only trace: no guest storage or per-feature registry.
 // A scrolling window intersects at most 3x3 chunks.
 inline constexpr uint8_t CHUNK_TRACE_CAPACITY = 9;
-extern uint16_t chunk_trace[3][CHUNK_TRACE_CAPACITY];
-extern uint8_t chunk_trace_count[3];
-extern unsigned feature_trace_count[3];
+extern uint16_t chunk_trace[4][CHUNK_TRACE_CAPACITY];
+extern uint8_t chunk_trace_count[4];
+extern unsigned feature_trace_count[4];
 #endif
 
 #endif

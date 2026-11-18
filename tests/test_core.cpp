@@ -240,7 +240,7 @@ static void saves() {
     CHECK(save_restore());
     CHECK(game.gold == 37 && game.get_flag(FLAG_RESERVED));
     CHECK(!game.ticks && !game.player.walking);
-    CHECK(game.npcs.residence[NPC_VILLAGER] == saved.npcs.residence[NPC_VILLAGER]);
+    CHECK(game.flags.get_flag(FLAG_VILLAGER_EAST) == saved.flags.get_flag(FLAG_VILLAGER_EAST));
     update_visible_world(0, false);
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
     CHECK(cached_tile(positions::GroveSign) == TILE_SIGN);

@@ -19,7 +19,7 @@ immediately after saving. Party opens an eased sliding roster with four slots, s
 A new game starts with the traveler (20/20 HP, fighter movement and attack). Rowan waits southeast
 of the starting point; talking to him recruits him once (18/18 HP, fighter movement, archer attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
-Party membership and statistics are saved. The version 10 save layout rejects older saves. Journal is a placeholder. The world stays frozen while the menu is open; music continues.
+Party membership and statistics are saved. The version 11 save layout rejects older saves. Journal is a placeholder. The world stays frozen while the menu is open; music continues.
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
 building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
@@ -241,15 +241,15 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves from versions 1–8.** Save version 9 writes the live,
-pointer-free `Game` struct directly from AVM's `.saved` prefix (267 bytes), with no separate
+**This development build rejects saves older than version 11.** Version 11 writes the live,
+pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. The title shows an animated
 scene under the game's name and no menu, with Call of Venlor playing: A or B continues the saved game when the flag is set
 and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
 saved world. NPC casts, the tile cache and the animation
-tick are rebuilt when a save is loaded. Total shipping static RAM is 478 bytes,
-including the save flag and two saved audio options.
+tick are rebuilt from quest-derived policies when a save is loaded. Resource and stack
+reports are verified by the full-LTO guest link.
 
 - `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.
@@ -290,7 +290,7 @@ including the save flag and two saved audio options.
 - `assets/sfx/*.avms`: the sound effects of battles, menus, mechanisms, doors and the environment,
   one score per effect. `src/soundscape.h` and `src/soundscape.cpp` choose the environment sounds.
 - `assets/music/imported/`: FamiTracker reference files, retained for provenance.
-- `generated/`: deterministic program-memory assets and compile-time handler dispatch.
+- `generated/`: deterministic program-memory assets and compile-time map-handler catalogs.
 - `rpg.arduboy`: Arduboy FX package, refreshed by the default build.
 - `rpg.fxc.arduboy`: Arduboy FX-C package, built from the same game with FX-C
   interpreter firmware (flash chip select on HWB/PE2), also refreshed by default.
@@ -432,3 +432,10 @@ Audio timing is a manual measurement tool and is excluded from CTest. See
 See [Tiled/asset pipeline](docs/tiled_pipeline.md), [world architecture](docs/chunk_world.md),
 [NPC mechanics](docs/essential_npcs.md), [the Venlor theme](docs/venlor_theme.md), the game's recurring musical theme, and [current measurements](docs/tiles16_measurements.md).
 The M0 proof is an independent historical API diagnostic and retains its tiny test art.
+
+NPC identities use declarative C++20 `NpcPolicy<ID> : AtOneOf<...>` location policies driven
+by saved quest state. Eight reusable actor slots serve any number of authored identities.
+The four chunk stages are gameplay, tiles, NPC discovery, and dialogue, with active motion
+after discovery. C++ builds ROM dispatch tables from generated map catalogs and policy sites;
+normal exploration visits at most nine cached chunks per stage and never scans all identities.
+See [NPC authoring and lifecycle](docs/essential_npcs.md) and [chunk dispatch](docs/chunk_world.md).

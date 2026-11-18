@@ -566,12 +566,9 @@ void render_party(uint8_t revealed, bool closing) {
     avm_draw_textf(x + 4, 8, F("Party %u/%u"), game.party.count, PARTY_CAPACITY);
     avm_draw_text(x + 89, 8, F("B back"));
 
-    static char const PROGMEM* const PROGMEM NAMES[] = {F("Traveler"), F("Villager"), F("Wanderer"),
-                                                        F("Rowan")};
     static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Fighter"), F("Knight"), F("Wolf")};
     static char const PROGMEM* const PROGMEM ATTACK[] = {F("Fighter"), F("Archer"), F("Spearman"),
                                                          F("Brute"), F("Bite")};
-    static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == NPC_ID_LIMIT);
     static_assert(sizeof(MOVEMENT) / sizeof(MOVEMENT[0]) == MOVEMENT_CLASS_COUNT);
     static_assert(sizeof(ATTACK) / sizeof(ATTACK[0]) == ATTACK_CLASS_COUNT);
     for(uint8_t i = 0; i < PARTY_CAPACITY; ++i) {
@@ -581,7 +578,8 @@ void render_party(uint8_t revealed, bool closing) {
             continue;
         }
         PartyMember const& member = game.party.members[i];
-        avm_draw_text(x + 4, y, NAMES[member.id]);
+        auto name = npc_name(member.id);
+        avm_draw_text(x + 4, y, name ? name : F("Traveler"));
         avm_draw_textf(x + 60, y, F("HP %u/%u"), member.hp, member.max_hp);
         avm_draw_text(x + 4, y + 6, F("M:"));
         avm_draw_text(x + 16, y + 6, MOVEMENT[member.movement_class]);

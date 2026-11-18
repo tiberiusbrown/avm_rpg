@@ -4,6 +4,10 @@
 
 #include <string.h>
 
+#ifndef RPG_AVM
+unsigned npc_site_checks;
+#endif
+
 Npc* npc_find(NPC_ID id) {
     if(id)
         for(auto& n : game.npcs.actors) {
@@ -28,7 +32,6 @@ void npc_recruit(NPC_ID id) {
         }
         pool.actors[slot] = {};
     }
-    pool.settled = false;
 }
 
 bool npc_visible(uint16_t x, uint16_t y) {
@@ -69,16 +72,6 @@ static bool higher_priority(NPC_ID a, NPC_ID b) {
     return pa > pb || (pa == pb && a < b);
 }
 
-bool npc_destination_valid(TilePos destination) {
-    Area const PROGMEM* area = world_area(destination.area);
-    return area && destination.x < area->width && destination.y < area->height;
-}
-
-void npc_residence_defaults() {
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
-        game.npcs.residence[id] = npc_home((NPC_ID)id);
-}
-
 static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
     if(!terrain_clear(x, y))
         return false;
@@ -95,11 +88,11 @@ static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
 }
 
 static bool foot_cached_at(uint16_t x, uint16_t y) {
-    uint16_t left = (uint16_t)game.cache.origin_tx * TILE;
-    uint16_t top = (uint16_t)game.cache.origin_ty * TILE;
-    return x + FOOT_LEFT >= left && y + FOOT_TOP >= top &&
-           x + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
-           y + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
+    // Normalize the top-left foot pixel; two unsigned range checks cover both
+    // edges of each axis, including a footprint before the cache origin.
+    uint16_t dx = (uint16_t)(x + FOOT_LEFT - (uint16_t)game.cache.origin_tx * TILE);
+    uint16_t dy = (uint16_t)(y + FOOT_TOP - (uint16_t)game.cache.origin_ty * TILE);
+    return dx <= CACHE_WIDTH * TILE - FOOT_WIDTH && dy <= CACHE_HEIGHT * TILE - FOOT_HEIGHT;
 }
 
 static bool foot_cached(Npc const& n) {
@@ -107,8 +100,8 @@ static bool foot_cached(Npc const& n) {
 }
 
 // A scene casts its NPCs when it is entered. Afterwards a cast may happen only out of view, so an
-// NPC is never seen appearing. Travel outside the cache may finish at the residence;
-// otherwise only the one-pixel steps below move an NPC. No NPC is removed while its scene lasts.
+// NPC is never seen appearing. Off-cache travel completes through safe unloading;
+// cached simulation moves only one pixel per step.
 // Casts id at its home. A home that is blocked, or in view after entry, waits until it is clear
 // and out of view. The lifecycle functions stay out of line so their frames do not grow the frame
 // of update_visible_world, which the stack budget counts on every path.
@@ -144,6 +137,8 @@ static bool cast_npc(NPC_ID id, TilePos home, bool entering) {
     auto def = npc_definition(id);
     *slot = {};
     slot->id = id;
+    slot->assigned_site = home;
+    slot->policy_pending = (npc_location_is_fixed(id) ? 2 : 0) | 4;
     slot->actor = {x, y, def->facing, 0};
     slot->behavior = def->behavior;
     slot->route = def->route;
@@ -175,6 +170,7 @@ __attribute__((noinline)) static bool escape_step(Npc& n) {
                    npc_overlap((uint16_t)nx, (uint16_t)ny, other.actor.x, other.actor.y))
                     return false;
             }
+            n.policy_pending &= (uint8_t)~4;
             n.actor.x = (uint16_t)nx;
             n.actor.y = (uint16_t)ny;
             n.actor.facing = dir;
@@ -183,36 +179,111 @@ __attribute__((noinline)) static bool escape_step(Npc& n) {
     return false;
 }
 
-// Each NPC ID owns at most one slot, so none is ever evicted. Priority, then ID, orders casts.
-__attribute__((noinline)) void npc_reconcile() {
+namespace {
+struct Candidate {
+    NPC_ID id;
+    TilePos site;
+};
+
+Candidate candidates[NPC_CAPACITY];
+uint8_t candidate_count;
+
+bool protected_view(uint16_t x, uint16_t y) {
+    Camera camera = game_camera();
+    return npc_visible(x, y) || (x < camera.x + 128 + TILE && x + 2 * TILE > camera.x &&
+                                 y < camera.y + 64 + TILE && y + 2 * TILE > camera.y);
+}
+
+void retire_slot(uint8_t index) {
     auto& pool = game.npcs;
-    bool entering = pool.entering != 0;
-    pool.entering = 0;
-    // Once every available NPC holds a slot, skip casting until a reset or recruitment.
-    if(pool.settled)
-        return;
-    NPC_ID order[NPC_ID_LIMIT];
-    uint8_t count = 0;
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
-        if(party_contains((NPC_ID)id) || !npc_definition((NPC_ID)id))
-            continue;
-        uint8_t at = count++;
-        while(at > 0 && higher_priority((NPC_ID)id, order[at - 1])) {
-            order[at] = order[at - 1];
-            --at;
+    npc_on_retire(pool.actors[index], NPC_RETIRED_UNLOADED);
+    while(index + 1 < NPC_CAPACITY && pool.actors[index + 1].id) {
+        pool.actors[index] = pool.actors[index + 1];
+        ++index;
+    }
+    pool.actors[index] = {};
+}
+} // namespace
+
+RPG_NOINLINE void npc_stage_begin() {
+#ifndef RPG_AVM
+    npc_site_checks = 0;
+#endif
+    candidate_count = 0;
+    auto& pool = game.npcs;
+    Npc* current = pool.actors;
+    uint8_t i = 0;
+    for(; i < NPC_CAPACITY && current->id;) {
+        auto& n = *current;
+        // A one-site policy cannot change with saved state. Its initialized
+        // snapshot is reusable without an indirect resolver call each frame.
+        if(!(n.policy_pending & 2)) {
+            TilePos site = npc_location(n.id);
+            if(site != n.assigned_site) {
+                n.assigned_site = site;
+                n.policy_pending |= 1;
+            }
         }
-        order[at] = (NPC_ID)id;
-    }
-    bool settled = true;
-    for(uint8_t i = 0; i < count; ++i) {
-        NPC_ID id = order[i];
-        if(npc_find(id))
+        // Scripted movement pins the actor until it completes, including off cache.
+        if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE) {
+            ++i;
+            ++current;
             continue;
-        TilePos home = npc_is_dynamic(id) ? pool.residence[id] : npc_home(id);
-        if(home.area != game.area || !cast_npc(id, home, entering))
-            settled = false;
+        }
+        if(n.policy_pending & 1) {
+            n.policy_pending &= (uint8_t)~1;
+            n.behavior = n.assigned_site.area == game.area ? NPC_TRAVEL : NPC_STAND;
+            n.timer = n.stuck = n.push = n.detour = 0;
+            n.state = NPC_STATE_NONE;
+        }
+        if(!foot_cached(n) && !protected_view(n.actor.x, n.actor.y)) {
+            if(n.behavior == NPC_TRAVEL) {
+                n.behavior = NPC_STAND;
+                n.actor.walking = 0;
+                n.timer = n.stuck = n.push = n.detour = 0;
+                n.state = NPC_STATE_NONE;
+                npc_on_event(n, NPC_EVENT_TARGET_REACHED);
+                // Movement hooks may start another script; keep its full state pinned.
+                if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE) {
+                    ++i;
+                    ++current;
+                    continue;
+                }
+            }
+            retire_slot(i);
+            continue;
+        }
+        ++i;
+        ++current;
     }
-    pool.settled = settled;
+}
+
+RPG_NOINLINE void npc_offer_candidate(NPC_ID id, TilePos site) {
+    if(site.area != game.area || party_contains(id) || npc_find(id) || !npc_definition(id))
+        return;
+    uint16_t x = (uint16_t)site.x * TILE, y = (uint16_t)site.y * TILE;
+    if(!foot_cached_at(x, y) || !position_clear(nullptr, x, y) || tile_portal(cached_tile(site)) ||
+       (!game.npcs.entering && protected_view(x, y)))
+        return;
+    uint8_t at = 0;
+    while(at < candidate_count && higher_priority(candidates[at].id, id))
+        ++at;
+    if(at < candidate_count && candidates[at].id == id)
+        return;
+    if(at == NPC_CAPACITY)
+        return;
+    if(candidate_count < NPC_CAPACITY)
+        ++candidate_count;
+    for(uint8_t i = candidate_count - 1; i > at; --i)
+        candidates[i] = candidates[i - 1];
+    candidates[at] = {id, site};
+}
+
+RPG_NOINLINE void npc_stage_end() {
+    for(uint8_t i = 0; i < candidate_count; ++i)
+        cast_npc(candidates[i].id, candidates[i].site, game.npcs.entering != 0);
+    candidate_count = 0;
+    game.npcs.entering = 0;
 }
 
 void npc_reset() {
@@ -221,10 +292,8 @@ void npc_reset() {
             break;
         npc_on_retire(n, NPC_RETIRED_RESET);
     }
-    TilePos residence[NPC_ID_LIMIT];
-    memcpy(residence, game.npcs.residence, sizeof(residence));
     memset(&game.npcs, 0, sizeof(game.npcs));
-    memcpy(game.npcs.residence, residence, sizeof(residence));
+    candidate_count = 0;
     game.npcs.push_direction = STILL;
     game.npcs.entering = 1;
     npc_logic_restore();
@@ -233,7 +302,7 @@ void npc_reset() {
 static bool leashed(Npc const& n, uint16_t x, uint16_t y) {
     if(n.behavior != NPC_WANDER)
         return true;
-    TilePos home = game.npcs.residence[n.id];
+    TilePos home = n.assigned_site;
     auto def = npc_definition(n.id);
     int16_t dx = (int16_t)x - (int16_t)((uint16_t)home.x * TILE);
     int16_t dy = (int16_t)y - (int16_t)((uint16_t)home.y * TILE);
@@ -255,6 +324,7 @@ static bool step(Npc& n, DIRECTION dir) {
     if(x < 0 || y < 0 || !leashed(n, (uint16_t)x, (uint16_t)y) ||
        !position_clear(&n, (uint16_t)x, (uint16_t)y))
         return false;
+    n.policy_pending |= 4;
     n.actor.x = (uint16_t)x;
     n.actor.y = (uint16_t)y;
     n.actor.walking = 1;
@@ -397,7 +467,7 @@ __attribute__((noinline)) static bool wander_walk(Npc& n, uint8_t period) {
         n.stuck += period;
         return true;
     }
-    TilePos home = game.npcs.residence[n.id];
+    TilePos home = n.assigned_site;
     PixelPos anchor = {(uint16_t)home.x * TILE, (uint16_t)home.y * TILE};
     DIRECTION ahead = n.actor.facing;
     if(!detour_begin(n, ahead, toward_side(n, anchor, ahead)))
@@ -410,6 +480,7 @@ bool npc_move_to(NPC_ID id, uint16_t x, uint16_t y) {
     Npc* n = npc_find(id);
     if(!n || !game.dimensions.pixel_bounds(x, y))
         return false;
+    n->policy_pending &= (uint8_t)~4;
     n->target = {x, y};
     n->behavior = NPC_TARGET;
     n->timer = n->stuck = 0;
@@ -424,29 +495,13 @@ bool npc_follow_route(NPC_ID id, uint8_t route) {
     auto path = npc_route(route);
     if(!n || !path || path->area != game.area)
         return false;
+    n->policy_pending &= (uint8_t)~4;
     n->route = route;
     n->behavior = NPC_ROUTE;
     n->waypoint = n->timer = n->stuck = 0;
     n->detour = 0;
     n->state &= ~(NPC_BACKWARD | NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR);
     n->state |= NPC_ROUTE_PENDING;
-    n->push = 0;
-    return true;
-}
-
-bool npc_set_destination(NPC_ID id, TilePos destination) {
-    if(!npc_definition(id) || !npc_is_dynamic(id) || !npc_destination_valid(destination))
-        return false;
-    game.npcs.residence[id] = destination;
-    Npc* n = npc_find(id);
-    if(!n)
-        return true; // Cast at the new residence when a spot for it is clear and out of view.
-    // An NPC cannot walk to another area, and removing it would make it vanish. It keeps its
-    // place until the scene ends, and then casts at its residence in the new area.
-    n->behavior = destination.area == game.area ? NPC_TRAVEL : NPC_STAND;
-    n->timer = n->stuck = 0;
-    n->detour = 0;
-    n->state &= ~(NPC_TARGET_FAILED | NPC_YIELDING | NPC_CAN_DETOUR | NPC_ROUTE_PENDING);
     n->push = 0;
     return true;
 }
@@ -478,25 +533,21 @@ void npc_update() {
     for(auto& n : game.npcs.actors) {
         if(!n.id)
             break;
+        // Check between actors as well: an event hook may edit terrain while
+        // this update is in progress. Reloads also invalidate discarded edits.
+        if(game.npcs.terrain_dirty) {
+            for(auto& other : game.npcs.actors) {
+                if(!other.id)
+                    break;
+                other.policy_pending &= (uint8_t)~4;
+            }
+            game.npcs.terrain_dirty = 0;
+        }
         // A clipped sprite may still be visible after its feet leave the cache.
         // Freeze that sliver until cached again or fully offscreen; never eject it
         // against the outside sentinel or simulate uncached terrain.
         if(!foot_cached(n)) {
             n.actor.walking = 0;
-            if(n.behavior == NPC_TRAVEL && !npc_visible(n.actor.x, n.actor.y)) {
-                TilePos home = game.npcs.residence[n.id];
-                uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
-                // Uncached destinations are resolved without reading offscreen terrain.
-                // A cached destination still has to be clear of terrain and actors.
-                if(!foot_cached_at(x, y) || position_clear(nullptr, x, y)) {
-                    n.actor.x = x;
-                    n.actor.y = y;
-                    n.behavior = NPC_STAND;
-                    n.timer = n.stuck = n.push = n.detour = 0;
-                    n.state = NPC_STATE_NONE;
-                    npc_on_event(n, NPC_EVENT_TARGET_REACHED);
-                }
-            }
             continue;
         }
         auto def = npc_definition(n.id);
@@ -507,9 +558,13 @@ void npc_update() {
         // A tile change can leave an NPC overlapping solid terrain. It walks out one pixel at a
         // time, never in a jump. If it cannot move, its ordinary logic still runs, so a blocked
         // target can still fail.
-        if(step_frame && !terrain_clear(n.actor.x, n.actor.y) && escape_step(n)) {
-            n.actor.walking = 1;
-            continue;
+        if(step_frame && !(n.policy_pending & 4)) {
+            if(terrain_clear(n.actor.x, n.actor.y)) {
+                n.policy_pending |= 4;
+            } else if(escape_step(n)) {
+                n.actor.walking = 1;
+                continue;
+            }
         }
         if(n.state & NPC_YIELDING) {
             if(!step_frame)
@@ -572,7 +627,7 @@ void npc_update() {
                 target = {(uint16_t)((uint16_t)path->points[n.waypoint].x * TILE),
                           (uint16_t)((uint16_t)path->points[n.waypoint].y * TILE)};
             } else if(n.behavior == NPC_TRAVEL) {
-                TilePos home = game.npcs.residence[n.id];
+                TilePos home = n.assigned_site;
                 target = {(uint16_t)home.x * TILE, (uint16_t)home.y * TILE};
             } else {
                 target = n.target;

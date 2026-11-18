@@ -51,7 +51,6 @@ void game_start() {
     game.rng = 0xbabe;
     party_add({20, 20, MOVEMENT_FIGHTER, ATTACK_FIGHTER, NPC_NONE});
     game.level = 1;
-    npc_residence_defaults();
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);
     world_place(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);

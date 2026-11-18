@@ -3,8 +3,7 @@
 
 #include "npc_ids.h"
 
-
-// NPC_TRAVEL walks toward the residence, then teleports there once outside the cache and view.
+// NPC_TRAVEL walks toward its policy site, completing logically after safe unloading.
 enum NPC_BEHAVIOR : uint8_t { NPC_STAND, NPC_WANDER, NPC_TARGET, NPC_ROUTE, NPC_TRAVEL };
 
 enum NPC_ROUTE_MODE : uint8_t { ROUTE_ONCE, ROUTE_LOOP, ROUTE_REVERSE };
@@ -68,12 +67,14 @@ struct Npc {
         uint8_t route;
     };
 
+    TilePos assigned_site;
     NPC_ID id;
     NPC_BEHAVIOR behavior;
     uint8_t timer, waypoint;
     NPC_STATE state;
     uint8_t stuck, push;
-    uint8_t detour;   // Sidestep state of a detour around an obstacle (npc.cpp). Keeps the record even-sized.
+    uint8_t detour;         // Packed sidestep state (npc.cpp).
+    uint8_t policy_pending; // Bits: pending assignment, fixed policy, known clear feet.
 };
 
 
@@ -81,19 +82,14 @@ struct Npc {
 // the remaining actors. Scans may therefore stop at the first empty slot.
 struct NpcPool {
     Npc actors[NPC_CAPACITY];
-    // Each NPC_ID's residence: a dynamic NPC's destination, or a static NPC's fixed home. Saved.
-    TilePos residence[NPC_ID_LIMIT];
-    // Set by scene entry until the next reconcile casts the scene's NPCs.
+    // Scene-entry permission lasts throughout the full NPC stage.
     uint8_t entering;
     uint8_t activation_deferrals;
     DIRECTION push_direction;
-    // True once every available NPC holds a slot. Reset and recruitment clear it.
-    bool settled;
+    uint8_t terrain_dirty;
 };
 
-static_assert(NPC_ID_LIMIT <= NPC_CAPACITY, "every NPC ID can own a slot, so none is evicted");
-static_assert(sizeof(Npc) == 18, "compact live NPC record");
-// The additional residence keeps this record even-sized on both AVM and the host.
-static_assert(sizeof(NpcPool) == 160, "fixed NPC storage, independent of authored count");
+static_assert(sizeof(Npc) == 22, "compact live NPC record");
+static_assert(sizeof(NpcPool) == 180, "fixed NPC storage, independent of authored count");
 
 #endif

@@ -41,7 +41,7 @@ set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
 file(GLOB_RECURSE LOGIC_HEADERS CONFIGURE_DEPENDS src/logic/*.h src/logic/*.inc)
 set(RULES src/game.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
-    src/battle.cpp src/battle_ai.cpp generated/map_assets.cpp generated/chunk_dispatch.cpp generated/npc_routes.cpp)
+    src/battle.cpp src/battle_ai.cpp generated/map_assets.cpp src/chunk_dispatch.cpp generated/npc_routes.cpp)
 add_library(rpg_rules STATIC ${RULES})
 target_compile_features(rpg_rules PUBLIC cxx_std_20)
 target_include_directories(rpg_rules PUBLIC src generated)
@@ -58,10 +58,30 @@ add_executable(rpg_tests tests/test_core.cpp)
 target_link_libraries(rpg_tests PRIVATE rpg_rules rpg_story_stubs)
 target_include_directories(rpg_tests PRIVATE generated)
 add_test(NAME core COMMAND rpg_tests)
+foreach(fixture IN ITEMS index hook)
+    add_library(rpg_${fixture}_dispatch OBJECT src/chunk_dispatch.cpp)
+    target_include_directories(rpg_${fixture}_dispatch PRIVATE src generated tests)
+    target_compile_definitions(rpg_${fixture}_dispatch PRIVATE RPG_NPC_POLICY_HEADER="${fixture}_policies.h")
+    add_dependencies(rpg_${fixture}_dispatch rpg_assets)
+endforeach()
+set(SCALING_RULES ${RULES})
+list(REMOVE_ITEM SCALING_RULES src/logic/npc_logic.cpp)
+add_library(rpg_scaling_rules STATIC ${SCALING_RULES})
+target_include_directories(rpg_scaling_rules PUBLIC src generated tests)
+target_compile_definitions(rpg_scaling_rules PUBLIC RPG_NPC_ID_LIMIT=65 RPG_NPC_POLICY_HEADER="scaling_policies.h")
+add_dependencies(rpg_scaling_rules rpg_assets)
+add_executable(rpg_npc_scaling_tests tests/test_npc_scaling.cpp)
+target_link_libraries(rpg_npc_scaling_tests PRIVATE rpg_scaling_rules rpg_story_stubs)
+add_test(NAME npc_scaling COMMAND rpg_npc_scaling_tests)
+add_executable(rpg_npc_policy_tests tests/test_npc_policies.cpp)
+target_link_libraries(rpg_npc_policy_tests PRIVATE rpg_rules rpg_story_stubs)
+add_test(NAME npc_policies COMMAND rpg_npc_policy_tests)
+add_test(NAME npc_policy_validation COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_npc_policy_validation.py
+    ${CMAKE_CXX_COMPILER} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 add_executable(rpg_npc_tests tests/test_npc.cpp)
 target_link_libraries(rpg_npc_tests PRIVATE rpg_rules rpg_story_stubs)
 add_test(NAME essential_npcs COMMAND rpg_npc_tests)
-add_executable(rpg_npc_hook_tests tests/test_npc_hooks.cpp)
+add_executable(rpg_npc_hook_tests tests/test_npc_hooks.cpp $<TARGET_OBJECTS:rpg_hook_dispatch>)
 target_link_libraries(rpg_npc_hook_tests PRIVATE rpg_rules rpg_story_stubs)
 add_test(NAME npc_lifecycle_hooks COMMAND rpg_npc_hook_tests)
 add_executable(rpg_npc_dialogue_tests tests/test_npc_dialogue.cpp)
@@ -70,7 +90,7 @@ add_test(NAME npc_dialogue COMMAND rpg_npc_dialogue_tests)
 add_executable(rpg_npc_residence_tests tests/test_npc_residence.cpp)
 target_link_libraries(rpg_npc_residence_tests PRIVATE rpg_rules rpg_story_stubs)
 add_test(NAME npc_residence COMMAND rpg_npc_residence_tests)
-add_executable(rpg_npc_index_tests tests/test_npc_index.cpp)
+add_executable(rpg_npc_index_tests tests/test_npc_index.cpp $<TARGET_OBJECTS:rpg_index_dispatch>)
 target_link_libraries(rpg_npc_index_tests PRIVATE rpg_rules rpg_story_stubs)
 add_test(NAME npc_index COMMAND rpg_npc_index_tests)
 add_executable(rpg_npc_continuity_tests tests/test_npc_continuity.cpp)
@@ -118,7 +138,7 @@ add_test(NAME generated_assets COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOU
 add_test(NAME content COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_content.py)
 file(GLOB_RECURSE ASSET_INPUTS CONFIGURE_DEPENDS assets/*.tmx assets/*.tsx assets/*.png)
 set(ASSET_OUTPUTS)
-foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp chunk_dispatch.cpp npc_routes.h npc_routes.cpp sprites.cpp)
+foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp map_handler_catalog.h npc_routes.h npc_routes.cpp sprites.cpp)
     list(APPEND ASSET_OUTPUTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/${asset}")
 endforeach()
 add_custom_command(OUTPUT ${ASSET_OUTPUTS}
@@ -149,7 +169,7 @@ add_dependencies(rpg_world_tests rpg_music_catalog)
 # Keep the fixture unlinked so its generated Handler definition is independent.
 set(HANDLER_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/handler-fixture")
 set(HANDLER_FIXTURE_OUTPUTS)
-foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp chunk_dispatch.cpp)
+foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp map_handler_catalog.h)
     list(APPEND HANDLER_FIXTURE_OUTPUTS "${HANDLER_FIXTURE_DIR}/${asset}")
 endforeach()
 add_custom_command(OUTPUT ${HANDLER_FIXTURE_OUTPUTS}
@@ -157,7 +177,9 @@ add_custom_command(OUTPUT ${HANDLER_FIXTURE_OUTPUTS}
         --write-handler-fixture "${HANDLER_FIXTURE_DIR}"
     DEPENDS tests/test_pipeline.py tools/generate_assets.py ${ASSET_INPUTS}
     VERBATIM)
-add_library(rpg_handler_fixture OBJECT "${HANDLER_FIXTURE_DIR}/chunk_dispatch.cpp")
+add_custom_target(rpg_handler_fixture_assets DEPENDS ${HANDLER_FIXTURE_OUTPUTS})
+add_library(rpg_handler_fixture OBJECT src/chunk_dispatch.cpp)
+add_dependencies(rpg_handler_fixture rpg_handler_fixture_assets)
 # The fixture's own generated headers come first. The sound catalog is shared, so it comes last.
 target_include_directories(rpg_handler_fixture PRIVATE src "${HANDLER_FIXTURE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/generated")
@@ -252,7 +274,7 @@ if(RPG_BUILD_GUEST)
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/world_map.h src/ambient.h src/sfx.h src/soundscape.h ${SFX_OUTPUTS} src/title.h src/flags.h src/world_types.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/world_map.h src/ambient.h src/sfx.h src/soundscape.h ${SFX_OUTPUTS} src/title.h src/flags.h src/world_types.h src/static_chunk_dispatch.h src/npc_policy.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h ${LOGIC_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
@@ -284,6 +306,25 @@ if(RPG_BUILD_GUEST)
         endif()
         add_dependencies(${name} rpg_assets)
     endfunction()
+    # Verify that identity growth needs neither portrait rows nor a Party name array.
+    set(SCALING_UI_OBJECTS)
+    foreach(source IN ITEMS src/render.cpp src/dialogue_overlay.cpp generated/sprites.cpp)
+        get_filename_component(stem "${source}" NAME_WE)
+        set(object "${CMAKE_CURRENT_BINARY_DIR}/scaling-ui/${stem}.o")
+        add_custom_command(OUTPUT "${object}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/scaling-ui"
+            COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -Wall -Wextra -Werror
+                -DRPG_AVM=1 -DRPG_NPC_ID_LIMIT=65
+                -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
+                -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
+            DEPENDS "${source}" src/rpg.h src/npc.h src/npc_types.h src/npc_ids.h
+                ${ASSET_OUTPUTS} ${MUSIC_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
+            VERBATIM)
+        list(APPEND SCALING_UI_OBJECTS "${object}")
+    endforeach()
+    add_custom_target(rpg_scaling_ui_fixture ALL DEPENDS ${SCALING_UI_OBJECTS})
+    add_dependencies(rpg_scaling_ui_fixture rpg_assets rpg_music)
+
     guest(m0_proof src/proof.cpp)
     guest(m15_probe ${RULES} tests/world_probe.cpp)
     guest(m16_probe ${RULES} tests/npc_probe.cpp)

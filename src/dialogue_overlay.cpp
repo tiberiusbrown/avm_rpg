@@ -99,11 +99,13 @@ static void clear_overlay() {
 }
 
 static bool has_face(NPC_ID id) {
-    return id < NPC_ID_LIMIT && FACE_PRESENT[id];
+    return id < FACE_ROW_COUNT && FACE_PRESENT[id];
 }
 
 // The portrait tab sits above the panel and moves with it, so it takes the same offset.
 __attribute__((noinline)) static void draw_face(NPC_ID id, bool open, uint8_t offset = 0) {
+    if(!has_face(id))
+        return;
     int16_t top = FACE_TOP + offset;
     if(top >= DISPLAY_HEIGHT)
         return;

@@ -12,7 +12,7 @@ enum NPC_EVENT : uint8_t {
 };
 
 // Recruitment removes a map actor immediately; scene exit retires the remaining actors.
-enum NPC_RETIRE_REASON : uint8_t { NPC_RETIRED_RESET, NPC_RETIRED_PARTY };
+enum NPC_RETIRE_REASON : uint8_t { NPC_RETIRED_RESET, NPC_RETIRED_PARTY, NPC_RETIRED_UNLOADED };
 
 struct NpcDefinition {
     NPC_BEHAVIOR behavior;
@@ -42,14 +42,15 @@ struct NpcRoute {
 char const PROGMEM* npc_name(NPC_ID id);
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id);
 NpcRoute const PROGMEM* npc_route(uint8_t id);
-// Default residence of an NPC, supplied by the logic layer.
-TilePos npc_home(NPC_ID id);
-// Dynamic NPCs follow their residence; static NPCs stay at their home.
-bool npc_is_dynamic(NPC_ID id);
-bool npc_destination_valid(TilePos destination);
-void npc_residence_defaults();
-// Sets where a dynamic NPC lives. An active NPC walks there; the change never moves it at once.
-bool npc_set_destination(NPC_ID id, TilePos destination);
+#ifndef RPG_AVM
+extern unsigned npc_site_checks;
+#endif
+TilePos npc_location(NPC_ID id);
+// Derived policy metadata, queried once when activating a slot.
+bool npc_location_is_fixed(NPC_ID id);
+void npc_stage_begin();
+void npc_offer_candidate(NPC_ID id, TilePos site);
+void npc_stage_end();
 Npc* npc_find(NPC_ID id);
 // Called after adding a party member. Retires its map actor, preserving the occupied prefix.
 void npc_recruit(NPC_ID id);
@@ -57,7 +58,6 @@ bool npc_visible(uint16_t x, uint16_t y);
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t other_x, uint16_t other_y);
 void npc_reset();
 void npc_begin_frame();
-void npc_reconcile();
 void npc_update();
 void npc_interact();
 void npc_player_begin(DIRECTION dir);
