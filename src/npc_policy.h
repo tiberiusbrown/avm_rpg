@@ -86,7 +86,7 @@ template <NPC_ID ID, TilePos POS> struct NpcSite {
 #ifndef RPG_AVM
         ++npc_site_checks;
 #endif
-        if(!party_contains(ID) && !npc_find(ID) && npc_location<ID>() == POS)
+        if(npc_location<ID>() == POS)
             npc_offer_candidate(ID, POS);
     }
 };

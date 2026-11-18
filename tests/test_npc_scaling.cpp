@@ -25,7 +25,33 @@ char const PROGMEM* npc_name(NPC_ID) {
     return F("Fixture");
 }
 
-void npc_on_activate(Npc&) {}
+static unsigned activation_mutation;
+
+void npc_on_activate(Npc& n) {
+    if(n.id != (NPC_ID)2)
+        return;
+    TilePos next = npc_location((NPC_ID)5);
+    switch(activation_mutation) {
+        case 1:
+            memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+            note_tile_edit();
+            break;
+        case 2:
+            game.player.x = next.x * TILE;
+            game.player.y = next.y * TILE;
+            break;
+        case 3:
+            game.clear_flag(FLAG_VILLAGER_EAST);
+            break;
+        case 4:
+            game.party.members[game.party.count++] = {1, 1, 0, 0, (NPC_ID)5};
+            break;
+        case 5:
+            n.actor.x = next.x * TILE;
+            n.actor.y = next.y * TILE;
+            break;
+    }
+}
 
 void npc_on_event(Npc&, NPC_EVENT) {}
 
@@ -104,5 +130,27 @@ int main() {
     run_chunk<STAGE_NPCS>(AREA_OUTDOOR, 29, 61);
     CHECK(npc_site_checks == 0);
     npc_stage_end();
+    // Hooks run between sorted casts. Each mutation invalidates a different part
+    // of the admission proof; no later candidate may reuse stale eligibility.
+    for(unsigned mutation = 1; mutation <= 5; ++mutation) {
+        game_new();
+        game.set_flag(FLAG_VILLAGER_EAST);
+        world_enter(positions::TestField.area, positions::TestField.x * TILE,
+                    positions::TestField.y * TILE, SOUTH);
+        npc_reset();
+        memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+        note_tile_edit();
+        activation_mutation = mutation;
+        stage(false);
+        CHECK(npc_find((NPC_ID)2));
+        CHECK(!npc_find((NPC_ID)5));
+        if(mutation == 1 || mutation == 3)
+            CHECK(!game.npcs.actors[1].id);
+        for(unsigned i = 0; i < NPC_CAPACITY && game.npcs.actors[i].id; ++i)
+            for(unsigned j = 0; j < i; ++j)
+                CHECK(!npc_overlap(game.npcs.actors[i].actor.x, game.npcs.actors[i].actor.y,
+                                   game.npcs.actors[j].actor.x, game.npcs.actors[j].actor.y));
+        activation_mutation = 0;
+    }
     std::puts("64-identity policy and bounded activation checks passed");
 }

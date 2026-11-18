@@ -43,8 +43,9 @@ static bool in_view(uint16_t x, uint16_t y, Camera c) {
 }
 
 static bool guarded(uint16_t x, uint16_t y, Camera c) {
-    return x < c.x + 128 + TILE && x + 2 * TILE > c.x && y < c.y + 64 + TILE &&
-           y + 2 * TILE > c.y;
+    int32_t dx = (int32_t)x - c.x, dy = (int32_t)y - c.y;
+    return dx < 128 + PLAYER_PIXELS_PER_FRAME && dx + TILE > -PLAYER_PIXELS_PER_FRAME &&
+           dy < 64 + PLAYER_PIXELS_PER_FRAME && dy + TILE > -PLAYER_PIXELS_PER_FRAME;
 }
 
 struct Snapshot {
@@ -52,6 +53,7 @@ struct Snapshot {
     uint16_t x[NPC_ID_LIMIT], y[NPC_ID_LIMIT];
     bool clear[NPC_ID_LIMIT];
     bool traveling[NPC_ID_LIMIT];
+    bool pinned[NPC_ID_LIMIT];
     TilePos residence[NPC_ID_LIMIT];
 };
 
@@ -64,6 +66,7 @@ static Snapshot take() {
             s.y[id] = n->actor.y;
             s.clear[id] = terrain_clear(n->actor.x, n->actor.y);
             s.traveling[id] = n->behavior == NPC_TRAVEL;
+            s.pinned[id] = n->behavior == NPC_TARGET || n->behavior == NPC_ROUTE;
             s.residence[id] = npc_location((NPC_ID)id);
         }
     return s;
@@ -96,10 +99,19 @@ static void check_frame(Snapshot const& before, Snapshot const& after, Camera cb
                           before.x[id] + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
                           before.y[id] + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
             Npc* n = npc_find((NPC_ID)id);
-            if(!before.traveling[id] || cached || in_view(before.x[id], before.y[id], cb) ||
+            // Safe retirement and recasting can now happen in one frame. The
+            // replacement starts at its policy site and may take one normal step.
+            int hx = (int)after.x[id] - after.residence[id].x * TILE;
+            int hy = (int)after.y[id] - after.residence[id].y * TILE;
+            bool recast = !cached && !before.pinned[id] &&
+                          !guarded(before.x[id], before.y[id], cb) &&
+                          !in_view(after.x[id], after.y[id], ca) &&
+                          (hx < 0 ? -hx : hx) + (hy < 0 ? -hy : hy) <= 1;
+            if(!recast && (!before.traveling[id] || cached ||
+               in_view(before.x[id], before.y[id], cb) ||
                after.x[id] != before.residence[id].x * TILE ||
-               after.y[id] != before.residence[id].y * TILE || n->behavior != NPC_STAND)
-                fail("NPC jumped without completing off-cache residence travel", frame, id);
+               after.y[id] != before.residence[id].y * TILE || n->behavior != NPC_STAND))
+                fail("NPC jumped without safe retirement or off-cache residence travel", frame, id);
         }
         bool moved = jump != 0;
         if(moved)

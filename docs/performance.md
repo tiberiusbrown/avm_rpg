@@ -1,5 +1,64 @@
 # Performance evidence
 
+## NPC admission continuity and validation (2026-11-18)
+
+Comparable local RelWithDebInfo builds use the existing `-O2 -flto=full` AVM settings.
+Shipping resources, before and after this change:
+
+| Resource | Before | After | Difference |
+|---|---:|---:|---:|
+| Saved live Game | 309 | 309 | 0 |
+| Ordinary static RAM | 351 | 359 | +8 |
+| Total static RAM / 1024 | 660 | 668 | +8 |
+| Code | 58,104 | 57,471 | -633 |
+| Read-only data | 329,581 | 329,581 | 0 |
+| Complete stack bound / 256 | 231 | 231 | 0 |
+
+The eight additional bytes cache candidate priorities. There is no heap allocation,
+identity-sized production array or save-layout change. QA uses 675 static bytes with
+the same complete 231-byte stack bound. Both playable packages were regenerated.
+
+Optimized disassembly is retained in the workspace's `build/npc-before.asm` and
+`build/npc-after.asm`. Site functions inline into chunk dispatch: the populated
+`StaticChunk<0u, 183u, (HandlerStage)3>::run()` shrinks from 235 instructions to 27.
+It contains policy flag checks and candidate calls, with no party or active-slot scans.
+Admission performs one active-identity scan and one actor-collision scan for a clear
+candidate. Sorting uses cached priorities, and duplicate/full-buffer rejection precedes
+terrain work. `cast_npc` inlines into `npc_stage_end`; the first cast bypasses terrain
+and actor revalidation, while later casts revalidate after hooks (including policy and
+identity eligibility). Relative to the old site/admission/cast pipeline, active-slot
+scan count does not increase. A full pool rejects casts before terrain revalidation.
+Visibility uses signed map-coordinate differences and comparisons without divisions
+or general geometry calls. The bounded 64-identity/128-site fixture also exercises hooks
+that invalidate terrain, player, quest, party and actor-occupancy eligibility.
+
+The complete native suite passes all 22 tests, including the scaling fixture and
+16,120-frame continuity run. Device functional replays use the existing `functional`
+mode (timing enforcement disabled); strict replays retain the 320,000-cycle limit.
+Normal and FXC packages produce identical measurements in these replays:
+
+| Workload | Before average / worst | After average / worst |
+|---|---:|---:|
+| Idle Grove | 280,130 / 299,155 | 282,368 / 301,340 |
+| Pixel scroll | 289,783 / 297,962 | 290,925 / 298,916 |
+| Dense collision | 294,223 / 300,566 | 295,741 / 302,378 |
+| Cave music | 200,631 / 215,045 | 200,800 / 217,598 |
+| Complete scenario: worst exploration | 323,373 | 357,776 |
+
+Both functional scenarios pass, but the worst exploration cost **increases
+by 34,403 cycles**. Strict replay still fails first at serial 74: **322,592 cycles**
+(render 164,850; reload 12,192; chunks 44,362; actors/collision 92,734), versus the
+baseline's 320,419 (render 165,708; reload 11,985; chunks 44,823; actors/collision
+89,419). This change does **not** establish frame-budget compliance or an end-to-end
+speedup. Corrected admission/retirement also changes which actors participate in the
+replay; the existing counters combine NPC discovery with other chunk work, and NPC
+movement with player collision. They cannot attribute the remaining cost to these
+functions alone. No unrelated movement/render optimization was attempted.
+
+Raw before/after disassemblies, resources and device logs are retained under the
+workspace's `build/npc-*` paths; final replay inputs are copied to
+`build/npc-final-artifacts`, with logs/captures in `build/npc-final-device`.
+
 ## Policy-derived NPC dispatch (2026-11-17)
 
 RelWithDebInfo, full LTO, current AVM SDK built from this checkout. Shipping resources:

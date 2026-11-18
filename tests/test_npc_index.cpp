@@ -83,7 +83,114 @@ static void test_casts_wait_for_spots_out_of_view() {
     CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
 }
 
+// Real world refresh, NPC simulation, then player movement: admission must happen
+// before the next draw, even at every fractional camera phase and chunk crossing.
+static void test_four_direction_approaches() {
+    for(unsigned dir = 0; dir < 4; ++dir)
+        for(unsigned phase = 0; phase < TILE; ++phase) {
+            game_new();
+            for(unsigned tile = 0; tile < 256; ++tile)
+                tile_collision_override((uint8_t)tile, 0);
+            npc_reset();
+            game.npcs.entering = 0;
+            int x = positions::WandererHome.x * TILE;
+            int y = positions::WandererHome.y * TILE;
+            int dx = dir == EAST ? -1 : dir == WEST ? 1 : 0;
+            int dy = dir == SOUTH ? -1 : dir == NORTH ? 1 : 0;
+            int distance = (dx ? 160 : 112) + phase;
+            game.player.x = (uint16_t)(x + dx * distance + (dx ? 0 : 8));
+            game.player.y = (uint16_t)(y + dy * distance + (dy ? 0 : 8));
+            bool activated = false, seen = false;
+            for(int frame = 0; frame < distance - 32; ++frame) {
+                bool before = npc_find(NPC_WANDERER) != nullptr;
+                update_visible_world(0, false);
+                Npc* n = npc_find(NPC_WANDERER);
+                if(n && !before) {
+                    CHECK(!activated);
+                    activated = true;
+                    Camera c = game_camera();
+                    CHECK(!(x < c.x + 129 && x + TILE > (int)c.x - 1 &&
+                            y < c.y + 65 && y + TILE > (int)c.y - 1));
+                }
+                if(activated)
+                    CHECK(n);
+                npc_update();
+                npc_player_begin((DIRECTION)dir);
+                actor_move(&game.player, (DIRECTION)dir, PLAYER_PIXELS_PER_FRAME);
+                Camera c = game_camera();
+                bool visible = x < c.x + 128 && x + TILE > c.x &&
+                               y < c.y + 64 && y + TILE > c.y;
+                if(visible) {
+                    CHECK(n);
+                    seen = true;
+                }
+                ++game.ticks;
+            }
+            CHECK(activated && seen);
+            tile_collision_reset();
+        }
+}
+
+static void test_exact_clearance_and_clipped_retirement() {
+    for(unsigned edge = 0; edge < 4; ++edge)
+        for(int offset = -2; offset <= 2; ++offset) {
+            game_new();
+            npc_reset();
+            game.npcs.entering = 0;
+            TilePos site = positions::WandererHome;
+            int x = site.x * TILE, y = site.y * TILE;
+            int cx = x - 56, cy = y - 24;
+            if(edge == 0)
+                cx = x - 129 + offset;
+            if(edge == 1)
+                cx = x + TILE + 1 + offset;
+            if(edge == 2)
+                cy = y - 65 + offset;
+            if(edge == 3)
+                cy = y + TILE + 1 + offset;
+            game.player.x = cx + 56;
+            game.player.y = cy + 24;
+            game.cache.origin_tx = site.x - 1;
+            game.cache.origin_ty = site.y - 1;
+            memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+            note_tile_edit();
+            npc_stage_begin();
+            npc_offer_candidate(NPC_WANDERER, site);
+            npc_stage_end();
+            bool guarded = x < cx + 129 && x + TILE > cx - 1 &&
+                           y < cy + 65 && y + TILE > cy - 1;
+            CHECK((npc_find(NPC_WANDERER) != nullptr) == !guarded);
+        }
+    game_new();
+    Npc* n = npc_find(NPC_WANDERER);
+    CHECK(n);
+    Camera c = game_camera();
+    n->actor.x = c.x + 127;
+    n->actor.y = c.y + 20;
+    n->behavior = NPC_STAND;
+    // Only the leftmost sprite column remains onscreen; its feet are uncached.
+    game.cache.origin_tx = (n->actor.x + FOOT_RIGHT) / TILE + 1;
+    npc_stage_begin();
+    CHECK(npc_find(NPC_WANDERER));
+    npc_stage_end();
+    // Clamping must not wrap the protected rectangle at the top/left map edge.
+    npc_reset();
+    game.player.x = game.player.y = 0;
+    CHECK(game_camera().x == 0 && game_camera().y == 0);
+    game.camera = game_camera();
+    CHECK(npc_visible(0, 0));
+    CHECK(!npc_visible(128, 0));
+    CHECK(!npc_visible(0, 64));
+    game.player.x = game.dimensions.width_tiles * TILE - TILE;
+    game.player.y = game.dimensions.height_tiles * TILE - TILE;
+    c = game_camera();
+    CHECK(c.x == game.dimensions.width_tiles * TILE - 128);
+    CHECK(c.y == game.dimensions.height_tiles * TILE - 64);
+}
+
 int main() {
+    test_exact_clearance_and_clipped_retirement();
+    test_four_direction_approaches();
     test_entry_casts_residents();
     test_casts_wait_for_spots_out_of_view();
     printf("npc index checks passed: %u\n", checks);

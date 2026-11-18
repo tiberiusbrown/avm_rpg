@@ -34,9 +34,24 @@ void npc_recruit(NPC_ID id) {
     }
 }
 
+// draw_actors uses the 16x16 ACTOR_SPRITES at actor.x/y, without an offset.
+// A corner sidestep can move along both axes, each by at most this allowance.
+static constexpr uint8_t ADMISSION_CLEARANCE = PLAYER_PIXELS_PER_FRAME;
+
+static bool sprite_intersects(uint16_t x, uint16_t y, Camera camera, uint8_t clearance) {
+    // Map axes have at most 255 tiles (4080 pixels). Subtract signed coordinates
+    // to avoid unsigned underflow; 16-bit deltas cover every map edge.
+    int16_t dx = (int16_t)x - (int16_t)camera.x, dy = (int16_t)y - (int16_t)camera.y;
+    return dx < 128 + clearance && dx + TILE > -(int16_t)clearance &&
+           dy < 64 + clearance && dy + TILE > -(int16_t)clearance;
+}
+
 bool npc_visible(uint16_t x, uint16_t y) {
-    return x < game.camera.x + 128 && x + TILE > game.camera.x && y < game.camera.y + 64 &&
-           y + TILE > game.camera.y;
+    return sprite_intersects(x, y, game.camera, 0);
+}
+
+static bool protected_view(uint16_t x, uint16_t y) {
+    return sprite_intersects(x, y, game_camera(), ADMISSION_CLEARANCE);
 }
 
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
@@ -65,11 +80,6 @@ void npc_begin_frame() {
 static void saturate(uint8_t& value) {
     if(value != 255)
         ++value;
-}
-
-static bool higher_priority(NPC_ID a, NPC_ID b) {
-    uint8_t pa = npc_definition(a)->priority, pb = npc_definition(b)->priority;
-    return pa > pb || (pa == pb && a < b);
 }
 
 static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
@@ -105,36 +115,36 @@ static bool foot_cached(Npc const& n) {
 // Casts id at its home. A home that is blocked, or in view after entry, waits until it is clear
 // and out of view. The lifecycle functions stay out of line so their frames do not grow the frame
 // of update_visible_world, which the stack budget counts on every path.
-static bool cast_npc(NPC_ID id, TilePos home, bool entering) {
+static bool candidate_clear(NPC_ID id, TilePos site) {
+    if(site.area != game.area || party_contains(id) || npc_find(id))
+        return false;
+    uint16_t x = (uint16_t)site.x * TILE, y = (uint16_t)site.y * TILE;
+    return foot_cached_at(x, y) && (game.npcs.entering || !protected_view(x, y)) &&
+           !tile_portal(cached_tile(site)) && position_clear(nullptr, x, y);
+}
+
+static bool cast_npc(NPC_ID id, TilePos home, bool revalidate) {
     auto& pool = game.npcs;
+    // The first cast uses admission's world state. Every successful cast invokes a hook:
+    // subsequent casts must recheck policy, party, camera, terrain and all occupancy.
     Npc* slot = nullptr;
     for(auto& n : pool.actors)
         if(!n.id) {
             slot = &n;
             break;
         }
-    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
-    bool clear = slot && terrain_clear(x, y) &&
-                 !tile_portal(cached_tile({game.area, home.x, home.y}));
-    if(clear) {
-        clear = !npc_overlap(x, y, game.player.x, game.player.y);
-        for(auto const& other : pool.actors) {
-            if(!other.id)
-                break;
-            if(npc_overlap(x, y, other.actor.x, other.actor.y))
-                clear = false;
-        }
+    if(!slot) {
+        saturate(pool.activation_deferrals);
+        return false;
     }
-    if(clear && !entering) {
-        Camera camera = game_camera();
-        clear = !(x < camera.x + 128 + TILE && x + 2 * TILE > camera.x &&
-                  y < camera.y + 64 + TILE && y + 2 * TILE > camera.y);
-    }
-    if(!clear) {
+    if(revalidate && (npc_location(id) != home || !candidate_clear(id, home))) {
         saturate(pool.activation_deferrals);
         return false;
     }
     auto def = npc_definition(id);
+    if(!def)
+        return false;
+    uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
     *slot = {};
     slot->id = id;
     slot->assigned_site = home;
@@ -183,16 +193,11 @@ namespace {
 struct Candidate {
     NPC_ID id;
     TilePos site;
+    uint8_t priority;
 };
 
 Candidate candidates[NPC_CAPACITY];
 uint8_t candidate_count;
-
-bool protected_view(uint16_t x, uint16_t y) {
-    Camera camera = game_camera();
-    return npc_visible(x, y) || (x < camera.x + 128 + TILE && x + 2 * TILE > camera.x &&
-                                 y < camera.y + 64 + TILE && y + 2 * TILE > camera.y);
-}
 
 void retire_slot(uint8_t index) {
     auto& pool = game.npcs;
@@ -259,29 +264,38 @@ RPG_NOINLINE void npc_stage_begin() {
 }
 
 RPG_NOINLINE void npc_offer_candidate(NPC_ID id, TilePos site) {
-    if(site.area != game.area || party_contains(id) || npc_find(id) || !npc_definition(id))
+    if(site.area != game.area || party_contains(id) || npc_find(id))
         return;
-    uint16_t x = (uint16_t)site.x * TILE, y = (uint16_t)site.y * TILE;
-    if(!foot_cached_at(x, y) || !position_clear(nullptr, x, y) || tile_portal(cached_tile(site)) ||
-       (!game.npcs.entering && protected_view(x, y)))
+    auto def = npc_definition(id);
+    if(!def)
         return;
+    uint8_t priority = def->priority;
     uint8_t at = 0;
-    while(at < candidate_count && higher_priority(candidates[at].id, id))
+    while(at < candidate_count) {
+        auto const& c = candidates[at];
+        if(c.id == id)
+            return;
+        if(c.priority < priority || (c.priority == priority && c.id > id))
+            break;
         ++at;
-    if(at < candidate_count && candidates[at].id == id)
-        return;
-    if(at == NPC_CAPACITY)
+    }
+    uint16_t x = (uint16_t)site.x * TILE, y = (uint16_t)site.y * TILE;
+    if(at == NPC_CAPACITY || !foot_cached_at(x, y) ||
+       (!game.npcs.entering && protected_view(x, y)) || tile_portal(cached_tile(site)) ||
+       !position_clear(nullptr, x, y))
         return;
     if(candidate_count < NPC_CAPACITY)
         ++candidate_count;
     for(uint8_t i = candidate_count - 1; i > at; --i)
         candidates[i] = candidates[i - 1];
-    candidates[at] = {id, site};
+    candidates[at] = {id, site, priority};
 }
 
 RPG_NOINLINE void npc_stage_end() {
+    bool revalidate = false;
     for(uint8_t i = 0; i < candidate_count; ++i)
-        cast_npc(candidates[i].id, candidates[i].site, game.npcs.entering != 0);
+        if(cast_npc(candidates[i].id, candidates[i].site, revalidate))
+            revalidate = true;
     candidate_count = 0;
     game.npcs.entering = 0;
 }

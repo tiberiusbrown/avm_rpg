@@ -83,17 +83,37 @@ from the index. Missing policies and invalid template identities fail compilatio
 Every frame, after tile updates and overlap repair, `STAGE_NPCS` dispatches only cached
 chunks. Begin examines only active slots, refreshes their derived `assigned_site`, and
 retires safely unloadable actors. Chunk specializations check only policy sites in their
-chunk, exclude party members and duplicates, and offer eligible cached, collision-free,
-nonportal sites. End admits candidates in descending definition priority, then ascending
-stable ID. The buffer holds at most eight candidates. Saturation waits without evicting
+chunk and evaluate only their compile-time location policy. `npc_offer_candidate` owns
+area, party, active identity, definition, cache, visibility, portal and collision checks.
+Cheap checks precede terrain/player/actor collision. Candidates store their definition
+priority, avoiding repeated ROM definition lookups during sorting. End admits candidates
+in descending definition priority, then ascending stable ID. The buffer holds at most eight candidates. Saturation waits without evicting
 visible or pinned actors; conflicting candidates retry next frame.
 
 Scene entry permits activation throughout the whole stage, including after a teleport.
-Later activation requires a sprite outside the view plus a one-tile guard. Retirement
-requires an uncached footprint and a sprite outside the guarded view; its hook receives
+Later activation tests the rendered 16x16 sprite at the actor origin, without the
+(4,8) collision-foot offset. A shared signed rectangle test protects the current
+`game_camera()` view plus `PLAYER_PIXELS_PER_FRAME` on each edge (currently one
+pixel). Player corner assistance moves at most one pixel per axis per movement
+iteration, so this also covers camera movement after the NPC stage and before drawing.
+Exact edge contact is offscreen; intersecting even one protected pixel defers admission.
+The 11x7 cache has enough margin to cache the full 8x8 feet before this clearance
+is lost, including fractional camera phases. No extra tile of clearance is needed.
+Retirement uses the same sprite geometry but additionally requires an uncached
+footprint, and never unloads unfinished targets/routes. This deliberately stricter
+lifecycle condition retains partially clipped sprites even when their feet leave the
+cache. Its hook receives
 `NPC_RETIRED_UNLOADED` exactly once before prefix compaction. Recruitment uses
 `NPC_RETIRED_PARTY`; reset uses `NPC_RETIRED_RESET`. Reacquire `Npc*` after stage processing
 because compaction can change slot addresses.
+
+Admission validates the initial world state once. The first cast checks capacity and
+initializes its slot without repeating collision tests. After any successful cast,
+its activation hook may have changed policy, party, camera, player, terrain or actors;
+later casts revalidate these conditions, including all actor occupancy. Thus overlapping
+candidates cannot both cast. Failed casts do not invalidate the initial proof. Definition
+priority is sampled during admission for deterministic bounded selection; eight candidate
+records now include eight priority bytes, with no identity-sized runtime storage.
 
 Quest changes retarget active ordinary actors toward the latest assigned site, independently
 of their actual coordinates, so wandering never causes spurious retargeting. Same-area
