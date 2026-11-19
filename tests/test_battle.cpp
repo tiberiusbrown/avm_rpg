@@ -2289,8 +2289,8 @@ static void target_frames() {
 static void saved_party_battles() {
     game = {};
     game.party.count = 2;
-    game.party.members[0] = {20, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_NONE};
-    game.party.members[1] = {17, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ROWAN};
+    game.party.members[0] = {20, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_NONE, 1, 0};
+    game.party.members[1] = {17, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ROWAN, 1, 0};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &BATTLE_GROVE);
@@ -2327,7 +2327,7 @@ static void saved_party_battles() {
     game.party.count = 1;
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
         for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
-            game.party.members[0] = {20, 4, m, a, NPC_NONE};
+            game.party.members[0] = {20, 4, m, a, NPC_NONE, 1, 0};
             battle_begin(state, &BATTLE_GROVE);
             auto const& rules = battle_rules(state.units[0].id);
             CHECK(rules.movement_type == MOVEMENT_INFO[m].movement_type);
@@ -2367,7 +2367,7 @@ static void rend_damage() {
     // A party victim's maximum comes from the saved member: the traveler's is 20.
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
     BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
     for(uint8_t hp = 1; hp <= 20; ++hp) {
         traveler.hp = hp;
@@ -2375,14 +2375,41 @@ static void rend_damage() {
     }
 }
 
+// A party member's level adds 1 to its normal damage at level 5 and 1 more at level 9. The bonus
+// carries into the starting special's damage, applies to Rend's injured damage too, and never
+// reaches enemies.
+static void level_attack_damage() {
+    game = {};
+    game.party.count = 1;
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
+    BattleUnit fighter{cell(3, 1), ENEMY_INFO[ENEMY_FIGHTER].max_hp, ENEMY_FIGHTER, BATTLE_ENEMY};
+    uint8_t bonus[PARTY_MAX_LEVEL] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
+    for(uint8_t level = 1; level <= PARTY_MAX_LEVEL; ++level) {
+        game.party.members[0].level = level;
+        CHECK(battle_attack_damage(traveler, fighter) == 3 + bonus[level - 1]);
+        // Strike's special adds 3 more to a victim at full HP.
+        CHECK(battle_special_damage(traveler, fighter) == 6 + bonus[level - 1]);
+    }
+    // Rend deals 2 to a healthy victim and 4 to an injured one, and the level-9 bonus adds 2 to both.
+    game.party.members[0].level = 9;
+    game.party.members[0].attack_class = ATTACK_REND;
+    CHECK(battle_attack_damage(traveler, fighter) == 2 + 2);
+    fighter.hp = 1;
+    CHECK(battle_attack_damage(traveler, fighter) == 4 + 2);
+    fighter.hp = ENEMY_INFO[ENEMY_FIGHTER].max_hp;
+    // The bonus is the attacker's: an enemy attacking the same party member gets none.
+    CHECK(battle_attack_damage(fighter, traveler) == 3);
+}
+
 // A victory restores one AP to every saved member, including one that fell, up to its maximum. A
 // defeat restores none, and play itself never changes AP.
 static void victory_ap_recovery() {
     game = {};
     game.party.count = 3;
-    game.party.members[0] = {20, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE};
-    game.party.members[1] = {0, 3, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_VILLAGER};
-    game.party.members[2] = {17, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ROWAN};
+    game.party.members[0] = {20, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    game.party.members[1] = {0, 3, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_VILLAGER, 1, 0};
+    game.party.members[2] = {17, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ROWAN, 1, 0};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &BATTLE_GROVE);
@@ -2394,6 +2421,7 @@ static void victory_ap_recovery() {
     battle_finish(state);
     CHECK(game.party.members[0].ap == 0 && game.party.members[1].ap == 3 &&
           game.party.members[2].ap == 4);
+    CHECK(game.party.members[0].experience == 0 && game.party.members[2].experience == 0);
 
     game.party = saved;
     state.result = BATTLE_VICTORY;
@@ -2401,6 +2429,15 @@ static void victory_ap_recovery() {
     CHECK(game.party.members[0].ap == 1);
     CHECK(game.party.members[1].ap == 4); // Recovered from a member who fell.
     CHECK(game.party.members[2].ap == 4); // Already full, so the recovery is capped.
+    // Every member earns experience, including the one who fell, and no one is at a new level yet.
+    for(uint8_t i = 0; i < 3; ++i)
+        CHECK(game.party.members[i].level == 1 && game.party.members[i].experience == 2);
+
+    // A victory that completes a level processes it at once and keeps only the surplus.
+    game.party = saved;
+    game.party.members[0].experience = 9;
+    battle_finish(state);
+    CHECK(game.party.members[0].level == 2 && game.party.members[0].experience == 1);
 }
 
 // A saved member's starting special costs AP and needs the normal attack's reach. It deals the
@@ -2409,7 +2446,7 @@ static void victory_ap_recovery() {
 static void special_attacks() {
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
     ENEMY_ID member = (ENEMY_ID)battle_party_id(0);
     BattleState s = board(
         BATTLE_PARTY, {{3, 1, member, BATTLE_PARTY, 20}, {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
@@ -2479,6 +2516,7 @@ static void special_attacks() {
 int main() {
     saved_party_battles();
     rend_damage();
+    level_attack_damage();
     victory_ap_recovery();
     special_attacks();
     unit_definitions();

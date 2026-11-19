@@ -138,7 +138,7 @@ static void test_destination_collision_and_recruitment() {
     update_visible_world(0, false);
     CHECK(npc_find(NPC_VILLAGER));
     CHECK(npc_find(NPC_VILLAGER)->assigned_site == positions::VillagerEast);
-    CHECK(party_add({18, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(party_add({18, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
     CHECK(!npc_find(NPC_VILLAGER));
     Game saved = game;
     game_new();

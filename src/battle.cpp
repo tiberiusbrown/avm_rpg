@@ -165,12 +165,13 @@ void battle_finish(BattleState const& state) {
     }
     if(!state.ended || state.result != BATTLE_VICTORY)
         return;
-    // Every member recovers, including one that fell or was already at 0 HP and did not deploy.
+    // Every member recovers and earns experience, including one that fell or did not deploy.
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember& member = game.party.members[i];
         uint16_t ap = member.ap + party_victory_ap(member);
         uint8_t maximum = party_max_ap(member);
         member.ap = ap < maximum ? (uint8_t)ap : maximum;
+        party_gain_experience(member, party_victory_experience(member));
     }
 }
 
@@ -228,10 +229,15 @@ DIRECTION battle_direction(uint8_t from, uint8_t to) {
 
 uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim) {
     BattleUnitRules const& rules = battle_rules(attacker.id);
-    if(rules.injured_damage == rules.damage)
-        return rules.damage;
+    uint8_t damage = rules.damage;
     // A victim is healthy at half its maximum HP or more, which 2 * hp >= maximum tests exactly.
-    return 2 * (uint16_t)victim.hp < battle_max_hp(victim) ? rules.injured_damage : rules.damage;
+    if(rules.injured_damage != rules.damage && 2 * (uint16_t)victim.hp < battle_max_hp(victim))
+        damage = rules.injured_damage;
+    // A party member's level adds to its normal damage; enemies have no levels.
+    if(attacker.id & BATTLE_PARTY_SOURCE)
+        damage = (uint8_t)(damage +
+                           party_attack_bonus(game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE]));
+    return damage;
 }
 
 uint8_t battle_sprite_row(BattleUnit const& unit) {

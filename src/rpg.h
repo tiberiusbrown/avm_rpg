@@ -39,7 +39,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 14;
+inline constexpr uint8_t SAVE_VERSION = 15;
 
 enum {
     BTN_B = 4,
@@ -117,6 +117,8 @@ struct PartyMember {
     uint8_t hp, ap;
     uint8_t movement_class, attack_class;
     NPC_ID id; // NPC_NONE identifies the traveler; other identities prevent duplicate recruits.
+    uint8_t level;      // 1 through PARTY_MAX_LEVEL
+    uint8_t experience; // toward the next level only; it resets to zero at each level-up
 };
 
 struct Party {
@@ -124,15 +126,44 @@ struct Party {
     uint8_t count;
 };
 
-static_assert(sizeof(PartyMember) == 5, "byte-sized party statistics and identity");
+static_assert(sizeof(PartyMember) == 7, "byte-sized party statistics, identity and progress");
+
+inline constexpr uint8_t PARTY_MAX_LEVEL = 10;
+
+// Experience needed to go from a level to the next: 10 at level 1, rising by 5 each level, so it
+// fits a byte through the cap. Experience is not cumulative.
+constexpr uint8_t party_experience_needed(uint8_t level) {
+    return (uint8_t)(5 * (level + 1));
+}
+
+// A level within the cap, and experience below what that level needs. At the cap nothing is kept.
+constexpr bool party_progress_valid(PartyMember const& member) {
+    if(member.level < 1 || member.level > PARTY_MAX_LEVEL)
+        return false;
+    return member.level == PARTY_MAX_LEVEL ? member.experience == 0
+                                           : member.experience < party_experience_needed(member.level);
+}
+
+// The experience a member earns from each victory, before any perk or item changes it.
+inline constexpr uint8_t PARTY_VICTORY_EXPERIENCE = 2;
+
+constexpr uint8_t party_victory_experience(PartyMember const&) {
+    return PARTY_VICTORY_EXPERIENCE;
+}
 
 // Every member's AP maximum is the same until items and perks change it.
 inline constexpr uint8_t PARTY_BASE_AP = 4;
 
-// The base maximum HP and AP of a party member. The traveler's 20 HP and Rowan's 18 HP are the base
-// values of their identities. Items and perks will add to both.
+// The maximum HP of a party member: the base of its identity, the traveler's 20 or Rowan's 18, plus
+// 2 at level 3 and 2 more at level 7. Items and perks will add to it.
 constexpr uint8_t party_max_hp(PartyMember const& member) {
-    return member.id == NPC_ROWAN ? 18 : 20;
+    uint8_t base = member.id == NPC_ROWAN ? 18 : 20;
+    return (uint8_t)(base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0));
+}
+
+// The normal-attack damage a party member adds: 1 at level 5 and 1 more at level 9.
+constexpr uint8_t party_attack_bonus(PartyMember const& member) {
+    return (uint8_t)((member.level >= 5 ? 1 : 0) + (member.level >= 9 ? 1 : 0));
 }
 
 constexpr uint8_t party_max_ap(PartyMember const&) {
@@ -146,8 +177,12 @@ constexpr uint8_t party_victory_ap(PartyMember const&) {
     return PARTY_VICTORY_AP;
 }
 
-// A member at full HP and AP, as the traveler and new recruits join.
+// A member at full HP and AP, level 1 with no experience, as the traveler and new recruits join.
 PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack);
+
+// Adds experience to one member and processes each level it completes at once. Returns the number
+// of levels gained. At the cap, the experience is discarded.
+uint8_t party_gain_experience(PartyMember& member, uint8_t amount);
 
 bool party_contains(NPC_ID id);
 // Rejects duplicate identities, HP or AP above the member's maximum, invalid classes, and a full

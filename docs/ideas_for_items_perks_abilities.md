@@ -143,18 +143,20 @@ Store an **acquired-equipment bitset** plus **twelve equipped IDs** (4 character
 
 **Recommended first campaign cap:** Level 10, with modest automatic stat growth and one perk-track advancement at every even-numbered level. The numbers below are balance placeholders.
 
-| Level | Cumulative XP (example) | Reward |
+| Level | XP to next level (example) | Reward |
 |---:|---:|---|
-| 1 | 0 | Movement + attack class rules; first attack-class special already available |
-| 2 | 10 | **Advance movement track OR attack track** (rank 1) |
-| 3 | 25 | +2 maximum HP |
-| 4 | 45 | **Advance movement OR attack track** (next rank) |
-| 5 | 70 | +1 normal-attack damage |
-| 6 | 100 | **Advance movement OR attack track** (next rank) |
-| 7 | 135 | +2 maximum HP |
-| 8 | 175 | **Advance movement OR attack track** (next rank) |
-| 9 | 220 | +1 normal-attack damage |
-| 10 | 270 | **Advance movement OR attack track** (next rank); cap reached |
+| 1 | 10 | Movement + attack class rules; first attack-class special already available |
+| 2 | 15 | **Advance movement track OR attack track** (rank 1) |
+| 3 | 20 | +2 maximum HP |
+| 4 | 25 | **Advance movement OR attack track** (next rank) |
+| 5 | 30 | +1 normal-attack damage |
+| 6 | 35 | **Advance movement OR attack track** (next rank) |
+| 7 | 40 | +2 maximum HP |
+| 8 | 45 | **Advance movement OR attack track** (next rank) |
+| 9 | 50 | +1 normal-attack damage |
+| 10 | — | **Advance movement OR attack track** (next rank); cap reached |
+
+Experience is **not cumulative**. Each member's experience counts only toward the next level and resets at every level-up, so each requirement is 10 plus 5 per level already gained and fits in one byte. The requirements are `5 × (level + 1)`.
 
 At each choice the player sees only two options: **the next unowned perk in the movement track** and **the next unowned perk in the attack track**. Selection permanently advances that track by one rank; previously skipped ranks remain obtainable later. Five selections can produce a 5/0 specialist, a 3/2 hybrid, and everything between. A higher-tier perk never requires choosing an arbitrary earlier perk from a branching tree: it merely requires sufficient investment in that axis.
 
@@ -192,7 +194,7 @@ The following eight five-rank tracks are a **recommended starting layout**, not 
 
 ### Experience and interface
 
-**Experience:** Prefer cumulative XP **per active member**, with the full XP award given to every active party member including incapacitated ones. Do not split awards four ways. New recruits can join near the current party level. A single shared party XP total remains an acceptable RAM-saving alternative if individual levels prove too costly.
+**Experience:** Track level and experience **per member**. Each member stores `level` (1–10) and `experience` as a `uint8_t` toward the next level. Experience resets at each level-up, so no cumulative total is kept. Experience is awarded after each combat victory: the full award goes to every party member, including incapacitated ones, and level-ups are processed immediately, carrying any surplus into the next level. Do not split awards four ways. New recruits can join near the current party level to avoid permanently weak recruits.
 
 **Perk screen:** At any earned choice, show `Move: <class>` with the next movement perk name/effect versus `Attack: <class>` with the next attack perk name/effect. If the player defers, keep the choice pending in the Party screen. No large perk-tree viewer is needed; optionally show `Move 2 / Attack 1` in character details. Fixed rank definitions and descriptions belong in flash.
 
@@ -858,7 +860,7 @@ For **four party members, 24 distinct unlocked unique items split across weapons
 | Equipped weapons | Four 8-bit item IDs (`0` = none) | 4 |
 | Equipped armor | Four 8-bit item IDs | 4 |
 | Equipped relics | Four 8-bit item IDs | 4 |
-| Character XP | Four 16-bit cumulative XP totals | 8 |
+| Character level and XP | Four level + experience byte pairs | 8 |
 | Perk track ranks | Two 3-bit ranks per character; deferred choices derived | 3 |
 | **Subtotal** | **Excludes existing HP/AP, party fields, flags, and transient UI state** | **28** |
 
@@ -885,7 +887,7 @@ Per-battle "first hit" or "first special" equipment effects need transient per-b
 1. **AP recovery is decided:** AP persists; each active member recovers **1 AP after victory**, with additive upgrades that may eventually approach a full reset. Decide when +1 and +2 equipment/perk upgrades appear, not whether the baseline resets.
 2. **Equipment slots are decided:** One **weapon, armor, and relic** for each member. The open question is how many distinct items ship and whether some have class restrictions; all equipped unique items have singular ownership.
 3. **Movement-focused armor is intentional:** Boots, cloaks, and heavy plate can modify movement distance, HP cost, or the automatic movement attack. Decide a consistent floor/cap so stacked reductions do not erase movement's strategic HP cost.
-4. **Independent classes and two ordered perk tracks are decided:** Step/Leap/Charge movements and Strike/Shoot/Reach/Impact/Rend attacks. Each perk milestone advances one track by one rank; rank 3 of an attack track unlocks its second special. **XP accounting open question:** Individual or shared XP? Individual XP supports member-level identities; shared XP saves space and keeps levels aligned.
+4. **Independent classes and two ordered perk tracks are decided:** Step/Leap/Charge movements and Strike/Shoot/Reach/Impact/Rend attacks. Each perk milestone advances one track by one rank; rank 3 of an attack track unlocks its second special. **XP accounting:** Individual, non-cumulative XP per member, with a `uint8_t` experience byte beside a level byte. The alternative shared total remains available if individual levels prove too costly.
 5. **Special-ability UI:** Prefer target-first selection, then `Normal` versus up to two specials. Non-target specials and secondary target picking require separate UI justification.
 6. **What happens to a defeated party?** Choose save-point retry, last-town return, or another policy before adding persistent HP loss.
 7. **Can track investments be changed?** A modest-cost town respec could refund movement/attack ranks later, but adds UI and state rules; no class swaps initially.

@@ -304,12 +304,62 @@ static void party_statistics() {
     CHECK(rowan.hp == 18 && party_max_hp(rowan) == 18);
     CHECK(rowan.ap == 4 && party_max_ap(rowan) == 4);
     CHECK(rowan.movement_class == MOVEMENT_STEP && rowan.attack_class == ATTACK_SHOOT);
-    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_VILLAGER}) == 20);
+    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_VILLAGER, 1, 0}) == 20);
 
     // HP or AP above the member's maximum is rejected, and the party does not change.
     Party before = game.party;
-    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER}));
-    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
+    CHECK(!memcmp(&before, &game.party, sizeof(Party)));
+    CHECK(save_valid());
+}
+
+// Experience is per level and resets at each level-up. Completed levels are processed at once.
+static void party_progression() {
+    game_new();
+    PartyMember member = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
+    CHECK(member.level == 1 && member.experience == 0);
+    CHECK(party_experience_needed(1) == 10 && party_experience_needed(9) == 50);
+    CHECK(party_victory_experience(member) == 2);
+
+    // Odd-level rewards: maximum HP rises at levels 3 and 7, from the traveler's 20 or Rowan's 18.
+    PartyMember traveler_at = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    uint8_t traveler_hp[PARTY_MAX_LEVEL] = {20, 20, 22, 22, 22, 22, 24, 24, 24, 24};
+    uint8_t rowan_hp[PARTY_MAX_LEVEL] = {18, 18, 20, 20, 20, 20, 22, 22, 22, 22};
+    // Normal-attack bonuses arrive at levels 5 and 9.
+    uint8_t attack[PARTY_MAX_LEVEL] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
+    for(uint8_t level = 1; level <= PARTY_MAX_LEVEL; ++level) {
+        traveler_at.level = level;
+        member.level = level;
+        CHECK(party_max_hp(traveler_at) == traveler_hp[level - 1]);
+        CHECK(party_max_hp(member) == rowan_hp[level - 1]);
+        CHECK(party_attack_bonus(member) == attack[level - 1]);
+    }
+    member.level = 1;
+
+    CHECK(party_gain_experience(member, 8) == 0 && member.level == 1 && member.experience == 8);
+    CHECK(party_gain_experience(member, 2) == 1 && member.level == 2 && member.experience == 0);
+    CHECK(party_gain_experience(member, 30) == 1 && member.level == 3 && member.experience == 15);
+    // The 115 total covers levels 3 through 6 (20 + 25 + 30 + 35); the remaining 5 is short of 40.
+    CHECK(party_gain_experience(member, 100) == 4 && member.level == 7 && member.experience == 5);
+
+    // Level 10 is the cap: the level-9 surplus is kept only until the cap, then discarded.
+    member.level = 9;
+    member.experience = 0;
+    CHECK(party_gain_experience(member, 60) == 1 && member.level == PARTY_MAX_LEVEL);
+    CHECK(member.experience == 0 && party_progress_valid(member));
+    CHECK(party_gain_experience(member, 5) == 0 && member.level == PARTY_MAX_LEVEL &&
+          member.experience == 0);
+
+    CHECK(party_progress_valid(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT)));
+    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 0, 0}));
+    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 11, 0}));
+    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 10}));
+    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 10, 1}));
+
+    // Recruits join at level 1, and a malformed level leaves the party unchanged.
+    Party before = game.party;
+    CHECK(!party_add({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 0, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(save_valid());
 }
@@ -322,5 +372,6 @@ int main() {
     grove_battle();
     saves();
     party_statistics();
+    party_progression();
     printf("PASS 16x16 core: %u checks\n", checks);
 }
