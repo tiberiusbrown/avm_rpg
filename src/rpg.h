@@ -356,8 +356,12 @@ uint8_t option_level(OPTION_ITEM item);
 void options_apply();
 void option_adjust(OPTION_ITEM item, bool increase);
 inline constexpr uint8_t PARTY_WIDTH = 128;
-// Draws the page of party member `member`, an index below game.party.count.
-void render_party(uint8_t revealed, bool closing, uint8_t member);
+struct PartyUi;
+// Draws the Party panel for the page in `ui`, sliding in or out at `revealed` pixels.
+void render_party(uint8_t revealed, bool closing, PartyUi const& ui);
+// Measures the open detail page's description, so its scroll limits are known. Call it when a
+// press opens a detail page.
+void party_layout(PartyUi& ui);
 struct JournalView;
 // Fills the detail view's wrapped summary for a quest, after its name has been chosen.
 void journal_open(JournalView& view, QUEST_ID id);

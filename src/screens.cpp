@@ -2,6 +2,7 @@
 #include "battle_cursor.h"
 #include "journal.h"
 #include "music_catalog.h"
+#include "party_ui.h"
 #include "quest.h"
 #include "sfx.h"
 #include "soundscape.h"
@@ -36,39 +37,61 @@ __attribute__((noinline)) void title_screen() {
         game_start();
 }
 
-// Each page shows one party member. Left and right turn pages and wrap at either end, and A or B
-// closes the panel.
+// The Party panel is one loop over its pages, so a press changes the page without replaying the
+// slide. Only a change to the picture is drawn and presented. The panel closes from the overview
+// with B, and every other page returns to the page above it.
 __attribute__((noinline)) void party_screen() {
+    PartyUi ui;
+    party_ui_open(ui);
     int16_t revealed = 0;
     bool closing = false;
-    uint8_t member = 0;
+    bool redraw = true;
     input_sync();
 
     for(;;) {
         input_wait_frame();
+        int16_t pixel = cursor_pixel(revealed);
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(PARTY_WIDTH));
-        render_party((uint8_t)cursor_pixel(revealed), closing, member);
-        // A waiting page keeps its frame in RAM, as the title and battle do. Every frame redraws
-        // the whole display, so nothing from the previous frame survives.
-        avm_display(false);
+        if(redraw || cursor_pixel(revealed) != pixel) {
+            render_party((uint8_t)cursor_pixel(revealed), closing, ui);
+            // A waiting page keeps its frame in RAM, as the title and battle do.
+            avm_display(false);
+            redraw = false;
+        }
         if(closing) {
             if(!revealed)
                 return;
             continue;
         }
         uint8_t pressed = input_pressed();
-        if(pressed & (BTN_A | BTN_B)) {
-            sfx_play(SFX_CANCEL);
-            closing = true;
-        } else if(pressed & (BTN_LEFT | BTN_RIGHT)) {
-            // A party of one has no other page, so the press answers with the edge sound.
-            if(game.party.count > 1) {
-                sfx_menu_tick();
-                member = (uint8_t)((member + (pressed & BTN_RIGHT ? 1 : game.party.count - 1)) %
-                                   game.party.count);
-            } else
+        if(!pressed)
+            continue;
+
+        PARTY_PAGE before = ui.page;
+        switch(party_ui_press(ui, game.party, pressed)) {
+            case PARTY_EVENT_NONE:
+                continue;
+            case PARTY_EVENT_EDGE:
                 sfx_play(SFX_CURSOR_EDGE);
+                continue;
+            case PARTY_EVENT_TICK:
+                sfx_menu_tick();
+                break;
+            case PARTY_EVENT_SELECT:
+                sfx_play(SFX_SELECT);
+                break;
+            case PARTY_EVENT_CANCEL:
+                sfx_play(SFX_CANCEL);
+                break;
+            case PARTY_EVENT_CLOSE:
+                sfx_play(SFX_CANCEL);
+                closing = true;
+                break;
         }
+        redraw = true;
+        // A detail page needs its description measured before the scroll limits apply.
+        if(ui.page != before && party_ui_describes(ui.page))
+            party_layout(ui);
     }
 }
 

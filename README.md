@@ -15,10 +15,29 @@ world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Jou
 **Map**, **Audio**, or **Load**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
-immediately after saving. Party opens an eased sliding panel with one page per member. Each page shows the
-name, current/maximum HP and AP, the movement and attack types (`Move: Step`, `Attack: Shoot`), and the
-attack type's starting special with its AP cost. Left and right turn pages and wrap at either end; A or B
-slides the panel out and returns directly to gameplay.
+immediately after saving. Party opens an eased sliding panel on the overview of the first member. Left and
+right switch members and wrap at either end. Up and down choose **Specials**, **Perks** or **Equipment**; A
+opens the highlighted category, and B climbs back one level. B on the overview closes the panel and returns
+directly to gameplay, and A never closes it. Party pages change without replaying the slide, and the world
+is not drawn while the panel covers the screen.
+- The overview shows the member's name, current/maximum HP and AP, the movement and attack types
+  (`Move: Step`, `Attack: Shoot`), and how many specials the member has.
+- **Specials** lists the starting special, with its AP cost, for the member's attack type. A opens its
+  details: the cost, the range along a row or column, and the effect. The bonuses are read from the
+  battle's tables, and the description scrolls with up and down. Power Strike, Opening Shot, Driving Thrust,
+  Crushing Bash and Wound Hunter are the only specials, and no others are unlocked.
+- **Perks** is a `PREVIEW` of the planned two-track progression. Its movement track follows the member's
+  movement type, and its attack track follows the attack type. Each track lists sample ranks, and a choice
+  page previews the next rank of each track. Every sample rank is shown as "Not earned". Nothing can be
+  learned, and no perk changes gameplay, the party or the save.
+- **Equipment** shows the weapon, armor and relic slots as `(None)`, because no equipment exists yet. A
+  opens a `SAMPLE ITEMS` list for the slot, where A opens an item's details. Equipping is unavailable and
+  shows `Equip: n/a`. Sample items and their sample owners are labeled `PREVIEW` and change nothing.
+
+The panel's navigation lives only while it is open, so closing and reopening Party starts at the overview
+of the first member. Navigation never changes HP, AP, classes or the save. The sample perk and item text is
+in `src/party_preview.cpp`, which is separate from the navigation in `src/party_ui.cpp`, so the sample tables
+can be replaced when perk and equipment systems exist.
 A new game starts with the traveler (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
 of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, step movement, shoot attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.

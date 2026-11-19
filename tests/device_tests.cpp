@@ -1090,7 +1090,8 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     d.tap(BTN_B);
     d.advance(0, 8000000);
     require(d.serial() != serial, "Party B did not return directly to gameplay");
-    // A has the same direct return behavior as B.
+    // A on the overview opens the Specials category, and the panel stays open. Gameplay resumes only
+    // when B has climbed back to the overview and closed the panel.
     d.tap(BTN_B);
     d.advance(0, 1600000);
     d.tap(BTN_DOWN);
@@ -1100,7 +1101,13 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     serial = d.serial();
     d.tap(BTN_A);
     d.advance(0, 8000000);
-    require(d.serial() != serial, "Party A did not return directly to gameplay");
+    require(d.serial() == serial, "Party A on the overview did not open a category");
+    d.tap(BTN_B);
+    d.advance(0, 800000);
+    require(d.serial() == serial, "Party B from Specials closed the whole panel");
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+    require(d.serial() != serial, "Party B from the overview did not return to gameplay");
 }
 
 static void verify_party_recruitment(Device& d, fs::path const& out) {

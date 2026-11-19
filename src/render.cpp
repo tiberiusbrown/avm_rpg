@@ -6,6 +6,7 @@
 #include "actor_draw_order.h"
 #include "ambient.h"
 #include "journal.h"
+#include "party_ui.h"
 #include "quest.h"
 #include "title.h"
 #include "world_assets.h"
@@ -580,8 +581,8 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
 // Measures text[from, to) four characters at a time, as the dialogue measures words. Each chunk is
 // a short NUL-terminated scratch string on the stack, and the text itself stays in program memory.
 // Advances are additive, so the width of a range is the sum of its chunks.
-__attribute__((noinline)) static uint16_t journal_range_width(char const PROGMEM* text,
-                                                              uint8_t from, uint8_t to) {
+__attribute__((noinline)) static uint16_t text_range_width(char const PROGMEM* text, uint8_t from,
+                                                           uint8_t to) {
     char chunk[5];
     uint16_t width = 0;
     while(from < to) {
@@ -594,10 +595,10 @@ __attribute__((noinline)) static uint16_t journal_range_width(char const PROGMEM
     return width;
 }
 
-// Draws text[from, to) in chunks from the pen at (x, y), and returns the pen's x after the last one.
-__attribute__((noinline)) static int16_t journal_draw_range(int16_t x, int16_t y,
-                                                            char const PROGMEM* text,
-                                                            uint8_t from, uint8_t to) {
+// Draws text[from, to) in chunks from the pen at (x, y), and returns the pen's x after the last
+// one.
+__attribute__((noinline)) static int16_t
+text_draw_range(int16_t x, int16_t y, char const PROGMEM* text, uint8_t from, uint8_t to) {
     char chunk[25];
     while(from < to) {
         uint8_t count = (uint8_t)(to - from < 24 ? to - from : 24);
@@ -609,11 +610,12 @@ __attribute__((noinline)) static int16_t journal_draw_range(int16_t x, int16_t y
     return x;
 }
 
-// The wrap's width callback. It holds no state, so no program-memory pointer is captured or passed
-// by value. A captured flash pointer was truncated to 16 bits when the closure was coerced.
-struct JournalRangeWidth {
+// The wrap's width callback for any text. It holds no state, so no program-memory pointer is
+// captured or passed by value. A captured flash pointer was truncated to 16 bits when the closure
+// was coerced.
+struct TextRangeWidth {
     uint16_t operator()(char const PROGMEM* text, uint8_t from, uint8_t to) const {
-        return journal_range_width(text, from, to);
+        return text_range_width(text, from, to);
     }
 };
 
@@ -627,8 +629,8 @@ void journal_layout(JournalView& view) {
 void journal_open(JournalView& view, QUEST_ID id) {
     view.open = id;
     view.scroll = 0;
-    view.line_count = journal_wrap(quest_summary(id), JournalRangeWidth{}, view.starts,
-                                   JOURNAL_SUMMARY_LINES);
+    view.line_count =
+        journal_wrap(quest_summary(id), TextRangeWidth{}, view.starts, JOURNAL_SUMMARY_LINES);
     journal_layout(view);
 }
 
@@ -663,7 +665,8 @@ static void render_journal_list(int16_t x, JournalView const& view) {
         if(index == view.selection)
             avm_draw_text(x + 4, y, F(">"));
         avm_draw_text(x + 10, y, quest_title(id));
-        char const PROGMEM* state = quest_selected() == id ? F("Tracked") : journal_status_label(id);
+        char const PROGMEM* state =
+            quest_selected() == id ? F("Tracked") : journal_status_label(id);
         avm_draw_text(x + 118 - avm_text_width(state), y, state);
     }
 }
@@ -687,7 +690,7 @@ static void render_journal_detail(int16_t x, JournalView const& view) {
         uint8_t from = view.starts[line], to = view.starts[line + 1];
         while(to > from && summary[to - 1] == ' ')
             --to;
-        journal_draw_range(x + 4, 27 + 7 * row, summary, from, to);
+        text_draw_range(x + 4, 27 + 7 * row, summary, from, to);
     }
     if(view.scroll)
         avm_draw_text(x + 118, 27, F("^"));
@@ -733,47 +736,379 @@ static void draw_label_value(int16_t x, int16_t baseline, char const PROGMEM* la
     avm_draw_text((int16_t)(end + avm_text_width(F(" "))), baseline, value);
 }
 
-// The page of one party member. Its rows are the font's seven-pixel lines, from baseline 9 down.
-void render_party(uint8_t revealed, bool closing, uint8_t member_index) {
+// Party rows are the font's seven-pixel lines. A title sits on the first row and a subtitle on the
+// second, with a white divider beneath them. Entries start below the divider, and the footer's
+// hints sit on the last row. Text starts PARTY_MARGIN pixels in from the panel's left edge, and
+// right-aligned values end at PARTY_EDGE.
+static constexpr int16_t PARTY_ROW_TITLE = 8;
+static constexpr int16_t PARTY_ROW_SUBTITLE = 17;
+static constexpr int16_t PARTY_ROW_DIVIDER = 20;
+static constexpr int16_t PARTY_ROW_BODY = 27;
+static constexpr int16_t PARTY_ROW_FOOTER = 57;
+static constexpr int16_t PARTY_ROW_STEP = 7;
+static constexpr int16_t PARTY_MARGIN = 4;
+static constexpr int16_t PARTY_EDGE = 124;
+
+// Frames the panel with its black edge, white border and black body.
+static void render_party_frame(int16_t x) {
+    avm_draw_filled_rect_black(x, 0, PARTY_WIDTH, 64);
+    avm_draw_filled_rect_white(x + 1, 1, PARTY_WIDTH - 2, 62);
+    avm_draw_filled_rect_black(x + 2, 2, PARTY_WIDTH - 4, 60);
+}
+
+static void render_party_divider(int16_t x) {
+    avm_draw_filled_rect_white(x + PARTY_MARGIN, PARTY_ROW_DIVIDER, PARTY_EDGE - PARTY_MARGIN, 1);
+}
+
+// Draws as much of text as fits in `width` pixels, and returns the pen's x after it.
+__attribute__((noinline)) static int16_t
+text_draw_clipped(int16_t x, int16_t y, char const PROGMEM* text, uint16_t width) {
+    uint8_t length = 0, fit = 0;
+    while(text[length])
+        ++length;
+    while(fit < length && text_range_width(text, 0, (uint8_t)(fit + 1)) <= width)
+        ++fit;
+    return text_draw_range(x, y, text, 0, fit);
+}
+
+// The member's name between arrows when the party has more than one member, with the page number
+// at the right, as in "< Rowan >   2/2". A long name is clipped before the page number.
+static void render_party_header(int16_t x, PartyUi const& ui) {
+    PartyMember const& member = game.party.members[ui.member];
+    uint8_t count = game.party.count;
+    auto name = npc_name(member.id);
+    auto title = name ? name : F("Traveler");
+    int16_t name_x = x + PARTY_MARGIN;
+    if(count > 1) {
+        avm_draw_text(name_x, PARTY_ROW_TITLE, F("<"));
+        name_x = (int16_t)(name_x + avm_text_width(F("< ")));
+    }
+    // The page number is three characters wide, and an arrow after the name takes a space and one.
+    int16_t number_x = (int16_t)(x + PARTY_EDGE - avm_text_width(F("1/2")));
+    avm_draw_textf(number_x, PARTY_ROW_TITLE, F("%u/%u"), ui.member + 1, count);
+    int16_t room = (int16_t)(number_x - avm_text_width(F(" ")) - name_x);
+    if(count > 1)
+        room = (int16_t)(room - avm_text_width(F(" >")));
+    int16_t end = text_draw_clipped(name_x, PARTY_ROW_TITLE, title, (uint16_t)room);
+    if(count > 1)
+        avm_draw_text((int16_t)(end + avm_text_width(F(" "))), PARTY_ROW_TITLE, F(">"));
+}
+
+// Draws the visible lines of a detail page's description from its scroll position. A mark at the
+// right shows that more text lies above or below.
+static void render_party_text(int16_t x, PartyUi const& ui) {
+    char const PROGMEM* text = party_ui_text(ui, game.party);
+    if(!text)
+        return;
+    for(uint8_t row = 0; row < PARTY_TEXT_ROWS && ui.scroll + row < ui.line_count; ++row) {
+        uint8_t line = ui.scroll + row;
+        uint8_t from = ui.starts[line], to = ui.starts[line + 1];
+        // Each line stops at its last word, so the spaces that join it to the next line are not
+        // drawn.
+        while(to > from && text[to - 1] == ' ')
+            --to;
+        text_draw_range((int16_t)(x + PARTY_MARGIN),
+                        (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * row), text, from, to);
+    }
+    if(ui.scroll)
+        avm_draw_text((int16_t)(x + PARTY_EDGE - 6), PARTY_ROW_BODY, F("^"));
+    if(ui.scroll + PARTY_TEXT_ROWS < ui.line_count)
+        avm_draw_text((int16_t)(x + PARTY_EDGE - 6), (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * 3),
+                      F("v"));
+}
+
+static void render_party_overview(int16_t x, PartyUi const& ui) {
+    PartyMember const& member = game.party.members[ui.member];
+    int16_t left = x + PARTY_MARGIN;
+    render_party_header(x, ui);
+    avm_draw_textf(left, PARTY_ROW_SUBTITLE, F("HP %u/%u"), member.hp, party_max_hp(member));
+    avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("AP %u/%u"), member.ap,
+                   party_max_ap(member));
+    draw_label_value(left, 25, F("Move:"), party_movement_name(member.movement_class));
+    draw_label_value(left, 33, F("Attack:"), party_attack_name(member.attack_class));
+
+    static char const PROGMEM* const PROGMEM CATEGORIES[CATEGORY_COUNT] = {
+        F("Specials"),
+        F("Perks"),
+        F("Equipment"),
+    };
+    for(uint8_t category = 0; category < CATEGORY_COUNT; ++category) {
+        int16_t y = (int16_t)(41 + 8 * category);
+        if(category == ui.selection[PARTY_PAGE_OVERVIEW])
+            avm_draw_text(left, y, F(">"));
+        avm_draw_text((int16_t)(left + 6), y, CATEGORIES[category]);
+        // Specials shows how many there are. The other categories lead to pages of previews.
+        if(category == CATEGORY_SPECIALS)
+            avm_draw_textf((int16_t)(x + PARTY_EDGE - 18), y, F("%u >"),
+                           party_special_count(member));
+        else
+            avm_draw_text((int16_t)(x + PARTY_EDGE - 6), y, F(">"));
+    }
+}
+
+static void render_party_specials(int16_t x, PartyUi const& ui) {
+    PartyMember const& member = game.party.members[ui.member];
+    int16_t left = x + PARTY_MARGIN;
+    render_party_header(x, ui);
+    draw_label_value(left, PARTY_ROW_SUBTITLE, F("SPECIALS -"),
+                     party_attack_name(member.attack_class));
+    render_party_divider(x);
+
+    // Each row is one special. The starting special is the only one for now, so one row names it.
+    uint8_t count = party_special_count(member);
+    uint8_t selected = ui.selection[PARTY_PAGE_SPECIALS];
+    for(uint8_t row = 0; row < count; ++row) {
+        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * row);
+        if(row == selected)
+            avm_draw_text(left, y, F(">"));
+        avm_draw_text((int16_t)(left + 6), y, party_special_name(member.attack_class));
+        avm_draw_textf((int16_t)(x + PARTY_EDGE - 24), y, F("%u AP"),
+                       SPECIAL_INFO[member.attack_class].ap);
+    }
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A inspect   B back"));
+}
+
+static void render_party_special_details(int16_t x, PartyUi const& ui) {
+    PartyMember const& member = game.party.members[ui.member];
+    uint8_t attack = member.attack_class;
+    AttackInfo const& normal = ATTACK_INFO[attack];
+    int16_t left = x + PARTY_MARGIN;
+    avm_draw_text(left, PARTY_ROW_TITLE, party_special_name(attack));
+    avm_draw_textf((int16_t)(x + PARTY_EDGE - 24), PARTY_ROW_TITLE, F("%u AP"),
+                   SPECIAL_INFO[attack].ap);
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, party_attack_name(attack));
+    // The range is the normal attack's, along a row or column.
+    if(normal.attack_min == normal.attack_max)
+        avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range %u"), normal.attack_min);
+    else
+        avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range %u-%u"), normal.attack_min,
+                       normal.attack_max);
+    render_party_divider(x);
+    render_party_text(x, ui);
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("B back"));
+}
+
+static void render_party_perk_index(int16_t x, PartyUi const& ui) {
+    PartyMember const& member = game.party.members[ui.member];
+    int16_t left = x + PARTY_MARGIN;
+    render_party_header(x, ui);
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, F("PERKS"));
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    render_party_divider(x);
+
+    uint8_t selected = ui.selection[PARTY_PAGE_PERKS];
+    for(uint8_t row = 0; row < PERK_ROW_COUNT; ++row) {
+        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * row);
+        int16_t label_x = (int16_t)(left + 6);
+        if(row == selected)
+            avm_draw_text(left, y, F(">"));
+        if(row == PERK_ROW_MOVEMENT)
+            draw_label_value(label_x, y, F("Movement:"),
+                             party_movement_name(member.movement_class));
+        else if(row == PERK_ROW_ATTACK)
+            draw_label_value(label_x, y, F("Attack:"), party_attack_name(member.attack_class));
+        else if(row == PERK_ROW_EQUIPMENT)
+            avm_draw_text(label_x, y, F("From Equipment"));
+        else
+            avm_draw_text(label_x, y, F("Perk Choices"));
+    }
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A open   B back"));
+}
+
+static void render_party_perk_list(int16_t x, PartyUi const& ui) {
+    int16_t left = x + PARTY_MARGIN;
+    uint8_t kind = ui.selection[PARTY_PAGE_PERKS];
+    bool equipment = kind == PERK_ROW_EQUIPMENT;
+    uint8_t count = party_ui_entries(ui, game.party);
+    uint8_t selected = ui.selection[PARTY_PAGE_PERK_LIST];
+
+    // A track's entries take one line each. An equipment entry takes two lines, the effect and the
+    // item that would grant it, so fewer of them fit on the list.
+    uint8_t lines = equipment ? 2 : 1;
+    uint8_t visible = PARTY_TEXT_ROWS / lines;
+    uint8_t first = selected >= visible ? (uint8_t)(selected - (visible - 1)) : 0;
+
+    if(equipment) {
+        avm_draw_text(left, PARTY_ROW_TITLE, F("Equipment Perks"));
+        avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Sample effects"));
+    } else {
+        avm_draw_text(left, PARTY_ROW_TITLE,
+                      kind == PERK_ROW_MOVEMENT ? F("Movement Perks") : F("Attack Perks"));
+        uint8_t track = party_perk_track(party_ui_row_perk(ui, game.party, 0));
+        avm_draw_text(left, PARTY_ROW_SUBTITLE, party_track_name(track));
+    }
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    render_party_divider(x);
+
+    for(uint8_t k = 0; k < visible && first + k < count; ++k) {
+        uint8_t index = (uint8_t)(first + k);
+        uint8_t code = party_ui_row_perk(ui, game.party, index);
+        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * lines * k);
+        if(index == selected)
+            avm_draw_text(left, y, F(">"));
+        if(equipment) {
+            avm_draw_text((int16_t)(left + 6), y, party_perk_name(code));
+            avm_draw_text((int16_t)(left + 6), (int16_t)(y + PARTY_ROW_STEP),
+                          party_perk_source(code));
+        } else {
+            avm_draw_textf((int16_t)(left + 6), y, F("%u."), index + 1);
+            avm_draw_text((int16_t)(left + 18), y, party_perk_name(code));
+        }
+    }
+    if(first)
+        avm_draw_text((int16_t)(x + PARTY_EDGE - 6), PARTY_ROW_BODY, F("^"));
+    if(first + visible < count)
+        avm_draw_text((int16_t)(x + PARTY_EDGE - 6), (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * 3),
+                      F("v"));
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A open   B back"));
+}
+
+static void render_party_perk_choice(int16_t x, PartyUi const& ui) {
+    int16_t left = x + PARTY_MARGIN;
+    avm_draw_text(left, PARTY_ROW_TITLE, F("Perk Choices"));
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Next ranks"));
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    render_party_divider(x);
+
+    uint8_t selected = ui.selection[PARTY_PAGE_PERK_CHOICE];
+    uint8_t count = party_ui_entries(ui, game.party);
+    for(uint8_t index = 0; index < count; ++index) {
+        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * index);
+        if(index == selected)
+            avm_draw_text(left, y, F(">"));
+        draw_label_value((int16_t)(left + 6), y, index == 0 ? F("Move:") : F("Attack:"),
+                         party_perk_name(party_ui_row_perk(ui, game.party, index)));
+    }
+    avm_draw_text(left, (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * 3), F("Not available yet."));
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A inspect   B back"));
+}
+
+static void render_party_perk_details(int16_t x, PartyUi const& ui) {
+    int16_t left = x + PARTY_MARGIN;
+    uint8_t track = party_perk_track(ui.entry);
+    avm_draw_text(left, PARTY_ROW_TITLE, party_perk_name(ui.entry));
+    if(track == PARTY_NO_TRACK)
+        avm_draw_text(left, PARTY_ROW_SUBTITLE, F("From equipment"));
+    else
+        draw_label_value(left, PARTY_ROW_SUBTITLE,
+                         track < MOVEMENT_CLASS_COUNT ? F("Movement:") : F("Attack:"),
+                         party_track_name(track));
+    render_party_divider(x);
+    render_party_text(x, ui);
+
+    // Nothing is earned or owned yet, so the note says so.
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("B back"));
+    char const PROGMEM* note = track == PARTY_NO_TRACK ? F("Preview only") : F("Not earned");
+    avm_draw_text((int16_t)(x + PARTY_EDGE - avm_text_width(note)), PARTY_ROW_FOOTER, note);
+}
+
+static void render_party_equipment(int16_t x, PartyUi const& ui) {
+    PartyMember const& member = game.party.members[ui.member];
+    int16_t left = x + PARTY_MARGIN;
+    render_party_header(x, ui);
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, F("EQUIPMENT"));
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    render_party_divider(x);
+
+    uint8_t selected = ui.selection[PARTY_PAGE_EQUIPMENT];
+    for(uint8_t slot = 0; slot < SLOT_COUNT; ++slot) {
+        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * slot);
+        if(slot == selected)
+            avm_draw_text(left, y, F(">"));
+        int16_t end = avm_draw_text((int16_t)(left + 6), y, party_slot_name(slot)).x;
+        end = avm_draw_text(end, y, F(":")).x;
+        char const PROGMEM* equipped = party_equipped(member, slot);
+        avm_draw_text((int16_t)(end + avm_text_width(F(" "))), y,
+                      equipped ? equipped : F("(None)"));
+    }
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A open   B back"));
+}
+
+static void render_party_item_list(int16_t x, PartyUi const& ui) {
+    int16_t left = x + PARTY_MARGIN;
+    uint8_t slot = ui.selection[PARTY_PAGE_EQUIPMENT];
+    avm_draw_text(left, PARTY_ROW_TITLE, party_slot_name(slot));
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Sample items"));
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    render_party_divider(x);
+
+    uint8_t count = party_ui_entries(ui, game.party);
+    uint8_t selected = ui.selection[PARTY_PAGE_ITEM_LIST];
+    for(uint8_t index = 0; index < count; ++index) {
+        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * index);
+        if(index == selected)
+            avm_draw_text(left, y, F(">"));
+        avm_draw_text((int16_t)(left + 6), y, party_item_name(party_item_code(slot, index)));
+    }
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A inspect   B back"));
+}
+
+static void render_party_item_details(int16_t x, PartyUi const& ui) {
+    int16_t left = x + PARTY_MARGIN;
+    avm_draw_text(left, PARTY_ROW_TITLE, party_item_name(ui.entry));
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, party_slot_name(party_item_slot(ui.entry)));
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    render_party_divider(x);
+    render_party_text(x, ui);
+
+    // Equipping is not available yet, so the action is named but does nothing.
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("Equip: n/a"));
+    avm_draw_text((int16_t)(x + PARTY_EDGE - 36), PARTY_ROW_FOOTER, F("B back"));
+}
+
+static void render_party_panel(int16_t x, PartyUi const& ui) {
+    render_party_frame(x);
+    switch(ui.page) {
+        case PARTY_PAGE_OVERVIEW:
+            render_party_overview(x, ui);
+            break;
+        case PARTY_PAGE_SPECIALS:
+            render_party_specials(x, ui);
+            break;
+        case PARTY_PAGE_SPECIAL_DETAILS:
+            render_party_special_details(x, ui);
+            break;
+        case PARTY_PAGE_PERKS:
+            render_party_perk_index(x, ui);
+            break;
+        case PARTY_PAGE_PERK_LIST:
+            render_party_perk_list(x, ui);
+            break;
+        case PARTY_PAGE_PERK_CHOICE:
+            render_party_perk_choice(x, ui);
+            break;
+        case PARTY_PAGE_PERK_DETAILS:
+            render_party_perk_details(x, ui);
+            break;
+        case PARTY_PAGE_EQUIPMENT:
+            render_party_equipment(x, ui);
+            break;
+        case PARTY_PAGE_ITEM_LIST:
+            render_party_item_list(x, ui);
+            break;
+        case PARTY_PAGE_ITEM_DETAILS:
+            render_party_item_details(x, ui);
+            break;
+        case PARTY_PAGE_COUNT:
+            break;
+    }
+}
+
+// The Party panel slides in over the world. Once it covers the whole screen, the world beneath it
+// is no longer drawn.
+void render_party(uint8_t revealed, bool closing, PartyUi const& ui) {
+    if(revealed == PARTY_WIDTH && !closing) {
+        render_party_panel(0, ui);
+        return;
+    }
     rpg_render_world();
     draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / PARTY_WIDTH)
                       : FADE_STEPS / 2);
     if(!revealed)
         return;
+    render_party_panel(DISPLAY_WIDTH - revealed, ui);
+}
 
-    int16_t x = DISPLAY_WIDTH - revealed;
-    avm_draw_filled_rect_black(x, 0, PARTY_WIDTH, 64);
-    avm_draw_filled_rect_white(x + 1, 1, PARTY_WIDTH - 2, 62);
-    avm_draw_filled_rect_black(x + 2, 2, PARTY_WIDTH - 4, 60);
-    int16_t left = x + 4, right = x + PARTY_WIDTH - 4;
-    PartyMember const& member = game.party.members[member_index];
-
-    avm_draw_textf(left, 9, F("Party %u/%u"), member_index + 1, game.party.count);
-    avm_draw_text((int16_t)(right - avm_text_width(F("B back"))), 9, F("B back"));
-
-    auto name = npc_name(member.id);
-    auto title = name ? name : F("Traveler");
-    avm_draw_text((int16_t)(x + (PARTY_WIDTH - avm_text_width(title)) / 2), 17, title);
-    if(game.party.count > 1) {
-        avm_draw_text(left, 17, F("<"));
-        avm_draw_text((int16_t)(right - avm_text_width(F(">"))), 17, F(">"));
-    }
-
-    avm_draw_textf(left, 25, F("HP %u/%u"), member.hp, party_max_hp(member));
-    avm_draw_textf(x + PARTY_WIDTH / 2, 25, F("AP %u/%u"), member.ap, party_max_ap(member));
-
-    static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Step"), F("Leap"),
-                                                           F("Charge")};
-    static char const PROGMEM* const PROGMEM ATTACK[] = {F("Strike"), F("Shoot"), F("Reach"),
-                                                         F("Impact"), F("Rend")};
-    static_assert(sizeof(MOVEMENT) / sizeof(MOVEMENT[0]) == MOVEMENT_CLASS_COUNT);
-    static_assert(sizeof(ATTACK) / sizeof(ATTACK[0]) == ATTACK_CLASS_COUNT);
-    draw_label_value(left, 33, F("Move:"), MOVEMENT[member.movement_class]);
-    draw_label_value(left, 40, F("Attack:"), ATTACK[member.attack_class]);
-
-    // Each attack class's starting special, known from the first level, with its AP cost from the
-    // battle rules.
-    avm_draw_text(left, 48, F("Specials"));
-    avm_draw_text(left, 56, BATTLE_SPECIAL_NAMES[member.attack_class]);
-    avm_draw_textf(x + PARTY_WIDTH / 2, 56, F("%u AP"), SPECIAL_INFO[member.attack_class].ap);
+void party_layout(PartyUi& ui) {
+    party_ui_layout(ui, game.party, TextRangeWidth{});
 }
