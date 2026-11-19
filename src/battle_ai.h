@@ -3,8 +3,8 @@
 
 #include "battle.h"
 
-// The deepest search, in plies. Each ply is one activation, and a pass is one too. The
-// static workspace is sized for this depth.
+// The deepest search, in plies. Each ply is one activation, and a pass is one too. The search's
+// share of the runtime workspace is sized for this depth.
 inline constexpr uint8_t BATTLE_AI_DEPTH = 4;
 
 // Positions the enemy may visit while it chooses an action, summed over every iteration of the
@@ -58,7 +58,7 @@ struct BattleSearchStats {
     uint8_t progress;                          // Calls to battle_think_progress.
 };
 
-// The deepest search the static action stack holds from this position: BATTLE_AI_DEPTH for battles
+// The deepest search the shared action stack holds from this position: BATTLE_AI_DEPTH for battles
 // of up to three units a side, fewer for larger ones. Units never return, so the limit holds below
 // it.
 uint8_t battle_search_depth_limit(BattleState const& state);
@@ -87,7 +87,8 @@ void battle_think_progress(uint8_t step);
 
 BattleSearchStats battle_search_stats();
 
-// Bytes of static search workspace, not counting the counters, which only tests and probes read.
+// Bytes of the search's share of the runtime workspace, not counting the counters, which only tests
+// and probes read.
 uint16_t battle_search_workspace_bytes();
 
 // Orders one position's legal actions in place for the search, as battle_actions wrote them: wins

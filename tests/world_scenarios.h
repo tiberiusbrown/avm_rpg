@@ -28,26 +28,26 @@ static void run_world_scenarios() {
     CHECK(tile_solid(TILE_EMPTY) && tile_solid(TILE_SWITCH_LEFT) && tile_solid(TILE_POT));
     CHECK(tile_solid(TILE_POT_BROKEN) && tile_solid(TILE_CHEST_CLOSED) && tile_solid(TILE_CHEST_OPEN));
     game.dimensions = {MAX_MAP_WIDTH, MAX_MAP_HEIGHT};
-    reload_tile_window(game.cache, LARGE_TILES.tiles, {MAX_MAP_WIDTH, MAX_MAP_HEIGHT},
+    reload_tile_window(cache, LARGE_TILES.tiles, {MAX_MAP_WIDTH, MAX_MAP_HEIGHT},
                        {(uint16_t)(MAX_MAP_WIDTH * TILE), (uint16_t)(MAX_MAP_HEIGHT * TILE)});
     // The view clamps to the last full screen, and the cache trails it by one tile.
-    CHECK(game.cache.origin_tx == MAX_MAP_WIDTH - 9 && game.cache.origin_ty == MAX_MAP_HEIGHT - 5);
-    CHECK(game.cache.tiles[1 * CACHE_WIDTH + 1] == TILE_SIGN);     // Authored at SIGN_X, SIGN_Y.
-    CHECK(game.cache.tiles[4 * CACHE_WIDTH + 8] == TILE_GRASS_06); // Authored at CORNER_X, CORNER_Y.
-    CHECK(game.cache.tiles[9] == TILE_OUTSIDE && game.cache.tiles[5 * CACHE_WIDTH] == TILE_OUTSIDE);
+    CHECK(cache.origin_tx == MAX_MAP_WIDTH - 9 && cache.origin_ty == MAX_MAP_HEIGHT - 5);
+    CHECK(cache.tiles[1 * CACHE_WIDTH + 1] == TILE_SIGN);     // Authored at SIGN_X, SIGN_Y.
+    CHECK(cache.tiles[4 * CACHE_WIDTH + 8] == TILE_GRASS_06); // Authored at CORNER_X, CORNER_Y.
+    CHECK(cache.tiles[9] == TILE_OUTSIDE && cache.tiles[5 * CACHE_WIDTH] == TILE_OUTSIDE);
     TilePos other_area{(uint8_t)(game.area + 1), SIGN_X, SIGN_Y};
     CHECK(cached_tile(other_area) == TILE_OUTSIDE);
     CHECK(cached_tile({game.area, SIGN_X - 2, SIGN_Y}) == TILE_OUTSIDE);
     set_tile(other_area, TILE_TREE);
-    CHECK(game.cache.tiles[1 * CACHE_WIDTH + 1] == TILE_SIGN);
+    CHECK(cache.tiles[1 * CACHE_WIDTH + 1] == TILE_SIGN);
     set_tile({game.area, SIGN_X, SIGN_Y}, TILE_TREE);
-    CHECK(game.cache.tiles[1 * CACHE_WIDTH + 1] == TILE_TREE);
+    CHECK(cache.tiles[1 * CACHE_WIDTH + 1] == TILE_TREE);
     set_tile({game.area, MAX_MAP_WIDTH, MAX_MAP_HEIGHT}, TILE_TREE);
-    CHECK(game.cache.tiles[9] == TILE_OUTSIDE);
-    reload_tile_window(game.cache, nullptr, {1, 1},
+    CHECK(cache.tiles[9] == TILE_OUTSIDE);
+    reload_tile_window(cache, nullptr, {1, 1},
                        {(uint16_t)(positions::PlayerStart.x * TILE), (uint16_t)(positions::PlayerStart.y * TILE)});
-    CHECK(game.cache.origin_tx == 0 && game.cache.origin_ty == 0);
-    for(auto tile : game.cache.tiles)
+    CHECK(cache.origin_tx == 0 && cache.origin_ty == 0);
+    for(auto tile : cache.tiles)
         CHECK(tile == TILE_OUTSIDE);
     game_new();
     CHECK(game.player_is_on_tile(positions::PlayerStart));

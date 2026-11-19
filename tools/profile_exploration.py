@@ -83,7 +83,8 @@ def main():
             [device, trial / f"rpg_qa{suffix}.arduboy",
              *[refs[key]["address"] for key in ["game", "frame_marker", "frame_serial"]],
              trial / mode, mode, refs["dialogue_prompt"]["address"], refs["world_phase"]["address"],
-             refs["battle_qa_state"]["address"], refs["battle_qa_ready"]["address"]],
+             refs["battle_qa_state"]["address"], refs["battle_qa_ready"]["address"],
+             refs["dialogue_panel_open"]["address"], refs["runtime_workspace"]["address"]],
             trial / f"{mode}.log",
         )
         measurements[mode] = [json.loads(row) for row in result.splitlines() if row.startswith("{")]

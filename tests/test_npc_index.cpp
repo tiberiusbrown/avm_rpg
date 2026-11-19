@@ -89,13 +89,13 @@ static void test_casts_wait_for_spots_out_of_view() {
     place_player(positions::VillagerHome.x - 1, positions::VillagerHome.y);
     update_visible_world(0, false); // Refreshes the cache for this view before the edits below.
     npc_reset();
-    memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
     npc_stage_begin();
     process_all_chunks<STAGE_NPCS>();
     npc_stage_end(); // Entry finds no clear spot.
     CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     note_tile_edit();
     npc_stage_begin();
     process_all_chunks<STAGE_NPCS>();
@@ -170,9 +170,9 @@ static void test_exact_clearance_and_clipped_retirement() {
                 cy = y + TILE + 1 + offset;
             game.player.x = cx + 56;
             game.player.y = cy + 24;
-            game.cache.origin_tx = site.x - 1;
-            game.cache.origin_ty = site.y - 1;
-            memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+            cache.origin_tx = site.x - 1;
+            cache.origin_ty = site.y - 1;
+            memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
             note_tile_edit();
             npc_stage_begin();
             npc_offer_candidate(NPC_WANDERER, site);
@@ -189,7 +189,7 @@ static void test_exact_clearance_and_clipped_retirement() {
     n->actor.y = c.y + 20;
     n->behavior = NPC_STAND;
     // Only the leftmost sprite column remains onscreen; its feet are uncached.
-    game.cache.origin_tx = (n->actor.x + FOOT_RIGHT) / TILE + 1;
+    cache.origin_tx = (n->actor.x + FOOT_RIGHT) / TILE + 1;
     npc_stage_begin();
     CHECK(npc_find(NPC_WANDERER));
     npc_stage_end();
@@ -197,7 +197,7 @@ static void test_exact_clearance_and_clipped_retirement() {
     npc_reset();
     game.player.x = game.player.y = 0;
     CHECK(game_camera().x == 0 && game_camera().y == 0);
-    game.camera = game_camera();
+    camera = game_camera();
     CHECK(npc_visible(0, 0));
     CHECK(!npc_visible(128, 0));
     CHECK(!npc_visible(0, 64));

@@ -125,14 +125,14 @@ static void window_edges() {
 
 static void terrain_footprints() {
     game_new();
-    game.cache.origin_tx = positions::TestField.x;
-    game.cache.origin_ty = positions::TestField.y;
+    cache.origin_tx = positions::TestField.x;
+    cache.origin_ty = positions::TestField.y;
     // Every arrangement of four solid/passable tiles, at every pixel alignment.
     // The oracle checks each foot pixel independently of the corner algorithm.
     for(unsigned mask = 0; mask < 16; ++mask) {
-        memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+        memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
         for(unsigned tile = 0; tile < 4; ++tile)
-            game.cache.tiles[(2 + tile / 2) * CACHE_WIDTH + 3 + tile % 2] =
+            cache.tiles[(2 + tile / 2) * CACHE_WIDTH + 3 + tile % 2] =
                 mask & (1u << tile) ? TILE_TREE : TILE_GRASS_06;
         for(unsigned sy = 0; sy < TILE; ++sy) {
             for(unsigned sx = 0; sx < TILE; ++sx) {
@@ -207,9 +207,9 @@ static void collision_triangles() {
 static void player_shapes() {
     game_new();
     // Paint an open window at TestField, so the scenario does not depend on the map around it.
-    game.cache.origin_tx = positions::TestField.x;
-    game.cache.origin_ty = positions::TestField.y;
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    cache.origin_tx = positions::TestField.x;
+    cache.origin_ty = positions::TestField.y;
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     constexpr uint8_t SLOPE_TILE = TILE_ATLAS_25;
     // A 45 degree slope in the grass: solid bottom-right, half of the bottom-left quadrant.
     constexpr uint16_t SLOPE = 0xF600;
@@ -280,9 +280,9 @@ static void corner_assist() {
     game_new();
     // Paint an open window at TestField. The wall sits two tiles down, so the window covers both
     // sides of it.
-    game.cache.origin_tx = positions::TestField.x;
-    game.cache.origin_ty = positions::TestField.y;
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    cache.origin_tx = positions::TestField.x;
+    cache.origin_ty = positions::TestField.y;
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     constexpr uint8_t WALL_TILE = TILE_ATLAS_25;
     set_tile(field_tile(7, 2), WALL_TILE);
     tile_collision_override(WALL_TILE, 0xFFFF);
@@ -332,9 +332,9 @@ static bool oracle_pixel_blocked(uint16_t wx, uint16_t wy) {
 static void random_masks() {
     game_new();
     // Paint an open window at TestField, with the shaped tile inside the sampled pixels below.
-    game.cache.origin_tx = positions::TestField.x;
-    game.cache.origin_ty = positions::TestField.y;
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    cache.origin_tx = positions::TestField.x;
+    cache.origin_ty = positions::TestField.y;
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     constexpr uint8_t SHAPE = TILE_ATLAS_25;
     set_tile(field_tile(2, 1), SHAPE);
     uint32_t seed = 2026;
@@ -368,9 +368,9 @@ static void random_masks() {
 // Checking one bit at a time covers every table bit; combined masks use their union.
 static void foot_triangle_windows() {
     game_new();
-    game.cache.origin_tx = positions::TestField.x;
-    game.cache.origin_ty = positions::TestField.y;
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    cache.origin_tx = positions::TestField.x;
+    cache.origin_ty = positions::TestField.y;
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     constexpr uint8_t SHAPE = TILE_ATLAS_25;
     set_tile(field_tile(2, 1), SHAPE);
     for(uint8_t bit = 0; bit < 16; ++bit) {
@@ -388,9 +388,9 @@ static void foot_triangle_windows() {
 
 static void leading_edge_boundaries() {
     game_new();
-    game.cache.origin_tx = game.cache.origin_ty = 0;
+    cache.origin_tx = cache.origin_ty = 0;
     constexpr uint8_t SHAPE = TILE_ATLAS_25;
-    memset(game.cache.tiles, SHAPE, sizeof(game.cache.tiles));
+    memset(cache.tiles, SHAPE, sizeof(cache.tiles));
     constexpr MapDimensions DIMENSIONS[] = {{0, 0}, {1, 1}, {3, 2}, {2, 3}};
     constexpr uint16_t POINTS[] = {0,  1,  3,  4,  7,  8,     11,    12,    15,    16,    17,   23,
                                    24, 31, 32, 33, 63, 65520, 65527, 65528, 65531, 65532, 65535};
@@ -431,13 +431,13 @@ static void tile_edits_reset_each_frame() {
     // Open road just east of the spawn, inside the cache window.
     TilePos pos = {AREA_OUTDOOR, (uint8_t)(positions::PlayerStart.x + 1), positions::PlayerStart.y};
     uint8_t authored = cached_tile(pos);
-    uint8_t origin_x = game.cache.origin_tx, origin_y = game.cache.origin_ty;
+    uint8_t origin_x = cache.origin_tx, origin_y = cache.origin_ty;
     CHECK(authored != TILE_TREE);
     set_tile(pos, TILE_TREE);
     CHECK(cached_tile(pos) == TILE_TREE);
     update_visible_world(0, false);
     CHECK(cached_tile(pos) == authored);
-    CHECK(game.cache.origin_tx == origin_x && game.cache.origin_ty == origin_y);
+    CHECK(cache.origin_tx == origin_x && cache.origin_ty == origin_y);
     // With no edit, the cache keeps matching the map frame after frame.
     update_visible_world(0, false);
     CHECK(cached_tile(pos) == authored);
@@ -878,8 +878,36 @@ static void messages() {
     }
 }
 
+// A battle overwrites the runtime workspace, which holds the view, the camera and the cached foot
+// answers. Reclaiming it rebuilds the view from the world and the flags, so a persistent tile change
+// (the gate open by its flag) comes back, and no cached collision answer survives.
+static void battle_reclaim() {
+    game_new();
+    stand(below(positions::CaveLever), NORTH);
+    game.set_flag(FLAG_CAVE_GATE);
+    update_visible_world(0, false);
+    CHECK(cached_tile(positions::CaveGate) == CAVE_TILE_GATE_FRONT_OPEN);
+    TileCache const view = cache;
+    Camera const shown = camera;
+
+    memset(&runtime_workspace, 0xA5, sizeof(runtime_workspace));
+    world_reclaim_workspace();
+    CHECK(!memcmp(&cache, &view, sizeof(view)));
+    CHECK(camera.x == shown.x && camera.y == shown.y);
+    // The tile pass reapplies the gate through set_tile, which counts as an edit, just as it does
+    // each frame. Only the cached foot answer must be gone.
+    CHECK(!foot_cache.known);
+    CHECK(game.npcs.terrain_dirty);
+    CHECK(cached_tile(positions::CaveGate) == CAVE_TILE_GATE_FRONT_OPEN);
+
+    // The next frame rebuilds the same view, so the reclaimed workspace matches an unbroken one.
+    update_visible_world(0, false);
+    CHECK(!memcmp(&cache, &view, sizeof(view)) && camera.x == shown.x && camera.y == shown.y);
+}
+
 int main() {
     run_world_scenarios();
+    battle_reclaim();
     house_doors();
     passages();
     mechanism_states();
@@ -900,14 +928,14 @@ int main() {
     Area const& area = *world_area(AREA_OUTDOOR);
     for(unsigned y = 0; y <= 128; y += 3) {
         for(unsigned x = 0; x <= 160; x += 5) {
-            reload_tile_window(game.cache, area.tiles, {area.width, area.height},
+            reload_tile_window(cache, area.tiles, {area.width, area.height},
                                {(uint16_t)x, (uint16_t)y});
             unsigned ox = x / TILE >= CACHE_MARGIN ? x / TILE - CACHE_MARGIN : 0;
             unsigned oy = y / TILE >= CACHE_MARGIN ? y / TILE - CACHE_MARGIN : 0;
-            CHECK(game.cache.origin_tx == ox && game.cache.origin_ty == oy);
+            CHECK(cache.origin_tx == ox && cache.origin_ty == oy);
             for(unsigned cy = 0; cy < CACHE_HEIGHT; ++cy)
                 for(unsigned cx = 0; cx < CACHE_WIDTH; ++cx)
-                    CHECK(game.cache.tiles[cy * CACHE_WIDTH + cx] ==
+                    CHECK(cache.tiles[cy * CACHE_WIDTH + cx] ==
                           authored_tile(area, ox + cx, oy + cy));
         }
     }
@@ -915,8 +943,8 @@ int main() {
     // the map's chunk grid, in row-major order.
     world_enter(AREA_OUTDOOR, positions::TestField.x * TILE, positions::TestField.y * TILE, SOUTH);
     Area const& map = *world_area(AREA_OUTDOOR);
-    Camera camera = game_camera();
-    unsigned left = camera.x >> TILE_SHIFT, top = camera.y >> TILE_SHIFT;
+    Camera view = game_camera();
+    unsigned left = view.x >> TILE_SHIFT, top = view.y >> TILE_SHIFT;
     left = left >= CACHE_MARGIN ? left - CACHE_MARGIN : 0;
     top = top >= CACHE_MARGIN ? top - CACHE_MARGIN : 0;
     unsigned right = left + CACHE_WIDTH - 1, bottom = top + CACHE_HEIGHT - 1;
@@ -935,9 +963,9 @@ int main() {
         for(unsigned i = 0; i < chunks; ++i)
             CHECK(chunk_trace[stage][i] == expected[i]);
     }
-    CHECK(!terrain_clear(game.camera.x + CACHE_WIDTH * TILE, game.player.y));
-    TilePos beyond{AREA_OUTDOOR, (uint8_t)((camera.x >> TILE_SHIFT) + CACHE_WIDTH),
-                   (uint8_t)(camera.y >> TILE_SHIFT)};
+    CHECK(!terrain_clear(camera.x + CACHE_WIDTH * TILE, game.player.y));
+    TilePos beyond{AREA_OUTDOOR, (uint8_t)((view.x >> TILE_SHIFT) + CACHE_WIDTH),
+                   (uint8_t)(view.y >> TILE_SHIFT)};
     CHECK(cached_tile(beyond) == TILE_OUTSIDE); // Just past the window
     printf("PASS chunk/cache world: %u checks\n", checks);
 }

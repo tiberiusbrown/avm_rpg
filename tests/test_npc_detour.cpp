@@ -43,9 +43,9 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
 }
 
 static void cache_tile(uint8_t tx, uint8_t ty, uint8_t tile) {
-    int dx = (int)tx - (int)game.cache.origin_tx, dy = (int)ty - (int)game.cache.origin_ty;
+    int dx = (int)tx - (int)cache.origin_tx, dy = (int)ty - (int)cache.origin_ty;
     if(dx >= 0 && dy >= 0 && dx < CACHE_WIDTH && dy < CACHE_HEIGHT) {
-        game.cache.tiles[dy * CACHE_WIDTH + dx] = tile;
+        cache.tiles[dy * CACHE_WIDTH + dx] = tile;
         note_tile_edit();
     }
 }
@@ -58,7 +58,7 @@ static unsigned moved(uint16_t x0, uint16_t y0, Npc const* n) {
 // The same frame over open grass, so the only obstacle is the tree.
 static void frame_in_field(uint8_t tx, uint8_t ty, uint8_t tile) {
     update_visible_world(0, false);
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     note_tile_edit();
     cache_tile(tx, ty, tile);
     npc_update();
@@ -165,7 +165,7 @@ static void test_boxed_in_npc_gives_up_in_place() {
     unsigned frames = 0;
     for(; frames < 800 && !(v->state & NPC_TARGET_FAILED); ++frames) {
         update_visible_world(0, false);
-        memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+        memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
         note_tile_edit();
         npc_update();
         ++game.ticks;

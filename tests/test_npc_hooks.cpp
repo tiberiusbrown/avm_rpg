@@ -104,7 +104,7 @@ int main() {
     npc_update();
     CHECK(events[NPC_EVENT_ROUTE_INVALID] == 1 && n.behavior == NPC_STAND);
     CHECK(npc_move_to(n.id, n.actor.x + 1, n.actor.y));
-    memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
     for(unsigned i = 0; i < NPC_STUCK_FRAMES; ++i)
         npc_update();

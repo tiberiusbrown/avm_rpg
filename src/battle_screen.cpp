@@ -3,6 +3,7 @@
 #include "battle_cursor.h"
 #include "battle_motion.h"
 #include "music_catalog.h"
+#include "runtime_workspace.h"
 #include "sfx.h"
 
 #include <avm.h>
@@ -51,7 +52,7 @@ struct Cursor {
 
 enum SCREEN_MOTION : uint8_t { MOTION_STILL, MOTION_WALK, MOTION_LEAP, MOTION_SHOT };
 
-// One blocking battle owns this fixed workspace. Keeping it off the call stack leaves room for
+// One blocking battle owns this fixed screen. Keeping it off the call stack leaves room for
 // full-byte HP and the AI while staying within the guest's 256-byte stack budget.
 struct BattleScreen {
     BattleState state;
@@ -84,6 +85,11 @@ BattleState const* volatile battle_qa_state;
 volatile BATTLE_QA_PHASE battle_qa_ready;
 }
 #endif
+
+// The screen stays outside the runtime workspace, so dialogue can draw the board while the battle's
+// search owns that workspace. battle_running says whether a battle is in progress.
+static BattleScreen active_screen;
+static bool battle_running;
 
 // The sprite is drawn at the cell's origin minus the margin, so its interior lands on the cell.
 static void draw_cursor(Cursor const& cursor) {
@@ -253,6 +259,14 @@ void render_battle(BattleScreen const& screen) {
     draw_board<false>(screen, BATTLE_NO_UNIT, SOUTH);
     draw_actor_info(screen.state, screen.cursor);
     draw_cursor(screen.cursor);
+}
+
+bool battle_render_background() {
+    if(!battle_running)
+        return false;
+    // Dialogue shows the board from the battle's own state, without the cursor or the markers.
+    draw_board<false>(active_screen, BATTLE_NO_UNIT, SOUTH);
+    return true;
 }
 
 // Redraw the frozen board under each mask; the cursor appears after the reveal.
@@ -607,8 +621,8 @@ RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
 }
 
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
-    // Battles cannot nest; reuse one fixed screen workspace, clearing it on every entry.
-    static BattleScreen screen;
+    // Battles cannot nest; reuse the one fixed screen, clearing it on every entry.
+    BattleScreen& screen = active_screen;
     screen = {};
     BattleState& state = screen.state;
     battle_begin(state, encounter);
@@ -627,7 +641,10 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     screen.cursor =
         Cursor{first, cursor_subpixel(cell_x(first)), cursor_subpixel(cell_y(first)), 0, 0};
     screen.mover = BATTLE_NO_UNIT;
+    // The world fades out while exploration still owns the runtime workspace. Once it is dark, the
+    // battle takes the workspace over, and dialogue draws the board until the battle ends.
     fade_world_out();
+    battle_running = true;
     fade_battle_in(screen);
     sfx_play(SFX_BATTLE_START);
 
@@ -667,7 +684,12 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);
     input_wait_press(BTN_A);
     music_play_area();
+    // Dialogue still open from the battle closes over the board, before the world takes its place.
+    dialogue_close();
     fade_to_black();
+    battle_running = false;
+    // Exploration reclaims the workspace while the screen is black, then the world fades back in.
+    world_reclaim_workspace();
     fade_world_in();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();

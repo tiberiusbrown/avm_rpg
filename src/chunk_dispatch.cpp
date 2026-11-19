@@ -1,4 +1,5 @@
 #include "map_handler_catalog.h"
+#include "runtime_workspace.h"
 #ifndef RPG_NPC_POLICY_HEADER
 #define RPG_NPC_POLICY_HEADER "logic/npc_policies.h"
 #endif
@@ -80,8 +81,8 @@ template <unsigned A, HandlerStage STAGE> static CHUNK_INLINE void process_area(
     if constexpr(!AreaTable<A, STAGE>::occupied)
         return;
 #endif
-    Camera camera = STAGE == STAGE_GAMEPLAY ? game_camera() : game.camera;
-    uint8_t left = (uint8_t)(camera.x >> TILE_SHIFT), top = (uint8_t)(camera.y >> TILE_SHIFT);
+    Camera shown = STAGE == STAGE_GAMEPLAY ? game_camera() : camera;
+    uint8_t left = (uint8_t)(shown.x >> TILE_SHIFT), top = (uint8_t)(shown.y >> TILE_SHIFT);
     left = left >= CACHE_MARGIN ? (uint8_t)(left - CACHE_MARGIN) : 0;
     top = top >= CACHE_MARGIN ? (uint8_t)(top - CACHE_MARGIN) : 0;
     uint16_t right = (uint16_t)left + CACHE_WIDTH - 1;

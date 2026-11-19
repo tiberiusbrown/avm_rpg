@@ -103,8 +103,8 @@ static void check_frame(Snapshot const& before, Snapshot const& after, Camera cb
         int dy = (int)after.y[id] - (int)before.y[id];
         int jump = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
         if(jump > 1) {
-            uint16_t left = (uint16_t)game.cache.origin_tx * TILE;
-            uint16_t top = (uint16_t)game.cache.origin_ty * TILE;
+            uint16_t left = (uint16_t)cache.origin_tx * TILE;
+            uint16_t top = (uint16_t)cache.origin_ty * TILE;
             bool cached = before.x[id] + FOOT_LEFT >= left && before.y[id] + FOOT_TOP >= top &&
                           before.x[id] + FOOT_RIGHT < left + CACHE_WIDTH * TILE &&
                           before.y[id] + FOOT_BOTTOM < top + CACHE_HEIGHT * TILE;
@@ -150,9 +150,9 @@ static uint32_t rng() {
 // Writes a tile into the terrain cache. The cache is rebuilt from the map every frame, so an edit
 // reaches an NPC only when it is made after that frame's refresh and before the NPC step.
 static void cache_tile(uint8_t tx, uint8_t ty, uint8_t tile) {
-    int dx = (int)tx - (int)game.cache.origin_tx, dy = (int)ty - (int)game.cache.origin_ty;
+    int dx = (int)tx - (int)cache.origin_tx, dy = (int)ty - (int)cache.origin_ty;
     if(dx >= 0 && dy >= 0 && dx < CACHE_WIDTH && dy < CACHE_HEIGHT) {
-        game.cache.tiles[dy * CACHE_WIDTH + dx] = tile;
+        cache.tiles[dy * CACHE_WIDTH + dx] = tile;
         note_tile_edit();
     }
 }

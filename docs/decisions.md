@@ -673,3 +673,22 @@ eight, ordered by priority and stable ID; visibility and collision constraints d
 Save version 11 resets transient actors and reconstructs locations from saved quest flags.
 Portrait bounds and party names no longer imply one art row per identity. The 64-identity
 native fixture compiles its own policies and dispatcher independently of production content.
+
+## Runtime workspace shared by exploration and battle (2026-11-19)
+
+Exploration's tile window, camera, NPC admission list and foot collision cache (131 bytes) and
+the battle search's positions, plies, killers and action stack (226 bytes) are never active at
+once, so they share one union. The names `cache`, `camera`, `candidates`, `ply_state` and the rest
+are constexpr references into it, which cost no RAM or loads.
+
+The window and camera are derived from the world assets and the persistent flags, so they leave the
+saved `Game`. A battle exit reconstructs them with the same reload and tile pass the game runs every
+frame; tile changes persist only through flags that the tile pass reapplies. Cached collision
+answers are invalidated, including the NPCs' known-clear feet, which is why the device check that
+battle exit does not advance the world ignores those derived bits. Dialogue opened during a battle
+draws the battlefield behind it, through its background in `dialogue_overlay.cpp`, which leaves the
+world renderer's per-frame cost unchanged. The battle screen stays outside the union, so that dialogue
+can still draw it.
+
+The device harness reads the view through the runtime workspace address, passed as its thirteenth
+argument. Saves from before this change are rejected (SAVE_VERSION 13).

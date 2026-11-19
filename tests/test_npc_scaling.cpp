@@ -33,7 +33,7 @@ void npc_on_activate(Npc& n) {
     TilePos next = npc_location((NPC_ID)5);
     switch(activation_mutation) {
         case 1:
-            memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+            memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
             note_tile_edit();
             break;
         case 2:
@@ -82,13 +82,13 @@ static void stage(bool reverse) {
     if(reverse) {
         for(int y = 2; y >= 0; --y)
             for(int x = 2; x >= 0; --x)
-                run_chunk<STAGE_NPCS>(game.area, game.cache.origin_tx / 8 + x,
-                                      game.cache.origin_ty / 4 + y);
+                run_chunk<STAGE_NPCS>(game.area, cache.origin_tx / 8 + x,
+                                      cache.origin_ty / 4 + y);
     } else {
         for(int y = 0; y < 3; ++y)
             for(int x = 0; x < 3; ++x)
-                run_chunk<STAGE_NPCS>(game.area, game.cache.origin_tx / 8 + x,
-                                      game.cache.origin_ty / 4 + y);
+                run_chunk<STAGE_NPCS>(game.area, cache.origin_tx / 8 + x,
+                                      cache.origin_ty / 4 + y);
     }
     npc_stage_end();
 }
@@ -110,7 +110,7 @@ int main() {
                 positions::TestField.y * TILE, SOUTH);
     // A clear synthetic cache isolates selection from authored terrain.
     npc_reset();
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     note_tile_edit();
     stage(false);
     NPC_ID selected[NPC_CAPACITY];
@@ -138,7 +138,7 @@ int main() {
         world_enter(positions::TestField.area, positions::TestField.x * TILE,
                     positions::TestField.y * TILE, SOUTH);
         npc_reset();
-        memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+        memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
         note_tile_edit();
         activation_mutation = mutation;
         stage(false);
@@ -159,7 +159,7 @@ int main() {
     world_enter(positions::TestField.area, positions::TestField.x * TILE,
                 positions::TestField.y * TILE, SOUTH);
     npc_reset();
-    memset(game.cache.tiles, TILE_GRASS_06, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     note_tile_edit();
     for(unsigned i = 0; i < NPC_CAPACITY; ++i) {
         auto& n = game.npcs.actors[i];
@@ -174,8 +174,8 @@ int main() {
     for(unsigned i = 0; i < NPC_CAPACITY; ++i)
         CHECK(game.npcs.actors[i].id == (NPC_ID)(1 + 3 * i));
     // Both the actors and homes are now outside the effective cache and view.
-    game.cache.origin_tx += CACHE_WIDTH;
-    game.cache.origin_ty += CACHE_HEIGHT;
+    cache.origin_tx += CACHE_WIDTH;
+    cache.origin_ty += CACHE_HEIGHT;
     npc_stage_begin();
     CHECK(!game.npcs.actors[0].id);
     npc_stage_end();

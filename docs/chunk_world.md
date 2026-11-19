@@ -90,8 +90,10 @@ PROGMEM battlefield rather than the chunk cache.
 The generic flags, staged handlers, movement, route and save mechanisms remain.
 Quest flags include Iona's moved/east state, used to derive her current logical site.
 
-SAVE_VERSION is 12. Older records are deliberately rejected. The live pointer-free
-`Game` occupies `.saved`, with no duplicate serialization buffer or checksum. Loads
-validate version, stats, party, flags and bounds before placing the player. Terrain cache,
-ticks, active slots, assigned-site snapshots and candidate scratch are rebuilt through
-ordinary scene-entry processing. Blocked player positions use cache-based overlap repair.
+SAVE_VERSION is 13. Older records are deliberately rejected. The live pointer-free
+`Game` occupies `.saved`, with no duplicate serialization buffer or checksum. The tile window
+and camera are not saved: they live in the runtime workspace (`src/runtime_workspace.h`) and
+are rebuilt from the world and flags. Loads validate version, stats, party, flags and bounds
+before placing the player. Ticks, active slots, assigned-site snapshots and candidate scratch
+are rebuilt through ordinary scene-entry processing. Blocked player positions use cache-based
+overlap repair.

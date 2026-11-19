@@ -83,7 +83,8 @@ def main():
                *[refs[k]["address"] for k in ("game", "frame_marker", "frame_serial")],
                out / "captures", mode,
                *[refs[k]["address"] for k in ("dialogue_prompt", "world_phase", "battle_qa_state",
-                                             "battle_qa_ready", "dialogue_panel_open")]]
+                                             "battle_qa_ready", "dialogue_panel_open",
+                                             "runtime_workspace")]]
     env = dict(os.environ)
     env.pop("RPG_FRAME_TRACE", None)
     env.pop("RPG_FRAME_EVENTS", None)

@@ -3,6 +3,7 @@
 
 #include "rpg.h"
 #include "npc.h"
+#include "runtime_workspace.h"
 
 enum HandlerStage : uint8_t { STAGE_GAMEPLAY, STAGE_TILES, STAGE_DIALOGUE, STAGE_NPCS };
 
@@ -18,11 +19,11 @@ template <TilePos POS> void set_tile(uint8_t tile) {
     if(POS.area != game.area || POS.x >= game.dimensions.width_tiles ||
        POS.y >= game.dimensions.height_tiles)
         return;
-    uint16_t x = (uint16_t)(POS.x - game.cache.origin_tx);
-    uint16_t y = (uint16_t)(POS.y - game.cache.origin_ty);
+    uint16_t x = (uint16_t)(POS.x - cache.origin_tx);
+    uint16_t y = (uint16_t)(POS.y - cache.origin_ty);
     if(x < CACHE_WIDTH && y < CACHE_HEIGHT) {
         note_tile_edit();
-        game.cache.tiles[y * CACHE_WIDTH + x] = tile;
+        cache.tiles[y * CACHE_WIDTH + x] = tile;
     }
 }
 

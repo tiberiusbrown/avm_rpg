@@ -330,13 +330,10 @@ uint8_t battle_actions(BattleState const& state, uint8_t* out, uint8_t& attacks)
 uint8_t battle_unit_actions(BattleState const& state, uint8_t unit_index, uint8_t* out,
                             uint8_t& attacks);
 
-// Shared scratch for action lists, so no caller keeps a list on its own frame. While the enemy's
-// search runs it is the search's action stack; between searches, battle_can_act, the battle
-// screen's destination markers, and the greedy choice list actions here briefly. No list here
-// survives a call into another of those users. It holds BATTLE_ACTION_CAPACITY actions and more.
+// Scratch for action lists, so no caller keeps a list on its own frame. It is battle_action_scratch
+// in the runtime workspace (runtime_workspace.h), and it holds BATTLE_ACTION_CAPACITY actions and more.
 inline constexpr uint8_t BATTLE_ACTION_SCRATCH_CAPACITY = 82;
 static_assert(BATTLE_ACTION_SCRATCH_CAPACITY >= BATTLE_ACTION_CAPACITY, "a whole side's list fits");
-extern uint8_t battle_action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
 
 // True when the side to act has at least one legal action. It lists in battle_action_scratch.
 bool battle_can_act(BattleState const& state);

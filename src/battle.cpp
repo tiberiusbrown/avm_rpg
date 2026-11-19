@@ -1,4 +1,5 @@
 #include "battle.h"
+#include "runtime_workspace.h"
 #include "tile_ids.h"
 
 // The guest inlines the marked rules helpers into the evaluation, so they add no frame at the
@@ -444,8 +445,6 @@ uint8_t battle_unit_actions(BattleState const& state, uint8_t unit_index, uint8_
     }
     return battle_enumerate(state, unit_index, (uint8_t)(unit_index + 1), out, attacks);
 }
-
-uint8_t battle_action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
 
 // One unit at a time, stopping at the first unit that can act. Kept out of line, so its loop stays
 // off the battle screen's frames.

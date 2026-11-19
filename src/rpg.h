@@ -39,7 +39,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 12;
+inline constexpr uint8_t SAVE_VERSION = 13;
 
 enum {
     BTN_B = 4,
@@ -141,8 +141,6 @@ struct Game {
     WorldFlags flags;
     uint8_t area, level;
     Party party;
-    TileCache cache;
-    Camera camera;
     MapDimensions dimensions; // Active area dimensions, cached on entry or teleport.
     TilePos previous_player_tile;
     bool can_interact;
@@ -229,6 +227,9 @@ bool player_terrain_clear(uint16_t x, uint16_t y);
 // column for east and west steps, and the bottom or top row for south and north steps.
 uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir);
 void reload_tile_cache();
+// Exploration takes back the runtime workspace after a battle: it rebuilds the camera and tile window
+// from the world assets and persistent flags, and invalidates every cached collision answer.
+void world_reclaim_workspace();
 bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
 // Places the player in an area and resets its NPCs. The visible world is stale until
 // update_visible_world runs. Returns false, placing nothing, for an unknown area.
@@ -268,6 +269,9 @@ bool save_valid();
 bool save_restore();
 // Rendering may shrink the world viewport without changing Game or reloading tiles.
 void rpg_render_world(uint8_t covered = 0);
+// While a battle runs, draws its board as dialogue's background and returns true. Otherwise it draws
+// nothing and returns false.
+bool battle_render_background();
 extern bool dialogue_panel_open;
 // Non-dialogue screens close the retained panel before taking over. Blocks through the animation.
 void dialogue_close();

@@ -67,7 +67,7 @@ RPG_NOINLINE static void run_edge_probe() {
     static constexpr PixelPos PROGMEM POSITIONS[] = {
         {0, 0}, {4, 0}, {7, 7}, {8, 8}, {12, 9}, {15, 15}, {16, 16}, {23, 7}, {65530, 65530}};
     game.dimensions = {3, 2};
-    game.cache.origin_tx = game.cache.origin_ty = 0;
+    cache.origin_tx = cache.origin_ty = 0;
     uint32_t hash = 2166136261u;
     for(uint8_t area = AREA_OUTDOOR; area <= AREA_DUNGEON; ++area) {
         game.area = area;
@@ -88,7 +88,7 @@ RPG_NOINLINE static void run_edge_probe() {
             }
             if(!probe_exhaustive && seen)
                 continue;
-            memset(game.cache.tiles, tile, sizeof(game.cache.tiles));
+            memset(cache.tiles, tile, sizeof(cache.tiles));
             for(uint8_t position = 0; position < sizeof(POSITIONS) / sizeof(POSITIONS[0]);
                 ++position) {
                 uint16_t x = POSITIONS[position].x, y = POSITIONS[position].y;

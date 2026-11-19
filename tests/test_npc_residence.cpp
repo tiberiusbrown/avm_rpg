@@ -192,7 +192,7 @@ static void test_travel_finishes_outside_cache() {
     npc_stage_end();
 
     // Being blocked while cached must not complete the journey.
-    memset(game.cache.tiles, TILE_TREE, sizeof(game.cache.tiles));
+    memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
     for(unsigned frame = 0; frame < 100; ++frame) {
         game.ticks = frame;

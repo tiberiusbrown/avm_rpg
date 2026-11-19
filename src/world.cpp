@@ -8,18 +8,12 @@
 uint8_t frame_pressed;
 bool teleported;
 
-// The foot position that last passed player_terrain_clear. Its answer depends only on the area,
-// the position, and the terrain, and terrain changes only through tile edits and reloads that
-// discard them. Until one of those events, a repeat of this position needs no tile reads.
-static bool foot_clear_known;
-static uint8_t foot_clear_area;
-static uint16_t foot_clear_x, foot_clear_y;
-// A reload discards tile edits, so it changes the terrain when an edit preceded it.
-static bool cache_edited;
-
+// The foot position that last passed player_terrain_clear (foot_cache) answers for the area, the
+// position, and the terrain. Terrain changes only through tile edits and reloads that discard them,
+// so until one of those, a repeat of this position needs no tile reads.
 static bool player_foot_clear_known() {
-    return foot_clear_known && foot_clear_area == game.area && foot_clear_x == game.player.x &&
-           foot_clear_y == game.player.y;
+    return foot_cache.known && foot_cache.area == game.area && foot_cache.x == game.player.x &&
+           foot_cache.y == game.player.y;
 }
 
 // Terrain changed under the NPCs: none keeps known-clear feet until a full check confirms them.
@@ -33,8 +27,8 @@ static void npc_feet_unknown() {
 }
 
 void note_tile_edit() {
-    foot_clear_known = false;
-    cache_edited = true;
+    foot_cache.known = false;
+    foot_cache.tiles_edited = true;
     npc_feet_unknown();
 }
 
@@ -194,34 +188,44 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
 }
 
 void reload_tile_cache() {
-    game.camera = game_camera();
-    if(cache_edited) {
+    camera = game_camera();
+    if(foot_cache.tiles_edited) {
         npc_feet_unknown();
-        foot_clear_known = false;
-        cache_edited = false;
+        foot_cache.known = false;
+        foot_cache.tiles_edited = false;
     }
-    reload_tile_window_clamped(game.cache, world_area(game.area)->tiles, game.dimensions, game.camera);
+    reload_tile_window_clamped(cache, world_area(game.area)->tiles, game.dimensions, camera);
+}
+
+void world_reclaim_workspace() {
+    // A battle overwrote the window, the camera and the foot cache, so none of their answers hold.
+    foot_cache.known = false;
+    foot_cache.tiles_edited = false;
+    npc_feet_unknown();
+    // The reload rebuilds the window from the world assets, and the tile pass reapplies every
+    // persistent tile change from its flags, as each frame does. Nothing else is needed.
+    refresh_tile_cache();
 }
 
 void set_tile(TilePos pos, uint8_t tile) {
     if(pos.area != game.area || pos.x >= game.dimensions.width_tiles ||
        pos.y >= game.dimensions.height_tiles)
         return;
-    uint16_t x = (uint16_t)(pos.x - game.cache.origin_tx);
-    uint16_t y = (uint16_t)(pos.y - game.cache.origin_ty);
+    uint16_t x = (uint16_t)(pos.x - cache.origin_tx);
+    uint16_t y = (uint16_t)(pos.y - cache.origin_ty);
     if(x < CACHE_WIDTH && y < CACHE_HEIGHT) {
         note_tile_edit();
-        game.cache.tiles[y * CACHE_WIDTH + x] = tile;
+        cache.tiles[y * CACHE_WIDTH + x] = tile;
     }
 }
 
 uint8_t cached_tile(TilePos pos) {
     if(pos.area != game.area)
         return TILE_OUTSIDE;
-    int16_t x = (int16_t)pos.x - game.cache.origin_tx;
-    int16_t y = (int16_t)pos.y - game.cache.origin_ty;
+    int16_t x = (int16_t)pos.x - cache.origin_tx;
+    int16_t y = (int16_t)pos.y - cache.origin_ty;
     if(x >= 0 && x < CACHE_WIDTH && y >= 0 && y < CACHE_HEIGHT)
-        return game.cache.tiles[(uint16_t)y * CACHE_WIDTH + x];
+        return cache.tiles[(uint16_t)y * CACHE_WIDTH + x];
     return TILE_OUTSIDE;
 }
 
@@ -347,10 +351,10 @@ bool player_terrain_clear(uint16_t x, uint16_t y) {
                 return false;
         }
     }
-    foot_clear_known = true;
-    foot_clear_area = game.area;
-    foot_clear_x = x;
-    foot_clear_y = y;
+    foot_cache.known = true;
+    foot_cache.area = game.area;
+    foot_cache.x = x;
+    foot_cache.y = y;
     return true;
 }
 
@@ -537,7 +541,7 @@ bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     Area const PROGMEM* a = world_area(area);
     if(!a)
         return false;
-    foot_clear_known = false;
+    foot_cache.known = false;
     game.area = area;
     npc_reset();
     game.dimensions = {a->width, a->height};

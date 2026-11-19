@@ -12,6 +12,7 @@
 #pragma pack(pop)
 // BattleUnit uses byte-sized bit-field allocation units; packing it would change those offsets.
 #include "battle.h"
+#include "runtime_workspace.h"
 #include "battle_fixtures.h"
 #include "logic/npc_definitions.h"
 #include "music_catalog.h"
@@ -30,7 +31,7 @@ namespace fs = std::filesystem;
 static bool check_timing = true;
 static uint64_t worst_exploration_cycles;
 
-static_assert(sizeof(Game) == 104 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
+static_assert(sizeof(Game) == 21 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -46,6 +47,26 @@ struct Cost {
 // Optional emulator-only tracing; no guest instructions are added.
 // Exact PC attribution uses single AVR stepping; marker-only tracing preserves ordinary stepping.
 // The interpreter boundary is checked against interp-boundary.json by the driver.
+// The guest's runtime workspace address, from the command line; see main.
+static unsigned workspace_address_arg;
+
+// The saved Game, and the exploration view that the runtime workspace holds beside it.
+struct Snapshot : Game {
+    ExplorationWorkspace view;
+};
+
+// Whether two snapshots hold the same simulation. Cached collision answers are derived state: a battle
+// exit invalidates the NPCs' known-clear feet and marks their terrain dirty, which advances nothing.
+static bool same_simulation(Snapshot const& a, Snapshot const& b) {
+    Snapshot x = a, y = b;
+    for(auto* g : {&x, &y}) {
+        for(auto& n : g->npcs.actors)
+            n.policy_pending &= (uint8_t)~4;
+        g->npcs.terrain_dirty = 0;
+    }
+    return !memcmp(&x, &y, sizeof(Game));
+}
+
 struct FrameTrace {
     static inline unsigned next_instance;
     unsigned instance = next_instance++, sequence = 0, active_pc = 0;
@@ -60,7 +81,7 @@ struct FrameTrace {
     unsigned active_region = 0;
     uint64_t worst = 0;
     bool instruction_profile = std::getenv("RPG_FRAME_COARSE") == nullptr;
-    Game initial{};
+    Snapshot initial{};
 
     FrameTrace() {
         if(auto path = std::getenv("RPG_FRAME_TRACE")) {
@@ -94,7 +115,7 @@ struct FrameTrace {
         region_ids.resize(pc + 1);
     }
 
-    void begin(Game const& g) {
+    void begin(Snapshot const& g) {
         initial = g;
         std::fill(cycles.begin(), cycles.end(), 0);
         regions.fill(0);
@@ -105,7 +126,7 @@ struct FrameTrace {
         activated = retired = offers = site_checks = 0;
     }
 
-    void boundary(Game const& g, unsigned pc) {
+    void boundary(Snapshot const& g, unsigned pc) {
         active_pc = pc;
         ensure_pc(pc);
         if(pc < events.size()) {
@@ -124,7 +145,7 @@ struct FrameTrace {
         present = now;
     }
 
-    void finish(Game const& g, unsigned serial, Cost const& cost, bool exploration) {
+    void finish(Snapshot const& g, unsigned serial, Cost const& cost, bool exploration) {
         frames << "{\"instance\":" << instance << ",\"sequence\":" << sequence
                << ",\"serial\":" << serial << ",\"cycles\":" << cost.total
                << ",\"instruction_profile\":" << instruction_profile
@@ -132,10 +153,10 @@ struct FrameTrace {
                << ",\"reload\":" << cost.reload << ",\"chunks\":" << cost.chunks
                << ",\"actors_collision\":" << cost.collision << ",\"area\":" << unsigned(g.area)
                << ",\"player\":[" << g.player.x << ',' << g.player.y << "],\"camera\":["
-               << g.camera.x << ',' << g.camera.y << "],\"cache\":[" << unsigned(g.cache.origin_tx)
-               << ',' << unsigned(g.cache.origin_ty) << "],\"initial_camera\":[" << initial.camera.x
-               << ',' << initial.camera.y << "],\"initial_cache\":["
-               << unsigned(initial.cache.origin_tx) << ',' << unsigned(initial.cache.origin_ty)
+               << g.view.camera.x << ',' << g.view.camera.y << "],\"cache\":[" << unsigned(g.view.cache.origin_tx)
+               << ',' << unsigned(g.view.cache.origin_ty) << "],\"initial_camera\":[" << initial.view.camera.x
+               << ',' << initial.view.camera.y << "],\"initial_cache\":["
+               << unsigned(initial.view.cache.origin_tx) << ',' << unsigned(initial.view.cache.origin_ty)
                << "],\"activations\":" << (instruction_profile ? std::to_string(activated) : "null")
                << ",\"retirements\":" << (instruction_profile ? std::to_string(retired) : "null")
                << ",\"site_checks\":"
@@ -178,6 +199,8 @@ struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
     unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
     unsigned battle_pointer_addr = 0, battle_ready_addr = 0, panel_addr = 0;
+    // The runtime workspace, which holds the exploration view. Every device in this process reads it.
+    unsigned workspace_addr = workspace_address_arg;
     uint8_t previous_phase = 0;
     uint64_t phase_begin = 0;
     Cost stages;
@@ -226,9 +249,12 @@ struct Device {
         cpu.data[absim::reg::addr::UDINT] = absim::reg::bit::UDINT::SUSPI;
     }
 
-    Game state() const {
-        Game g;
-        memcpy(&g, &ab->core_state.cpu.data[game_addr], sizeof(g));
+    Snapshot state() const {
+        require(workspace_addr || proof, "missing runtime workspace address");
+        Snapshot g{};
+        memcpy(&g, &ab->core_state.cpu.data[game_addr], sizeof(Game));
+        if(workspace_addr)
+            memcpy(&g.view, &ab->core_state.cpu.data[workspace_addr], sizeof(g.view));
         return g;
     }
 
@@ -257,11 +283,11 @@ struct Device {
     }
 
     uint8_t cached_tile(uint8_t x, uint8_t y) const {
-        Game g = state();
-        int dx = int(x) - g.cache.origin_tx, dy = int(y) - g.cache.origin_ty;
+        Snapshot g = state();
+        int dx = int(x) - g.view.cache.origin_tx, dy = int(y) - g.view.cache.origin_ty;
         require(dx >= 0 && dx < CACHE_WIDTH && dy >= 0 && dy < CACHE_HEIGHT,
                 "QA tile is outside the live cache");
-        return g.cache.tiles[dy * CACHE_WIDTH + dx];
+        return g.view.cache.tiles[dy * CACHE_WIDTH + dx];
     }
 
     unsigned serial() const {
@@ -572,7 +598,7 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
     d.set_state(fixture);
     d.frame();
     d.frame();
-    Game rendered = d.state();
+    Snapshot rendered = d.state();
     require(rendered.player.y == spawn_y + 8 && rendered.npcs.actors[0].actor.y == spawn_y + 12 &&
                 rendered.npcs.actors[1].actor.y == spawn_y,
             "depth fixture unexpectedly moved");
@@ -581,7 +607,7 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
     auto compose = [&](std::array<uint8_t, 1024>& pixels, Actor const& actor, uint8_t row) {
         uint16_t frame = (uint16_t)row * 12 + SOUTH * 3;
         uint8_t const* bytes = ACTOR_SPRITES + 2 + frame * 64;
-        int left = int(actor.x) - rendered.camera.x, top = int(actor.y) - rendered.camera.y;
+        int left = int(actor.x) - rendered.view.camera.x, top = int(actor.y) - rendered.view.camera.y;
         for(int y = 0; y < 16; ++y) {
             for(int x = 0; x < 16; ++x) {
                 int sx = left + x, sy = top + y;
@@ -616,7 +642,7 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
         if((actual[physical] & covered[i]) != expected[i])
             std::cerr << "Depth pixel byte=" << i << " actual=" << unsigned(actual[physical])
                       << " expected=" << unsigned(expected[i]) << " mask=" << unsigned(covered[i])
-                      << " camera=" << rendered.camera.x << ',' << rendered.camera.y << '\n';
+                      << " camera=" << rendered.view.camera.x << ',' << rendered.view.camera.y << '\n';
         require((actual[physical] & covered[i]) == expected[i],
                 "masked actor occlusion has the wrong depth order");
     }
@@ -1088,7 +1114,7 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     require(d.prompt() != DIALOGUE_CLOSED, "talking to Rowan did not open dialogue");
     d.wait_for_prompt();
-    Game before = d.state();
+    Snapshot before = d.state();
     require(d.panel_addr && d.ab->core_state.cpu.data[d.panel_addr], "dialogue panel is not open");
 
     // The speech and recruitment announcement must share a single open panel.
@@ -1116,10 +1142,10 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.observer_context = nullptr;
     require(!trace.closed, "panel closed between speech and recruitment announcement");
     require(!trace.reloaded, "dialogue reloaded the tile cache");
-    Game announced = d.state();
+    Snapshot announced = d.state();
     require(announced.ticks == before.ticks &&
-                !memcmp(&announced.cache, &before.cache, sizeof(TileCache)) &&
-                !memcmp(&announced.camera, &before.camera, sizeof(Camera)),
+                !memcmp(&announced.view.cache, &before.view.cache, sizeof(TileCache)) &&
+                !memcmp(&announced.view.camera, &before.view.camera, sizeof(Camera)),
             "dialogue moved the gameplay camera, reloaded tiles or advanced simulation");
     d.capture(out / "party-joined.pgm");
     // Directional input during closing cannot move the player or advance simulation/cache work.
@@ -1132,11 +1158,11 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
         if(d.ab->core_state.cpu.data[d.panel_addr]) {
             require(d.ab->core_state.cpu.data[d.phase_addr] != 4,
                     "dialogue closing reloaded the tile cache");
-            Game closing = d.state();
+            Snapshot closing = d.state();
             require(closing.ticks == announced.ticks &&
                         !memcmp(&closing.player, &announced.player, sizeof(Actor)) &&
-                        !memcmp(&closing.camera, &announced.camera, sizeof(Camera)) &&
-                        !memcmp(&closing.cache, &announced.cache, sizeof(TileCache)),
+                        !memcmp(&closing.view.camera, &announced.view.camera, sizeof(Camera)) &&
+                        !memcmp(&closing.view.cache, &announced.view.cache, sizeof(TileCache)),
                     "dialogue closing changed gameplay state");
         }
     }
@@ -1514,7 +1540,7 @@ static void play_grove_battle(Device& d, bool verify_transition = false) {
         d.advance(0, 4000000);
         trace.verify("battle_exit");
         auto paused = d.state();
-        require(!memcmp(&frozen, &paused, sizeof(Game)), "battle exit advanced world simulation");
+        require(same_simulation(frozen, paused), "battle exit advanced world simulation");
     } else {
         d.tap(BTN_A);
         d.advance(0, 4000000);
@@ -1892,7 +1918,7 @@ static void report_latency(char const* name, PauseTiming const& timing, uint64_t
 
 static void verify_journal_timing(Device& d, fs::path const& out) {
     (void)out;
-    Game before = d.state();
+    Snapshot before = d.state();
     Game started = before;
     started.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
     d.set_state(started);
@@ -1942,11 +1968,11 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
 
 int main(int argc, char** argv) try {
     require(
-        argc >= 9 && argc <= 12,
+        argc >= 9 && argc <= 13,
         "device_tests package game_address marker_address serial_address "
         "output_directory normal|fxc|proof|smoke|pause|battle|sounds|functional|sounds-functional "
         "dialogue_address phase_address "
-        "[battle_pointer_address [battle_ready_address [panel_address]]]");
+        "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
     // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
     check_timing = std::string(argv[6]) != "functional" &&
                    std::string(argv[6]) != "sounds-functional" && std::string(argv[6]) != "journal";
@@ -1962,8 +1988,11 @@ int main(int argc, char** argv) try {
         d.battle_pointer_addr = std::stoul(argv[9]);
     if(argc >= 11)
         d.battle_ready_addr = std::stoul(argv[10]);
-    if(argc == 12)
+    if(argc >= 12)
         d.panel_addr = std::stoul(argv[11]);
+    if(argc == 13)
+        workspace_address_arg = std::stoul(argv[12]);
+    d.workspace_addr = workspace_address_arg;
     if(d.proof) {
         d.frame();
         summary("m0_proof", d, 30);
@@ -2143,7 +2172,7 @@ int main(int argc, char** argv) try {
     // pixels. A teleport jumps by a tile or more, and a pop-in creates a new slot.
     uint16_t vx = 0, vy = 0;
     auto track_villager = [&]() {
-        Game g = d.state();
+        Snapshot g = d.state();
         auto const* v = villager_in(g);
         require(v, "villager missing before its walk");
         vx = v->actor.x;
@@ -2151,11 +2180,11 @@ int main(int argc, char** argv) try {
     };
     auto step_villager = [&]() {
         d.advance(0, 533334);
-        Game g = d.state();
+        Snapshot g = d.state();
         auto const* v = villager_in(g);
         if(!v) {
-            require(!(vx < g.camera.x + 128 && vx + TILE > g.camera.x && vy < g.camera.y + 64 &&
-                      vy + TILE > g.camera.y),
+            require(!(vx < g.view.camera.x + 128 && vx + TILE > g.view.camera.x && vy < g.view.camera.y + 64 &&
+                      vy + TILE > g.view.camera.y),
                     "villager retired while visible");
             return;
         }
@@ -2166,10 +2195,10 @@ int main(int argc, char** argv) try {
         vx = v->actor.x;
         vy = v->actor.y;
     };
-    auto villager_visible = [&](Game const& g) {
+    auto villager_visible = [&](Snapshot const& g) {
         auto const* v = villager_in(g);
-        return v && v->actor.x < g.camera.x + 128 && v->actor.x + TILE > g.camera.x &&
-               v->actor.y < g.camera.y + 64 && v->actor.y + TILE > g.camera.y;
+        return v && v->actor.x < g.view.camera.x + 128 && v->actor.x + TILE > g.view.camera.x &&
+               v->actor.y < g.view.camera.y + 64 && v->actor.y + TILE > g.view.camera.y;
     };
 
     // Pixel placement for talks, which need the player directly beside the villager.
@@ -2387,8 +2416,8 @@ int main(int argc, char** argv) try {
     auto menu_loaded = d.state();
     require(menu_loaded.gold == saved.gold && menu_loaded.area == saved.area &&
                 menu_loaded.player.x == saved.player.x && menu_loaded.player.y == saved.player.y &&
-                menu_loaded.cache.origin_tx == saved.cache.origin_tx &&
-                menu_loaded.cache.origin_ty == saved.cache.origin_ty,
+                menu_loaded.view.cache.origin_tx == saved.view.cache.origin_tx &&
+                menu_loaded.view.cache.origin_ty == saved.view.cache.origin_ty,
             "pause Load did not restore the saved world");
     require(menu_loaded.options.music == 11 && menu_loaded.options.sfx == 9,
             "Load overwrote options edited during this session");

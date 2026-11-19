@@ -41,7 +41,7 @@ set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
 file(GLOB_RECURSE LOGIC_HEADERS CONFIGURE_DEPENDS src/logic/*.h src/logic/*.inc)
 file(GLOB_RECURSE QUEST_HEADERS CONFIGURE_DEPENDS src/quest*.h src/quests/*.h)
-set(RULES src/game.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
+set(RULES src/game.cpp src/runtime_workspace.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
     src/battle.cpp src/battle_ai.cpp generated/map_assets.cpp src/chunk_dispatch.cpp generated/npc_routes.cpp
     src/quest_runtime.cpp)
 add_library(rpg_rules STATIC ${RULES})

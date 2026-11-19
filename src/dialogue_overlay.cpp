@@ -165,6 +165,13 @@ __attribute__((noinline)) static void draw_name(NPC_ID id, uint8_t offset = 0) {
     avm_draw_text(left + LEFT, top + BORDER + PADDING + ASCENT, name);
 }
 
+// The background behind the panel: the battlefield while a battle runs, and otherwise the world. The
+// check lives here, so exploration's own world renderer pays nothing for battles.
+static inline __attribute__((always_inline)) void draw_background(uint8_t covered) {
+    if(!battle_render_background())
+        rpg_render_world(covered);
+}
+
 static void open_overlay(NPC_ID id = NPC_NONE) {
     // The press that opened the dialogue must not finish or advance its first page.
     input_wait_release(BTN_A | BTN_B);
@@ -177,9 +184,9 @@ static void open_overlay(NPC_ID id = NPC_NONE) {
         dialogue_panel_open = true;
         animate_overlay(false);
     }
-    // Rebuild the uncovered world, removing the previous speaker's name if it changed.
+    // Rebuild the uncovered background, removing the previous speaker's name if it changed.
     avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-    rpg_render_world(OVERLAY_HEIGHT);
+    draw_background(OVERLAY_HEIGHT);
     clear_overlay();
     draw_name(id);
     if(has_face(id))
@@ -400,7 +407,7 @@ static void draw_segment(char const PROGMEM* words, char const PROGMEM* end, uin
 static void draw_transition(uint8_t offset) {
     avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     uint8_t covered = offset < OVERLAY_HEIGHT ? OVERLAY_HEIGHT - offset : 0;
-    rpg_render_world(covered);
+    draw_background(covered);
     if(has_face(dialogue_page.speaker))
         draw_face(dialogue_page.speaker, false, offset);
     draw_name(dialogue_page.speaker, offset);

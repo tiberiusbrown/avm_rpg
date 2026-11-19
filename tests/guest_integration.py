@@ -219,6 +219,7 @@ def main():
                     0 if mode == "proof" else refs["battle_qa_state"]["address"],
                     0 if mode == "proof" else refs["battle_qa_ready"]["address"],
                     0 if mode == "proof" else refs["dialogue_panel_open"]["address"],
+                    0 if mode == "proof" else refs["runtime_workspace"]["address"],
                 ],
                 work / f"{mode}.log",
             )
@@ -240,6 +241,7 @@ def main():
                         refs["battle_qa_state"]["address"],
                         refs["battle_qa_ready"]["address"],
                         refs["dialogue_panel_open"]["address"],
+                        refs["runtime_workspace"]["address"],
                     ],
                     work / f"{mode}-sounds.log",
                 )

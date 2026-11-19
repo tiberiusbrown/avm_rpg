@@ -47,7 +47,7 @@ static bool sprite_intersects(uint16_t x, uint16_t y, Camera camera, uint8_t cle
 }
 
 bool npc_visible(uint16_t x, uint16_t y) {
-    return sprite_intersects(x, y, game.camera, 0);
+    return sprite_intersects(x, y, camera, 0);
 }
 
 static bool protected_view(uint16_t x, uint16_t y) {
@@ -111,8 +111,8 @@ static bool step_clear(Npc const& n, uint16_t x, uint16_t y, DIRECTION dir) {
 static bool foot_cached_at(uint16_t x, uint16_t y) {
     // Normalize the top-left foot pixel; two unsigned range checks cover both
     // edges of each axis, including a footprint before the cache origin.
-    uint16_t dx = (uint16_t)(x + FOOT_LEFT - (uint16_t)game.cache.origin_tx * TILE);
-    uint16_t dy = (uint16_t)(y + FOOT_TOP - (uint16_t)game.cache.origin_ty * TILE);
+    uint16_t dx = (uint16_t)(x + FOOT_LEFT - (uint16_t)cache.origin_tx * TILE);
+    uint16_t dy = (uint16_t)(y + FOOT_TOP - (uint16_t)cache.origin_ty * TILE);
     return dx <= CACHE_WIDTH * TILE - FOOT_WIDTH && dy <= CACHE_HEIGHT * TILE - FOOT_HEIGHT;
 }
 
@@ -201,15 +201,6 @@ __attribute__((noinline)) static bool escape_step(Npc& n) {
 }
 
 namespace {
-struct Candidate {
-    NPC_ID id;
-    TilePos site;
-    uint8_t priority;
-};
-
-Candidate candidates[NPC_CAPACITY];
-uint8_t candidate_count;
-
 void retire_slot(uint8_t index) {
     auto& pool = game.npcs;
     npc_on_retire(pool.actors[index], NPC_RETIRED_UNLOADED);

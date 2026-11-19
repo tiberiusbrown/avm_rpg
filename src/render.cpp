@@ -1,6 +1,7 @@
 #include "rpg.h"
 #include "tile_ids.h"
 #include "npc.h"
+#include "runtime_workspace.h"
 #include "actor_draw_order.h"
 #include "ambient.h"
 #include "journal.h"
@@ -165,8 +166,8 @@ struct View {
 static View world_view(Camera camera) {
     uint8_t tx = (uint8_t)(camera.x >> TILE_SHIFT), ty = (uint8_t)(camera.y >> TILE_SHIFT);
     // The cache trails the view by its margin, so the view starts inside the window.
-    return {game.cache.tiles + (uint8_t)(ty - game.cache.origin_ty) * CACHE_WIDTH +
-                (uint8_t)(tx - game.cache.origin_tx),
+    return {cache.tiles + (uint8_t)(ty - cache.origin_ty) * CACHE_WIDTH +
+                (uint8_t)(tx - cache.origin_tx),
             tx, ty, (int16_t) - (int16_t)(camera.x & (TILE - 1)),
             (int16_t) - (int16_t)(camera.y & (TILE - 1))};
 }
@@ -273,10 +274,9 @@ RPG_NOINLINE static void draw_ambient_effect(Camera camera, uint8_t position, ui
     uint8_t column = position & 15, row = position >> 4;
     // The cache trails the view by its margin, so the view starts inside the window.
     uint8_t tile =
-        game.cache
-            .tiles[(uint8_t)((uint8_t)(camera.y >> TILE_SHIFT) - game.cache.origin_ty + row) *
-                       CACHE_WIDTH +
-                   (uint8_t)((uint8_t)(camera.x >> TILE_SHIFT) - game.cache.origin_tx + column)];
+        cache.tiles[(uint8_t)((uint8_t)(camera.y >> TILE_SHIFT) - cache.origin_ty + row) *
+                        CACHE_WIDTH +
+                    (uint8_t)((uint8_t)(camera.x >> TILE_SHIFT) - cache.origin_tx + column)];
     uint8_t ambient_class = tile_ambient(tile);
     if(ambient_class == AMBIENT_NONE)
         return;
@@ -374,18 +374,18 @@ RPG_NOINLINE static void draw_actors(Camera c) {
 // out of line, so only one pass's locals are on the stack at a time.
 void rpg_render_world(uint8_t covered) {
     uint8_t height = 64 - covered;
-    Camera camera = covered ? game_camera(height) : game.camera;
-    draw_tiles(camera, height);
+    Camera shown = covered ? game_camera(height) : camera;
+    draw_tiles(shown, height);
     uint8_t tileset = area_tileset(game.area);
     if(tileset_has_ambient(tileset)) {
         // Most frames have no gust in view, and that test needs only the camera's tile.
-        if(gust_in_view(gust_origin(camera)))
-            draw_gusts(camera, height);
-        draw_ambient_tiles(camera, height);
+        if(gust_in_view(gust_origin(shown)))
+            draw_gusts(shown, height);
+        draw_ambient_tiles(shown, height);
     }
-    draw_actors(camera);
+    draw_actors(shown);
     if(tileset_has_sky(tileset))
-        draw_birds(camera);
+        draw_birds(shown);
 
     if(game.can_interact)
         avm_draw_text(110, 7, F("A"));

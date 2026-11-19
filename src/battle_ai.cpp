@@ -1,4 +1,5 @@
 #include "battle_ai.h"
+#include "runtime_workspace.h"
 
 // Enemy utility weights, in whole points. The enemy values the damage it deals above the damage it
 // takes, and it values eliminations above ordinary HP. Gap and strike terms steer it toward the
@@ -34,17 +35,12 @@ static constexpr uint8_t ITERATION_GROWTH = 2;
 
 static constexpr BattleAction PASS_ACTION{BATTLE_NO_UNIT, 0};
 
-// The explicit search stack. Each ply keeps its alpha and the next and end indices of its ordered
-// actions in the shared action stack. A ply's beta is always its parent's alpha negated: the
+// The explicit search stack is `plies`, with its positions in `ply_state` and its killers in
+// `killers`, all in the runtime workspace. A ply's beta is always its parent's alpha negated: the
 // parent's alpha changes only after the child returns, so it is read from the parent rather than
 // stored. The search fails hard: a node's value is its alpha, clamped to its window, which picks
 // the same root action and score as an exact search and needs no separate best score. Positions are
 // kept separately, so the root reads the caller's state and never copies it.
-struct SearchPly {
-    int16_t alpha;
-    uint8_t next, end;
-};
-
 // The most legal actions one unit of a type can have anywhere on the board, derived from its rules
 // and the board's size at compile time. Along each direction a ray yields its moves up to the first
 // unit and at most one attack on that unit, within the cells left before the edge; a knight has its
@@ -146,7 +142,6 @@ static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t 
 // the search at the deepest ply the stack holds.
 static constexpr uint16_t ACTION_STACK_CAPACITY = BATTLE_ACTION_SCRATCH_CAPACITY;
 
-static SearchPly plies[BATTLE_AI_DEPTH];
 static_assert(ACTION_STACK_CAPACITY >= 2 * (BATTLE_SIDE_CAPACITY * 10 + 1) &&
                   ACTION_STACK_CAPACITY <= 255,
               "two plies of four rogues a side fit, and the stack's indices are bytes");
@@ -176,12 +171,9 @@ uint8_t battle_search_depth_limit(BattleState const& state) {
     return depth ? depth : 1;
 }
 
-// Each ply's killer: the last move that cut a node off at that ply, tried first among that ply's
+// Each ply's killer is the last move that cut a node off at that ply, tried first among that ply's
 // moves in the next node there. Killers are reset at the start of every search, so results stay
 // deterministic.
-static uint8_t killers[BATTLE_AI_DEPTH];
-// The children of ply k are built in ply_state[k], whether they are expanded or scored as leaves.
-static BattleState ply_state[BATTLE_AI_DEPTH];
 
 // Work counters, kept on the host and in the battle probe guest. Shipping guests compile every
 // update out, so the counters take no RAM there.

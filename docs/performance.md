@@ -587,6 +587,23 @@ The deepest shipping path is explore → update_visible_world → run_chunk (14 
 search. Search positions and the single blocking battle screen are static workspaces; ordinary
 frame-local input, animation and evaluation temporaries remain on the stack.
 
+**Runtime workspace (2026-11-19).** `src/runtime_workspace.h` overlays exploration and battle
+in one 226-byte union, and only one of them is active at a time. Exploration's share is the tile
+window (79 bytes), camera (4), NPC admission list (41) and foot collision cache (7): 131 bytes.
+Battle's share is the search positions (124), ply records (16), killer moves (4) and the shared
+action stack (82): 226 bytes. A battle fades the world out, takes the block, and on exit fades to
+black, reloads the camera and tile window through the ordinary reload and tile pass, invalidates
+the cached foot and NPC collision answers, and fades back in. The window and camera leave the saved
+`Game`, which shrinks by 83 bytes (SAVE_VERSION 13). Shipping static RAM falls from 669 to 538 bytes
+(saved 310 to 227, ordinary data 359 to 311), and the QA guest from 676 to 545. The complete stack
+bound rises from 239 to 243 bytes, below the 256-byte limit: the `update_visible_world` frame grows
+from 38 to 42 bytes; the dialogue path through `rpg_render_world` is unchanged at 8 bytes.
+Per-frame work is unchanged within measurement noise. Against clean HEAD on the full device
+suite, the idle grove average goes from 275,942 to 275,805 cycles, pixel scrolling from 275,946
+to 275,921, and the cave music average from 183,682 to 184,108. Battle entry and exit keep their
+worst frames near 321.5 thousand cycles, as before. Dialogue draws the battlefield through its own
+background, so exploration's renderer carries no battle check.
+
 ### Decisions
 
 The enemy-behavior tests in `tests/test_battle.cpp` check that the search discovers each mechanic from

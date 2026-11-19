@@ -65,7 +65,7 @@ No status is stored for a quest. `status()` reads the quest's own flags, so Find
 - otherwise not started.
 
 The only quest-specific saved field is `Game::selected_quest`, the tracked quest or `QUEST_NONE`.
-The save layout is version 12, and older saves are rejected.
+The save layout is version 13, and older saves are rejected.
 
 On load, `save_valid()` rejects an out-of-range `selected_quest`, and `quest_saved_state_valid()`
 calls each quest's `consistent()`. For Find Iona, completion without the start flag is rejected.
