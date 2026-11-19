@@ -405,11 +405,16 @@ capacity for those additions.
 
 ## Battle search
 
+The search and simulation figures below predate Rend's victim-dependent damage (2, or 4 below half HP),
+which changes the wolf's attacks. Re-measure them with the probes and `tests/battle_simulation.cpp` before
+comparing with them.
+
 The battle uses three movement classes and five attack classes, combined independently for either
 side. Six program-memory enemy definitions provide fighter, rogue, archer, spearman, wolf and brute
 presets. The shipping Grove encounter deploys the saved player party against a wolf (9 HP) and a
 brute (12). The measurements below use the fixed `BATTLE_TEST_GROVE` rule fixture: a rogue (10 HP)
-and archer (9) against those two enemies. Normal attacks deal 3, and the brute's 2 plus knockback. Every
+and archer (9) against those two enemies. Normal attacks deal 3, the wolf's Rend deals 2 (4 against a victim
+below half HP), and the brute's 2 plus knockback. Every
 voluntary move costs its mover 1 HP (the blood price), paid after it deals 1 engagement damage to each
 enemy orthogonally adjacent to its destination; a move whose engagement defeats the last opponent wins
 before the price is due. Every pass costs each living unit on the passing team 1 HP, including voluntary player passes. There is no

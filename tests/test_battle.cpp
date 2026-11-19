@@ -186,24 +186,24 @@ static BattleState random_board(uint8_t most = BATTLE_UNIT_CAPACITY) {
 
 struct OracleType {
     bool knight;
-    int move_range, attack_min, attack_max, damage;
+    int move_range, attack_min, attack_max, damage, injured_damage;
     bool knockback;
 };
 
 static OracleType oracle_type(uint8_t type) {
     switch(type) {
         case ENEMY_FIGHTER:
-            return {false, 1, 1, 1, 3, false};
+            return {false, 1, 1, 1, 3, 3, false};
         case ENEMY_ROGUE:
-            return {true, 0, 1, 1, 3, false};
+            return {true, 0, 1, 1, 3, 3, false};
         case ENEMY_ARCHER:
-            return {false, 1, 2, 4, 3, false};
+            return {false, 1, 2, 4, 3, 3, false};
         case ENEMY_SPEARMAN:
-            return {false, 1, 1, 2, 3, false};
-        case ENEMY_WOLF:
-            return {false, 2, 1, 1, 3, false};
+            return {false, 1, 1, 2, 3, 3, false};
+        case ENEMY_WOLF: // Rend: 2 against a healthy victim, 4 against one below half HP.
+            return {false, 2, 1, 1, 2, 4, false};
         case ENEMY_BRUTE:
-            return {false, 1, 1, 1, 2, true};
+            return {false, 1, 1, 1, 2, 2, true};
         default:
             abort();
     }
@@ -272,7 +272,7 @@ static void unit_definitions() {
         CHECK((type.movement_type == BATTLE_MOVEMENT_LEAP) == rules.knight);
         CHECK(type.move_range == rules.move_range);
         CHECK(type.attack_min == rules.attack_min && type.attack_max == rules.attack_max);
-        CHECK(type.damage == rules.damage);
+        CHECK(type.damage == rules.damage && type.injured_damage == rules.injured_damage);
         CHECK((type.effect == BATTLE_EFFECT_KNOCKBACK) == rules.knockback);
         CHECK(info.sprite_row < ACTOR_ROW_COUNT);
         // Each archetype has artwork of its own.
@@ -613,13 +613,14 @@ static void melee_attacks() {
     battle_apply(r, act(0, 3, 2));
     CHECK(r.units[1].hp == 7 && r.units[0].cell == cell(3, 1));
 
-    // 20. A wolf bites adjacent enemies only, even in a clear line two cells away.
+    // 20. A wolf bites adjacent enemies only, even in a clear line two cells away. Its Rend deals 2
+    // to a victim at half HP or more, so the healthy fighter drops to 8.
     BattleState w = board(BATTLE_PARTY, {{3, 1, ENEMY_WOLF, BATTLE_PARTY, 9},
                                          {3, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
                                          {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     CHECK(battle_can_attack(w, 0, 1) && !battle_can_attack(w, 0, 2));
     battle_apply(w, act(0, 3, 0));
-    CHECK(w.units[1].hp == 7 && w.units[0].cell == cell(3, 1));
+    CHECK(w.units[1].hp == 8 && w.units[0].cell == cell(3, 1));
 }
 
 static void archer_attacks() {
@@ -1369,12 +1370,14 @@ static void search_ordering() {
             CHECK(memchr(packed, ordered[i], count) != nullptr);
             BATTLE_ACTION_KIND kind = battle_action_kind(s, action);
             CHECK((kind == BATTLE_ACTION_MOVE) == (i >= quiet));
-            // Kills use the attacker's own damage, or a move's engagement hits.
+            // Kills use the attacker's damage against the victim, or a move's engagement hits.
             uint8_t victim = battle_unit_at(s, action.destination);
             unsigned defeated =
                 victim != BATTLE_NO_UNIT
-                    ? (s.units[victim].hp <= battle_attack_damage(s.units[action.unit_index]) ? 1u
-                                                                                              : 0u)
+                    ? (s.units[victim].hp <=
+                               battle_attack_damage(s.units[action.unit_index], s.units[victim])
+                           ? 1u
+                           : 0u)
                     : battle_engagement(s, action.unit_index, action.destination).kills;
             CHECK((kind == BATTLE_ACTION_WIN) == (defeated && defeated == opponents));
             CHECK((kind == BATTLE_ACTION_KILL) == (defeated && defeated != opponents));
@@ -2331,7 +2334,9 @@ static void saved_party_battles() {
             CHECK(rules.move_range == MOVEMENT_INFO[m].move_range);
             CHECK(rules.attack_min == ATTACK_INFO[a].attack_min);
             CHECK(rules.attack_max == ATTACK_INFO[a].attack_max);
-            CHECK(rules.damage == ATTACK_INFO[a].damage && rules.effect == ATTACK_INFO[a].effect);
+            CHECK(rules.damage == ATTACK_INFO[a].damage &&
+                  rules.injured_damage == ATTACK_INFO[a].injured_damage &&
+                  rules.effect == ATTACK_INFO[a].effect);
             uint64_t nodes = 0;
             BattleSearchResult reference = reference_search(state, 1, nodes);
             choice = battle_search(state, 1);
@@ -2349,8 +2354,59 @@ static void saved_party_battles() {
     CHECK(state.units[0].hp == 0 && state.units[1].hp == 1);
 }
 
+// Rend deals 2 to a victim at half its maximum HP or more and 4 to one below half. Every other
+// attack deals the same damage whatever its victim's HP.
+static void rend_damage() {
+    BattleUnit wolf{cell(3, 1), 9, ENEMY_WOLF, BATTLE_PARTY};
+    BattleUnit fighter{cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+    for(uint8_t hp = 1; hp <= 10; ++hp) {
+        fighter.hp = hp;
+        CHECK(battle_attack_damage(wolf, fighter) == (2 * hp >= 10 ? 2 : 4));
+        CHECK(battle_attack_damage(fighter, wolf) == 3);
+    }
+    // A party victim's maximum comes from the saved member: the traveler's is 20.
+    game = {};
+    game.party.count = 1;
+    game.party.members[0] = {20, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_NONE};
+    BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
+    for(uint8_t hp = 1; hp <= 20; ++hp) {
+        traveler.hp = hp;
+        CHECK(battle_attack_damage(wolf, traveler) == (2 * hp >= 20 ? 2 : 4));
+    }
+}
+
+// A victory restores one AP to every saved member, including one that fell, up to its maximum. A
+// defeat restores none, and play itself never changes AP.
+static void victory_ap_recovery() {
+    game = {};
+    game.party.count = 3;
+    game.party.members[0] = {20, 0, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_NONE};
+    game.party.members[1] = {0, 3, MOVEMENT_LEAPER, ATTACK_SHOT, NPC_VILLAGER};
+    game.party.members[2] = {17, 4, MOVEMENT_CHARGER, ATTACK_REND, NPC_ROWAN};
+    Party saved = game.party;
+    BattleState state;
+    battle_begin(state, &BATTLE_GROVE);
+    battle_pass(state);
+    CHECK(!memcmp(&saved, &game.party, sizeof(Party)));
+
+    state.ended = true;
+    state.result = BATTLE_DEFEAT;
+    battle_finish(state);
+    CHECK(game.party.members[0].ap == 0 && game.party.members[1].ap == 3 &&
+          game.party.members[2].ap == 4);
+
+    game.party = saved;
+    state.result = BATTLE_VICTORY;
+    battle_finish(state);
+    CHECK(game.party.members[0].ap == 1);
+    CHECK(game.party.members[1].ap == 4); // Recovered from a member who fell.
+    CHECK(game.party.members[2].ap == 4); // Already full, so the recovery is capped.
+}
+
 int main() {
     saved_party_battles();
+    rend_damage();
+    victory_ap_recovery();
     unit_definitions();
     initial_layout();
     teams_are_explicit();

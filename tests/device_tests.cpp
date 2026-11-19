@@ -1476,19 +1476,24 @@ static void verify_house_fades(Device& d) {
 // party actions with the enemy's replies applied. The rogue (10 HP) begins at (2,1) and the archer
 // (9) at (1,2); the wolf (9) at (6,1) and the brute (12) at (5,2). Trees stand at (4,0) and (6,0),
 // rocks at (1,3), and a boulder at (4,3). Every move costs its mover 1 HP and hits each adjacent
-// enemy for 1. The battle ends in victory on the enemy's turn: its last unit, the brute at 1 HP,
-// has no attack, and the move it must make costs its last HP.
+// enemy for 1. The wolf's Rend deals 2 to a healthy victim and 4 to one below half HP, and the
+// brute's Impact knocks back a victim it strikes. The battle ends in victory on the enemy's turn:
+// its last unit, the brute at 1 HP, has nobody in reach, so its only action is a move, which costs
+// its last HP.
 constexpr GroveAction GROVE_VICTORY_PLAN[] = {
     {{1, 2}, {5, 2}, true},  // The archer shoots the brute. The brute steps to (6,2).
-    {{2, 1}, {4, 2}, false}, // The rogue leaps to (4,2). The wolf runs to (4,1), biting the rogue.
-    {{4, 2}, {4, 1}, true},  // The rogue strikes the wolf, which strikes back.
-    {{4, 2}, {4, 1}, true},  // The rogue strikes the wolf again. The 1 HP wolf runs to (6,1).
-    {{1, 2}, {2, 2}, false}, // The archer steps east. The brute steps to (5,2), beside the rogue.
-    {{4, 2}, {5, 2}, true},  // The rogue strikes the brute, which knocks it back to (3,2).
-    {{3, 2}, {5, 1}, false}, // The rogue leaps to (5,1), engaging the wolf, which falls, and the
-                             // brute, which steps to (5,3).
-    {{5, 1}, {6, 3}, false}, // The 1 HP rogue leaps beside the brute and falls. The 1 HP brute must
-                             // move, and falls.
+    {{2, 1}, {4, 2}, false}, // The rogue leaps to (4,2). The wolf runs to (4,1), beside it.
+    {{4, 2}, {4, 1}, true},  // The rogue strikes the wolf, which bites back for 2.
+    {{4, 2}, {4, 1}, true},  // The rogue strikes the wolf again. The 2 HP wolf runs to (6,1).
+    {{4, 2}, {5, 0}, false}, // The rogue leaps to (5,0), out of the brute's reach. The brute steps
+                             // to (7,2).
+    {{5, 0}, {4, 2}, false}, // The rogue leaps back to (4,2). The brute steps to (6,2).
+    {{1, 2}, {1, 1}, false}, // The archer steps north to (1,1). The brute steps to (5,2).
+    {{4, 2}, {5, 2}, true},  // The rogue strikes the brute, which strikes back, knocking the rogue
+                             // to (3,2).
+    {{3, 2}, {5, 1}, false}, // The 1 HP rogue leaps to (5,1), engaging the wolf, which falls, and
+                             // the brute, which drops to 1 HP. The rogue falls paying its last HP.
+                             // The brute steps to (5,1) and falls paying its last HP.
 };
 
 // The cursor moves one tile per press, so moving it takes one press per tile.

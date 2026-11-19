@@ -400,7 +400,7 @@ static bool approaches(BattleState const& state, uint8_t const* targets, uint8_t
 static bool kills(BattleState const& state, uint8_t packed) {
     BattleUnit const& victim =
         state.units[battle_unit_at(state, (uint8_t)(packed & (BATTLE_CELLS - 1)))];
-    return victim.hp <= battle_attack_damage(state.units[packed >> 5]);
+    return victim.hp <= battle_attack_damage(state.units[packed >> 5], victim);
 }
 
 // Whether a packed action that defeats an opponent defeats them all. An attack removes one victim;
@@ -803,7 +803,8 @@ int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
         battle_living(state, actor.team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY);
     uint8_t target = battle_unit_at(state, action.destination);
     if(target != BATTLE_NO_UNIT) {
-        uint8_t hp = state.units[target].hp, damage = battle_attack_damage(actor);
+        uint8_t hp = state.units[target].hp,
+                damage = battle_attack_damage(actor, state.units[target]);
         if(hp <= damage)
             return opponents == 1 ? GREEDY_WIN : (int16_t)(GREEDY_KILL + GREEDY_HP * hp);
         return (int16_t)(GREEDY_HP * damage);

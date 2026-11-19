@@ -342,12 +342,14 @@ overworld cache and from the current area.
   | Rogue | knight leap over anything | adjacent | 3 | 10 |
   | Archer | one cell straight | straight line, 2 to 4 cells | 3 | 9 |
   | Spearman | one cell straight | straight line, 1 or 2 cells | 3 | 10 |
-  | Wolf | one or two cells straight | adjacent | 3 | 9 |
+  | Wolf | one or two cells straight | adjacent, Rend | 2, or 4 below half HP | 9 |
   | Brute | one cell straight | adjacent, then knockback | 2 | 12 |
 
   Moves need empty, open cells all the way, except the rogue's leap, which needs only an empty, open
   landing cell. Attacks need every cell between to be empty and open, whoever stands there. A brute
   pushes a surviving victim one cell straight away when that cell is on the board, empty, and open.
+  Rend deals 2 to a victim at half its maximum HP or more and 4 to one below half; every other attack
+  deals its fixed damage.
   Attackers never move. A battle holds up to four units a side. The Grove deploys the living
   members of the current saved party against a wolf and a brute. Recruitment therefore changes
   the next battle's roster. HP supports the complete 0..255 range; zero-HP members do not deploy.
@@ -394,6 +396,8 @@ overworld cache and from the current area.
   costs and defeated members at zero HP. MHP, classes and membership are preserved. Resigning
   preserves the party's remaining battle HP. A press of A confirms VICTORY or DEFEAT. Battles
   provide no automatic healing; entering with no living party members immediately results in defeat.
+  A victory also restores 1 AP to every saved member, including one that fell, up to its maximum. A
+  defeat restores none, and AP is never spent or restored during the battle itself.
 
 The battle is the only feature in this prototype. Other encounters and battlefields are not
 implemented.

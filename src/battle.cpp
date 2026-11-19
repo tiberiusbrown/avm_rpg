@@ -120,7 +120,7 @@ constexpr bool battle_classes_fit() {
     for(auto const& rules : BATTLE_RULES.classes) {
         uint8_t moves = rules.movement_type == BATTLE_MOVEMENT_LEAP ? 8 : 4 * rules.move_range;
         if(moves > BATTLE_MOVE_LIMIT || !rules.attack_min || rules.attack_min > rules.attack_max ||
-           rules.damage > 15)
+           rules.damage > 15 || rules.injured_damage > 15)
             return false;
     }
     return true;
@@ -162,6 +162,15 @@ void battle_finish(BattleState const& state) {
         BattleUnit const& unit = state.units[i];
         if(unit.team == BATTLE_PARTY && (unit.id & BATTLE_PARTY_SOURCE))
             game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].hp = unit.hp;
+    }
+    if(!state.ended || state.result != BATTLE_VICTORY)
+        return;
+    // Every member recovers, including one that fell or was already at 0 HP and did not deploy.
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        PartyMember& member = game.party.members[i];
+        uint16_t ap = member.ap + party_victory_ap(member);
+        uint8_t maximum = party_max_ap(member);
+        member.ap = ap < maximum ? (uint8_t)ap : maximum;
     }
 }
 
@@ -217,8 +226,12 @@ DIRECTION battle_direction(uint8_t from, uint8_t to) {
     return dy > 0 ? SOUTH : NORTH;
 }
 
-uint8_t battle_attack_damage(BattleUnit const& unit) {
-    return battle_rules(unit.id).damage;
+uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim) {
+    BattleUnitRules const& rules = battle_rules(attacker.id);
+    if(rules.injured_damage == rules.damage)
+        return rules.damage;
+    // A victim is healthy at half its maximum HP or more, which 2 * hp >= maximum tests exactly.
+    return 2 * (uint16_t)victim.hp < battle_max_hp(victim) ? rules.injured_damage : rules.damage;
 }
 
 uint8_t battle_sprite_row(BattleUnit const& unit) {
@@ -487,7 +500,8 @@ BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction act
             return BATTLE_ACTION_MOVE;
         kills = engagement.kills;
     } else {
-        kills = state.units[occupant].hp <= battle_attack_damage(actor) ? 1 : 0;
+        kills =
+            state.units[occupant].hp <= battle_attack_damage(actor, state.units[occupant]) ? 1 : 0;
     }
     if(!kills)
         return BATTLE_ACTION_ATTACK;
@@ -581,7 +595,7 @@ void battle_apply(BattleState& state, BattleAction action) {
     } else {
         BattleUnit& target = state.units[occupant];
         BattleUnitRules const& rules = battle_rules(actor.id);
-        fell = battle_damage(target, rules.damage);
+        fell = battle_damage(target, battle_attack_damage(actor, target));
         if(!fell && rules.effect == BATTLE_EFFECT_KNOCKBACK)
             battle_knock_back(state, actor, target);
     }

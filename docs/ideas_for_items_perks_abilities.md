@@ -1,6 +1,6 @@
 # AVM RPG — Rewards, Inventory, and Party Progression
 
-**Status:** Design proposal and idea bank, not an implementation specification  
+**Status:** Design reference and idea bank, not an implementation specification  
 **Design target:** A compact, exploration-driven fantasy RPG with tactical battles and a tight Arduboy memory/UI budget.
 
 ## 1. Design goals and existing combat assumptions
@@ -11,7 +11,7 @@ This document assumes the following existing or planned rules:
 
 - A player action advances the battle turn for the party. A perk should therefore be useful immediately, passively, or over several turns; spending an entire turn merely to guard against the next hit is not an attractive reward.
 - Moving an actor automatically attacks adjacent enemies, then deducts movement HP **last**. An actor at 1 HP can deliberately move, strike, and fall to 0 HP. Nothing here should accidentally remove that tactical sacrifice.
-- Normal attacks and special abilities are selected through the proposed attack-choice UI. Specials consume ability points (AP). AP **does not** regenerate during battle, but each active party member recovers **1 AP after each victorious battle** by default (up to their maximum AP). This between-battle recovery can increase through perks and equipment.
+- A character has independent movement and attack classes. The attack class determines normal-attack geometry and starting special(s); movement and attack classes each supply an ordered perk track. Normal attacks and special abilities are selected through the attack-choice UI. Specials consume ability points (AP). AP **does not** regenerate during battle, but each active party member recovers **1 AP after each victorious battle** by default (up to their maximum AP). This between-battle recovery can increase through perks and equipment.
 - Battles can have different obstacle and enemy placements. Rewards should enrich positioning decisions, not bypass them wholesale.
 - The game has very limited persistent RAM and a 128×64 screen. Prefer fixed tables, bitfields, compact menus, and content descriptions held in flash.
 
@@ -21,9 +21,30 @@ This document assumes the following existing or planned rules:
 
 1. **Make exploration valuable without mandatory grinding.** Hidden treasures and quests should supply some of the best permanent rewards.
 2. **Make battle victory imperfect.** HP and AP persist between encounters; victory restores only a little AP initially, so an expedition still demands resource management.
-3. **Reward distinctive builds, not busywork.** Each character gets a few passive perk choices and three meaningful equipment slots: weapon, armor, and relic.
+3. **Reward distinctive builds, not busywork.** Each character combines independent movement and attack classes, advances one of two ordered perk tracks at each milestone, and equips one weapon, armor, and relic.
 4. **Keep the player-facing rules legible.** Small numeric bonuses, recognizable triggers, and explicit caps are more valuable than elaborate chains of conditions.
 5. **Separate a fixed baseline from idea banks.** The lists below are candidates; implementing all of them would be unnecessarily complex.
+
+### Two independent class axes (recommended generic names)
+
+Keep the existing **movement class × attack class** architecture. Do **not** add a unified character class such as Fighter, Guardian, Scout, or Mage. The same attack style can pair with any movement style; equipment and perks distinguish characters further.
+
+The code uses these identifiers. Each name describes the rule rather than a species, named character, or story profession. No movement-class name duplicates an attack-class name.
+
+| Axis | Identifier | Display name | Geometry / rule |
+|---|---|---|---|
+| Movement | `MOVEMENT_STANDARD` | **Standard** | Orthogonal move, up to 1 tile |
+| Movement | `MOVEMENT_LEAPER` | **Leaper** | Chess-knight leap to an empty tile |
+| Movement | `MOVEMENT_CHARGER` | **Charger** | Orthogonal move, up to 2 tiles |
+| Attack | `ATTACK_STRIKE` | **Strike** | Range 1, damage 3 |
+| Attack | `ATTACK_SHOT` | **Shot** | Straight-line range 2–4, damage 3 |
+| Attack | `ATTACK_REACH` | **Reach** | Straight-line range 1–2, damage 3 |
+| Attack | `ATTACK_IMPACT` | **Impact** | Range 1, damage 2, knockback |
+| Attack | `ATTACK_REND` | **Rend** | Range 1; **2 damage** against a target at half its maximum HP or more, **4 damage** against a target strictly below half |
+
+**Strike/Rend distinction:** Strike always deals **3 normal-attack damage**. Rend deals **2 normal-attack damage**, increasing to **4 only when the target has strictly less than half its maximum HP before the hit**. For example, a 10-HP enemy qualifies at 4 HP, but not at 5 HP. The rule is `2 * target.hp < target.max_hp`, using sufficiently wide arithmetic. The bonus applies to the attack, **not** to automatic movement engagement damage. This gives Strike reliable damage and Rend a finisher role; Rend’s special abilities and perk track deepen that identity. Likewise, **Charger** is a long-range *orthogonal movement pattern*, not an automatic attack or a move through occupied tiles. **Leaper** is a fixed knight-shaped jump, not arbitrary flying.
+
+For readable UI, label them explicitly as `Move: Standard` and `Attack: Shot`, rather than referring ambiguously to a character's single "class". Keep these axes **fixed for a character after recruitment** in the initial version; class-changing and perk respec can be considered later. Base classes are not automatically restricted to particular weapons or relics.
 
 ---
 
@@ -31,7 +52,7 @@ This document assumes the following existing or planned rules:
 
 **Recommended baseline:** Four fixed consumable counters, each stackable up to 15. All are used from an out-of-battle **Supplies** menu. No grid inventory, item sorting, weight, or arbitrary item slots are required.
 
-| Consumable | Proposed effect | Intended role | Illustrative shop price |
+| Consumable | Effect | Intended role | Illustrative shop price |
 |---|---|---|---:|
 | **Potion** | Restore **8 HP** to one conscious member, capped at maximum HP | Cheap, targeted recovery | 12 gold |
 | **Elixir** | Restore **4 HP** to every party member who is conscious | Efficient recovery when several members are injured | 22 gold |
@@ -76,7 +97,7 @@ This produces a desirable progression: **early game: conserve specials → midga
 - **Equipment:** Each party member has **three separate slots: one weapon, one armor, one relic**. A slot may be empty, or occupied by exactly one compatible acquired item. A unique item cannot be equipped by two characters at once.
 - **Key Items:** Flag- or quest-derived entries without generic object storage. The quest system determines ownership and delivery.
 
-Gold remains a wallet counter, not an inventory object. There is no need for grid slots, loot weight, durability, randomized affixes, stackable equipment, selling unique finds, or item-instance data.
+Gold remains a wallet counter, not an inventory object. Equipment can complement a character's **movement track, attack track, or both**; it does not change their two base class identities. There is no need for grid slots, loot weight, durability, randomized affixes, stackable equipment, selling unique finds, or item-instance data.
 
 ### What belongs in each slot?
 
@@ -102,7 +123,7 @@ Use short display names and compact abbreviations (`ATK+1`, `First hit −2`, `M
 
 ### Stacking and tradeoffs
 
-- Every character can benefit from a **weapon perk + armor perk + relic effect** at once, so tune combinations, not isolated entries. Normal + special + automatic movement damage may need distinct modifiers to avoid accidental triple-dipping.
+- Every character can benefit from **movement-track perks + attack-track perks + weapon + armor + relic** at once, so tune combinations, not isolated entries. Normal + special + automatic movement damage may need distinct modifiers to avoid accidental triple-dipping.
 - **Incoming enemy damage reduction does not reduce the HP a character voluntarily loses for movement** unless an item explicitly says `movement HP cost`. Treat these as different damage categories.
 - Armor movement-HP reductions apply **after** movement attacks, when the self-cost is paid. Avoid universally free movement. An explicit first-move freebie can be interesting, but stackable generic reductions should normally have a floor or a once-per-battle trigger.
 - Keep bonuses to after-battle AP recovery mostly on **relics and perks**. The baseline remains **+1 AP per active member after victory**, no regeneration during battle; a recovery-focused build can eventually approach a full refill.
@@ -114,57 +135,84 @@ Store an **acquired-equipment bitset** plus **twelve equipped IDs** (4 character
 
 ---
 
-## 4. Character levels: recommended progression
+## 4. Character levels and two-track perk progression
 
-**Recommended cap for the first complete game:** Level 10, with occasional automatic stat gains and a choice of one of two perks at each even-numbered level. Level-ups occur after the encounter and the player makes perk choices from the pause/camp interface, not in the middle of combat.
+**Chosen direction:** Every party member has independent **movement** and **attack** classes, with **one ordered perk track attached to each**. At each perk level, choose one: advance the **next movement perk** for that member's movement class **or** the **next attack perk** for that member's attack class. There is no third, unified Fighter/Guardian/Scout/Mage class and no generic pick-any-perk menu.
+
+### Level schedule
+
+**Recommended first campaign cap:** Level 10, with modest automatic stat growth and one perk-track advancement at every even-numbered level. The numbers below are balance placeholders.
 
 | Level | Cumulative XP (example) | Reward |
 |---:|---:|---|
-| 1 | 0 | Class identity, starting normal attack and special ability |
-| 2 | 10 | **Choose 1 of 2 perks** |
+| 1 | 0 | Movement + attack class rules; first attack-class special already available |
+| 2 | 10 | **Advance movement track OR attack track** (rank 1) |
 | 3 | 25 | +2 maximum HP |
-| 4 | 45 | **Choose 1 of 2 perks** |
+| 4 | 45 | **Advance movement OR attack track** (next rank) |
 | 5 | 70 | +1 normal-attack damage |
-| 6 | 100 | **Choose 1 of 2 perks** |
+| 6 | 100 | **Advance movement OR attack track** (next rank) |
 | 7 | 135 | +2 maximum HP |
-| 8 | 175 | **Choose 1 of 2 perks** |
+| 8 | 175 | **Advance movement OR attack track** (next rank) |
 | 9 | 220 | +1 normal-attack damage |
-| 10 | 270 | **Choose 1 of 2 perks**; cap reached |
+| 10 | 270 | **Advance movement OR attack track** (next rank); cap reached |
 
-There are **five binary perk decisions per character**, not a sprawling tree. For four characters, these twenty choices can fit in a three-byte bitfield if every perk decision is valid and chosen; a separate "pending choice" convention or small flags may be needed while choices are unmade. An automatic stat at levels 3/5/7/9 makes every level feel useful even if the player does not get a menu choice.
+At each choice the player sees only two options: **the next unowned perk in the movement track** and **the next unowned perk in the attack track**. Selection permanently advances that track by one rank; previously skipped ranks remain obtainable later. Five selections can produce a 5/0 specialist, a 3/2 hybrid, and everything between. A higher-tier perk never requires choosing an arbitrary earlier perk from a branching tree: it merely requires sufficient investment in that axis.
 
-### Experience accounting
+**Example:** A `Leaper + Shot` character could choose Leaper at levels 2 and 4, Shot at level 6, then Shot again at level 8. They would have Leaper ranks 1–2 and Shot ranks 1–2. At level 10 the options would be Leaper rank 3 or Shot rank 3. A different `Leaper + Shot` character could invest only in Shot to reach its capstone early.
 
-**Recommended:** Each active member tracks their own cumulative XP. Give every active party member the *full* encounter/quest XP award, **including those incapacitated at the end**; do not split XP four ways. This avoids a death spiral where the member who most needs help levels the slowest. New recruits can join near the current party level.
+### Curated starter tracks
 
-**Simpler alternative:** One shared party XP total and level, with individual perk choices. This saves several bytes and prevents uneven levels but can cause four simultaneous perk choices; let players resolve them in the menu at their own pace.
+The following eight five-rank tracks are a **recommended starting layout**, not a promise to implement forty separate effect handlers. Reuse the common modifier system for ordinary bonuses; reserve extra per-battle flags for truly conditional effects. Names and values are tunable. Ranks are awarded **in sequence within each track**.
 
-### Character identity and perk layout
+#### Movement tracks
 
-Give each class a handful of curated decisions. For example:
+| Rank | **Standard** (1-tile orthogonal) | **Leaper** (knight-shaped leap) | **Charger** (up to 2 orthogonal tiles) |
+|---:|---|---|---|
+| 1 | **Steady Step:** first move each battle costs 0 HP | **Soft Landing:** first leap each battle costs 0 HP | **Easy Stride:** first move each battle costs 0 HP |
+| 2 | **Battle Stance:** first incoming enemy hit each battle deals −1 damage | **Landing Strike:** automatic movement damage +1 to one adjacent target | **Momentum:** a move of 2 tiles adds +1 automatic damage to one adjacent target |
+| 3 | **Engagement:** automatic movement damage +1 to one adjacent target | **Evasion:** first incoming enemy hit each battle deals −2 damage | **Pursuit:** automatic movement damage +1 against one already-injured adjacent enemy |
+| 4 | **Endurance:** +3 maximum HP | **Second Wind:** restore 2 HP after victory | **Afterglow:** recover +1 additional AP after victory |
+| 5 | **Veteran March:** restore 2 HP after victory | **Skyfall:** add +2 automatic damage to one target after a leap | **Overrun:** when moving 2 tiles, +1 automatic damage to *each* adjacent enemy |
 
-- **Fighter:** Normal-attack damage versus survivability; high-damage finishing versus movement aggression.
-- **Guardian:** Maximum HP versus damage mitigation; party protection versus punishing enemies clustered nearby.
-- **Scout:** Movement damage versus lower movement cost; first-hit burst versus consistency.
-- **Mage:** AP capacity versus stronger specials; **after-battle AP recovery** versus immediate spell power; single-target intensity versus multi-target effects.
+**Movement-track design:** standard movement emphasizes resilience, leaping emphasizes reliable engagements and defense, and charging emphasizes making long moves worth their HP. Movement perks may improve survival or post-battle recovery; they do not need to change move geometry. A universal +1 range modifier would violate the current compact maximum-action assumptions for some classes, so leave range-changing perks in the experimental bank until the move generator and AI bounds are explicitly updated.
 
-A perk-choice screen needs only a level label and two short descriptions. Earlier choices do **not** have to be prerequisites for later ones. Independent pairs are easier to balance, easier to encode, and less likely to trap the player in a poor build.
+#### Attack tracks
 
-**Active abilities:** Unlock at most one additional special per character in the first full version, perhaps at a fixed story or level milestone. Because each action consumes the party's turn, a new special must compete with the normal attack and existing special on immediate value. Passive perks should remain the majority of progression rewards.
+| Rank | **Strike** | **Shot** | **Reach** | **Impact** | **Rend** |
+|---:|---|---|---|---|---|
+| 1 | **Heavy Hand:** +1 normal damage | **First Mark:** +1 normal damage vs full-HP targets | **Extended Pressure:** +1 normal damage at range 2 | **Solid Hit:** +1 normal damage | **Wound Sense:** +1 normal damage vs injured targets |
+| 2 | **Executioner:** +2 normal damage vs targets at half HP or less | **Reservoir:** +1 maximum AP | **Supporting Thrust:** +1 normal damage vs targets next to an ally | **Wall Breaker:** +2 normal damage if knockback is obstructed | **Fierce Technique:** first special each battle costs −1 AP (minimum 1) |
+| 3 | **Unlock Execution** as a second special | **Unlock Deadeye** as a second special | **Unlock Impale** as a second special | **Unlock Shatter Blow** as a second special | **Unlock Blood Rush** as a second special |
+| 4 | **Afterglow:** +1 AP recovered after victory | **Efficient Aim:** first special each battle costs −1 AP (minimum 1) | **Reservoir:** +1 maximum AP | **Iron Will:** first incoming enemy hit each battle deals −1 damage | **Afterglow:** +1 AP recovered after victory |
+| 5 | **Mastery:** +1 to special damage | **Deadeye:** +2 special damage vs isolated targets | **Perfect Reach:** +2 normal damage at range 2 | **Siegebreaker:** +2 special damage when a push succeeds | **Relentless:** +2 special damage while below half HP |
+
+**Attack-track design:** each class has a meaningful starter special at level 1. Attack rank **3 unlocks a second special**; a movement-focused character retains the starter and simply delays that second option. The named second specials are specified in section 7, and all use a primary enemy target. Only one attack-class special may be used per action, and AP is spent once.
+
+**Balance caution:** A rank-5 specialization is reached only if the player spends all five perk choices on that axis. It is therefore okay for rank 5 to be relatively exciting, but a 3/2 hybrid should remain viable. Some suggested late perks need transient first-use flags or conditional hit checks; initially implement one or two ranks per class, and add remaining ranks as progression content supports them.
+
+### Experience and interface
+
+**Experience:** Prefer cumulative XP **per active member**, with the full XP award given to every active party member including incapacitated ones. Do not split awards four ways. New recruits can join near the current party level. A single shared party XP total remains an acceptable RAM-saving alternative if individual levels prove too costly.
+
+**Perk screen:** At any earned choice, show `Move: <class>` with the next movement perk name/effect versus `Attack: <class>` with the next attack perk name/effect. If the player defers, keep the choice pending in the Party screen. No large perk-tree viewer is needed; optionally show `Move 2 / Attack 1` in character details. Fixed rank definitions and descriptions belong in flash.
+
+**Persist only progress, not an entire history:** Track `movement_rank` and `attack_rank` per member, each 0–5. Together they take **six bits per character**, or **three packed bytes for a four-member party**. The number of unspent choices can be derived from earned even-level milestones minus `(movement_rank + attack_rank)`, so no per-level choice mask is required. If choices must always be made immediately, only one rank per character is needed because the sum is then known from level (about two packed bytes total). The safer deferred-choice model uses both ranks and validates that their sum never exceeds milestones earned.
+
+**Derived values:** Compute maximum HP/AP, attack bonuses, post-battle AP recovery, and other modifiers from base class, level, chosen ranks, and equipped gear instead of storing duplicate effective stats. Keep actual current HP and AP saved; clamp them when maximum values fall. Do not grant free HP/AP merely by toggling equipment.
+
+**Respec/class changes:** Leave both out of the first implementation. A later trainer may reset *the two track ranks* to refund earned choices, but changing a character's actual movement or attack class would require explicit handling of class-specific perks and unlocked specials.
 
 ### Growth balance
 
-A useful target is for a level-10 character to be plainly stronger than a level-1 character, but not so strong that movement sacrifices, enemy placements, or target prioritization stop mattering. Prefer modest HP/damage increases plus differentiated tactics over exponential damage or HP scaling. Perk and equipment choices—especially relics—may gradually turn **persistent AP with +1 post-battle recovery** into **effectively full AP each encounter** for a specialized character; keep that as an earned build payoff rather than a universal baseline. Don't add automatic healing on level-up unless that is an intentional part of expedition balance.
-
----
+The level-10 party should be noticeably stronger without making positioning, movement sacrifice, or target choice irrelevant. XP, automatic stats, perk-track investment, and equipment each have a distinct role. A specialized late-game build can combine AP recovery perks with relics and approach a fresh AP pool every battle; the baseline remains **+1 AP after victory**, not a full reset.
 
 ## 5. Perk idea bank
 
-These are **alternatives to curate**, not a list of perks to implement. Most are passive. Numeric triggers should be visible or easy to understand. **[extension]** denotes effects that depend on mechanics not yet guaranteed to exist. **[watch]** denotes effects that may need especially careful balance or tracking.
+These are **candidate effects for the fixed movement and attack tracks in section 4**, not a free-form perk pool and not a commitment to implement everything. Choose or replace a named track-rank effect deliberately. Movement-track candidates usually affect movement, defense, positioning, HP, and expedition recovery; attack-track candidates usually affect normal attacks, special abilities, target conditions, AP efficiency, and damage. Most are passive. Numeric triggers should be visible or easy to understand. **[extension]** denotes effects that depend on mechanics not yet guaranteed to exist. **[watch]** denotes effects that may need especially careful balance or tracking.
 
 ### A. Normal attacks and finishing (10)
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Sharp Edge** | Normal attacks deal +1 damage. |
 | **First Blood** | The character's first normal attack each battle deals +2 damage. |
@@ -181,7 +229,7 @@ These are **alternatives to curate**, not a list of perks to implement. Most are
 
 These perks must preserve the existing order: **move → automatic attack(s) → movement HP cost**.
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Light Step** | The first movement action in each battle costs 1 less HP (minimum 0). |
 | **Thornstep** | The automatic attack after moving deals +1 damage to one adjacent enemy, chosen by a fixed rule. |
@@ -200,7 +248,7 @@ These perks must preserve the existing order: **move → automatic attack(s) →
 
 ### C. Durability and post-battle recovery (10)
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Vitality** | +3 maximum HP. |
 | **Thick Skin** | Reduce the first instance of incoming enemy damage each battle by 2 (minimum 0). |
@@ -217,7 +265,7 @@ These perks must preserve the existing order: **move → automatic attack(s) →
 
 Nothing in this category restores AP **during** combat. This category includes AP capacity, ability costs/damage, and **extra AP recovery after victory**. Post-battle recovery explicitly builds on the base +1 AP rule.
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Reservoir** | +2 maximum AP. |
 | **Efficient Casting** **[watch]** | The character's first special each battle costs 1 less AP, minimum 1. |
@@ -237,7 +285,7 @@ Nothing in this category restores AP **during** combat. This category includes A
 
 ### E. Positioning and battlefield tactics (9)
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Isolationist** | Deal +1 damage to a target with no allied enemies adjacent to it. |
 | **Pack Hunter** | Deal +1 normal-attack damage to targets adjacent to another party member. |
@@ -251,7 +299,7 @@ Nothing in this category restores AP **during** combat. This category includes A
 
 ### F. Party synergy (8)
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Banner Bearer** | Other party members deal +1 damage to enemies adjacent to the bearer. |
 | **Bodyguard** | The bearer takes 1 damage that would hit an adjacent ally instead **[extension: redirection]**. |
@@ -266,7 +314,7 @@ Nothing in this category restores AP **during** combat. This category includes A
 
 ### G. High-risk / sacrifice builds (9)
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Martyr's Blow** | Movement attacks deal +2 damage if the movement HP cost will incapacitate the actor afterward. |
 | **Glass Blade** | +2 normal-attack damage, −3 maximum HP. |
@@ -280,7 +328,7 @@ Nothing in this category restores AP **during** combat. This category includes A
 
 ### H. Exploration, treasure, and supplies (8)
 
-| Perk | Proposed effect |
+| Perk | Effect |
 |---|---|
 | **Forager** | Gain one Potion when first entering a new dungeon area, subject to a reasonable per-area cap. |
 | **Treasure Sense** | Show a subtle indicator when an unopened treasure cache is nearby **[extension: local chest query]**. |
@@ -291,11 +339,13 @@ Nothing in this category restores AP **during** combat. This category includes A
 | **Sage** | Gain +1 XP for the party from significant quest objectives; not repeatable encounters. |
 | **Tomb Reader** | Reveal optional hints to nearby secrets or magic-related lore **[extension: map/content support]**. |
 
-### How to shortlist perks
+### How to shortlist and assign perks to class tracks
 
-Start with **6–8 straightforward perks per character**, arranged as mutually exclusive choices at four levels, plus perhaps two late-game choices. Consider whether a perk stays worthwhile across multiple weapon/armor/relic loadouts, rather than becoming a mandatory match for one item. Favor clear bonuses to normal attacks, movement attacks, HP, AP, and post-battle recovery. The exploration perks are interesting but should not replace too many combat-relevant decisions unless noncombat class identity becomes a major theme.
+The five-rank tables in section 4 are the current recommended picks. Treat every perk in this idea bank as a **possible replacement for a particular rank in one named class track**, not an extra selectable branch. For example, `Light Step` belongs naturally to Standard or Leaper movement, `Thornstep` to Charger or Leaper movement, `Executioner` to Strike attacks, and `Afterglow` can be a rank-4 reward for an attack or movement track where its AP economy makes sense.
 
-Be careful with **stacking**: a +1 movement-damage perk, a movement-attack weapon, and a party aura may turn moving into the default best attack in every situation. Test combined builds, not just each effect in isolation.
+Avoid making an entire movement track weaker than an attack track: selecting movement is a meaningful commitment, not a penalty for skipping raw damage. Movement's durability, engagement damage, and recovery can compete with attack's direct damage, extra specials, and AP cost reduction. If a new perk replaces a previously shipped rank, plan save migration or keep perk IDs/definitions stable.
+
+**Stacking:** a movement-damage perk, movement-attack weapon, and relic may turn moving into the default best attack. Test combinations. Damage reductions for enemy attacks **do not** automatically reduce voluntary movement HP cost. The move → engagement damage → self-HP-cost order remains unchanged.
 
 ---
 
@@ -532,150 +582,191 @@ The expanded catalog is an **idea bank, not the initial content count**. It is d
 - **Ability specialist:** Focused Wand + Moonweave Robe + Dawn Pendant → stronger specials, a larger AP pool, faster post-battle recovery.
 - **Last-hit gambler:** Cracked Saber + Cinder Boots + Bloodstep Charm → a dangerous 1-HP movement sacrifice that can hit hard before incapacitation.
 
-A newly discovered item should make players **reconsider at least one existing character's loadout**. If every new sword is simply `+1` larger than the previous sword, the three-slot system adds menu labor without enough strategy.
+A newly discovered item should make players **reconsider at least one existing character's loadout**, even when its two classes and earned perk ranks cannot change. If every new sword is simply `+1` larger than the previous sword, the three-slot system adds menu labor without enough strategy.
 
 ---
 
-## 7. Special-ability idea bank and UI design
+## 7. Special abilities by **attack class**, with a first-stage set
 
-**Core constraint:** An action by one party member **uses the party's turn**. A special must therefore be a strong alternative to a normal attack, not a small buff, a weak guard, or a standalone movement/defense action that accomplishes nothing before enemies respond. Specials consume AP **once when used**; AP does not regenerate during battle and only recovers after victory, at town recovery, or via an out-of-battle Ether.
+**Ownership rule:** The **attack class** owns a character's starting special and ordered attack-track unlocks. The **movement class does not change which enemy-targeted specials are available** in the first implementation, though its perks can enhance movement attacks, defense, or AP recovery. No unified Fighter/Guardian/Scout/Mage classes are assumed. Later, a special granted by equipment or a story reward may be an explicit exception.
 
-The suggestions below assume four broad archetypes—fighter, guardian, scout, mage—but can be reassigned to whatever party roles the game ultimately uses. **AP costs and damage are placeholders**, not final balance. `Normal +2` means the usual normal-attack damage calculation plus two before enemy mitigation; `4 damage` is a nominal fixed-value spell for illustration. A special affecting one additional enemy without player direction must choose it **deterministically** (nearest or lowest HP, with stable actor-index ties).
+**Action economy:** One action uses the entire party turn. A special must provide worthwhile immediate damage or a concrete attack-plus-effect, not a weak guard that does nothing before enemies respond. Specials spend AP once; AP does not regenerate midbattle, and baseline after-victory recovery is +1 per active member. Normal attacks remain free.
 
-### A. Minimal attack-choice UI
+### A. Initial special abilities — implement these first
 
-**Recommended flow for an enemy-targeted attack:** select acting party member → select valid enemy target → show `Attack` and the character's 1–2 unlocked specials → confirm. If only one legal action exists, optionally skip the choice menu. A special with insufficient AP is gray or marked `-`; show its AP cost (`2 AP`) and short description before confirming.
+These five specials are recommended for **the existing five attack classes** and use exactly the same **primary enemy target and attack range/line-of-sight legality as the class's normal attack**. They add no area-target UI, status counters, alternate movement targeting, or special range previews. Damage values are **illustrative**, using the current base attack values shown in section 1.
 
-A 128×64 selection panel can show a title plus 2–3 options, for example:
+| Attack class | Initial special | AP | First-stage effect | Why it fits |
+|---|---|---:|---|---|
+| **Strike** | **Power Strike** | 2 | Normal damage **+3** (base 3 → 6) | Simple, reliable burst for close attacks |
+| **Shot** | **Opening Shot** | 2 | Normal **+4** versus a full-HP target, otherwise **+1** | Makes the opening target matter at range 2–4 |
+| **Reach** | **Driving Thrust** | 2 | Normal **+2**, then attempt a one-tile **knockback** | Adds an immediate positional effect using an existing battle rule |
+| **Impact** | **Crushing Bash** | 2 | Normal **+3** and retain its existing **knockback** | Converts lower-damage pushing attacks into a significant burst |
+| **Rend** | **Wound Hunter** | 2 | Normal **+3** versus an already-injured target, otherwise **+1**; uses Rend’s conditional **2/4** normal damage | Rewards target selection and finishing attacks |
+
+**Initial AP suggestion:** Start party members at **4 maximum AP** for testing, enough to use two 2-AP specials from full before needing post-battle recovery or Ether. Adjust by playtesting and later attack-track/relic bonuses.
+
+All five have a useful outcome even if their condition is not met. **Driving Thrust** uses the existing knockback semantics: if the push destination is occupied, blocked, or off-board, still deal the special's damage, with no push. **Crushing Bash** keeps the normal Impact knockback; it does not push twice. **Rend** differs from Strike even on normal attacks (2 damage, or 4 against targets strictly below half HP). **Wound Hunter** retains its separate *injured at all* condition, giving 3 damage against a full-HP enemy, 5 against an injured enemy at or above half HP, and 7 below half HP before perks/equipment. Playtest its high-end burst rather than silently changing the approved special at this stage.
+
+**Smallest implementation slice:** Implement the shared AP expenditure, attack-variant legality, damage/effect resolution, and popup with **Power Strike** first; then populate the remaining four definitions and host tests. You can expose Strike and Shot in the starting playable party while validating Reach, Impact, and Rend through test encounters. These are **five shared class definitions**, not twenty character-specific spells.
+
+### B. Target-first UI and rule compatibility
+
+Enemy-targeted flow: **select acting unit → select an enemy legal for a normal attack → choose `Attack` or the available special(s) → resolve once**. In the first stage, all five starting specials inherit normal targeting, so every enemy shown for a normal attack is also valid for that unit's starting special.
 
 ```text
-  TARGET: SKELETON
-  > Attack
-    Power Strike   2AP
-    Cleave         3AP
-
-  AP: 3/5
+ TARGET: BRUTE
+ > Attack
+   Power Strike  2AP
+ AP: 3/5
 ```
 
-Use a cursor and paged one-line descriptions; avoid extra button chords, radial wheels, or multiple submenus. The player should not have to choose another target after selecting a special. If an effect splashes, chains, or buffs allies, derive the secondary recipients from the original target and current board.
+When AP is insufficient, retain the normal attack choice and mark the special unavailable. Show a short effect description on selection. Do not prompt for a second target. Because the current compact battle-action/search representation packs the acting unit and destination, adding an attack variant requires deliberate integration with action resolution and AI; avoid bloating every search node just to store a character's equipment or perk effects.
 
-**Compatibility tiers:**
+**Ability compatibility tags for the idea bank:**
 
-- **[core] Enemy target:** The same target the player selected for a normal attack. Damage, healing to self, conditional damage, and auto-selected secondary effects fit existing target-first UI.
-- **[extension: area]** Targeted cleaves, lines, or chaining use existing primary target, but require code for secondary tiles/targets and clear previews.
-- **[extension: status]** Burning, slowing, silencing, marking, or temporary defense require status state and clean expiration rules.
-- **[extension: move]** Repositioning requires a deterministic destination or a deliberately new tile-selection step. Any automatic movement attack and HP cost must be explicitly defined; don't accidentally obtain a free normal move.
-- **[extension: ally]** An ally-targeted heal/ward requires new ally selection; postpone until its UI is justified. For baseline-friendly support moves, heal the caster or automatically choose the most injured eligible ally **as part of an offensive attack**.
+- **[core]** Uses the selected normal-attack enemy; modifiers, conditions, self-healing, and existing knockback can resolve immediately.
+- **[extension: area/line]** More than one target or extra line-cell effects; requires clear deterministic secondary targeting and AI evaluation.
+- **[extension: status]** Burns, marks, silences, slows, or defense debuffs; requires transient status representation and expiration rules.
+- **[extension: move]** Moves an actor or target under new rules; requires explicit board legality and movement-cost semantics.
+- **[extension: ally]** A new ally target; avoid a second targeting UI until needed. An automatic ally recipient combined with damage is easier.
+- **[watch]** Easy to describe but adds difficult balancing, history flags, or special-case rules.
 
-**A useful default:** Equip or learn **one starting special per character** and unlock **one more** later. The catalog below offers alternatives; it does not imply putting twenty abilities in each character's menu.
+### C. Ordered rank-3 attack special unlocks
 
-### B. Fighter — heavy blows, finishing, risks (12)
+Advancing an **attack track to rank 3** unlocks exactly one additional class-defined special, regardless of the character's level when they reach that rank. A movement-focused build can remain on its starting special indefinitely. Each character sees **at most two specials** in the initial campaign.
+
+| Attack class | Second special (rank 3) | AP | Effect | Fit |
+|---|---|---:|---|---|
+| **Strike** | **Execution** | 2 | Normal +4 vs target at/below half HP; otherwise Normal +1 | [core] |
+| **Shot** | **Deadeye** | 3 | Normal +5 if the target has no adjacent enemy allies; otherwise Normal +2 | [core] |
+| **Reach** | **Impale** | 3 | Normal +3 at range 2; otherwise Normal +1 | [core] |
+| **Impact** | **Shatter Blow** | 3 | Normal +4 and retain normal knockback | [core] |
+| **Rend** | **Blood Rush** | 3 | Normal +4 when the attacker is at/below half HP; otherwise Normal +1 | [core] |
+
+These deliberately require no new target category. The player should understand when the conditional bonus is active from the current board/HP; consider a short highlighted description before confirmation.
+
+### D. Attack-class idea bank: direct hits and risk (12)
+
+**Best first fit:** Strike; some may be assigned to Reach or Rend. The names are move names, not separate character classes.
 
 | Ability | AP | Effect | Fit |
 |---|---:|---|---|
-| **Power Strike** | 2 | Normal +3 damage to selected enemy. | [core] |
-| **Execution** | 2 | Normal +4 if target is at half HP or below; otherwise Normal +1. | [core] |
+| **Power Strike** | 2 | Normal +3 damage to selected enemy. | [core; first-stage Strike] |
+| **Execution** | 2 | Normal +4 if target is at half HP or below; otherwise Normal +1. | [core; Strike rank 3] |
 | **Heavy Opening** | 2 | Normal +4 if target is still at full HP; otherwise Normal +1. | [core] |
-| **Rising Fury** | 3 | Normal +4 while fighter is at half HP or below; otherwise Normal +2. | [core] |
+| **Rising Fury** | 3 | Normal +4 while attacker is at half HP or below; otherwise Normal +2. | [core] |
 | **Stonebreaker** | 2 | Normal +3 against enemy adjacent to an obstacle; otherwise Normal +1. | [core] |
-| **Blood Price** | 2 | Normal +4; fighter pays 2 HP **after** dealing damage (can self-incapacitate). | [core, watch] |
-| **Warrior's Feast** | 3 | Normal +2 and restore 3 HP to fighter if target takes damage. | [core] |
-| **Vengeful Cut** | 2 | Normal +3 if fighter was damaged by an enemy on the previous enemy turn; else Normal +1. | [watch: 1-bit history] |
+| **Blood Price** | 2 | Normal +4; attacker pays 2 HP **after** damage (can self-incapacitate). | [core, watch] |
+| **Warrior's Feast** | 3 | Normal +2 and restore 3 HP to attacker if target takes damage. | [core] |
+| **Vengeful Cut** | 2 | Normal +3 if attacker was damaged by an enemy on the previous enemy turn; else Normal +1. | [watch: history] |
 | **Wide Cleave** | 3 | Normal +1 to selected target; 2 damage to lowest-HP enemy adjacent to target. | [extension: area] |
 | **Sunder Blow** | 3 | Normal +2 and ignore 2 enemy armor on this hit. | [extension: armor] |
 | **Staggering Smash** | 3 | Normal +2; target's next attack deals −2 damage. | [extension: status] |
-| **Lunging Thrust** | 3 | Move one deterministic legal tile toward selected target and strike for Normal +2; specify whether movement auto-attack and HP cost apply. | [extension: move] |
+| **Lunging Thrust** | 3 | Move one legal tile toward target and strike for Normal +2; define auto-hit and movement HP payment. | [extension: move] |
 
-### C. Guardian — damaging protection and positional pressure (12)
+### E. Attack-class idea bank: force, protection, knockback (12)
 
-Every guardian action here **deals damage immediately** or provides significant immediate healing *along with* damage. No pure "spend the whole turn to guard" move.
+**Best first fit:** Impact; some can become equipment-granted offensive techniques. No pure guarding moves: they damage an enemy on the same action.
 
 | Ability | AP | Effect | Fit |
 |---|---:|---|---|
-| **Shield Bash** | 2 | Normal +2 to selected enemy, +1 more if adjacent to an ally. | [core] |
+| **Shield Bash** | 2 | Normal +2, +1 more if adjacent to an ally. | [core] |
 | **Fortress Blow** | 2 | Normal +3 while adjacent to an obstacle; otherwise Normal +1. | [core] |
 | **Steadfast Strike** | 2 | Normal +3 at half HP or below; otherwise Normal +1. | [core] |
-| **Healing Bash** | 3 | Normal +1 and restore 3 HP to guardian after the hit. | [core] |
-| **Defiant Slam** | 3 | Normal +3 if guardian is currently the party member with lowest HP; else Normal +1. | [core] |
-| **Vanguard Smash** | 2 | Normal +2; +1 more if selected enemy is adjacent to another enemy. | [core] |
-| **Guardian's Mercy** | 4 | Normal +2; restore 3 HP to most injured *conscious* adjacent ally, if any. | [core: deterministic ally] |
-| **Oathbreaker** | 3 | Normal +5 if another party member is incapacitated; otherwise Normal +2. | [core] |
-| **Bulwark Slam** | 3 | Normal +2; next enemy hit on guardian is reduced by 2. | [extension: status] |
-| **Bastion Sweep** | 4 | Normal +1 to selected enemy and 2 damage to every other enemy adjacent to guardian. | [extension: area] |
-| **Ramming Strike** | 3 | Normal +2 and push selected target one open tile away if legal. | [extension: move] |
-| **Punishing Mark** | 3 | Normal +2; marked enemy deals −2 to any ally other than guardian next turn. | [extension: status] |
+| **Healing Bash** | 3 | Normal +1, restore 3 HP to attacker after hit. | [core] |
+| **Defiant Slam** | 3 | Normal +3 if attacker has lowest HP in party; otherwise Normal +1. | [core] |
+| **Vanguard Smash** | 2 | Normal +2; +1 more if target is adjacent to another enemy. | [core] |
+| **Guardian's Mercy** | 4 | Normal +2; restore 3 HP to most injured conscious adjacent ally, if any. | [core: deterministic ally] |
+| **Oathbreaker** | 3 | Normal +5 if an ally is incapacitated; otherwise Normal +2. | [core] |
+| **Bulwark Slam** | 3 | Normal +2, next enemy hit on attacker −2. | [extension: status] |
+| **Bastion Sweep** | 4 | Normal +1 to selected enemy; 2 to other enemies adjacent to attacker. | [extension: area] |
+| **Ramming Strike** | 3 | Normal +2, push target one open tile away if legal. | [core: existing knockback] |
+| **Punishing Mark** | 3 | Normal +2; target deals −2 to allies other than attacker next turn. | [extension: status] |
 
-### D. Scout — precision, opportunism, pursuit (12)
+### F. Attack-class idea bank: precision and opportunity (12)
+
+**Best first fit:** Shot, with some conditional attacks suitable for Rend. The class's own range and blocking rules still apply.
 
 | Ability | AP | Effect | Fit |
 |---|---:|---|---|
-| **Quickshot** | 1 | Normal +1 to selected enemy. A low-cost default. | [core] |
-| **Pinpoint** | 2 | Normal +4 if selected target is at full HP; otherwise Normal +1. | [core] |
-| **Pack Strike** | 2 | Normal +3 if selected enemy is adjacent to another party member; otherwise Normal +1. | [core] |
+| **Quickshot** | 1 | Normal +1. Low-cost efficiency. | [core] |
+| **Pinpoint** | 2 | Normal +4 if selected target is at full HP; otherwise Normal +1. | [core; alternative first-stage Shot option] |
+| **Pack Strike** | 2 | Normal +3 if selected enemy is adjacent to another ally; otherwise Normal +1. | [core] |
 | **Deadeye** | 3 | Normal +5 if target has no adjacent enemy allies; otherwise Normal +2. | [core] |
-| **Wound Hunter** | 2 | Normal +3 to an injured enemy; otherwise Normal +1. | [core] |
-| **Last Arrow** | 2 | Normal +4 if this action would spend scout's remaining AP; otherwise Normal +2. | [core] |
-| **Knife in the Gap** | 2 | Normal +3 if target is adjacent to a solid obstacle; otherwise Normal +1. | [core] |
-| **Close Pursuit** | 2 | Normal +2 if scout is adjacent to two or more enemies; otherwise Normal +1. | [core] |
+| **Wound Hunter** | 2 | Normal +3 to injured target; otherwise Normal +1. | [core; first-stage Rend] |
+| **Last Arrow** | 2 | Normal +4 if action spends attacker's last AP; otherwise Normal +2. | [core] |
+| **Knife in the Gap** | 2 | Normal +3 if target is adjacent to solid obstacle; otherwise Normal +1. | [core] |
+| **Close Pursuit** | 2 | Normal +2 if attacker is adjacent to 2+ enemies; otherwise Normal +1. | [core] |
 | **Split Shot** | 3 | Normal +1 to selected target; 2 to closest second enemy. | [extension: area] |
-| **Hamstring** | 2 | Normal +1; selected target's next movement range −1. | [extension: status] |
-| **Disabling Shot** | 3 | Normal +2; selected target's next attack deals −2. | [extension: status] |
-| **Hook-and-Strike** | 3 | Pull target one legal tile toward scout, then deal Normal +2; no movement action for scout. | [extension: move] |
+| **Hamstring** | 2 | Normal +1; target's next move range −1. | [extension: status] |
+| **Disabling Shot** | 3 | Normal +2; target's next attack −2. | [extension: status] |
+| **Hook-and-Strike** | 3 | Pull target one legal tile toward attacker, then deal Normal +2. | [extension: move] |
 
-### E. Mage — burst, spread, attrition, arcane control (14)
+### G. Attack-class idea bank: reach, rend, and spacing (10)
+
+These emphasize the two classes not represented by a traditional profession archetype. Most remain compatible with enemy-first targeting.
+
+| Suggested class | Ability | AP | Effect | Fit |
+|---|---|---:|---|---|
+| Reach | **Driving Thrust** | 2 | Normal +2, then apply existing knockback if legal. | [core; first-stage Reach] |
+| Reach | **Impale** | 3 | Normal +3 at range 2, otherwise Normal +1. | [core; Reach rank 3] |
+| Reach | **Linebreaker** | 2 | Normal +3 if target has an empty tile directly behind it. | [core] |
+| Reach | **Close Quarters** | 2 | Normal +3 at range 1, otherwise Normal +1. | [core] |
+| Reach | **Skewer** | 3 | Normal +1 to selected enemy, and +2 to next enemy on same unobstructed line. | [extension: line] |
+| Rend | **Blood Rush** | 3 | Normal +4 while attacker is at/below half HP, otherwise Normal +1. | [core; Rend rank 3] |
+| Rend | **Relentless Cut** | 2 | Normal +3 if attacker and target are both injured; otherwise Normal +1. | [core] |
+| Rend | **Finishing Rend** | 2 | Normal +4 against enemies at/below half HP; otherwise Normal +1. | [core] |
+| Rend | **Risky Assault** | 2 | Normal +4; suffer 1 HP self-cost after strike. | [core, watch] |
+| Rend | **Savage Sweep** | 3 | Normal +1 to selected target and +2 to one other adjacent enemy. | [extension: area] |
+
+### H. Future magic-themed specials (14; **not** a current class)
+
+The repository currently has **no separate magic attack class**. Keep this as an optional *future* `Arcane` attack-style catalog, or award selected spells from items/quests. Do not pretend a unified Mage class exists. Some of these could later be adapted as a second attack-class special; fixed-damage magic may require a separate damage type.
 
 | Ability | AP | Effect | Fit |
 |---|---:|---|---|
-| **Flame Bolt** | 2 | Deal 4 damage to selected enemy. | [core] |
-| **Arcane Lance** | 3 | Deal 6 damage to selected enemy. | [core] |
-| **Stone Shard** | 2 | Deal 3 damage, or 5 if target is adjacent to obstacle. | [core] |
-| **Shatter** | 2 | Deal 5 to an already-injured target; otherwise 3. | [core] |
-| **Focused Beam** | 3 | Deal 7 if target has no adjacent enemy allies; otherwise 4. | [core] |
-| **Overload** | 4 | Deal 9 damage; caster pays 2 HP after damage. | [core, watch] |
-| **Drain Spark** | 3 | Deal 4 damage and heal caster 3 HP if target takes damage. | [core] |
-| **Final Ember** | 2 | Deal 6 if special spends caster's last AP; otherwise 3. | [core] |
+| **Flame Bolt** | 2 | Deal 4 damage to selected enemy. | [core if fixed spell damage exists] |
+| **Arcane Lance** | 3 | Deal 6 damage to selected enemy. | [core if fixed spell damage exists] |
+| **Stone Shard** | 2 | Deal 3 damage, or 5 if target is adjacent to obstacle. | [core if spell damage exists] |
+| **Shatter** | 2 | Deal 5 to already-injured target; otherwise 3. | [core if spell damage exists] |
+| **Focused Beam** | 3 | Deal 7 if target has no adjacent enemy allies; otherwise 4. | [core if spell damage exists] |
+| **Overload** | 4 | Deal 9; caster pays 2 HP after damage. | [core/watch, new damage type] |
+| **Drain Spark** | 3 | Deal 4 and heal caster 3 HP if target takes damage. | [core if spell damage exists] |
+| **Final Ember** | 2 | Deal 6 if special expends remaining AP; otherwise 3. | [core if spell damage exists] |
 | **Frost Spike** | 2 | Deal 3 and reduce target's next movement range by 1. | [extension: status] |
 | **Chain Lightning** | 3 | Deal 4 to selected target, then 2 to nearest other enemy. | [extension: area] |
-| **Fireburst** | 4 | Deal 4 to selected target and 3 to other enemies adjacent to target. | [extension: area] |
-| **Silencing Ray** | 3 | Deal 3; selected target cannot use its next special. | [extension: status] |
-| **Storm Line** | 4 | Deal 5 to selected target and 2 to enemies directly between caster and target on the grid. | [extension: line] |
-| **Cinder Curse** | 3 | Deal 3 and apply a short burn to selected target. | [extension: status] |
+| **Fireburst** | 4 | Deal 4 to selected target and 3 to adjacent enemies. | [extension: area] |
+| **Silencing Ray** | 3 | Deal 3; target cannot use its next special. | [extension: status] |
+| **Storm Line** | 4 | Deal 5 to selected target and 2 to enemies directly between caster and target. | [extension: line] |
+| **Cinder Curse** | 3 | Deal 3 and apply short burn. | [extension: status] |
 
-### F. Cross-class and unusual specials (10)
+### I. Cross-class and unusual specials (10)
 
-These are especially useful as quest- or level-unlocked alternatives, but many should be restricted to one class or require a particular weapon/relic. A special **never restores AP mid-battle**, even on a kill.
+These are candidates for future attack-class ranks, equipment-granted techniques, or quest unlocks. Never restore AP **during** battle, even on a kill.
 
 | Ability | AP | Effect | Fit |
 |---|---:|---|---|
-| **Desperate Strike** | 2 | Normal +4 if caster is at 1 HP; otherwise Normal +1. | [core] |
-| **Relentless Blow** | 3 | Normal +2 and deal 2 extra damage if the hit would otherwise leave target at 1 HP. | [core: compute before resolving] |
-| **Life Tap** | 3 | Normal +1, heal caster 2 HP if attack deals damage. | [core] |
-| **Ally's Vengeance** | 3 | Normal +4 if any ally is incapacitated; otherwise Normal +1. | [core] |
-| **Crowdbreaker** | 3 | Normal +2 if selected target has 2+ adjacent enemies; otherwise Normal +1. | [core] |
-| **Scholar's Bolt** | 2 | Deal 4 magic damage if caster currently has full AP; otherwise 2. | [core] |
-| **Merciful Flame** | 4 | Deal 4 to target; heal lowest-HP conscious party member for 2, automatically selected. | [core: auto ally] |
-| **Twinstrike** | 3 | Normal +1 to primary target, 2 to closest other enemy adjacent to it. | [extension: area] |
+| **Desperate Strike** | 2 | Normal +4 at 1 HP, otherwise Normal +1. | [core] |
+| **Relentless Blow** | 3 | Normal +2, plus 2 if hit would otherwise leave target at 1 HP. | [core] |
+| **Life Tap** | 3 | Normal +1, heal attacker 2 HP if attack deals damage. | [core] |
+| **Ally's Vengeance** | 3 | Normal +4 if an ally is incapacitated; otherwise Normal +1. | [core] |
+| **Crowdbreaker** | 3 | Normal +2 if target has 2+ adjacent enemies; otherwise Normal +1. | [core] |
+| **Scholar's Bolt** | 2 | Fixed 4 damage at full AP; otherwise 2. | [core if spell damage exists] |
+| **Merciful Flame** | 4 | Deal 4; heal lowest-HP conscious party member for 2 automatically. | [core: auto ally] |
+| **Twinstrike** | 3 | Normal +1 to primary target and 2 to closest other enemy adjacent to it. | [extension: area] |
 | **Dispel Strike** | 3 | Normal +1 and remove one enemy positive status. | [extension: status] |
-| **Ricochet** | 4 | Deal 4 to selected target, then deal 2 to another enemy along same row/column if unobstructed. | [extension: line] |
+| **Ricochet** | 4 | Deal 4 to selected target and 2 to another unobstructed enemy in the same line. | [extension: line] |
 
-### G. Special-ability balance and progression guidelines
+### J. Ability implementation and balance guidelines
 
-**Make an ability worth a party turn:** A power that only reduces one future hit may be weaker than simply attacking now, especially because the full party's turn is spent. Couple defensive effects with damage, immediate healing, a concrete positional swing, or a large enough enemy-action denial to justify their cost. Likewise, a weak 1-AP ability that is strictly worse than a free normal attack should not ship.
-
-**Suggested role identities:**
-
-- **Fighter:** efficient, reliable attacks and HP-for-damage tradeoffs.
-- **Guardian:** attacks that also protect/heal, especially around allies or obstacles.
-- **Scout:** high-variance conditional damage, good AP efficiency, rewarding target selection.
-- **Mage:** high-cost high-impact damage, area effects, and later targeted status effects.
-
-**Progression cadence:** Start each member with one distinctive special. A quest milestone or later level unlocks a second; perks and gear improve damage, AP capacity, AP cost, or **after-victory** AP recovery. A character should have at most **two equipped/available specials** in the first full campaign, even if the idea bank lists dozens. Unlocks may replace an existing special rather than always expand the menu.
-
-**Battle test:** Compare four cases for each special: entering at full AP, entering almost empty, fighting a single weak enemy, and fighting a dangerous clustered group. Check whether the special is worth the party-turn opportunity cost, whether AP drains meaningfully early in the game, and whether late-game recovery builds can use abilities often without making normal attacks irrelevant.
-
-**Implementation-friendly starting ability set:** Fighter **Power Strike (2 AP)**; Guardian **Healing Bash (3 AP)**; Scout **Pack Strike (2 AP)**; Mage **Flame Bolt (2 AP)**. For second unlocks: Fighter **Execution (2 AP)**, Guardian **Guardian's Mercy (4 AP)**, Scout **Deadeye (3 AP)**, Mage **Arcane Lance (3 AP)**. All eight use the existing selected-enemy targeting flow; the healing effects target self or auto-select an eligible adjacent ally, so no new ally-selection screen is needed.
-
----
+- **Attack class determines specials**; two characters with `Shot` attacks share the Shot starting ability and unlock, regardless of whether they are Standard, Leaper, or Charger movers. Their movement perks and gear may substantially change how well they exploit that attack style.
+- **Starting ability at level 1; second at attack rank 3.** No attack rank investment is required to enjoy the AP mechanic initially. Perks mostly modify passive performance; rank 3 is an intentional visible unlock.
+- **One party turn per action.** Damage and immediate position changes matter more than weak buffs, guards, or purely defensive actions.
+- **AP stays persistent.** Specials cost AP in battle; each active member restores base +1 after victory, plus perk/item bonuses. Ether and safe-area recovery are out-of-battle.
+- **Future movement specials:** If a class later gains a *movement-targeted* special, activate its menu only after selecting an **empty tile** and state clearly whether engagement attacks and movement HP cost still occur. This is a distinct later UI and rules feature, not part of the first stage.
+- **AI/search:** The current compact action representation assumes unit + destination. Test damage, knockback, AP legality, and chosen special variant in host tests and real-device performance before widening it. Do not store redundant immutable character class/equipment data in every search node.
+- **Test combinations:** For each special, compare full AP vs near-empty AP, injured vs healthy targets, different movement class pairings, and multiple relic/perk loadouts. Validate that a two-special character's popup remains readable on the 128×64 display.
 
 ## 8. Rewards and the overall economy
 
@@ -723,7 +814,7 @@ Gold should finance **expedition readiness**, not replace the most exciting dung
 
 - Put the **first consumable chest** on the early main path so the player learns what supplies do.
 - Offer the **first optional unique relic** before the first major dungeon, ideally behind an obvious but optional detour.
-- Give optional dungeons a clearly signaled *headline reward*: a named weapon, armor, relic, special-ability unlock, or unusual gameplay-changing item, rather than only more gold.
+- Give optional dungeons a clearly signaled *headline reward*: a named weapon, armor, relic, special-ability upgrade or equipment-granted technique, or unusual gameplay-changing item, rather than only more gold.
 - Use modest immediate rewards in the middle of a dungeon and a distinctive reward at its end.
 - Ensure secret rooms have at least one meaningful payoff: permanent treasure, first-time XP, quest clues, or shortcut access.
 - Allow some noncombat resolutions of quests to grant comparable XP, preventing battle from being the only route to progression.
@@ -758,7 +849,7 @@ This dungeon gives the player **money, recovery, experience, lore, and unique eq
 
 ### Illustrative persistent-storage budget
 
-For **four party members, 24 distinct unlocked unique items split across weapons/armor/relics, five binary perk selections per member, and four 0–15 consumable quantities**:
+For **four party members, 24 distinct unlocked unique items split across weapons/armor/relics, five ordered movement-or-attack track selections per member, and four 0–15 consumable quantities**:
 
 | New state | Example representation | Bytes |
 |---|---|---:|
@@ -768,24 +859,24 @@ For **four party members, 24 distinct unlocked unique items split across weapons
 | Equipped armor | Four 8-bit item IDs | 4 |
 | Equipped relics | Four 8-bit item IDs | 4 |
 | Character XP | Four 16-bit cumulative XP totals | 8 |
-| Perk selections | 20 choice bits, packed | 3 |
+| Perk track ranks | Two 3-bit ranks per character; deferred choices derived | 3 |
 | **Subtotal** | **Excludes existing HP/AP, party fields, flags, and transient UI state** | **28** |
 
 Compare with the previous single-slot model: **twelve equipped item IDs rather than four** is an **8-byte** increase, before accounting for a larger unlocked-item bitset. At 12 acquired-item definitions, the bitset uses 2 bytes; at 48 it uses 6. A useful general formula for equipment state is **`12 + ceil(unique_item_count / 8)` bytes**, with one global unique ID per item and each equipped slot storing that ID. The item category and allowed slot can be inferred from the immutable definition in flash; item definitions need no persistent instance objects.
 
 A 24-item initial collection (8 weapons, 8 armor, 8 relics) fits the 28-byte illustrated subtotal. The **much larger idea bank is not a shipping commitment**. If, hypothetically, all 148 equipment candidates were shipped, the equipment bitset would need 19 bytes but the equipped-slot total would still be 12 bytes while IDs remain under 256. The current data-layout and actual persistent RAM budget should be checked in the repository before committing to these formats.
 
-The packed budget is an **estimate, not a claim about existing structs**. Byte-aligned consumables, perk state, or extra "choice made" flags may cost more and may be worth the simplicity. If HP, attack, defense, movement range, and AP maxima are computed from class + level + perks + equipped item IDs, **do not persist all of those derived stats separately**. Persistent current AP must be stored per member if not already present. The **base +1 after-victory AP recovery needs no extra saved counter**; compute the sum of base + perk + item bonuses when victory resolves, and clamp to maximum AP.
+The packed budget is an **estimate, not a claim about existing structs**. Byte-aligned consumables, perk state, or extra "choice made" flags may cost more and may be worth the simplicity. If HP, attack, defense, movement range, and AP maxima are computed from **both independent classes + level + track ranks + equipped item IDs**, **do not persist all of those derived stats separately**. Each member's current HP and AP are stored, and neither maximum is saved. The **base +1 after-victory AP recovery needs no extra saved counter**; compute the sum of base + perk + item bonuses when victory resolves, and clamp to maximum AP.
 
-Per-battle "first hit" or "first special" equipment effects need transient per-battle flags, not persistent save bytes. An unmade perk choice also needs a clear representation; for instance, derive unlocked tiers from level and store a separate compact "choice made" mask rather than treating `0` as automatically selected.
+Per-battle "first hit" or "first special" equipment effects need transient per-battle flags, not persistent save bytes. An unmade perk choice requires **no separate choice-made mask** when both movement/attack ranks are saved: compare `(movement_rank + attack_rank)` against the number of even-level perk milestones already earned. Validate both ranks individually as 0–5 and reject a sum exceeding the earned milestones.
 
 ### Implementation tiers
 
-**Tier 1 — Minimal three-slot proof of concept:** Persist current AP and restore **1 AP per active member after victory**; four supplies; out-of-battle use; **three equipped slots per character** with about **4 weapons, 4 armor, 4 relics**. Implement a simple normal-attack weapon, a first-hit defensive armor, boots that reduce movement HP once per battle, and an AP-recovery relic. Provide one **enemy-targeted special per class** with an AP cost, using the target-first attack-choice menu. Test save/load, clamping when equipment changes, unique-item transfers between characters, AP caps, incapacitation, and movement-damage resolution order.
+**Tier 1 — Minimal three-slot proof of concept:** Persist current AP and restore **1 AP per active member after victory**; four supplies; out-of-battle use; **three equipped slots per character** with about **4 weapons, 4 armor, 4 relics**. Implement a simple normal-attack weapon, a first-hit defensive armor, boots that reduce movement HP once per battle, and an AP-recovery relic. Provide one **enemy-targeted special per attack class** (the five first-stage recommendations from section 7) with an AP cost, using the target-first attack-choice menu. Test save/load, clamping when equipment changes, unique-item transfers between characters, AP caps, incapacitation, and movement-damage resolution order.
 
-**Tier 2 — Full baseline content:** Level cap 10, four or five perk decisions per character, **~8 equipment items in each category**, quest/discovery XP, shops, optional dungeons, and a **second special per member** chosen from existing-target abilities. Add healing/defense weapons and armor tradeoffs, stronger AP-recovery relics, and clear loadout UI. Ensure at least two viable builds per party role.
+**Tier 2 — Full baseline content:** Level cap 10, five **movement-or-attack track choices** per character, **~8 equipment items in each category**, quest/discovery XP, shops, optional dungeons, and a **second special unlocked by attack-track rank 3**. Add healing/defense weapons and armor tradeoffs, stronger AP-recovery relics, and clear loadout UI. Ensure viable movement-focused, attack-focused, and mixed-rank builds for the same class combination.
 
-**Tier 3 — New mechanical vocabulary:** Area/line attacks, pushing and pulling, temporary statuses, armor-penetration logic, alternate terrain traversal, richer auras, and exploration sensing. Implement only after baseline effects, AP attrition, and party-turn economics are fun.
+**Tier 3 — New mechanical vocabulary:** Area/line attacks, push/pull variants beyond existing knockback, temporary statuses, armor-penetration logic, alternate terrain traversal, richer auras, and exploration sensing. Implement only after baseline effects, AP attrition, and party-turn economics are fun.
 
 ---
 
@@ -794,12 +885,13 @@ Per-battle "first hit" or "first special" equipment effects need transient per-b
 1. **AP recovery is decided:** AP persists; each active member recovers **1 AP after victory**, with additive upgrades that may eventually approach a full reset. Decide when +1 and +2 equipment/perk upgrades appear, not whether the baseline resets.
 2. **Equipment slots are decided:** One **weapon, armor, and relic** for each member. The open question is how many distinct items ship and whether some have class restrictions; all equipped unique items have singular ownership.
 3. **Movement-focused armor is intentional:** Boots, cloaks, and heavy plate can modify movement distance, HP cost, or the automatic movement attack. Decide a consistent floor/cap so stacked reductions do not erase movement's strategic HP cost.
-4. **Individual or shared XP?** Individual XP supports member-level identities; shared XP saves space and keeps levels aligned.
+4. **Independent classes and two ordered perk tracks are decided:** Standard/Leaper/Charger movements and Strike/Shot/Reach/Impact/Rend attacks. Each perk milestone advances one track by one rank; rank 3 of an attack track unlocks its second special. **XP accounting open question:** Individual or shared XP? Individual XP supports member-level identities; shared XP saves space and keeps levels aligned.
 5. **Special-ability UI:** Prefer target-first selection, then `Normal` versus up to two specials. Non-target specials and secondary target picking require separate UI justification.
 6. **What happens to a defeated party?** Choose save-point retry, last-town return, or another policy before adding persistent HP loss.
-7. **Can perks be changed?** A modest-cost town respec encourages experimentation, but adds UI and state rules.
+7. **Can track investments be changed?** A modest-cost town respec could refund movement/attack ranks later, but adds UI and state rules; no class swaps initially.
 8. **What happens to newly recruited members?** Let them join near current party level to avoid permanently weak recruits.
 9. **Should consumables remain out-of-battle only?** Prefer yes initially; in-battle use competes with a full party turn and needs careful design.
+10. **Strike versus Rend is decided for initial testing:** Both attack at range 1, but Strike deals a flat **3** and Rend deals **2**, rising to **4 only when target HP is strictly below half maximum**. The live combat code and the AI evaluation implement this; revisit balance after playtesting.
 
 ---
 
@@ -808,11 +900,22 @@ Per-battle "first hit" or "first special" equipment effects need transient per-b
 - **Supplies:** Potion (+8 HP), Elixir (+4 HP to conscious party), Revive (to 5 HP), Ether (+3 AP). Out-of-battle only, quantities capped at 15.
 - **Equipment:** **Three slots per party member — weapon, armor, relic.** Start with four of each: simple attack-altering weapons, one damage-reducing armor, one movement-focused boots or cloak, and a mix of HP/AP/unique-effect relics. Expand to ~8 per slot when content justifies it.
 - **Movement armor:** Heavy gear can reduce enemy damage but lower movement range or raise movement HP cost; light gear can grant occasional range or one-time HP-cost relief. Movement attacks always happen **before** the movement HP payment.
-- **Leveling:** Ten levels, small automatic stat growth, one-of-two perk decisions at even levels. Make perks effective across multiple loadouts rather than tied to a single item.
+- **Leveling:** Ten levels, small automatic stat growth, and one decision at every even level: advance the **next movement-class perk or next attack-class perk**. Five ranks per track, five choices total; earned ranks persist. Attack rank 3 unlocks the second class special.
 - **AP economy:** Persist AP between fights; restore **1 after each victory** per active member by default. Reserve +1/+2 extra AP recovery for meaningful perks and (mostly) relics. No AP recovery during combat.
-- **Special abilities:** Start with one enemy-targeted special per class, unlocked second special later, selectable from a short `Attack / Special 1 / Special 2` popup after choosing the target. Avoid pure guarding and ability actions that consume a full party turn without immediate value.
+- **Special abilities:** One starting special per **attack class**: Strike/Power Strike, Shot/Opening Shot, Reach/Driving Thrust, Impact/Crushing Bash, Rend/Wound Hunter. Rend’s normal attack uses **2 damage, or 4 when the enemy is strictly below half HP** (Strike stays at 3), and its special modifies that conditional normal damage. All specials use an already-legal normal-attack enemy target; second special arrives at **attack rank 3**. No special-only targeting initially. Avoid pure guarding and non-immediate effects that consume the party turn.
 - **XP:** Full award to active members even if incapacitated; significant quests, discovery, bosses, and one-time encounters drive progression more than repeatable grinding.
 - **Gold:** Funds supplies, recovery, and straightforward shop equipment, but unique dungeon treasures should remain special.
-- **Exploration:** Hand-place weapons, armor, and relics as different dungeon headlines, occasionally reward a new special, and tie one-off discovery XP to flags.
+- **Exploration:** Hand-place weapons, armor, and relics as different dungeon headlines, occasionally reward a special upgrade or extra technique (without replacing the normal attack-class progression), and tie one-off discovery XP to flags.
 
-**North star:** After a successful expedition, players should have new tactical choices: *“Which weapon changes my attacks, which armor changes my movement or defense, and which relic bends the rules enough to make a new build?”*
+### Implementation status (2026-11-19)
+
+Built:
+
+- The movement and attack classes use the names in section 1. Rend deals 2 damage, or 4 against a target strictly below half HP, in the battle rules and AI. The Wolf enemy also uses Rend, so the shipping Grove battle has changed.
+- Party members store current HP and AP. Maximum HP and AP are derived for each member: 20 HP for the traveler and 18 for Rowan for now, and 4 AP for everyone. Items and perks will change them.
+- A victory restores 1 AP to every saved member, including one that fell, up to its maximum. A defeat restores none.
+- The Party panel shows one page per member, turned with left and right. It shows current/maximum HP and AP, the movement and attack types, and the attack class's starting special with its AP cost.
+
+Not built: the attack-choice menu, so specials are not battle actions and the panel lists them only; the rank-3 second special; perk tracks, levels, and XP; equipment; consumables and the Supplies menu; and maximum HP based on class instead of identity.
+
+**North star:** After a successful expedition, players should have new tactical choices: *“Should I advance my movement style or my attack style? Which weapon improves my offense, which armor changes my defense or movement, and which relic bends the rules enough to make a new build?”*

@@ -139,6 +139,13 @@ constexpr uint8_t party_max_ap(PartyMember const&) {
     return PARTY_BASE_AP;
 }
 
+// The AP a member recovers after each victory, up to its maximum. Perks and items will add to it.
+inline constexpr uint8_t PARTY_VICTORY_AP = 1;
+
+constexpr uint8_t party_victory_ap(PartyMember const&) {
+    return PARTY_VICTORY_AP;
+}
+
 // A member at full HP and AP, as the traveler and new recruits join.
 PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack);
 

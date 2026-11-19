@@ -86,8 +86,10 @@ struct MovementInfo {
     uint8_t move_range;
 };
 
+// The damage an attack deals depends on its victim: `damage` against a victim at half its maximum
+// HP or more, and `injured_damage` against a victim below half. Only Rend differs between the two.
 struct AttackInfo {
-    uint8_t attack_min, attack_max, damage;
+    uint8_t attack_min, attack_max, damage, injured_damage;
     BATTLE_ATTACK_EFFECT effect;
 };
 
@@ -97,9 +99,9 @@ inline constexpr MovementInfo MOVEMENT_INFO[MOVEMENT_CLASS_COUNT] = {
     {BATTLE_MOVEMENT_ORTHOGONAL, 2},
 };
 inline constexpr AttackInfo ATTACK_INFO[ATTACK_CLASS_COUNT] = {
-    {1, 1, 3, BATTLE_EFFECT_NONE}, {2, 4, 3, BATTLE_EFFECT_NONE},
-    {1, 2, 3, BATTLE_EFFECT_NONE}, {1, 1, 2, BATTLE_EFFECT_KNOCKBACK},
-    {1, 1, 3, BATTLE_EFFECT_NONE},
+    {1, 1, 3, 3, BATTLE_EFFECT_NONE}, {2, 4, 3, 3, BATTLE_EFFECT_NONE},
+    {1, 2, 3, 3, BATTLE_EFFECT_NONE}, {1, 1, 2, 2, BATTLE_EFFECT_KNOCKBACK},
+    {1, 1, 2, 4, BATTLE_EFFECT_NONE},
 };
 
 // Enemy IDs index immutable definitions, independently of the unit's team or artwork.
@@ -143,7 +145,7 @@ inline uint8_t battle_attack_class(uint8_t id) {
 struct BattleUnitRules {
     BATTLE_MOVEMENT_TYPE movement_type;
     uint8_t move_range;
-    uint8_t attack_min, attack_max, damage;
+    uint8_t attack_min, attack_max, damage, injured_damage;
     BATTLE_ATTACK_EFFECT effect;
 };
 
@@ -159,9 +161,9 @@ inline constexpr BattleRuleTable BATTLE_RULES = [] {
         for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
             auto const& move = MOVEMENT_INFO[m];
             auto const& attack = ATTACK_INFO[a];
-            table.classes[m * ATTACK_CLASS_COUNT + a] = {move.movement_type, move.move_range,
-                                                         attack.attack_min,  attack.attack_max,
-                                                         attack.damage,      attack.effect};
+            table.classes[m * ATTACK_CLASS_COUNT + a] = {
+                move.movement_type, move.move_range,       attack.attack_min, attack.attack_max,
+                attack.damage,      attack.injured_damage, attack.effect};
         }
     return table;
 }();
@@ -279,7 +281,9 @@ extern BattleEncounter const PROGMEM BATTLE_GROVE;
 
 // Deploys the saved party and the encounter's enemies; zero-HP members do not deploy.
 void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter);
-// Writes final ally HP back to the saved roster, without changing its classes or membership.
+// Writes final ally HP back to the saved roster, without changing its classes or membership. After
+// a victory, every member of the saved party, including one that fell, recovers AP up to its
+// maximum.
 void battle_finish(BattleState const& state);
 uint8_t battle_max_hp(BattleUnit const& unit);
 
@@ -293,8 +297,10 @@ bool battle_neighbor(uint8_t cell, DIRECTION dir, uint8_t& neighbor);
 // columns on a tie. For cells on one row or column it is the exact direction.
 DIRECTION battle_direction(uint8_t from, uint8_t to);
 
-// The HP one attack by this unit removes, and the sprite row it is drawn with.
-uint8_t battle_attack_damage(BattleUnit const& unit);
+// The HP one attack by `attacker` removes from `victim`. A victim below half its maximum HP takes
+// the attacker's injured damage.
+uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim);
+// The sprite row a unit is drawn with.
 uint8_t battle_sprite_row(BattleUnit const& unit);
 
 // True when the unit is alive and its movement pattern reaches the cell, which must be empty and
