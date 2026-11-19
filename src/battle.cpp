@@ -557,11 +557,9 @@ static void battle_knock_back(BattleState& state, BattleUnit const& actor, Battl
         target.cell = cell;
 }
 
-void battle_apply(BattleState& state, BattleAction action) {
-    if(action.unit_index == BATTLE_NO_UNIT) {
-        battle_pass(state);
-        return;
-    }
+// Resolves a unit's move or attack. A special attack, which the caller has checked and paid for,
+// uses the special's damage and effect against its victim.
+static void battle_act(BattleState& state, BattleAction action, bool special) {
     BattleUnit& actor = state.units[action.unit_index];
     BATTLE_TEAM acting = actor.team;
     uint8_t destination = action.destination;
@@ -595,14 +593,56 @@ void battle_apply(BattleState& state, BattleAction action) {
     } else {
         BattleUnit& target = state.units[occupant];
         BattleUnitRules const& rules = battle_rules(actor.id);
-        fell = battle_damage(target, battle_attack_damage(actor, target));
-        if(!fell && rules.effect == BATTLE_EFFECT_KNOCKBACK)
+        // The damage is computed before the hit lowers the victim's HP, so the bonus reads the HP the
+        // victim has going into the hit.
+        fell = battle_damage(target, special ? battle_special_damage(actor, target)
+                                             : battle_attack_damage(actor, target));
+        bool knockback = rules.effect == BATTLE_EFFECT_KNOCKBACK ||
+                         (special && SPECIAL_INFO[battle_attack_class(actor.id)].effect ==
+                                         BATTLE_EFFECT_KNOCKBACK);
+        if(!fell && knockback)
             battle_knock_back(state, actor, target);
     }
 
     if(fell && battle_check(state, acting))
         return;
     battle_next_turn(state);
+}
+
+void battle_apply(BattleState& state, BattleAction action) {
+    if(action.unit_index == BATTLE_NO_UNIT) {
+        battle_pass(state);
+        return;
+    }
+    battle_act(state, action, false);
+}
+
+uint8_t battle_special_damage(BattleUnit const& attacker, BattleUnit const& victim) {
+    SpecialInfo const& special = SPECIAL_INFO[battle_attack_class(attacker.id)];
+    uint8_t bonus = victim.hp == battle_max_hp(victim) ? special.bonus_full : special.bonus_injured;
+    return (uint8_t)(battle_attack_damage(attacker, victim) + bonus);
+}
+
+bool battle_special_legal(BattleState const& state, BattleAction action) {
+    if(state.ended || action.unit_index >= state.unit_count || action.destination >= BATTLE_CELLS)
+        return false;
+    BattleUnit const& actor = state.units[action.unit_index];
+    if(!(actor.id & BATTLE_PARTY_SOURCE) || !actor.hp || actor.team != state.turn)
+        return false;
+    uint8_t victim = battle_unit_at(state, action.destination);
+    if(victim == BATTLE_NO_UNIT || !battle_can_attack(state, action.unit_index, victim))
+        return false;
+    PartyMember const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
+    return member.ap >= SPECIAL_INFO[battle_attack_class(actor.id)].ap;
+}
+
+void battle_apply_special(BattleState& state, BattleAction action) {
+    if(!battle_special_legal(state, action))
+        return;
+    uint8_t slot = state.units[action.unit_index].id & ~BATTLE_PARTY_SOURCE;
+    game.party.members[slot].ap -=
+        SPECIAL_INFO[battle_attack_class(state.units[action.unit_index].id)].ap;
+    battle_act(state, action, true);
 }
 
 void battle_pass(BattleState& state) {

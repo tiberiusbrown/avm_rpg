@@ -104,6 +104,28 @@ inline constexpr AttackInfo ATTACK_INFO[ATTACK_CLASS_COUNT] = {
     {1, 1, 2, 4, BATTLE_EFFECT_NONE},
 };
 
+// Each attack class's starting special. A special is an attack on the victim its class's normal
+// attack reaches, and it costs its unit AP. Its damage is the normal damage plus `bonus_full` when
+// the victim is at its maximum HP, or `bonus_injured` otherwise. Its effect applies with the
+// class's own effect.
+struct SpecialInfo {
+    uint8_t ap, bonus_full, bonus_injured;
+    BATTLE_ATTACK_EFFECT effect;
+};
+
+inline constexpr SpecialInfo SPECIAL_INFO[ATTACK_CLASS_COUNT] = {
+    {2, 3, 3, BATTLE_EFFECT_NONE},      // Strike: Power Strike
+    {2, 4, 1, BATTLE_EFFECT_NONE},      // Shot: Opening Shot
+    {2, 2, 2, BATTLE_EFFECT_KNOCKBACK}, // Reach: Driving Thrust
+    {2, 3, 3, BATTLE_EFFECT_KNOCKBACK}, // Impact: Crushing Bash
+    {2, 1, 3, BATTLE_EFFECT_NONE},      // Rend: Wound Hunter
+};
+
+// The display names of the starting specials, indexed by attack class.
+inline constexpr char PROGMEM BATTLE_SPECIAL_NAMES[ATTACK_CLASS_COUNT][15] = {
+    "Power Strike", "Opening Shot", "Driving Thrust", "Crushing Bash", "Wound Hunter",
+};
+
 // Enemy IDs index immutable definitions, independently of the unit's team or artwork.
 enum ENEMY_ID : uint8_t {
     ENEMY_FIGHTER,
@@ -300,6 +322,9 @@ DIRECTION battle_direction(uint8_t from, uint8_t to);
 // The HP one attack by `attacker` removes from `victim`. A victim below half its maximum HP takes
 // the attacker's injured damage.
 uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim);
+// The HP a starting special by `attacker` removes from `victim`: the normal damage plus the
+// special's bonus for the victim's state.
+uint8_t battle_special_damage(BattleUnit const& attacker, BattleUnit const& victim);
 // The sprite row a unit is drawn with.
 uint8_t battle_sprite_row(BattleUnit const& unit);
 
@@ -396,6 +421,14 @@ constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
 // wins. There is no draw.
 // BATTLE_NO_UNIT applies a team-wide pass instead of a unit action.
 void battle_apply(BattleState& state, BattleAction action);
+
+// Whether a saved party member can make its starting special attack on the enemy the action names:
+// it is alive, belongs to the side to act, its normal attack reaches that enemy, and its AP covers
+// the special's cost. Only saved members have AP, so no other unit can.
+bool battle_special_legal(BattleState const& state, BattleAction action);
+// Resolves a legal special attack the way battle_apply resolves an attack, and first spends the
+// special's AP from the saved member. An illegal action does nothing.
+void battle_apply_special(BattleState& state, BattleAction action);
 
 // Every living unit on the passing side loses BATTLE_MOVE_COST, which can defeat the whole team.
 // It counts as one activation. Player and AI may pass voluntarily; settling passes automatically

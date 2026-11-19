@@ -915,7 +915,8 @@ Built:
 - Party members store current HP and AP. Maximum HP and AP are derived for each member: 20 HP for the traveler and 18 for Rowan for now, and 4 AP for everyone. Items and perks will change them.
 - A victory restores 1 AP to every saved member, including one that fell, up to its maximum. A defeat restores none.
 - The Party panel shows one page per member, turned with left and right. It shows current/maximum HP and AP, the movement and attack types, and the attack class's starting special with its AP cost.
+- The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and deals the damage and effect in section 7A. A unit short of AP attacks normally at once.
 
-Not built: the attack-choice menu, so specials are not battle actions and the panel lists them only; the rank-3 second special; perk tracks, levels, and XP; equipment; consumables and the Supplies menu; and maximum HP based on class instead of identity.
+Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk tracks, levels, and XP; equipment; consumables and the Supplies menu; and maximum HP based on class instead of identity.
 
 **North star:** After a successful expedition, players should have new tactical choices: *“Should I advance my movement style or my attack style? Which weapon improves my offense, which armor changes my defense or movement, and which relic bends the rules enough to make a new build?”*

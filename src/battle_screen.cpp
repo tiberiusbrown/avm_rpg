@@ -77,6 +77,11 @@ struct BattleScreen {
     // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
     // 256, which keeps the pose cycle whole.
     uint8_t ticks;
+    // The attack offer that an A press opened: whether it is open, the enemy it targets, and the
+    // option it highlights, 0 for the normal attack and 1 for the special. Kept here rather than on
+    // the stack, so the offer is drawn fresh each frame.
+    bool offering;
+    uint8_t offer_cell, offer_choice;
 };
 
 #ifdef RPG_DEVICE_QA
@@ -410,7 +415,7 @@ static inline __attribute__((always_inline)) void animate_reaction(BattleScreen&
 // Returns the direction of an attack's lunge, which means nothing for a move. A ranged attacker
 // lunges the same short way and never travels. Kept out of line so the rule updates stay out of
 // resolve's frame, which is live while the motion plays.
-RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action) {
+RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action, bool special) {
     BattleState& state = screen.state;
     uint8_t actor = action.unit_index;
     DIRECTION toward = battle_direction(state.units[actor].cell, action.destination);
@@ -423,7 +428,10 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action) {
     uint8_t before[BATTLE_UNIT_CAPACITY];
     for(uint8_t i = 0; i < state.unit_count; ++i)
         before[i] = state.units[i].hp;
-    battle_apply(state, action);
+    if(special)
+        battle_apply_special(state, action);
+    else
+        battle_apply(state, action);
 
     screen.flashing = 0;
     for(uint8_t i = 0; i < BATTLE_UNIT_CAPACITY / 2; ++i)
@@ -471,7 +479,7 @@ static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen
 // attack flies an arrow to its victim. Any other attack lunges the attacker at its victim. Every
 // unit the action damages flashes once the motion is done, and the caller waits for the flashes to
 // end.
-RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
+RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action, bool special) {
     if(action.unit_index == BATTLE_NO_UNIT) {
         screen.flashing = 0;
         for(uint8_t& pair : screen.damage)
@@ -490,7 +498,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
                              SFX_PRICE);
         return;
     }
-    DIRECTION toward = act(screen, action);
+    DIRECTION toward = act(screen, action, special);
     // Only a move leaves an offset to walk, and a walk clears the mover. An archer's attack flies
     // its arrow first and does not lunge. Any other attack leaves the attacker as the mover, which
     // lunges toward its victim.
@@ -535,8 +543,8 @@ static void draw_result(BATTLE_RESULT result) {
 // with no unit when no action is taken. A selection chirps, deselection cancels, and an invalid
 // press buzzes; a confirmed action is heard through its own motion. Kept out of line so
 // party_turn's frame stays small.
-RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& selected,
-                                         uint8_t cell) {
+RPG_NOINLINE static BattleAction press_a(BattleScreen& screen, uint8_t& selected, uint8_t cell) {
+    BattleState const& state = screen.state;
     uint8_t unit = battle_unit_at(state, cell);
     if(unit != BATTLE_NO_UNIT && state.units[unit].team == BATTLE_PARTY) {
         selected = selected == unit ? BATTLE_NO_UNIT : unit;
@@ -544,68 +552,139 @@ RPG_NOINLINE static BattleAction press_a(BattleState const& state, uint8_t& sele
     } else {
         if(selected != BATTLE_NO_UNIT) {
             BattleAction action{selected, cell};
-            if(battle_legal(state, action))
+            if(battle_legal(state, action)) {
+                // A special can reach this enemy too, so the offer decides between the attacks.
+                if(battle_special_legal(state, action)) {
+                    screen.offering = true;
+                    screen.offer_cell = cell;
+                    screen.offer_choice = 0;
+                    sfx_play(SFX_SELECT);
+                    return BattleAction{BATTLE_NO_UNIT, 0};
+                }
                 return action;
+            }
         }
         sfx_play(SFX_ERROR);
     }
     return BattleAction{BATTLE_NO_UNIT, 0};
 }
 
+// The offer's input. UP and DOWN move the highlight between the attack and the special, A confirms
+// the highlighted option, and B closes the offer without acting. The selected hero stays selected
+// either way.
+RPG_NOINLINE static BattleAction press_offer(BattleScreen& screen, uint8_t selected,
+                                             uint8_t pressed, bool& special) {
+    if(pressed & BTN_B) {
+        sfx_play(SFX_CANCEL);
+        screen.offering = false;
+    } else if(pressed & BTN_A) {
+        sfx_play(SFX_SELECT);
+        screen.offering = false;
+        special = screen.offer_choice != 0;
+        return BattleAction{selected, screen.offer_cell};
+    } else if(pressed & (BTN_UP | BTN_DOWN)) {
+        screen.offer_choice ^= 1;
+        sfx_menu_tick();
+    }
+    return BattleAction{BATTLE_NO_UNIT, 0};
+}
+
+// The offer: the normal attack first, then the selected hero's starting special with its AP cost.
+// It is centered on the board, on the half that the target's row leaves clear, and its highlight
+// marks the choice. The panel is redrawn each frame, so an opening animation could change its size
+// or position over the same frames later.
+RPG_NOINLINE static void draw_offer(BattleScreen const& screen, uint8_t selected) {
+    uint8_t attack = battle_attack_class(screen.state.units[selected].id);
+    // The panel is sized for the special's name, so it does not change with the cost.
+    int16_t name_width = (int16_t)avm_text_width(BATTLE_SPECIAL_NAMES[attack]);
+    int16_t attack_width = (int16_t)avm_text_width(F("Attack"));
+    int16_t cost_width = (int16_t)avm_text_width(F("9 AP"));
+    int16_t widest = name_width > attack_width ? name_width : attack_width;
+    int16_t width = (int16_t)(10 + widest + 6 + cost_width + 4);
+    int16_t height = 18;
+    int16_t x = (int16_t)((DISPLAY_WIDTH - width) / 2);
+    int16_t y = battle_row(screen.offer_cell) < BATTLE_ROWS / 2 ? (int16_t)(64 - height - 2) : 2;
+    avm_draw_filled_rect_white(x, y, width, height);
+    avm_draw_filled_rect_black(x + 1, y + 1, width - 2, height - 2);
+    for(uint8_t row = 0; row < 2; ++row) {
+        int16_t baseline = (int16_t)(y + 7 + row * 7);
+        if(row == screen.offer_choice)
+            avm_draw_text((int16_t)(x + 4), baseline, F(">"));
+        if(row == 0) {
+            avm_draw_text((int16_t)(x + 10), baseline, F("Attack"));
+        } else {
+            avm_draw_text((int16_t)(x + 10), baseline, BATTLE_SPECIAL_NAMES[attack]);
+            avm_draw_textf((int16_t)(x + width - 4 - cost_width), baseline, F("%u AP"),
+                           SPECIAL_INFO[attack].ap);
+        }
+    }
+}
+
 // Runs the party's turn one frame at a time, so the cursor keeps easing and its dashes keep moving
 // between presses. D-pad moves the logical cursor. A toggles a friendly hero, which replaces the
-// current selection, or confirms a destination for the selected hero. B cancels the selection.
-// Illegal confirmations do nothing and do not consume the turn. Returns the legal action the player
-// confirms.
-RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen) {
+// current selection, or confirms a destination for the selected hero; a destination that a special
+// can also reach opens the offer, where UP and DOWN choose and A confirms. B closes the offer,
+// cancels the selection, or opens the menu. Illegal confirmations do nothing and do not consume the
+// turn. Returns the legal action the player confirms, and sets `special` when the confirmed option
+// is the special. The board, the offer, and the cursor are redrawn every frame.
+RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen, bool& special) {
     BattleState& state = screen.state;
     Cursor& cursor = screen.cursor;
     uint8_t selected = BATTLE_NO_UNIT;
+    special = false;
     // Presses made while the enemy acted do not count.
     input_sync();
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_INPUT);
     for(;;) {
         draw_board(screen, selected, SOUTH);
-        draw_actor_info(state, cursor);
+        if(screen.offering)
+            draw_offer(screen, selected);
+        else
+            draw_actor_info(state, cursor);
         draw_cursor(cursor);
         avm_display(false);
         uint8_t pressed =
             wait_frame_presses() & (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT | BTN_A | BTN_B);
 
-        uint8_t next = cursor.cell;
-        DIRECTION dir = pressed_direction(pressed);
-        if(dir != STILL) {
-            // A press against the edge of the board bumps instead of ticking.
-            bool moved = battle_neighbor(cursor.cell, dir, next);
-            if(moved)
-                cursor.cell = next;
-            sfx_play(moved ? SFX_CURSOR_MOVE : SFX_CURSOR_EDGE);
-        }
-        if(pressed & BTN_B) {
-            if(selected != BATTLE_NO_UNIT) {
-                sfx_play(SFX_CANCEL);
-                selected = BATTLE_NO_UNIT;
-            } else {
-                // Return before opening the shared menu so this input frame is no longer live.
-                RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
-                return BattleAction{BATTLE_NO_UNIT, BATTLE_CELLS};
+        BattleAction action{BATTLE_NO_UNIT, 0};
+        if(screen.offering) {
+            // The offer owns the input, so the cursor and the selection hold still.
+            action = press_offer(screen, selected, pressed, special);
+        } else {
+            uint8_t next = cursor.cell;
+            DIRECTION dir = pressed_direction(pressed);
+            if(dir != STILL) {
+                // A press against the edge of the board bumps instead of ticking.
+                bool moved = battle_neighbor(cursor.cell, dir, next);
+                if(moved)
+                    cursor.cell = next;
+                sfx_play(moved ? SFX_CURSOR_MOVE : SFX_CURSOR_EDGE);
             }
-        }
-        if(pressed & BTN_A) {
-            BattleAction action = press_a(state, selected, cursor.cell);
-            if(action.unit_index != BATTLE_NO_UNIT) {
-                // The cursor returns to the hero that acted, so that hero can be selected again
-                // without moving the cursor. A move leaves the hero at its destination, and an
-                // attack leaves it in place.
-                bool moved = battle_unit_at(state, action.destination) == BATTLE_NO_UNIT;
-                cursor.cell = moved ? action.destination : state.units[action.unit_index].cell;
-                // The rendered cursor snaps there too. Easing would glide it back from the cell
-                // it was on when the action was confirmed.
-                cursor.x = cursor_subpixel(cell_x(cursor.cell));
-                cursor.y = cursor_subpixel(cell_y(cursor.cell));
-                RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
-                return action;
+            if(pressed & BTN_B) {
+                if(selected != BATTLE_NO_UNIT) {
+                    sfx_play(SFX_CANCEL);
+                    selected = BATTLE_NO_UNIT;
+                } else {
+                    // Return before opening the shared menu so this input frame is no longer live.
+                    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
+                    return BattleAction{BATTLE_NO_UNIT, BATTLE_CELLS};
+                }
             }
+            if(pressed & BTN_A)
+                action = press_a(screen, selected, cursor.cell);
+        }
+        if(action.unit_index != BATTLE_NO_UNIT) {
+            // The cursor returns to the hero that acted, so that hero can be selected again without
+            // moving the cursor. A move leaves the hero at its destination, and an attack leaves it
+            // in place.
+            bool moved = battle_unit_at(state, action.destination) == BATTLE_NO_UNIT;
+            cursor.cell = moved ? action.destination : state.units[action.unit_index].cell;
+            // The rendered cursor snaps there too. Easing would glide it back from the cell it was
+            // on when the action was confirmed.
+            cursor.x = cursor_subpixel(cell_x(cursor.cell));
+            cursor.y = cursor_subpixel(cell_y(cursor.cell));
+            RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
+            return action;
         }
         animate_cursor(cursor);
     }
@@ -650,11 +729,12 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
 
     while(!state.ended) {
         while(!state.ended && !battle_can_act(state))
-            resolve(screen, BattleAction{BATTLE_NO_UNIT, 0});
+            resolve(screen, BattleAction{BATTLE_NO_UNIT, 0}, false);
         if(state.ended)
             break;
         if(state.turn == BATTLE_PARTY) {
-            BattleAction action = party_turn(screen);
+            bool special;
+            BattleAction action = party_turn(screen, special);
             if(action.unit_index == BATTLE_NO_UNIT && action.destination == BATTLE_CELLS) {
                 MENU_EXIT selected = menu_screen(&screen);
                 if(selected == MENU_AUDIO)
@@ -667,12 +747,13 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
                 if(selected != MENU_PASS)
                     continue;
                 action = BattleAction{BATTLE_NO_UNIT, 0};
+                special = false;
             }
-            resolve(screen, action);
+            resolve(screen, action, special);
         } else {
             // The party's turn starts on the frame after the enemy's action ends, so the cursor is
             // back at once.
-            resolve(screen, enemy_turn(screen));
+            resolve(screen, enemy_turn(screen), false);
         }
     }
 

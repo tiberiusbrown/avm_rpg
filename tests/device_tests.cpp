@@ -1223,6 +1223,27 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
             "real battle did not deploy the recruited party with its saved HP");
     d.advance(0, 1600000);
     d.capture(out / "battle-saved-party.pgm");
+    // The traveler's Shot reaches the wolf along row 1, so A on the wolf opens the offer. B closes
+    // it without acting, and A on the still-selected traveler opens it again. Opening Shot costs 2
+    // AP and deals 7 to the wolf at full HP, leaving it at 2.
+    d.tap(BTN_A); // Select the traveler under the cursor.
+    for(unsigned i = 0; i < 4; ++i)
+        d.tap(BTN_RIGHT);
+    d.tap(BTN_A); // Open the offer on the wolf.
+    d.advance(0, 800000);
+    d.capture(out / "battle-special-offer.pgm");
+    d.tap(BTN_B);
+    require(d.battle_state().units[2].hp == 9 && d.state().party.members[0].ap == 4,
+            "closing the offer with B acted on the battle");
+    d.tap(BTN_A);
+    d.tap(BTN_DOWN); // Highlight Opening Shot.
+    unsigned activations = d.battle_state().activations;
+    d.tap(BTN_A);
+    d.wait_for_battle(activations);
+    // The wolf may move after the shot and pay its blood price, so it is at 2 HP or 1. A normal attack
+    // would leave it at 5 or 6.
+    require(d.battle_state().units[2].hp <= 2 && d.state().party.members[0].ap == 2,
+            "Opening Shot did not deal its damage or spend its AP");
     deployed.units[0].hp = 11;
     deployed.units[1].hp = 0;
     d.set_battle(deployed);
@@ -1234,9 +1255,10 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.advance(0, 8000000);
     combat.party.members[0].hp = 11;
     combat.party.members[1].hp = 0;
+    combat.party.members[0].ap = 2;
     auto finished = d.state().party;
     require(!memcmp(&combat.party, &finished, sizeof(Party)),
-            "battle result did not persist HP while preserving member classes");
+            "battle result did not persist HP and AP while preserving member classes");
     d.tap(BTN_A);
     d.advance(0, 4000000);
     d.wait_for_prompt();

@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "battle.h"
 #include "tile_ids.h"
 #include "npc.h"
 #include "runtime_workspace.h"
@@ -725,9 +726,6 @@ void render_journal(uint8_t revealed, bool closing, JournalView const& view) {
     render_journal_panel(DISPLAY_WIDTH - revealed, view);
 }
 
-// Every starting special costs the same AP until attack-track ranks add others.
-static constexpr uint8_t STARTING_SPECIAL_AP = 2;
-
 // Draws a label, then its value one space after it.
 static void draw_label_value(int16_t x, int16_t baseline, char const PROGMEM* label,
                              char const PROGMEM* value) {
@@ -773,13 +771,9 @@ void render_party(uint8_t revealed, bool closing, uint8_t member_index) {
     draw_label_value(left, 33, F("Move:"), MOVEMENT[member.movement_class]);
     draw_label_value(left, 40, F("Attack:"), ATTACK[member.attack_class]);
 
-    // Each attack class's starting special, known from the first level. Specials are not battle
-    // actions yet, so the panel shows only their names and costs.
-    static char const PROGMEM* const PROGMEM SPECIAL[] = {F("Power Strike"), F("Opening Shot"),
-                                                          F("Driving Thrust"), F("Crushing Bash"),
-                                                          F("Wound Hunter")};
-    static_assert(sizeof(SPECIAL) / sizeof(SPECIAL[0]) == ATTACK_CLASS_COUNT);
+    // Each attack class's starting special, known from the first level, with its AP cost from the
+    // battle rules.
     avm_draw_text(left, 48, F("Specials"));
-    avm_draw_text(left, 56, SPECIAL[member.attack_class]);
-    avm_draw_textf(x + PARTY_WIDTH / 2, 56, F("%u AP"), STARTING_SPECIAL_AP);
+    avm_draw_text(left, 56, BATTLE_SPECIAL_NAMES[member.attack_class]);
+    avm_draw_textf(x + PARTY_WIDTH / 2, 56, F("%u AP"), SPECIAL_INFO[member.attack_class].ap);
 }

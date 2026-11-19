@@ -328,6 +328,12 @@ overworld cache and from the current area.
   A on the selected hero or B cancels a selection. The selected hero has a two-pixel white border.
   An invalid confirmation does nothing, and it does not use up the turn. After a hero acts, the
   cursor returns to that hero, so it can be selected again without moving the cursor.
+  When the enemy can also take the hero's starting special, A on it opens a small offer: Attack is
+  highlighted first, and the special lists its AP cost. UP and DOWN choose, A confirms, and B closes
+  the offer without acting, leaving the hero selected. A special needs enough AP for its cost, so a
+  hero short of AP attacks normally at once. A special deals the normal damage plus a bonus: Power
+  Strike +3, Opening Shot +4 against a full-HP enemy and +1 otherwise, Driving Thrust +2 and a knockback,
+  Crushing Bash +3 and a knockback, and Wound Hunter +3 against an injured enemy and +1 otherwise.
 - Hovering the cursor over a living actor shows its movement class, attack class and HP/MHP in a small panel on
   the opposite side of the screen. The panel disappears over empty cells.
 - Party members store uint8 current HP and AP and independent movement/attack class IDs in saved RAM.
@@ -397,7 +403,8 @@ overworld cache and from the current area.
   preserves the party's remaining battle HP. A press of A confirms VICTORY or DEFEAT. Battles
   provide no automatic healing; entering with no living party members immediately results in defeat.
   A victory also restores 1 AP to every saved member, including one that fell, up to its maximum. A
-  defeat restores none, and AP is never spent or restored during the battle itself.
+  defeat restores none. During a battle, AP changes only when a special is used, which spends it at
+  once from the saved member.
 
 The battle is the only feature in this prototype. Other encounters and battlefields are not
 implemented.

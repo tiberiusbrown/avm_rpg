@@ -2403,10 +2403,84 @@ static void victory_ap_recovery() {
     CHECK(game.party.members[2].ap == 4); // Already full, so the recovery is capped.
 }
 
+// A saved member's starting special costs AP and needs the normal attack's reach. It deals the
+// normal damage plus its bonus for the victim: the full bonus at full HP, and the other one below
+// it.
+static void special_attacks() {
+    game = {};
+    game.party.count = 1;
+    game.party.members[0] = {20, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_NONE};
+    ENEMY_ID member = (ENEMY_ID)battle_party_id(0);
+    BattleState s = board(
+        BATTLE_PARTY, {{3, 1, member, BATTLE_PARTY, 20}, {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    CHECK(battle_special_legal(s, act(0, 4, 1)) && battle_legal(s, act(0, 4, 1)));
+    CHECK(!battle_special_legal(s, act(0, 3, 2))); // A move is not an attack.
+    CHECK(!battle_special_legal(s, act(0, 3, 0))); // Nor is an empty cell in the attack's reach.
+    BattleState enemy_turn = s;
+    enemy_turn.turn = BATTLE_ENEMY;
+    CHECK(!battle_special_legal(enemy_turn, act(1, 3, 1))); // Enemies have no AP to spend.
+
+    // Without the AP, the special is not legal, and applying it changes nothing.
+    game.party.members[0].ap = 1;
+    BattleState short_of_ap = s;
+    CHECK(!battle_special_legal(short_of_ap, act(0, 4, 1)));
+    battle_apply_special(short_of_ap, act(0, 4, 1));
+    CHECK(same_state(short_of_ap, s) && game.party.members[0].ap == 1);
+
+    // Power Strike: 3 normal plus 3 bonus against a healthy fighter. It spends 2 AP and ends the
+    // turn.
+    game.party.members[0].ap = 4;
+    battle_apply_special(s, act(0, 4, 1));
+    CHECK(s.units[1].hp == 4 && game.party.members[0].ap == 2);
+    CHECK(s.turn == BATTLE_ENEMY && s.activations == 1);
+
+    // The damage each starting special deals, by the victim's HP: a healthy fighter (10 of 10), one
+    // at 6 HP, and one at 4 HP. Rend's normal damage halves at 4 HP, so Wound Hunter reads 3, 5,
+    // then 7.
+    struct Expected {
+        uint8_t full, injured, low;
+    };
+
+    static constexpr Expected EXPECTED[ATTACK_CLASS_COUNT] = {
+        {6, 6, 6}, // Strike: Power Strike
+        {7, 4, 4}, // Shot: Opening Shot
+        {5, 5, 5}, // Reach: Driving Thrust
+        {5, 5, 5}, // Impact: Crushing Bash
+        {3, 5, 7}, // Rend: Wound Hunter
+    };
+    BattleUnit attacker{cell(3, 1), 20, battle_party_id(0), BATTLE_PARTY};
+    BattleUnit victim{cell(4, 1), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+    for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
+        game.party.members[0].attack_class = a;
+        victim.hp = 10;
+        CHECK(battle_special_damage(attacker, victim) == EXPECTED[a].full);
+        victim.hp = 6;
+        CHECK(battle_special_damage(attacker, victim) == EXPECTED[a].injured);
+        victim.hp = 4;
+        CHECK(battle_special_damage(attacker, victim) == EXPECTED[a].low);
+    }
+
+    // Driving Thrust pushes a surviving victim, as the Reach normal attack never does. Both spend
+    // the turn, and only the special costs AP.
+    game.party.members[0].attack_class = ATTACK_REACH;
+    game.party.members[0].ap = 4;
+    BattleState normal = board(
+        BATTLE_PARTY, {{2, 1, member, BATTLE_PARTY, 20}, {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    battle_apply(normal, act(0, 3, 1));
+    CHECK(normal.units[1].cell == cell(3, 1) && normal.units[1].hp == 7);
+    CHECK(game.party.members[0].ap == 4);
+    BattleState thrust = board(
+        BATTLE_PARTY, {{2, 1, member, BATTLE_PARTY, 20}, {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    battle_apply_special(thrust, act(0, 3, 1));
+    CHECK(thrust.units[1].cell == cell(4, 1) && thrust.units[1].hp == 5);
+    CHECK(game.party.members[0].ap == 2);
+}
+
 int main() {
     saved_party_battles();
     rend_damage();
     victory_ap_recovery();
+    special_attacks();
     unit_definitions();
     initial_layout();
     teams_are_explicit();
