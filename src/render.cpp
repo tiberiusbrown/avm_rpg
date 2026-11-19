@@ -584,9 +584,9 @@ __attribute__((noinline)) static uint16_t journal_range_width(char const PROGMEM
     char chunk[5];
     uint16_t width = 0;
     while(from < to) {
-        uint8_t count = 0;
-        while(count < 4 && from < to)
-            chunk[count++] = text[from++];
+        uint8_t count = (uint8_t)(to - from < 4 ? to - from : 4);
+        memcpy_P(chunk, text + from, count);
+        from = (uint8_t)(from + count);
         chunk[count] = 0;
         width += avm_text_width(chunk);
     }
@@ -597,11 +597,11 @@ __attribute__((noinline)) static uint16_t journal_range_width(char const PROGMEM
 __attribute__((noinline)) static int16_t journal_draw_range(int16_t x, int16_t y,
                                                             char const PROGMEM* text,
                                                             uint8_t from, uint8_t to) {
-    char chunk[5];
+    char chunk[25];
     while(from < to) {
-        uint8_t count = 0;
-        while(count < 4 && from < to)
-            chunk[count++] = text[from++];
+        uint8_t count = (uint8_t)(to - from < 24 ? to - from : 24);
+        memcpy_P(chunk, text + from, count);
+        from = (uint8_t)(from + count);
         chunk[count] = 0;
         x = avm_draw_text(x, y, chunk).x;
     }
@@ -616,11 +616,19 @@ struct JournalRangeWidth {
     }
 };
 
+void journal_layout(JournalView& view) {
+    char const PROGMEM* track = quest_selected() == view.open ? F("A untrack") : F("A track");
+    view.status_x = (uint8_t)(4 + avm_text_width(F("Status: ")));
+    view.track_x = (uint8_t)(124 - avm_text_width(track));
+    view.goal_x = (uint8_t)(4 + avm_text_width(F("Goal: ")));
+}
+
 void journal_open(JournalView& view, QUEST_ID id) {
     view.open = id;
     view.scroll = 0;
     view.line_count = journal_wrap(quest_summary(id), JournalRangeWidth{}, view.starts,
                                    JOURNAL_SUMMARY_LINES);
+    journal_layout(view);
 }
 
 static char const PROGMEM* journal_status_label(QUEST_ID id) {
@@ -664,10 +672,10 @@ static void render_journal_detail(int16_t x, JournalView const& view) {
     avm_draw_text(x + 4, 8, quest_title(id));
     avm_draw_text(x + 89, 8, F("B back"));
     avm_draw_text(x + 4, 18, F("Status:"));
-    avm_draw_text(x + 4 + avm_text_width(F("Status: ")), 18, journal_status_label(id));
+    avm_draw_text(x + view.status_x, 18, journal_status_label(id));
     if(quest_status(id) == QUEST_ACTIVE) {
         char const PROGMEM* track = quest_selected() == id ? F("A untrack") : F("A track");
-        avm_draw_text(x + 124 - avm_text_width(track), 18, track);
+        avm_draw_text(x + view.track_x, 18, track);
     }
 
     // Each line stops at its last word, so the trailing spaces that join it to the next line are
@@ -688,18 +696,12 @@ static void render_journal_detail(int16_t x, JournalView const& view) {
     char const PROGMEM* objective = quest_objective(id);
     if(objective) {
         avm_draw_text(x + 4, 57, F("Goal:"));
-        avm_draw_text(x + 4 + avm_text_width(F("Goal: ")), 57, objective);
+        avm_draw_text(x + view.goal_x, 57, objective);
     }
 }
 
-void render_journal(uint8_t revealed, bool closing, JournalView const& view) {
-    rpg_render_world();
-    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / JOURNAL_WIDTH)
-                      : FADE_STEPS / 2);
-    if(!revealed)
-        return;
-
-    int16_t x = DISPLAY_WIDTH - revealed;
+// The panel's frame and contents, with its left edge at x.
+static void render_journal_panel(int16_t x, JournalView const& view) {
     avm_draw_filled_rect_black(x, 0, JOURNAL_WIDTH, 64);
     avm_draw_filled_rect_white(x + 1, 1, JOURNAL_WIDTH - 2, 62);
     avm_draw_filled_rect_black(x + 2, 2, JOURNAL_WIDTH - 4, 60);
@@ -707,6 +709,20 @@ void render_journal(uint8_t revealed, bool closing, JournalView const& view) {
         render_journal_list(x, view);
     else
         render_journal_detail(x, view);
+}
+
+void render_journal(uint8_t revealed, bool closing, JournalView const& view) {
+    // A fully revealed panel covers every pixel, so nothing under it is drawn.
+    if(revealed == JOURNAL_WIDTH && !closing) {
+        render_journal_panel(0, view);
+        return;
+    }
+    rpg_render_world();
+    draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / JOURNAL_WIDTH)
+                      : FADE_STEPS / 2);
+    if(!revealed)
+        return;
+    render_journal_panel(DISPLAY_WIDTH - revealed, view);
 }
 
 void render_party(uint8_t revealed, bool closing) {

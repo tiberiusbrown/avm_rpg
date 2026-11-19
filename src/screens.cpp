@@ -58,16 +58,17 @@ __attribute__((noinline)) void party_screen() {
 
 // Tracking A toggles the open quest. Only an active quest can be tracked, so any other quest
 // answers with the cursor-edge sound instead.
-static void journal_track(QUEST_ID id) {
-    if(quest_status(id) != QUEST_ACTIVE) {
+static void journal_track(JournalView& view) {
+    if(quest_status(view.open) != QUEST_ACTIVE) {
         sfx_play(SFX_CURSOR_EDGE);
         return;
     }
     sfx_play(SFX_SELECT);
-    if(quest_selected() == id)
+    if(quest_selected() == view.open)
         quest_deselect();
     else
-        quest_select(id);
+        quest_select(view.open);
+    journal_layout(view);
 }
 
 // The list highlights and opens quests. The detail view tracks, scrolls and goes back. The world
@@ -76,13 +77,23 @@ __attribute__((noinline)) void journal_screen() {
     JournalView view{};
     int16_t revealed = 0;
     bool closing = false;
+    // Only a changed panel is drawn and presented. While it slides, and after input changes the
+    // view, a frame redraws it. Otherwise the frame waits for input and keeps the framebuffer, as the
+    // dialogue's waiting frames do.
+    bool redraw = true;
     input_sync();
 
     for(;;) {
         input_wait_frame();
+        int16_t pixel = cursor_pixel(revealed);
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(JOURNAL_WIDTH));
-        render_journal((uint8_t)cursor_pixel(revealed), closing, view);
-        avm_display(true);
+        if(redraw || cursor_pixel(revealed) != pixel) {
+            RPG_QA_MARK(rpg_qa_journal_begin());
+            render_journal((uint8_t)cursor_pixel(revealed), closing, view);
+            avm_display(true);
+            RPG_QA_MARK(rpg_qa_journal_end());
+            redraw = false;
+        }
         if(closing) {
             if(!revealed)
                 return;
@@ -98,21 +109,27 @@ __attribute__((noinline)) void journal_screen() {
                 sfx_menu_tick();
                 view.selection =
                     (uint8_t)((view.selection + (pressed & BTN_DOWN ? 1 : count - 1)) % count);
+                redraw = true;
             } else if(count && (pressed & BTN_A)) {
                 sfx_play(SFX_SELECT);
                 journal_open(view, quest_journal_entry(view.selection));
+                redraw = true;
             }
         } else if(pressed & BTN_B) {
             sfx_play(SFX_CANCEL);
             view.open = QUEST_NONE;
+            redraw = true;
         } else if(pressed & BTN_A) {
-            journal_track(view.open);
+            journal_track(view);
+            redraw = true;
         } else if((pressed & BTN_UP) && view.scroll) {
             --view.scroll;
             sfx_menu_tick();
+            redraw = true;
         } else if((pressed & BTN_DOWN) && view.scroll + JOURNAL_DETAIL_LINES < view.line_count) {
             ++view.scroll;
             sfx_menu_tick();
+            redraw = true;
         }
     }
 }

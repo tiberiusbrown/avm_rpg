@@ -187,6 +187,9 @@ struct Device {
     bool proof = false;
     uint8_t frame_area = 0;
     uint64_t begin = 0, render_begin = 0;
+    // Journal redraws, from the QA marks the Journal sets. They are not frames.
+    uint64_t journal_begin = 0, journal_render = 0;
+    unsigned journal_redraws = 0;
     Cost last;
     std::vector<Cost> frames;
     std::vector<Cost> transitions;
@@ -318,6 +321,12 @@ struct Device {
             }
             if(marker == 2)
                 render_begin = cpu.cycle_count;
+            if(marker == 5)
+                journal_begin = cpu.cycle_count;
+            if(marker == 6) {
+                journal_render = cpu.cycle_count - journal_begin;
+                ++journal_redraws;
+            }
             if(marker == 0 && previous_marker == 3 && begin) {
                 last = {cpu.cycle_count - begin, cpu.cycle_count - render_begin, begin,
                         cpu.cycle_count};
@@ -1843,6 +1852,94 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"boot, input, display, pause and save/restart\"}\n";
 }
 
+// Journal frames: the opening slide, steady windows, and the latency from a press to its redraw.
+// A steady window's worst interval is its worst frame: presentations are paced to the frame rate, so
+// an interval longer than one frame is a frame that took longer than the budget.
+static void report_steady(char const* name, PauseTiming const& timing) {
+    uint64_t worst = 0;
+    for(size_t i = 1; i < timing.presentations.size(); ++i)
+        worst = std::max(worst, timing.presentations[i].cycle - timing.presentations[i - 1].cycle);
+    std::cout << "{\"workload\":\"" << name << "\",\"display_presentations\":"
+              << timing.presentations.size() << ",\"worst_frame_cycles\":" << worst
+              << ",\"budget_cycles\":320000}\n";
+}
+
+// Render cycles of redraws caused by real presses, from the QA render marks the Journal sets. Each
+// press-and-release pair is one redraw, and the marks do not advance the frame serial.
+static void report_render_cost(char const* name, Device& d, unsigned redraws, uint8_t press) {
+    unsigned previous = d.journal_redraws, count = 0;
+    uint64_t sum = 0, worst = 0;
+    for(unsigned i = 0; i < redraws; ++i) {
+        d.advance(press, 320000);
+        d.advance(0, 320000);
+        if(d.journal_redraws != previous) {
+            previous = d.journal_redraws;
+            sum += d.journal_render;
+            worst = std::max(worst, d.journal_render);
+            ++count;
+        }
+    }
+    std::cout << "{\"workload\":\"" << name << "\",\"redraws\":" << count
+              << ",\"average_render_cycles\":" << (count ? sum / count : 0)
+              << ",\"worst_render_cycles\":" << worst << ",\"budget_cycles\":320000}\n";
+}
+
+static void report_latency(char const* name, PauseTiming const& timing, uint64_t press) {
+    require(!timing.presentations.empty(), "journal press did not redraw");
+    std::cout << "{\"workload\":\"" << name << "\",\"press_to_display_cycles\":"
+              << timing.presentations.front().cycle - press << ",\"budget_cycles\":320000}\n";
+}
+
+static void verify_journal_timing(Device& d, fs::path const& out) {
+    (void)out;
+    Game before = d.state();
+    Game started = before;
+    started.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
+    d.set_state(started);
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    // Save, Party and Journal are always visible outdoors, so three steps down reach Journal.
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    {
+        PauseTiming opening(d);
+        d.tap(BTN_A);
+        d.advance(0, 3200000);
+        opening.verify("journal_open");
+    }
+    {
+        PauseTiming steady(d);
+        d.advance(0, 8000000);
+        report_steady("journal_list_steady", steady);
+    }
+    {
+        PauseTiming change(d);
+        uint64_t press = d.ab->core_state.cpu.cycle_count;
+        d.advance(BTN_A, 320000);
+        d.advance(0, 4000000);
+        report_latency("journal_open_detail", change, press);
+    }
+    {
+        PauseTiming steady(d);
+        d.advance(0, 8000000);
+        report_steady("journal_detail_steady", steady);
+    }
+    report_render_cost("journal_detail_render", d, 20, BTN_A);
+    {
+        PauseTiming change(d);
+        uint64_t press = d.ab->core_state.cpu.cycle_count;
+        d.advance(BTN_A, 320000);
+        d.advance(0, 4000000);
+        report_latency("journal_track", change, press);
+    }
+    d.tap(BTN_B); // Detail returns to the list.
+    report_render_cost("journal_list_render", d, 20, BTN_DOWN);
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+    d.set_state(before);
+}
+
 int main(int argc, char** argv) try {
     require(
         argc >= 9 && argc <= 12,
@@ -1850,8 +1947,9 @@ int main(int argc, char** argv) try {
         "output_directory normal|fxc|proof|smoke|pause|battle|sounds|functional|sounds-functional "
         "dialogue_address phase_address "
         "[battle_pointer_address [battle_ready_address [panel_address]]]");
-    check_timing =
-        std::string(argv[6]) != "functional" && std::string(argv[6]) != "sounds-functional";
+    // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
+    check_timing = std::string(argv[6]) != "functional" &&
+                   std::string(argv[6]) != "sounds-functional" && std::string(argv[6]) != "journal";
     if(!check_timing)
         std::cout << "{\"timing_checks_enforced\":false,\"mode\":\"" << argv[6] << "\"}\n";
     fs::path package = argv[1], out = argv[5];
@@ -1908,6 +2006,10 @@ int main(int argc, char** argv) try {
     verify_pause_party(d, out);
     if(std::string(argv[6]) == "pause") {
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"Audio and pause redraw\"}\n";
+        return 0;
+    }
+    if(std::string(argv[6]) == "journal") {
+        verify_journal_timing(d, out);
         return 0;
     }
     if(std::string(argv[6]) == "battle") {

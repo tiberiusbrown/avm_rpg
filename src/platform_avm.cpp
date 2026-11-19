@@ -135,6 +135,16 @@ extern "C" __attribute__((noinline)) void rpg_render_begin() {
 extern "C" __attribute__((noinline)) void rpg_render_end() {
     frame_marker = 3;
 }
+
+// Journal redraws are not frames. Their own marks keep the frame serial and frame budget checks out
+// of the Journal, and the device harness counts them separately.
+extern "C" __attribute__((noinline)) void rpg_qa_journal_begin() {
+    frame_marker = 5;
+}
+
+extern "C" __attribute__((noinline)) void rpg_qa_journal_end() {
+    frame_marker = 6;
+}
 #endif
 
 bool game_load() {

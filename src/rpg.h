@@ -31,6 +31,9 @@ extern "C" void rpg_frame_begin();
 extern "C" void rpg_frame_end();
 extern "C" void rpg_render_begin();
 extern "C" void rpg_render_end();
+// A Journal redraw, which is not a frame and does not advance the frame serial.
+extern "C" void rpg_qa_journal_begin();
+extern "C" void rpg_qa_journal_end();
 #else
 #define RPG_PHASE(value) ((void)0)
 #define RPG_QA_MARK(call) ((void)0)
@@ -328,6 +331,9 @@ void render_party(uint8_t revealed, bool closing);
 struct JournalView;
 // Fills the detail view's wrapped summary for a quest, after its name has been chosen.
 void journal_open(JournalView& view, QUEST_ID id);
+// Measures the positions of the detail view's text. It runs when the view opens and when tracking
+// changes, so the frame draws without measuring.
+void journal_layout(JournalView& view);
 void render_journal(uint8_t revealed, bool closing, JournalView const& view);
 
 void input_sync();
