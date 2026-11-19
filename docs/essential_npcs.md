@@ -41,13 +41,16 @@ starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded
 followed by a battle and an outcome line.
 
 `NPC_ROWAN` stands at the generated `RowanHome` marker southeast of the player spawn,
-using archer row 3. Talking recruits him into the saved four-member party with 18/18 HP,
-fighter movement and archer attack. Further talks acknowledge his membership without
+using archer row 3. Talking recruits him into the saved four-member party with 18/18 HP and
+4/4 AP, standard movement and shot attack. Further talks acknowledge his membership without
 adding another member or resetting his HP. Recruitment retires his map actor immediately; party membership prevents him from
-being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP and fighter movement/attack.
-Party HP/MHP and both class identifiers are bytes; its count and unique NPC identities
-are validated on load. The pause menu's Party panel shows all four slots and freezes
-world simulation while it eases in and out.
+being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
+4/4 AP, and standard movement/strike attack. Both start at full HP and AP through `party_new_member`.
+Party current HP and AP and both class identifiers are bytes. Maximum HP is derived by `party_max_hp`
+from the member's identity, whose base is 20 HP except Rowan's 18, and maximum AP by `party_max_ap`, which
+is 4 for every member for now. Items and perks will add to both. Its count, unique NPC identities and
+statistics are validated on load. The pause menu's Party panel shows one page per member, turned with left and
+right, and freezes world simulation while it eases in and out.
 
 `NpcDefinition` is an 11-byte ROM record: behavior/facing, period, pause/walk, leash,
 priority, route, sprite_row and talkable. `period` is the number of frames per movement
@@ -240,7 +243,7 @@ and target reached/failed. Retirement reports reset, recruitment or safe unloadi
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 13 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 14 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage

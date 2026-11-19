@@ -105,10 +105,10 @@ static void draw_actor_info(BattleState const& state, Cursor const& cursor) {
     if(index == BATTLE_NO_UNIT)
         return;
 
-    static constexpr char PROGMEM MOVE_NAMES[MOVEMENT_CLASS_COUNT][8] = {"Fighter", "Knight",
-                                                                         "Wolf"};
-    static constexpr char PROGMEM ATTACK_NAMES[ATTACK_CLASS_COUNT][9] = {
-        "Fighter", "Archer", "Spearman", "Brute", "Bite"};
+    static constexpr char PROGMEM MOVE_NAMES[MOVEMENT_CLASS_COUNT][9] = {"Standard", "Leaper",
+                                                                         "Charger"};
+    static constexpr char PROGMEM ATTACK_NAMES[ATTACK_CLASS_COUNT][9] = {"Strike", "Shot", "Reach",
+                                                                         "Impact", "Rend"};
     BattleUnit const& unit = state.units[index];
     int16_t x = battle_column(cursor.cell) < BATTLE_COLUMNS / 2 ? 60 : 2;
     avm_draw_filled_rect_white(x, 37, 66, 25);
@@ -359,11 +359,11 @@ RPG_NOINLINE static bool any_fallen(BattleScreen const& screen) {
 // The sound of a unit type's attack landing. An archer's arrow has its own sounds.
 static SFX attack_sound(uint8_t attack) {
     switch(attack) {
-        case ATTACK_SPEARMAN:
+        case ATTACK_REACH:
             return SFX_THRUST;
-        case ATTACK_BITE:
+        case ATTACK_REND:
             return SFX_BITE;
-        case ATTACK_BRUTE:
+        case ATTACK_IMPACT:
             return SFX_SMASH;
         default:
             return SFX_STRIKE;
@@ -504,7 +504,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action) {
         walk_unit(screen);
         lunger = BATTLE_NO_UNIT;
         impact = screen.flashing & ~(1 << actor) ? SFX_CLASH : SFX_PRICE;
-    } else if(attack == ATTACK_ARCHER) {
+    } else if(attack == ATTACK_SHOT) {
         fly_arrow(screen, action.destination, toward);
         lunger = BATTLE_NO_UNIT;
         impact = SFX_ARROW_HIT;

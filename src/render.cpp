@@ -725,7 +725,18 @@ void render_journal(uint8_t revealed, bool closing, JournalView const& view) {
     render_journal_panel(DISPLAY_WIDTH - revealed, view);
 }
 
-void render_party(uint8_t revealed, bool closing) {
+// Every starting special costs the same AP until attack-track ranks add others.
+static constexpr uint8_t STARTING_SPECIAL_AP = 2;
+
+// Draws a label, then its value one space after it.
+static void draw_label_value(int16_t x, int16_t baseline, char const PROGMEM* label,
+                             char const PROGMEM* value) {
+    int16_t end = avm_draw_text(x, baseline, label).x;
+    avm_draw_text((int16_t)(end + avm_text_width(F(" "))), baseline, value);
+}
+
+// The page of one party member. Its rows are the font's seven-pixel lines, from baseline 9 down.
+void render_party(uint8_t revealed, bool closing, uint8_t member_index) {
     rpg_render_world();
     draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / PARTY_WIDTH)
                       : FADE_STEPS / 2);
@@ -736,27 +747,39 @@ void render_party(uint8_t revealed, bool closing) {
     avm_draw_filled_rect_black(x, 0, PARTY_WIDTH, 64);
     avm_draw_filled_rect_white(x + 1, 1, PARTY_WIDTH - 2, 62);
     avm_draw_filled_rect_black(x + 2, 2, PARTY_WIDTH - 4, 60);
-    avm_draw_textf(x + 4, 8, F("Party %u/%u"), game.party.count, PARTY_CAPACITY);
-    avm_draw_text(x + 89, 8, F("B back"));
+    int16_t left = x + 4, right = x + PARTY_WIDTH - 4;
+    PartyMember const& member = game.party.members[member_index];
 
-    static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Fighter"), F("Knight"), F("Wolf")};
-    static char const PROGMEM* const PROGMEM ATTACK[] = {F("Fighter"), F("Archer"), F("Spearman"),
-                                                         F("Brute"), F("Bite")};
+    avm_draw_textf(left, 9, F("Party %u/%u"), member_index + 1, game.party.count);
+    avm_draw_text((int16_t)(right - avm_text_width(F("B back"))), 9, F("B back"));
+
+    auto name = npc_name(member.id);
+    auto title = name ? name : F("Traveler");
+    avm_draw_text((int16_t)(x + (PARTY_WIDTH - avm_text_width(title)) / 2), 17, title);
+    if(game.party.count > 1) {
+        avm_draw_text(left, 17, F("<"));
+        avm_draw_text((int16_t)(right - avm_text_width(F(">"))), 17, F(">"));
+    }
+
+    avm_draw_textf(left, 25, F("HP %u/%u"), member.hp, party_max_hp(member));
+    avm_draw_textf(x + PARTY_WIDTH / 2, 25, F("AP %u/%u"), member.ap, party_max_ap(member));
+
+    static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Standard"), F("Leaper"),
+                                                           F("Charger")};
+    static char const PROGMEM* const PROGMEM ATTACK[] = {F("Strike"), F("Shot"), F("Reach"),
+                                                         F("Impact"), F("Rend")};
     static_assert(sizeof(MOVEMENT) / sizeof(MOVEMENT[0]) == MOVEMENT_CLASS_COUNT);
     static_assert(sizeof(ATTACK) / sizeof(ATTACK[0]) == ATTACK_CLASS_COUNT);
-    for(uint8_t i = 0; i < PARTY_CAPACITY; ++i) {
-        uint8_t y = (uint8_t)(18 + i * 12);
-        if(i >= game.party.count) {
-            avm_draw_text(x + 4, y, F("- Empty -"));
-            continue;
-        }
-        PartyMember const& member = game.party.members[i];
-        auto name = npc_name(member.id);
-        avm_draw_text(x + 4, y, name ? name : F("Traveler"));
-        avm_draw_textf(x + 60, y, F("HP %u/%u"), member.hp, member.max_hp);
-        avm_draw_text(x + 4, y + 6, F("M:"));
-        avm_draw_text(x + 16, y + 6, MOVEMENT[member.movement_class]);
-        avm_draw_text(x + 64, y + 6, F("A:"));
-        avm_draw_text(x + 76, y + 6, ATTACK[member.attack_class]);
-    }
+    draw_label_value(left, 33, F("Move:"), MOVEMENT[member.movement_class]);
+    draw_label_value(left, 40, F("Attack:"), ATTACK[member.attack_class]);
+
+    // Each attack class's starting special, known from the first level. Specials are not battle
+    // actions yet, so the panel shows only their names and costs.
+    static char const PROGMEM* const PROGMEM SPECIAL[] = {F("Power Strike"), F("Opening Shot"),
+                                                          F("Driving Thrust"), F("Crushing Bash"),
+                                                          F("Wound Hunter")};
+    static_assert(sizeof(SPECIAL) / sizeof(SPECIAL[0]) == ATTACK_CLASS_COUNT);
+    avm_draw_text(left, 48, F("Specials"));
+    avm_draw_text(left, 56, SPECIAL[member.attack_class]);
+    avm_draw_textf(x + PARTY_WIDTH / 2, 56, F("%u AP"), STARTING_SPECIAL_AP);
 }

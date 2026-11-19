@@ -36,22 +36,38 @@ __attribute__((noinline)) void title_screen() {
         game_start();
 }
 
+// Each page shows one party member. Left and right turn pages and wrap at either end, and A or B
+// closes the panel.
 __attribute__((noinline)) void party_screen() {
     int16_t revealed = 0;
     bool closing = false;
+    uint8_t member = 0;
     input_sync();
 
     for(;;) {
         input_wait_frame();
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(PARTY_WIDTH));
-        render_party((uint8_t)cursor_pixel(revealed), closing);
-        avm_display(true);
+        render_party((uint8_t)cursor_pixel(revealed), closing, member);
+        // A waiting page keeps its frame in RAM, as the title and battle do. Every frame redraws
+        // the whole display, so nothing from the previous frame survives.
+        avm_display(false);
         if(closing) {
             if(!revealed)
                 return;
-        } else if(input_pressed() & (BTN_A | BTN_B)) {
+            continue;
+        }
+        uint8_t pressed = input_pressed();
+        if(pressed & (BTN_A | BTN_B)) {
             sfx_play(SFX_CANCEL);
             closing = true;
+        } else if(pressed & (BTN_LEFT | BTN_RIGHT)) {
+            // A party of one has no other page, so the press answers with the edge sound.
+            if(game.party.count > 1) {
+                sfx_menu_tick();
+                member = (uint8_t)((member + (pressed & BTN_RIGHT ? 1 : game.party.count - 1)) %
+                                   game.party.count);
+            } else
+                sfx_play(SFX_CURSOR_EDGE);
         }
     }
 }

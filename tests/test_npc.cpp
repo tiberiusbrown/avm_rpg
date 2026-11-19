@@ -39,7 +39,7 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
 static void party_sprites_follow_npcs() {
     Party saved = game.party;
     for(uint8_t id = 0; id < NPC_ID_LIMIT; ++id) {
-        game.party.members[0] = {255, 255, MOVEMENT_FIGHTER, ATTACK_FIGHTER, (NPC_ID)id};
+        game.party.members[0] = {20, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, (NPC_ID)id};
         BattleUnit unit{0, 5, battle_party_id(0), BATTLE_PARTY};
         NpcDefinition const PROGMEM* definition = npc_definition((NPC_ID)id);
         CHECK(battle_sprite_row(unit) == (definition ? definition->sprite_row : 0));

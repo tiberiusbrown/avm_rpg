@@ -1168,10 +1168,10 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     }
     d.advance(0, 1600000);
     auto joined = d.state().party;
-    require(joined.count == 2 && joined.members[1].id == NPC_ROWAN &&
-                joined.members[1].hp == 18 && joined.members[1].max_hp == 18 &&
-                joined.members[1].movement_class == MOVEMENT_FIGHTER &&
-                joined.members[1].attack_class == ATTACK_ARCHER,
+    require(joined.count == 2 && joined.members[1].id == NPC_ROWAN && joined.members[1].hp == 18 &&
+                joined.members[1].ap == 4 &&
+                joined.members[1].movement_class == MOVEMENT_STANDARD &&
+                joined.members[1].attack_class == ATTACK_SHOT,
             "Rowan did not join with the expected statistics");
     auto recruited = d.state();
     for(auto const& actor : recruited.npcs.actors)
@@ -1185,20 +1185,28 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     d.advance(0, 8000000);
     d.capture(out / "party-recruited.pgm");
+    // Left and right turn pages, which wrap across the two members, without changing statistics.
+    d.tap(BTN_RIGHT);
+    d.advance(0, 800000);
+    d.capture(out / "party-second-page.pgm");
+    d.tap(BTN_RIGHT);
+    d.advance(0, 800000);
     auto shown = d.state().party;
     require(!memcmp(&joined, &shown, sizeof(Party)), "Party panel changed member statistics");
     d.tap(BTN_B);
     d.advance(0, 8000000);
     d.frame();
-    // Start a real encounter with a recruited party and full-byte HP, then verify result writeback.
+    // Start a real encounter with a recruited party at its maximum and a wounded member, then
+    // verify result writeback.
     Game combat = d.state();
-    combat.party.members[0].hp = combat.party.members[0].max_hp = 255;
-    combat.party.members[0].movement_class = MOVEMENT_KNIGHT;
-    combat.party.members[0].attack_class = ATTACK_ARCHER;
-    combat.party.members[1].hp = 127;
-    combat.party.members[1].max_hp = 200;
-    combat.party.members[1].movement_class = MOVEMENT_WOLF;
-    combat.party.members[1].attack_class = ATTACK_BRUTE;
+    combat.party.members[0].hp = 20;
+    combat.party.members[0].ap = 4;
+    combat.party.members[0].movement_class = MOVEMENT_LEAPER;
+    combat.party.members[0].attack_class = ATTACK_SHOT;
+    combat.party.members[1].hp = 17;
+    combat.party.members[1].ap = 4;
+    combat.party.members[1].movement_class = MOVEMENT_CHARGER;
+    combat.party.members[1].attack_class = ATTACK_IMPACT;
     combat.player = {(uint16_t)(positions::PlayerStart.x * TILE),
                      (uint16_t)(positions::PlayerStart.y * TILE), NORTH, 0};
     d.set_state(combat);
@@ -1209,13 +1217,13 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.wait_for_battle();
     auto deployed = d.battle_state();
     require(deployed.unit_count == 4 && deployed.units[0].id == battle_party_id(0) &&
-                deployed.units[1].id == battle_party_id(1) && deployed.units[0].hp == 255 &&
-                deployed.units[1].hp == 127 && deployed.units[2].id == ENEMY_WOLF &&
+                deployed.units[1].id == battle_party_id(1) && deployed.units[0].hp == 20 &&
+                deployed.units[1].hp == 17 && deployed.units[2].id == ENEMY_WOLF &&
                 deployed.units[3].id == ENEMY_BRUTE,
-            "real battle did not deploy the recruited party with full-byte HP");
+            "real battle did not deploy the recruited party with its saved HP");
     d.advance(0, 1600000);
     d.capture(out / "battle-saved-party.pgm");
-    deployed.units[0].hp = 201;
+    deployed.units[0].hp = 11;
     deployed.units[1].hp = 0;
     d.set_battle(deployed);
     d.tap(BTN_B);
@@ -1224,7 +1232,7 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.advance(0, 4800000);
     d.tap(BTN_A);
     d.advance(0, 8000000);
-    combat.party.members[0].hp = 201;
+    combat.party.members[0].hp = 11;
     combat.party.members[1].hp = 0;
     auto finished = d.state().party;
     require(!memcmp(&combat.party, &finished, sizeof(Party)),

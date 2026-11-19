@@ -15,11 +15,14 @@ world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Jou
 **Map**, **Audio**, or **Load**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
-immediately after saving. Party opens an eased sliding roster with four slots, showing each member's HP/MHP, movement class (M) and attack class (A). A or B slides the roster out and returns directly to gameplay.
-A new game starts with the traveler (20/20 HP, fighter movement and attack). Rowan waits southeast
-of the starting point; talking to him recruits him once (18/18 HP, fighter movement, archer attack).
+immediately after saving. Party opens an eased sliding panel with one page per member. Each page shows the
+name, current/maximum HP and AP, the movement and attack types (`Move: Standard`, `Attack: Shot`), and the
+attack type's starting special with its AP cost. Left and right turn pages and wrap at either end; A or B
+slides the panel out and returns directly to gameplay.
+A new game starts with the traveler (20/20 HP, 4/4 AP, standard movement and strike attack). Rowan waits southeast
+of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, standard movement, shot attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
-Party membership and statistics are saved. The version 13 save layout rejects older saves. The world stays frozen while the menu is open; music continues.
+Party membership, current HP and current AP are saved. The version 14 save layout rejects older saves. The world stays frozen while the menu is open; music continues.
 Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
@@ -242,7 +245,7 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 13.** Version 13 writes the live,
+**This development build rejects saves older than version 14.** Version 14 writes the live,
 pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
 save buffer or checksum. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. The title shows an animated
@@ -327,7 +330,8 @@ overworld cache and from the current area.
   cursor returns to that hero, so it can be selected again without moving the cursor.
 - Hovering the cursor over a living actor shows its movement class, attack class and HP/MHP in a small panel on
   the opposite side of the screen. The panel disappears over empty cells.
-- Party members store uint8 HP/MHP and independent movement/attack class IDs in saved RAM.
+- Party members store uint8 current HP and AP and independent movement/attack class IDs in saved RAM.
+  Their maximum HP and AP are computed for each member rather than stored.
   An enemy stores only uint8 HP and an enemy ID in its live battle record; its MHP, movement,
   attack and artwork are read from `EnemyInfo` in program memory. Board placement is separate
   metadata. Both sides use the same movement and attack rules. The six enemy presets are:

@@ -53,7 +53,7 @@ struct UnitLimit {
 
 // The most actions along one direction with `room` cells before the edge.
 static constexpr uint8_t ray_limit(BattleUnitRules const& rules, uint8_t room) {
-    uint8_t range = rules.movement_type == BATTLE_MOVEMENT_KNIGHT ? 0 : rules.move_range;
+    uint8_t range = rules.movement_type == BATTLE_MOVEMENT_LEAP ? 0 : rules.move_range;
     uint8_t best = room < range ? room : range; // No unit along the ray: moves only.
     for(uint8_t first = 1; first <= room; ++first) {
         uint8_t moves = first - 1 < range ? (uint8_t)(first - 1) : range;
@@ -75,7 +75,7 @@ static constexpr UnitLimit unit_limit(BattleUnitRules const& rules) {
             uint8_t moves = 0, actions = 0;
             for(uint8_t room : rooms)
                 actions = (uint8_t)(actions + ray_limit(rules, room));
-            if(rules.movement_type == BATTLE_MOVEMENT_KNIGHT) {
+            if(rules.movement_type == BATTLE_MOVEMENT_LEAP) {
                 for(uint8_t k = 0; k < 8; ++k) {
                     int nx = x + leap_x[k], ny = y + leap_y[k];
                     if(nx >= 0 && nx < BATTLE_COLUMNS && ny >= 0 && ny < BATTLE_ROWS)
@@ -116,8 +116,8 @@ static_assert(
     }(),
     "independent class combinations fit the shared action stack");
 static_assert(
-    UNIT_LIMITS.classes[(uint8_t)MOVEMENT_KNIGHT * ATTACK_CLASS_COUNT + ATTACK_ARCHER].moves == 6,
-    "knight movement is independent of attack class");
+    UNIT_LIMITS.classes[(uint8_t)MOVEMENT_LEAPER * ATTACK_CLASS_COUNT + ATTACK_SHOT].moves == 6,
+    "leaper movement is independent of attack class");
 
 // The most actions one side can list: each living unit's limit, with its attacks capped by the
 // opponents it faces, plus the always-available pass.
@@ -219,7 +219,7 @@ static constexpr OutsideTable make_outside() {
             table.cells[a][d] = outside(d, ATTACK_INFO[a].attack_min, ATTACK_INFO[a].attack_max);
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m) {
         auto const& move = MOVEMENT_INFO[m];
-        table.slow[m] = move.movement_type == BATTLE_MOVEMENT_KNIGHT || move.move_range > 1 ? 0 : 1;
+        table.slow[m] = move.movement_type == BATTLE_MOVEMENT_LEAP || move.move_range > 1 ? 0 : 1;
     }
     return table;
 }

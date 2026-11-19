@@ -39,7 +39,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 13;
+inline constexpr uint8_t SAVE_VERSION = 14;
 
 enum {
     BTN_B = 4,
@@ -97,23 +97,24 @@ struct AudioOptions {
 inline constexpr uint8_t PARTY_CAPACITY = 4;
 
 enum MOVEMENT_CLASS : uint8_t {
-    MOVEMENT_FIGHTER,
-    MOVEMENT_KNIGHT,
-    MOVEMENT_WOLF,
+    MOVEMENT_STANDARD,
+    MOVEMENT_LEAPER,
+    MOVEMENT_CHARGER,
     MOVEMENT_CLASS_COUNT
 };
 
 enum ATTACK_CLASS : uint8_t {
-    ATTACK_FIGHTER,
-    ATTACK_ARCHER,
-    ATTACK_SPEARMAN,
-    ATTACK_BRUTE,
-    ATTACK_BITE,
+    ATTACK_STRIKE,
+    ATTACK_SHOT,
+    ATTACK_REACH,
+    ATTACK_IMPACT,
+    ATTACK_REND,
     ATTACK_CLASS_COUNT
 };
 
+// Maximum HP and AP are not stored: party_max_hp and party_max_ap derive them for each member.
 struct PartyMember {
-    uint8_t hp, max_hp;
+    uint8_t hp, ap;
     uint8_t movement_class, attack_class;
     NPC_ID id; // NPC_NONE identifies the traveler; other identities prevent duplicate recruits.
 };
@@ -125,9 +126,26 @@ struct Party {
 
 static_assert(sizeof(PartyMember) == 5, "byte-sized party statistics and identity");
 
+// Every member's AP maximum is the same until items and perks change it.
+inline constexpr uint8_t PARTY_BASE_AP = 4;
+
+// The base maximum HP and AP of a party member. The traveler's 20 HP and Rowan's 18 HP are the base
+// values of their identities. Items and perks will add to both.
+constexpr uint8_t party_max_hp(PartyMember const& member) {
+    return member.id == NPC_ROWAN ? 18 : 20;
+}
+
+constexpr uint8_t party_max_ap(PartyMember const&) {
+    return PARTY_BASE_AP;
+}
+
+// A member at full HP and AP, as the traveler and new recruits join.
+PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack);
+
 bool party_contains(NPC_ID id);
-// Rejects duplicate identities, invalid statistics, and a full party without changing state.
-// Successful NPC recruitment shows a blocking announcement and plays a jingle.
+// Rejects duplicate identities, HP or AP above the member's maximum, invalid classes, and a full
+// party without changing state. Successful NPC recruitment shows a blocking announcement and plays
+// a jingle.
 bool party_add(PartyMember member);
 
 // Records that a flag changed value, so quests that watch it are evaluated at the next settle.
@@ -331,7 +349,8 @@ uint8_t option_level(OPTION_ITEM item);
 void options_apply();
 void option_adjust(OPTION_ITEM item, bool increase);
 inline constexpr uint8_t PARTY_WIDTH = 128;
-void render_party(uint8_t revealed, bool closing);
+// Draws the page of party member `member`, an index below game.party.count.
+void render_party(uint8_t revealed, bool closing, uint8_t member);
 struct JournalView;
 // Fills the detail view's wrapped summary for a quest, after its name has been chosen.
 void journal_open(JournalView& view, QUEST_ID id);

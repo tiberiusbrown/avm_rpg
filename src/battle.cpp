@@ -103,9 +103,9 @@ bool battle_blocked(uint8_t field, uint8_t cell) {
 }
 
 constexpr EnemyInfo PROGMEM ENEMY_INFO[ENEMY_COUNT] = {
-    {10, MOVEMENT_FIGHTER, ATTACK_FIGHTER, 2}, {10, MOVEMENT_KNIGHT, ATTACK_FIGHTER, 1},
-    {9, MOVEMENT_FIGHTER, ATTACK_ARCHER, 0},   {10, MOVEMENT_FIGHTER, ATTACK_SPEARMAN, 3},
-    {9, MOVEMENT_WOLF, ATTACK_BITE, 17},       {12, MOVEMENT_FIGHTER, ATTACK_BRUTE, 25},
+    {10, MOVEMENT_STANDARD, ATTACK_STRIKE, 2}, {10, MOVEMENT_LEAPER, ATTACK_STRIKE, 1},
+    {9, MOVEMENT_STANDARD, ATTACK_SHOT, 0},    {10, MOVEMENT_STANDARD, ATTACK_REACH, 3},
+    {9, MOVEMENT_CHARGER, ATTACK_REND, 17},    {12, MOVEMENT_STANDARD, ATTACK_IMPACT, 25},
 };
 static_assert([] {
     for(auto const& enemy : ENEMY_INFO)
@@ -118,7 +118,7 @@ static_assert([] {
 // Check every independent class combination, including those not used by an enemy preset.
 constexpr bool battle_classes_fit() {
     for(auto const& rules : BATTLE_RULES.classes) {
-        uint8_t moves = rules.movement_type == BATTLE_MOVEMENT_KNIGHT ? 8 : 4 * rules.move_range;
+        uint8_t moves = rules.movement_type == BATTLE_MOVEMENT_LEAP ? 8 : 4 * rules.move_range;
         if(moves > BATTLE_MOVE_LIMIT || !rules.attack_min || rules.attack_min > rules.attack_max ||
            rules.damage > 15)
             return false;
@@ -166,8 +166,9 @@ void battle_finish(BattleState const& state) {
 }
 
 uint8_t battle_max_hp(BattleUnit const& unit) {
-    return unit.id & BATTLE_PARTY_SOURCE ? game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].max_hp
-                                         : ENEMY_INFO[unit.id].max_hp;
+    return unit.id & BATTLE_PARTY_SOURCE
+               ? party_max_hp(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE])
+               : ENEMY_INFO[unit.id].max_hp;
 }
 
 uint8_t battle_unit_at(BattleState const& state, uint8_t cell) {
@@ -274,7 +275,7 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
        battle_unit_at(state, destination) != BATTLE_NO_UNIT)
         return false;
     BattleUnitRules const& rules = battle_rules(actor.id);
-    if(rules.movement_type == BATTLE_MOVEMENT_KNIGHT) {
+    if(rules.movement_type == BATTLE_MOVEMENT_LEAP) {
         int8_t dx = (int8_t)(battle_column(destination) - battle_column(actor.cell));
         int8_t dy = (int8_t)(battle_row(destination) - battle_row(actor.cell));
         uint8_t product = (uint8_t)((dx < 0 ? -dx : dx) * (dy < 0 ? -dy : dy));
@@ -408,7 +409,7 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
         uint8_t x = battle_column(actor.cell), y = battle_row(actor.cell);
         uint8_t unit_bits = (uint8_t)(a << 5);
         BattleUnitRules const& rules = battle_rules(actor.id);
-        if(rules.movement_type == BATTLE_MOVEMENT_KNIGHT) {
+        if(rules.movement_type == BATTLE_MOVEMENT_LEAP) {
             // Clockwise from north-north-east.
             count = battle_leap(rows, out, count, unit_bits, x, y, 1, -2);
             count = battle_leap(rows, out, count, unit_bits, x, y, 2, -1);

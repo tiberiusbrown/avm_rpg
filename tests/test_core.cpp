@@ -196,10 +196,10 @@ static void saves() {
     game.player.facing = STILL;
     reject();
     game = saved;
-    game.party.members[0].hp = game.party.members[0].max_hp + 1;
+    game.party.members[0].hp = party_max_hp(game.party.members[0]) + 1;
     reject();
     game = saved;
-    game.party.members[0].max_hp = 0;
+    game.party.members[0].ap = party_max_ap(game.party.members[0]) + 1;
     reject();
     game = saved;
     game.party.count = 0;
@@ -293,6 +293,27 @@ static void dialogue_camera_bounds() {
     game_new();
 }
 
+// Maximum HP and AP come from each member's identity and classes, so no member stores them.
+static void party_statistics() {
+    game_new();
+    PartyMember traveler = game.party.members[0];
+    CHECK(traveler.hp == 20 && party_max_hp(traveler) == 20);
+    CHECK(traveler.ap == 4 && party_max_ap(traveler) == 4);
+
+    PartyMember rowan = party_new_member(NPC_ROWAN, MOVEMENT_STANDARD, ATTACK_SHOT);
+    CHECK(rowan.hp == 18 && party_max_hp(rowan) == 18);
+    CHECK(rowan.ap == 4 && party_max_ap(rowan) == 4);
+    CHECK(rowan.movement_class == MOVEMENT_STANDARD && rowan.attack_class == ATTACK_SHOT);
+    CHECK(party_max_hp({0, 0, MOVEMENT_LEAPER, ATTACK_REND, NPC_VILLAGER}) == 20);
+
+    // HP or AP above the member's maximum is rejected, and the party does not change.
+    Party before = game.party;
+    CHECK(!party_add({21, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(!party_add({20, 5, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(!memcmp(&before, &game.party, sizeof(Party)));
+    CHECK(save_valid());
+}
+
 int main() {
     dialogue_camera_bounds();
     animate();
@@ -300,5 +321,6 @@ int main() {
     sign();
     grove_battle();
     saves();
+    party_statistics();
     printf("PASS 16x16 core: %u checks\n", checks);
 }

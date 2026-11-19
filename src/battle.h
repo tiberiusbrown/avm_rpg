@@ -71,10 +71,10 @@ extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
 bool battle_blocked(uint8_t field, uint8_t cell);
 
 // How a unit reaches empty cells. An orthogonal unit moves straight north, east, south, or west for
-// one cell up to its move range, and every cell it passes and lands on must be empty. A knight unit
-// leaps two cells along one axis and one along the other, over anything between, onto an empty
+// one cell up to its move range, and every cell it passes and lands on must be empty. A leaper
+// jumps two cells along one axis and one along the other, over anything between, onto an empty
 // cell.
-enum BATTLE_MOVEMENT_TYPE : uint8_t { BATTLE_MOVEMENT_ORTHOGONAL, BATTLE_MOVEMENT_KNIGHT };
+enum BATTLE_MOVEMENT_TYPE : uint8_t { BATTLE_MOVEMENT_ORTHOGONAL, BATTLE_MOVEMENT_LEAP };
 
 // What an attack does after its damage. A knockback pushes a surviving victim one cell directly
 // away from the attacker when that cell is on the board and empty.
@@ -93,7 +93,7 @@ struct AttackInfo {
 
 inline constexpr MovementInfo MOVEMENT_INFO[MOVEMENT_CLASS_COUNT] = {
     {BATTLE_MOVEMENT_ORTHOGONAL, 1},
-    {BATTLE_MOVEMENT_KNIGHT, 0},
+    {BATTLE_MOVEMENT_LEAP, 0},
     {BATTLE_MOVEMENT_ORTHOGONAL, 2},
 };
 inline constexpr AttackInfo ATTACK_INFO[ATTACK_CLASS_COUNT] = {

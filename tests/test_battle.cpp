@@ -269,7 +269,7 @@ static void unit_definitions() {
         EnemyInfo const& info = ENEMY_INFO[t];
         BattleUnitRules const& type = battle_rules(t);
         OracleType rules = oracle_type((ENEMY_ID)t);
-        CHECK((type.movement_type == BATTLE_MOVEMENT_KNIGHT) == rules.knight);
+        CHECK((type.movement_type == BATTLE_MOVEMENT_LEAP) == rules.knight);
         CHECK(type.move_range == rules.move_range);
         CHECK(type.attack_min == rules.attack_min && type.attack_max == rules.attack_max);
         CHECK(type.damage == rules.damage);
@@ -2286,16 +2286,16 @@ static void target_frames() {
 static void saved_party_battles() {
     game = {};
     game.party.count = 2;
-    game.party.members[0] = {255, 255, MOVEMENT_KNIGHT, ATTACK_ARCHER, NPC_NONE};
-    game.party.members[1] = {127, 200, MOVEMENT_WOLF, ATTACK_BRUTE, NPC_ROWAN};
+    game.party.members[0] = {20, 4, MOVEMENT_LEAPER, ATTACK_SHOT, NPC_NONE};
+    game.party.members[1] = {17, 4, MOVEMENT_CHARGER, ATTACK_IMPACT, NPC_ROWAN};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &BATTLE_GROVE);
-    CHECK(state.unit_count == 4 && state.units[0].hp == 255 && state.units[1].hp == 127);
+    CHECK(state.unit_count == 4 && state.units[0].hp == 20 && state.units[1].hp == 17);
     CHECK(state.units[0].id == battle_party_id(0) && state.units[1].id == battle_party_id(1));
     CHECK(state.units[2].id == ENEMY_WOLF && state.units[2].hp == ENEMY_INFO[ENEMY_WOLF].max_hp);
     CHECK(state.units[3].id == ENEMY_BRUTE && state.units[3].hp == ENEMY_INFO[ENEMY_BRUTE].max_hp);
-    CHECK(battle_max_hp(state.units[0]) == 255 && battle_max_hp(state.units[1]) == 200);
+    CHECK(battle_max_hp(state.units[0]) == 20 && battle_max_hp(state.units[1]) == 18);
     CHECK(battle_sprite_row(state.units[0]) == 0 && battle_sprite_row(state.units[1]) == 3);
     CHECK(battle_can_move_to(state, 0, cell(3, 3)));
     CHECK(!battle_can_move_to(state, 0, cell(3, 1)));
@@ -2304,14 +2304,14 @@ static void saved_party_battles() {
     CHECK(battle_rules(state.units[1].id).effect == BATTLE_EFFECT_KNOCKBACK);
     BattleState child = state;
     battle_apply(child, act(0, 6, 1));
-    CHECK(child.units[2].hp == state.units[2].hp - 3 && child.units[0].hp == 255);
+    CHECK(child.units[2].hp == state.units[2].hp - 3 && child.units[0].hp == 20);
     CHECK(!memcmp(&game.party, &saved, sizeof(Party)));
     BattleSearchResult choice = battle_search(state, 2);
     CHECK(choice.depth && !memcmp(&game.party, &saved, sizeof(Party)));
-    state.units[0].hp = 201;
+    state.units[0].hp = 11;
     state.units[1].hp = 0;
     battle_finish(state);
-    saved.members[0].hp = 201;
+    saved.members[0].hp = 11;
     saved.members[1].hp = 0;
     CHECK(!memcmp(&game.party, &saved, sizeof(Party)));
     battle_begin(state, &BATTLE_GROVE);
@@ -2324,7 +2324,7 @@ static void saved_party_battles() {
     game.party.count = 1;
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
         for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
-            game.party.members[0] = {255, 255, m, a, NPC_NONE};
+            game.party.members[0] = {20, 4, m, a, NPC_NONE};
             battle_begin(state, &BATTLE_GROVE);
             auto const& rules = battle_rules(state.units[0].id);
             CHECK(rules.movement_type == MOVEMENT_INFO[m].movement_type);

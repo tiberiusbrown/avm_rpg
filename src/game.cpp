@@ -31,10 +31,18 @@ bool party_contains(NPC_ID id) {
     return false;
 }
 
+PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack) {
+    PartyMember member{0, 0, movement, attack, id};
+    member.hp = party_max_hp(member);
+    member.ap = party_max_ap(member);
+    return member;
+}
+
 bool party_add(PartyMember member) {
-    if(game.party.count >= PARTY_CAPACITY || member.id >= NPC_ID_LIMIT || !member.max_hp ||
-       member.hp > member.max_hp || member.movement_class >= MOVEMENT_CLASS_COUNT ||
-       member.attack_class >= ATTACK_CLASS_COUNT || party_contains(member.id))
+    if(game.party.count >= PARTY_CAPACITY || member.id >= NPC_ID_LIMIT ||
+       member.hp > party_max_hp(member) || member.ap > party_max_ap(member) ||
+       member.movement_class >= MOVEMENT_CLASS_COUNT || member.attack_class >= ATTACK_CLASS_COUNT ||
+       party_contains(member.id))
         return false;
     game.party.members[game.party.count++] = member;
     npc_recruit(member.id);
@@ -51,7 +59,7 @@ void game_start() {
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
     quest_reset();
-    party_add({20, 20, MOVEMENT_FIGHTER, ATTACK_FIGHTER, NPC_NONE});
+    party_add(party_new_member(NPC_NONE, MOVEMENT_STANDARD, ATTACK_STRIKE));
     game.level = 1;
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);
