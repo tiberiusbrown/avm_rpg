@@ -144,7 +144,7 @@ int main() {
     CHECK(game.party.count == 1 && game.party.members[0].id == NPC_NONE);
     CHECK(game.party.members[0].hp == 20 && party_max_hp(game.party.members[0]) == 20);
     CHECK(game.party.members[0].ap == 4 && party_max_ap(game.party.members[0]) == 4);
-    CHECK(game.party.members[0].movement_class == MOVEMENT_STANDARD);
+    CHECK(game.party.members[0].movement_class == MOVEMENT_STEP);
     CHECK(game.party.members[0].attack_class == ATTACK_STRIKE);
     Npc* rowan = npc_find(NPC_ROWAN);
     CHECK(rowan && rowan->actor.x > game.player.x && rowan->actor.y > game.player.y);
@@ -171,8 +171,8 @@ int main() {
     CHECK(!npc_find(NPC_ROWAN));
     CHECK(game.party.members[1].hp == 18 && party_max_hp(game.party.members[1]) == 18);
     CHECK(game.party.members[1].ap == 4 && party_max_ap(game.party.members[1]) == 4);
-    CHECK(game.party.members[1].movement_class == MOVEMENT_STANDARD);
-    CHECK(game.party.members[1].attack_class == ATTACK_SHOT);
+    CHECK(game.party.members[1].movement_class == MOVEMENT_STEP);
+    CHECK(game.party.members[1].attack_class == ATTACK_SHOOT);
     CHECK(save_valid());
     Game recruited = game;
     npc_talk(NPC_ROWAN);
@@ -197,21 +197,21 @@ int main() {
     CHECK(story_stub_joins() == 1);
 
     // Capacity, identity and statistic failures leave the entire party untouched.
-    CHECK(party_add({20, 4, MOVEMENT_LEAPER, ATTACK_STRIKE, NPC_VILLAGER}));
-    CHECK(party_add({0, 1, MOVEMENT_STANDARD, ATTACK_SHOT, NPC_WANDERER}));
+    CHECK(party_add({20, 4, MOVEMENT_LEAP, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(party_add({0, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_WANDERER}));
     CHECK(game.party.count == PARTY_CAPACITY && save_valid());
     CHECK(story_stub_joins() == 3 && story_stub_last_join() == NPC_WANDERER);
     Party full = game.party;
-    CHECK(!party_add({1, 1, MOVEMENT_STANDARD, ATTACK_SHOT, NPC_ROWAN}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN}));
     CHECK(!memcmp(&full, &game.party, sizeof(Party)));
     game = recruited;
     Party before = game.party;
-    CHECK(!party_add({1, 1, MOVEMENT_STANDARD, ATTACK_SHOT, NPC_ROWAN}));
-    CHECK(!party_add({21, 4, MOVEMENT_STANDARD, ATTACK_SHOT, NPC_VILLAGER}));
-    CHECK(!party_add({20, 5, MOVEMENT_STANDARD, ATTACK_SHOT, NPC_VILLAGER}));
-    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOT, NPC_VILLAGER}));
-    CHECK(!party_add({1, 1, MOVEMENT_STANDARD, ATTACK_CLASS_COUNT, NPC_VILLAGER}));
-    CHECK(!party_add({1, 1, MOVEMENT_STANDARD, ATTACK_SHOT, (NPC_ID)NPC_ID_LIMIT}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN}));
+    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER}));
+    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER}));
+    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOOT, NPC_VILLAGER}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_CLASS_COUNT, NPC_VILLAGER}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, (NPC_ID)NPC_ID_LIMIT}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(story_stub_joins() == 3);
     game_new();

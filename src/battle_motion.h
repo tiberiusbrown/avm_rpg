@@ -61,7 +61,7 @@ inline constexpr uint8_t BATTLE_LEAP_PIXELS = 4;
 inline constexpr uint8_t BATTLE_LEAP_FRAMES = 2 * BATTLE_CELL_PIXELS / BATTLE_LEAP_PIXELS;
 inline constexpr uint8_t BATTLE_LEAP_HEIGHT = 10;
 
-// The leaper's height above its straight path, from the pixels it still has to cover along the long
+// The leap unit's height above its straight path, from the pixels it still has to cover along the long
 // axis. The parabola is symmetric, so the distance left gives the same height as the distance
 // flown.
 constexpr uint8_t battle_leap_lift(uint8_t remaining) {

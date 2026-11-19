@@ -96,6 +96,15 @@ volatile BATTLE_QA_PHASE battle_qa_ready;
 static BattleScreen active_screen;
 static bool battle_running;
 
+// A battle panel: a black interior inside a one-pixel white outline, with a one-pixel black outline
+// just outside the white. The black keeps the panel apart from whatever is drawn beneath it.
+static inline __attribute__((always_inline)) void draw_panel(int16_t x, int16_t y, int16_t width,
+                                                             int16_t height) {
+    avm_draw_filled_rect_black(x - 1, y - 1, width + 2, height + 2);
+    avm_draw_filled_rect_white(x, y, width, height);
+    avm_draw_filled_rect_black(x + 1, y + 1, width - 2, height - 2);
+}
+
 // The sprite is drawn at the cell's origin minus the margin, so its interior lands on the cell.
 static void draw_cursor(Cursor const& cursor) {
     avm_set_sprite(CURSOR_SPRITES);
@@ -110,14 +119,13 @@ static void draw_actor_info(BattleState const& state, Cursor const& cursor) {
     if(index == BATTLE_NO_UNIT)
         return;
 
-    static constexpr char PROGMEM MOVE_NAMES[MOVEMENT_CLASS_COUNT][9] = {"Standard", "Leaper",
-                                                                         "Charger"};
-    static constexpr char PROGMEM ATTACK_NAMES[ATTACK_CLASS_COUNT][9] = {"Strike", "Shot", "Reach",
+    static constexpr char PROGMEM MOVE_NAMES[MOVEMENT_CLASS_COUNT][9] = {"Step", "Leap",
+                                                                         "Charge"};
+    static constexpr char PROGMEM ATTACK_NAMES[ATTACK_CLASS_COUNT][9] = {"Strike", "Shoot", "Reach",
                                                                          "Impact", "Rend"};
     BattleUnit const& unit = state.units[index];
     int16_t x = battle_column(cursor.cell) < BATTLE_COLUMNS / 2 ? 60 : 2;
-    avm_draw_filled_rect_white(x, 37, 66, 25);
-    avm_draw_filled_rect_black(x + 1, 38, 64, 23);
+    draw_panel(x, 37, 66, 25);
     avm_draw_text(x + 3, 44, F("M:"));
     avm_draw_text(x + 15, 44, MOVE_NAMES[battle_movement_class(unit.id)]);
     avm_draw_text(x + 3, 51, F("A:"));
@@ -185,7 +193,7 @@ static DIRECTION pressed_direction(uint8_t pressed) {
     return STILL;
 }
 
-// A leaper's height above its straight path, from the offset it still has to cover along the long
+// A leap unit's height above its straight path, from the offset it still has to cover along the long
 // axis.
 static uint8_t leap_lift(BattleScreen const& screen) {
     int8_t ax = screen.mover_dx < 0 ? (int8_t)-screen.mover_dx : screen.mover_dx;
@@ -226,7 +234,7 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
         // even one already defeated, stays drawn.
         if(flashing && screen.motion == MOTION_STILL && battle_flash_hidden(screen.ticks))
             continue;
-        // The mover is drawn at its cell plus the offset it still has to cover, and a leaper is
+        // The mover is drawn at its cell plus the offset it still has to cover, and a leap unit is
         // raised by its arc.
         int16_t x = (int16_t)(cell_x(unit.cell) + (moving ? screen.mover_dx : 0));
         int16_t y = (int16_t)(cell_y(unit.cell) + (moving ? screen.mover_dy : 0));
@@ -512,7 +520,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action, bool
         walk_unit(screen);
         lunger = BATTLE_NO_UNIT;
         impact = screen.flashing & ~(1 << actor) ? SFX_CLASH : SFX_PRICE;
-    } else if(attack == ATTACK_SHOT) {
+    } else if(attack == ATTACK_SHOOT) {
         fly_arrow(screen, action.destination, toward);
         lunger = BATTLE_NO_UNIT;
         impact = SFX_ARROW_HIT;
@@ -528,8 +536,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action, bool
 }
 
 static void draw_result(BATTLE_RESULT result) {
-    avm_draw_filled_rect_white(24, 18, 80, 28);
-    avm_draw_filled_rect_black(25, 19, 78, 26);
+    draw_panel(24, 18, 80, 28);
 
     char const PROGMEM* title = result == BATTLE_VICTORY ? F("VICTORY") : F("DEFEAT");
     avm_draw_text((int16_t)((DISPLAY_WIDTH - avm_text_width(title)) / 2), 30, title);
@@ -604,8 +611,7 @@ RPG_NOINLINE static void draw_offer(BattleScreen const& screen, uint8_t selected
     int16_t height = 18;
     int16_t x = (int16_t)((DISPLAY_WIDTH - width) / 2);
     int16_t y = battle_row(screen.offer_cell) < BATTLE_ROWS / 2 ? (int16_t)(64 - height - 2) : 2;
-    avm_draw_filled_rect_white(x, y, width, height);
-    avm_draw_filled_rect_black(x + 1, y + 1, width - 2, height - 2);
+    draw_panel(x, y, width, height);
     for(uint8_t row = 0; row < 2; ++row) {
         int16_t baseline = (int16_t)(y + 7 + row * 7);
         if(row == screen.offer_choice)

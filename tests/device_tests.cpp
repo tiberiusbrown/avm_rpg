@@ -1170,8 +1170,8 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     auto joined = d.state().party;
     require(joined.count == 2 && joined.members[1].id == NPC_ROWAN && joined.members[1].hp == 18 &&
                 joined.members[1].ap == 4 &&
-                joined.members[1].movement_class == MOVEMENT_STANDARD &&
-                joined.members[1].attack_class == ATTACK_SHOT,
+                joined.members[1].movement_class == MOVEMENT_STEP &&
+                joined.members[1].attack_class == ATTACK_SHOOT,
             "Rowan did not join with the expected statistics");
     auto recruited = d.state();
     for(auto const& actor : recruited.npcs.actors)
@@ -1201,11 +1201,11 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     Game combat = d.state();
     combat.party.members[0].hp = 20;
     combat.party.members[0].ap = 4;
-    combat.party.members[0].movement_class = MOVEMENT_LEAPER;
-    combat.party.members[0].attack_class = ATTACK_SHOT;
+    combat.party.members[0].movement_class = MOVEMENT_LEAP;
+    combat.party.members[0].attack_class = ATTACK_SHOOT;
     combat.party.members[1].hp = 17;
     combat.party.members[1].ap = 4;
-    combat.party.members[1].movement_class = MOVEMENT_CHARGER;
+    combat.party.members[1].movement_class = MOVEMENT_CHARGE;
     combat.party.members[1].attack_class = ATTACK_IMPACT;
     combat.player = {(uint16_t)(positions::PlayerStart.x * TILE),
                      (uint16_t)(positions::PlayerStart.y * TILE), NORTH, 0};

@@ -116,8 +116,8 @@ static_assert(
     }(),
     "independent class combinations fit the shared action stack");
 static_assert(
-    UNIT_LIMITS.classes[(uint8_t)MOVEMENT_LEAPER * ATTACK_CLASS_COUNT + ATTACK_SHOT].moves == 6,
-    "leaper movement is independent of attack class");
+    UNIT_LIMITS.classes[(uint8_t)MOVEMENT_LEAP * ATTACK_CLASS_COUNT + ATTACK_SHOOT].moves == 6,
+    "leap movement is independent of attack class");
 
 // The most actions one side can list: each living unit's limit, with its attacks capped by the
 // opponents it faces, plus the always-available pass.

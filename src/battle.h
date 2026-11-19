@@ -71,7 +71,7 @@ extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
 bool battle_blocked(uint8_t field, uint8_t cell);
 
 // How a unit reaches empty cells. An orthogonal unit moves straight north, east, south, or west for
-// one cell up to its move range, and every cell it passes and lands on must be empty. A leaper
+// one cell up to its move range, and every cell it passes and lands on must be empty. A leap unit
 // jumps two cells along one axis and one along the other, over anything between, onto an empty
 // cell.
 enum BATTLE_MOVEMENT_TYPE : uint8_t { BATTLE_MOVEMENT_ORTHOGONAL, BATTLE_MOVEMENT_LEAP };
@@ -115,7 +115,7 @@ struct SpecialInfo {
 
 inline constexpr SpecialInfo SPECIAL_INFO[ATTACK_CLASS_COUNT] = {
     {2, 3, 3, BATTLE_EFFECT_NONE},      // Strike: Power Strike
-    {2, 4, 1, BATTLE_EFFECT_NONE},      // Shot: Opening Shot
+    {2, 4, 1, BATTLE_EFFECT_NONE},      // Shoot: Opening Shot
     {2, 2, 2, BATTLE_EFFECT_KNOCKBACK}, // Reach: Driving Thrust
     {2, 3, 3, BATTLE_EFFECT_KNOCKBACK}, // Impact: Crushing Bash
     {2, 1, 3, BATTLE_EFFECT_NONE},      // Rend: Wound Hunter

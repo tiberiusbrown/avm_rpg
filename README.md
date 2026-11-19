@@ -16,11 +16,11 @@ world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Jou
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
 immediately after saving. Party opens an eased sliding panel with one page per member. Each page shows the
-name, current/maximum HP and AP, the movement and attack types (`Move: Standard`, `Attack: Shot`), and the
+name, current/maximum HP and AP, the movement and attack types (`Move: Step`, `Attack: Shoot`), and the
 attack type's starting special with its AP cost. Left and right turn pages and wrap at either end; A or B
 slides the panel out and returns directly to gameplay.
-A new game starts with the traveler (20/20 HP, 4/4 AP, standard movement and strike attack). Rowan waits southeast
-of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, standard movement, shot attack).
+A new game starts with the traveler (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
+of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, step movement, shoot attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
 Party membership, current HP and current AP are saved. The version 14 save layout rejects older saves. The world stays frozen while the menu is open; music continues.
 Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).

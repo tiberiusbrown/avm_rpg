@@ -33,18 +33,18 @@ The code uses these identifiers. Each name describes the rule rather than a spec
 
 | Axis | Identifier | Display name | Geometry / rule |
 |---|---|---|---|
-| Movement | `MOVEMENT_STANDARD` | **Standard** | Orthogonal move, up to 1 tile |
-| Movement | `MOVEMENT_LEAPER` | **Leaper** | Chess-knight leap to an empty tile |
-| Movement | `MOVEMENT_CHARGER` | **Charger** | Orthogonal move, up to 2 tiles |
+| Movement | `MOVEMENT_STEP` | **Step** | Orthogonal move, up to 1 tile |
+| Movement | `MOVEMENT_LEAP` | **Leap** | Chess-knight leap to an empty tile |
+| Movement | `MOVEMENT_CHARGE` | **Charge** | Orthogonal move, up to 2 tiles |
 | Attack | `ATTACK_STRIKE` | **Strike** | Range 1, damage 3 |
-| Attack | `ATTACK_SHOT` | **Shot** | Straight-line range 2–4, damage 3 |
+| Attack | `ATTACK_SHOOT` | **Shoot** | Straight-line range 2–4, damage 3 |
 | Attack | `ATTACK_REACH` | **Reach** | Straight-line range 1–2, damage 3 |
 | Attack | `ATTACK_IMPACT` | **Impact** | Range 1, damage 2, knockback |
 | Attack | `ATTACK_REND` | **Rend** | Range 1; **2 damage** against a target at half its maximum HP or more, **4 damage** against a target strictly below half |
 
-**Strike/Rend distinction:** Strike always deals **3 normal-attack damage**. Rend deals **2 normal-attack damage**, increasing to **4 only when the target has strictly less than half its maximum HP before the hit**. For example, a 10-HP enemy qualifies at 4 HP, but not at 5 HP. The rule is `2 * target.hp < target.max_hp`, using sufficiently wide arithmetic. The bonus applies to the attack, **not** to automatic movement engagement damage. This gives Strike reliable damage and Rend a finisher role; Rend’s special abilities and perk track deepen that identity. Likewise, **Charger** is a long-range *orthogonal movement pattern*, not an automatic attack or a move through occupied tiles. **Leaper** is a fixed knight-shaped jump, not arbitrary flying.
+**Strike/Rend distinction:** Strike always deals **3 normal-attack damage**. Rend deals **2 normal-attack damage**, increasing to **4 only when the target has strictly less than half its maximum HP before the hit**. For example, a 10-HP enemy qualifies at 4 HP, but not at 5 HP. The rule is `2 * target.hp < target.max_hp`, using sufficiently wide arithmetic. The bonus applies to the attack, **not** to automatic movement engagement damage. This gives Strike reliable damage and Rend a finisher role; Rend’s special abilities and perk track deepen that identity. Likewise, **Charge** is a long-range *orthogonal movement pattern*, not an automatic attack or a move through occupied tiles. **Leap** is a fixed knight-shaped jump, not arbitrary flying.
 
-For readable UI, label them explicitly as `Move: Standard` and `Attack: Shot`, rather than referring ambiguously to a character's single "class". Keep these axes **fixed for a character after recruitment** in the initial version; class-changing and perk respec can be considered later. Base classes are not automatically restricted to particular weapons or relics.
+For readable UI, label them explicitly as `Move: Step` and `Attack: Shoot`, rather than referring ambiguously to a character's single "class". Keep these axes **fixed for a character after recruitment** in the initial version; class-changing and perk respec can be considered later. Base classes are not automatically restricted to particular weapons or relics.
 
 ---
 
@@ -158,7 +158,7 @@ Store an **acquired-equipment bitset** plus **twelve equipped IDs** (4 character
 
 At each choice the player sees only two options: **the next unowned perk in the movement track** and **the next unowned perk in the attack track**. Selection permanently advances that track by one rank; previously skipped ranks remain obtainable later. Five selections can produce a 5/0 specialist, a 3/2 hybrid, and everything between. A higher-tier perk never requires choosing an arbitrary earlier perk from a branching tree: it merely requires sufficient investment in that axis.
 
-**Example:** A `Leaper + Shot` character could choose Leaper at levels 2 and 4, Shot at level 6, then Shot again at level 8. They would have Leaper ranks 1–2 and Shot ranks 1–2. At level 10 the options would be Leaper rank 3 or Shot rank 3. A different `Leaper + Shot` character could invest only in Shot to reach its capstone early.
+**Example:** A `Leap + Shoot` character could choose Leap at levels 2 and 4, Shoot at level 6, then Shoot again at level 8. They would have Leap ranks 1–2 and Shoot ranks 1–2. At level 10 the options would be Leap rank 3 or Shoot rank 3. A different `Leap + Shoot` character could invest only in Shoot to reach its capstone early.
 
 ### Curated starter tracks
 
@@ -166,7 +166,7 @@ The following eight five-rank tracks are a **recommended starting layout**, not 
 
 #### Movement tracks
 
-| Rank | **Standard** (1-tile orthogonal) | **Leaper** (knight-shaped leap) | **Charger** (up to 2 orthogonal tiles) |
+| Rank | **Step** (1-tile orthogonal) | **Leap** (knight-shaped leap) | **Charge** (up to 2 orthogonal tiles) |
 |---:|---|---|---|
 | 1 | **Steady Step:** first move each battle costs 0 HP | **Soft Landing:** first leap each battle costs 0 HP | **Easy Stride:** first move each battle costs 0 HP |
 | 2 | **Battle Stance:** first incoming enemy hit each battle deals −1 damage | **Landing Strike:** automatic movement damage +1 to one adjacent target | **Momentum:** a move of 2 tiles adds +1 automatic damage to one adjacent target |
@@ -174,11 +174,11 @@ The following eight five-rank tracks are a **recommended starting layout**, not 
 | 4 | **Endurance:** +3 maximum HP | **Second Wind:** restore 2 HP after victory | **Afterglow:** recover +1 additional AP after victory |
 | 5 | **Veteran March:** restore 2 HP after victory | **Skyfall:** add +2 automatic damage to one target after a leap | **Overrun:** when moving 2 tiles, +1 automatic damage to *each* adjacent enemy |
 
-**Movement-track design:** standard movement emphasizes resilience, leaping emphasizes reliable engagements and defense, and charging emphasizes making long moves worth their HP. Movement perks may improve survival or post-battle recovery; they do not need to change move geometry. A universal +1 range modifier would violate the current compact maximum-action assumptions for some classes, so leave range-changing perks in the experimental bank until the move generator and AI bounds are explicitly updated.
+**Movement-track design:** Step movement emphasizes resilience, Leap movement emphasizes reliable engagements and defense, and Charge movement emphasizes making long moves worth their HP. Movement perks may improve survival or post-battle recovery; they do not need to change move geometry. A universal +1 range modifier would violate the current compact maximum-action assumptions for some classes, so leave range-changing perks in the experimental bank until the move generator and AI bounds are explicitly updated.
 
 #### Attack tracks
 
-| Rank | **Strike** | **Shot** | **Reach** | **Impact** | **Rend** |
+| Rank | **Strike** | **Shoot** | **Reach** | **Impact** | **Rend** |
 |---:|---|---|---|---|---|
 | 1 | **Heavy Hand:** +1 normal damage | **First Mark:** +1 normal damage vs full-HP targets | **Extended Pressure:** +1 normal damage at range 2 | **Solid Hit:** +1 normal damage | **Wound Sense:** +1 normal damage vs injured targets |
 | 2 | **Executioner:** +2 normal damage vs targets at half HP or less | **Reservoir:** +1 maximum AP | **Supporting Thrust:** +1 normal damage vs targets next to an ally | **Wall Breaker:** +2 normal damage if knockback is obstructed | **Fierce Technique:** first special each battle costs −1 AP (minimum 1) |
@@ -341,7 +341,7 @@ Nothing in this category restores AP **during** combat. This category includes A
 
 ### How to shortlist and assign perks to class tracks
 
-The five-rank tables in section 4 are the current recommended picks. Treat every perk in this idea bank as a **possible replacement for a particular rank in one named class track**, not an extra selectable branch. For example, `Light Step` belongs naturally to Standard or Leaper movement, `Thornstep` to Charger or Leaper movement, `Executioner` to Strike attacks, and `Afterglow` can be a rank-4 reward for an attack or movement track where its AP economy makes sense.
+The five-rank tables in section 4 are the current recommended picks. Treat every perk in this idea bank as a **possible replacement for a particular rank in one named class track**, not an extra selectable branch. For example, `Light Step` belongs naturally to Step or Leap movement, `Thornstep` to Charge or Leap movement, `Executioner` to Strike attacks, and `Afterglow` can be a rank-4 reward for an attack or movement track where its AP economy makes sense.
 
 Avoid making an entire movement track weaker than an attack track: selecting movement is a meaningful commitment, not a penalty for skipping raw damage. Movement's durability, engagement damage, and recovery can compete with attack's direct damage, extra specials, and AP cost reduction. If a new perk replaces a previously shipped rank, plan save migration or keep perk IDs/definitions stable.
 
@@ -599,7 +599,7 @@ These five specials are recommended for **the existing five attack classes** and
 | Attack class | Initial special | AP | First-stage effect | Why it fits |
 |---|---|---:|---|---|
 | **Strike** | **Power Strike** | 2 | Normal damage **+3** (base 3 → 6) | Simple, reliable burst for close attacks |
-| **Shot** | **Opening Shot** | 2 | Normal **+4** versus a full-HP target, otherwise **+1** | Makes the opening target matter at range 2–4 |
+| **Shoot** | **Opening Shot** | 2 | Normal **+4** versus a full-HP target, otherwise **+1** | Makes the opening target matter at range 2–4 |
 | **Reach** | **Driving Thrust** | 2 | Normal **+2**, then attempt a one-tile **knockback** | Adds an immediate positional effect using an existing battle rule |
 | **Impact** | **Crushing Bash** | 2 | Normal **+3** and retain its existing **knockback** | Converts lower-damage pushing attacks into a significant burst |
 | **Rend** | **Wound Hunter** | 2 | Normal **+3** versus an already-injured target, otherwise **+1**; uses Rend’s conditional **2/4** normal damage | Rewards target selection and finishing attacks |
@@ -608,7 +608,7 @@ These five specials are recommended for **the existing five attack classes** and
 
 All five have a useful outcome even if their condition is not met. **Driving Thrust** uses the existing knockback semantics: if the push destination is occupied, blocked, or off-board, still deal the special's damage, with no push. **Crushing Bash** keeps the normal Impact knockback; it does not push twice. **Rend** differs from Strike even on normal attacks (2 damage, or 4 against targets strictly below half HP). **Wound Hunter** retains its separate *injured at all* condition, giving 3 damage against a full-HP enemy, 5 against an injured enemy at or above half HP, and 7 below half HP before perks/equipment. Playtest its high-end burst rather than silently changing the approved special at this stage.
 
-**Smallest implementation slice:** Implement the shared AP expenditure, attack-variant legality, damage/effect resolution, and popup with **Power Strike** first; then populate the remaining four definitions and host tests. You can expose Strike and Shot in the starting playable party while validating Reach, Impact, and Rend through test encounters. These are **five shared class definitions**, not twenty character-specific spells.
+**Smallest implementation slice:** Implement the shared AP expenditure, attack-variant legality, damage/effect resolution, and popup with **Power Strike** first; then populate the remaining four definitions and host tests. You can expose Strike and Shoot in the starting playable party while validating Reach, Impact, and Rend through test encounters. These are **five shared class definitions**, not twenty character-specific spells.
 
 ### B. Target-first UI and rule compatibility
 
@@ -639,7 +639,7 @@ Advancing an **attack track to rank 3** unlocks exactly one additional class-def
 | Attack class | Second special (rank 3) | AP | Effect | Fit |
 |---|---|---:|---|---|
 | **Strike** | **Execution** | 2 | Normal +4 vs target at/below half HP; otherwise Normal +1 | [core] |
-| **Shot** | **Deadeye** | 3 | Normal +5 if the target has no adjacent enemy allies; otherwise Normal +2 | [core] |
+| **Shoot** | **Deadeye** | 3 | Normal +5 if the target has no adjacent enemy allies; otherwise Normal +2 | [core] |
 | **Reach** | **Impale** | 3 | Normal +3 at range 2; otherwise Normal +1 | [core] |
 | **Impact** | **Shatter Blow** | 3 | Normal +4 and retain normal knockback | [core] |
 | **Rend** | **Blood Rush** | 3 | Normal +4 when the attacker is at/below half HP; otherwise Normal +1 | [core] |
@@ -686,12 +686,12 @@ These deliberately require no new target category. The player should understand 
 
 ### F. Attack-class idea bank: precision and opportunity (12)
 
-**Best first fit:** Shot, with some conditional attacks suitable for Rend. The class's own range and blocking rules still apply.
+**Best first fit:** Shoot, with some conditional attacks suitable for Rend. The class's own range and blocking rules still apply.
 
 | Ability | AP | Effect | Fit |
 |---|---:|---|---|
 | **Quickshot** | 1 | Normal +1. Low-cost efficiency. | [core] |
-| **Pinpoint** | 2 | Normal +4 if selected target is at full HP; otherwise Normal +1. | [core; alternative first-stage Shot option] |
+| **Pinpoint** | 2 | Normal +4 if selected target is at full HP; otherwise Normal +1. | [core; alternative first-stage Shoot option] |
 | **Pack Strike** | 2 | Normal +3 if selected enemy is adjacent to another ally; otherwise Normal +1. | [core] |
 | **Deadeye** | 3 | Normal +5 if target has no adjacent enemy allies; otherwise Normal +2. | [core] |
 | **Wound Hunter** | 2 | Normal +3 to injured target; otherwise Normal +1. | [core; first-stage Rend] |
@@ -760,7 +760,7 @@ These are candidates for future attack-class ranks, equipment-granted techniques
 
 ### J. Ability implementation and balance guidelines
 
-- **Attack class determines specials**; two characters with `Shot` attacks share the Shot starting ability and unlock, regardless of whether they are Standard, Leaper, or Charger movers. Their movement perks and gear may substantially change how well they exploit that attack style.
+- **Attack class determines specials**; two characters with `Shoot` attacks share the Opening Shot starting special and unlock, regardless of whether they are Step, Leap, or Charge movers. Their movement perks and gear may substantially change how well they exploit that attack style.
 - **Starting ability at level 1; second at attack rank 3.** No attack rank investment is required to enjoy the AP mechanic initially. Perks mostly modify passive performance; rank 3 is an intentional visible unlock.
 - **One party turn per action.** Damage and immediate position changes matter more than weak buffs, guards, or purely defensive actions.
 - **AP stays persistent.** Specials cost AP in battle; each active member restores base +1 after victory, plus perk/item bonuses. Ether and safe-area recovery are out-of-battle.
@@ -885,7 +885,7 @@ Per-battle "first hit" or "first special" equipment effects need transient per-b
 1. **AP recovery is decided:** AP persists; each active member recovers **1 AP after victory**, with additive upgrades that may eventually approach a full reset. Decide when +1 and +2 equipment/perk upgrades appear, not whether the baseline resets.
 2. **Equipment slots are decided:** One **weapon, armor, and relic** for each member. The open question is how many distinct items ship and whether some have class restrictions; all equipped unique items have singular ownership.
 3. **Movement-focused armor is intentional:** Boots, cloaks, and heavy plate can modify movement distance, HP cost, or the automatic movement attack. Decide a consistent floor/cap so stacked reductions do not erase movement's strategic HP cost.
-4. **Independent classes and two ordered perk tracks are decided:** Standard/Leaper/Charger movements and Strike/Shot/Reach/Impact/Rend attacks. Each perk milestone advances one track by one rank; rank 3 of an attack track unlocks its second special. **XP accounting open question:** Individual or shared XP? Individual XP supports member-level identities; shared XP saves space and keeps levels aligned.
+4. **Independent classes and two ordered perk tracks are decided:** Step/Leap/Charge movements and Strike/Shoot/Reach/Impact/Rend attacks. Each perk milestone advances one track by one rank; rank 3 of an attack track unlocks its second special. **XP accounting open question:** Individual or shared XP? Individual XP supports member-level identities; shared XP saves space and keeps levels aligned.
 5. **Special-ability UI:** Prefer target-first selection, then `Normal` versus up to two specials. Non-target specials and secondary target picking require separate UI justification.
 6. **What happens to a defeated party?** Choose save-point retry, last-town return, or another policy before adding persistent HP loss.
 7. **Can track investments be changed?** A modest-cost town respec could refund movement/attack ranks later, but adds UI and state rules; no class swaps initially.
@@ -902,7 +902,7 @@ Per-battle "first hit" or "first special" equipment effects need transient per-b
 - **Movement armor:** Heavy gear can reduce enemy damage but lower movement range or raise movement HP cost; light gear can grant occasional range or one-time HP-cost relief. Movement attacks always happen **before** the movement HP payment.
 - **Leveling:** Ten levels, small automatic stat growth, and one decision at every even level: advance the **next movement-class perk or next attack-class perk**. Five ranks per track, five choices total; earned ranks persist. Attack rank 3 unlocks the second class special.
 - **AP economy:** Persist AP between fights; restore **1 after each victory** per active member by default. Reserve +1/+2 extra AP recovery for meaningful perks and (mostly) relics. No AP recovery during combat.
-- **Special abilities:** One starting special per **attack class**: Strike/Power Strike, Shot/Opening Shot, Reach/Driving Thrust, Impact/Crushing Bash, Rend/Wound Hunter. Rend’s normal attack uses **2 damage, or 4 when the enemy is strictly below half HP** (Strike stays at 3), and its special modifies that conditional normal damage. All specials use an already-legal normal-attack enemy target; second special arrives at **attack rank 3**. No special-only targeting initially. Avoid pure guarding and non-immediate effects that consume the party turn.
+- **Special abilities:** One starting special per **attack class**: Strike/Power Strike, Shoot/Opening Shot, Reach/Driving Thrust, Impact/Crushing Bash, Rend/Wound Hunter. Rend’s normal attack uses **2 damage, or 4 when the enemy is strictly below half HP** (Strike stays at 3), and its special modifies that conditional normal damage. All specials use an already-legal normal-attack enemy target; second special arrives at **attack rank 3**. No special-only targeting initially. Avoid pure guarding and non-immediate effects that consume the party turn.
 - **XP:** Full award to active members even if incapacitated; significant quests, discovery, bosses, and one-time encounters drive progression more than repeatable grinding.
 - **Gold:** Funds supplies, recovery, and straightforward shop equipment, but unique dungeon treasures should remain special.
 - **Exploration:** Hand-place weapons, armor, and relics as different dungeon headlines, occasionally reward a special upgrade or extra technique (without replacing the normal attack-class progression), and tie one-off discovery XP to flags.

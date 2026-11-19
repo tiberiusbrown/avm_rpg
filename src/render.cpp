@@ -762,9 +762,9 @@ void render_party(uint8_t revealed, bool closing, uint8_t member_index) {
     avm_draw_textf(left, 25, F("HP %u/%u"), member.hp, party_max_hp(member));
     avm_draw_textf(x + PARTY_WIDTH / 2, 25, F("AP %u/%u"), member.ap, party_max_ap(member));
 
-    static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Standard"), F("Leaper"),
-                                                           F("Charger")};
-    static char const PROGMEM* const PROGMEM ATTACK[] = {F("Strike"), F("Shot"), F("Reach"),
+    static char const PROGMEM* const PROGMEM MOVEMENT[] = {F("Step"), F("Leap"),
+                                                           F("Charge")};
+    static char const PROGMEM* const PROGMEM ATTACK[] = {F("Strike"), F("Shoot"), F("Reach"),
                                                          F("Impact"), F("Rend")};
     static_assert(sizeof(MOVEMENT) / sizeof(MOVEMENT[0]) == MOVEMENT_CLASS_COUNT);
     static_assert(sizeof(ATTACK) / sizeof(ATTACK[0]) == ATTACK_CLASS_COUNT);

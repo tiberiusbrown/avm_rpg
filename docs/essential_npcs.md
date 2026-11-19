@@ -42,10 +42,10 @@ followed by a battle and an outcome line.
 
 `NPC_ROWAN` stands at the generated `RowanHome` marker southeast of the player spawn,
 using archer row 3. Talking recruits him into the saved four-member party with 18/18 HP and
-4/4 AP, standard movement and shot attack. Further talks acknowledge his membership without
+4/4 AP, step movement and shoot attack. Further talks acknowledge his membership without
 adding another member or resetting his HP. Recruitment retires his map actor immediately; party membership prevents him from
 being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
-4/4 AP, and standard movement/strike attack. Both start at full HP and AP through `party_new_member`.
+4/4 AP, and step movement/strike attack. Both start at full HP and AP through `party_new_member`.
 Party current HP and AP and both class identifiers are bytes. Maximum HP is derived by `party_max_hp`
 from the member's identity, whose base is 20 HP except Rowan's 18, and maximum AP by `party_max_ap`, which
 is 4 for every member for now. Items and perks will add to both. Its count, unique NPC identities and

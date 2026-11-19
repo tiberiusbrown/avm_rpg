@@ -300,16 +300,16 @@ static void party_statistics() {
     CHECK(traveler.hp == 20 && party_max_hp(traveler) == 20);
     CHECK(traveler.ap == 4 && party_max_ap(traveler) == 4);
 
-    PartyMember rowan = party_new_member(NPC_ROWAN, MOVEMENT_STANDARD, ATTACK_SHOT);
+    PartyMember rowan = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
     CHECK(rowan.hp == 18 && party_max_hp(rowan) == 18);
     CHECK(rowan.ap == 4 && party_max_ap(rowan) == 4);
-    CHECK(rowan.movement_class == MOVEMENT_STANDARD && rowan.attack_class == ATTACK_SHOT);
-    CHECK(party_max_hp({0, 0, MOVEMENT_LEAPER, ATTACK_REND, NPC_VILLAGER}) == 20);
+    CHECK(rowan.movement_class == MOVEMENT_STEP && rowan.attack_class == ATTACK_SHOOT);
+    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_VILLAGER}) == 20);
 
     // HP or AP above the member's maximum is rejected, and the party does not change.
     Party before = game.party;
-    CHECK(!party_add({21, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_VILLAGER}));
-    CHECK(!party_add({20, 5, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER}));
+    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(save_valid());
 }

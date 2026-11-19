@@ -94,7 +94,7 @@ void npc_dialogue() {
     switch(id) {
         case NPC_ROWAN:
             dialogue_show(id, F("I'm Rowan. You could use a bow on the road. I'll join you!"));
-            party_add(party_new_member(NPC_ROWAN, MOVEMENT_STANDARD, ATTACK_SHOT));
+            party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT));
             break;
         case NPC_VILLAGER:
             villager_dialogue();

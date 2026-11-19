@@ -59,7 +59,7 @@ void game_start() {
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
     quest_reset();
-    party_add(party_new_member(NPC_NONE, MOVEMENT_STANDARD, ATTACK_STRIKE));
+    party_add(party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE));
     game.level = 1;
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);

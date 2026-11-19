@@ -2289,8 +2289,8 @@ static void target_frames() {
 static void saved_party_battles() {
     game = {};
     game.party.count = 2;
-    game.party.members[0] = {20, 4, MOVEMENT_LEAPER, ATTACK_SHOT, NPC_NONE};
-    game.party.members[1] = {17, 4, MOVEMENT_CHARGER, ATTACK_IMPACT, NPC_ROWAN};
+    game.party.members[0] = {20, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_NONE};
+    game.party.members[1] = {17, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ROWAN};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &BATTLE_GROVE);
@@ -2367,7 +2367,7 @@ static void rend_damage() {
     // A party victim's maximum comes from the saved member: the traveler's is 20.
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_NONE};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE};
     BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
     for(uint8_t hp = 1; hp <= 20; ++hp) {
         traveler.hp = hp;
@@ -2380,9 +2380,9 @@ static void rend_damage() {
 static void victory_ap_recovery() {
     game = {};
     game.party.count = 3;
-    game.party.members[0] = {20, 0, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_NONE};
-    game.party.members[1] = {0, 3, MOVEMENT_LEAPER, ATTACK_SHOT, NPC_VILLAGER};
-    game.party.members[2] = {17, 4, MOVEMENT_CHARGER, ATTACK_REND, NPC_ROWAN};
+    game.party.members[0] = {20, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE};
+    game.party.members[1] = {0, 3, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_VILLAGER};
+    game.party.members[2] = {17, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ROWAN};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &BATTLE_GROVE);
@@ -2409,7 +2409,7 @@ static void victory_ap_recovery() {
 static void special_attacks() {
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STANDARD, ATTACK_STRIKE, NPC_NONE};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE};
     ENEMY_ID member = (ENEMY_ID)battle_party_id(0);
     BattleState s = board(
         BATTLE_PARTY, {{3, 1, member, BATTLE_PARTY, 20}, {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
@@ -2443,7 +2443,7 @@ static void special_attacks() {
 
     static constexpr Expected EXPECTED[ATTACK_CLASS_COUNT] = {
         {6, 6, 6}, // Strike: Power Strike
-        {7, 4, 4}, // Shot: Opening Shot
+        {7, 4, 4}, // Shoot: Opening Shot
         {5, 5, 5}, // Reach: Driving Thrust
         {5, 5, 5}, // Impact: Crushing Bash
         {3, 5, 7}, // Rend: Wound Hunter
