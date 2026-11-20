@@ -658,9 +658,18 @@ static constexpr uint8_t MENU_ICONS[] PROGMEM = {
     0x1e, 0x15, 0x17, 0x15, 0x1e, // Pack
 };
 
+enum MENU_BUTTON : uint8_t { MENU_BUTTON_A, MENU_BUTTON_B };
+
+static constexpr uint8_t MENU_BUTTON_SPRITES[] PROGMEM = {
+    7, 7,
+    0x3e, 0x7f, 0x43, 0x75, 0x43, 0x7f, 0x3e, // A
+    0x3e, 0x7f, 0x41, 0x55, 0x6b, 0x7f, 0x3e, // B
+};
+
+static constexpr int16_t MENU_BUTTON_LABEL_OFFSET = 10;
 static constexpr int16_t MENU_LEFT_EDGE = 4;
 static constexpr int16_t MENU_RIGHT_EDGE = 124;
-static constexpr int16_t MENU_FOOTER = 59;
+static constexpr int16_t MENU_FOOTER = 60;
 
 static void draw_menu_rule(int16_t x, int16_t y) {
     avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y, MENU_RIGHT_EDGE - MENU_LEFT_EDGE, 1);
@@ -673,32 +682,32 @@ static void draw_menu_frame(int16_t x) {
 }
 
 static int16_t draw_menu_title(int16_t x, char const PROGMEM* title, uint16_t width) {
-    avm_set_text_font(AVM_FONT_5X7);
+    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
     int16_t end = text_draw_clipped(x, 10, title, width);
     avm_set_text_font(AVM_FONT_BR5D);
     return end;
 }
 
-static void draw_menu_button(int16_t x, int16_t y, char const PROGMEM* button,
+static void draw_menu_button(int16_t x, int16_t y, MENU_BUTTON button,
                              char const PROGMEM* action) {
-    avm_draw_filled_rect_white(x, y - 5, 8, 7);
-    avm_set_text_mode(AVM_TEXT_BLACK_TRANSPARENT);
-    avm_draw_text(x + 2, y, button);
-    avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
-    avm_draw_text(x + 11, y, action);
+    avm_draw_sprite_overwrite(x, y - 6, MENU_BUTTON_SPRITES, button);
+    avm_draw_text(x + MENU_BUTTON_LABEL_OFFSET, y, action);
 }
 
 static void draw_menu_footer(int16_t x, char const PROGMEM* action,
                              char const PROGMEM* back = F("Back")) {
     draw_menu_rule(x, 52);
     if(action)
-        draw_menu_button(x + MENU_LEFT_EDGE, MENU_FOOTER, F("A"), action);
-    draw_menu_button(x + MENU_RIGHT_EDGE - 11 - avm_text_width(back), MENU_FOOTER, F("B"), back);
+        draw_menu_button(x + MENU_LEFT_EDGE, MENU_FOOTER, MENU_BUTTON_A, action);
+    draw_menu_button(x + MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - avm_text_width(back),
+                     MENU_FOOTER, MENU_BUTTON_B, back);
 }
 
 static void begin_menu_row(int16_t x, int16_t y, bool selected, int16_t width) {
     if(selected) {
-        avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y - 5, width, 7);
+        // BR5D starts five pixels above the baseline. Leave one row above it
+        // and include the baseline row for descenders.
+        avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y - 6, width, 7);
         avm_set_text_mode(AVM_TEXT_BLACK_TRANSPARENT);
     }
 }
@@ -770,7 +779,8 @@ static void render_journal_detail(int16_t x, JournalView const& view) {
     avm_draw_text(x + 4, 18, tracked ? F("Tracked") : journal_status_label(id));
     if(quest_status(id) == QUEST_ACTIVE) {
         char const PROGMEM* action = tracked ? F("Untrack") : F("Track");
-        draw_menu_button(x + MENU_RIGHT_EDGE - 11 - avm_text_width(action), 18, F("A"), action);
+        draw_menu_button(x + MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - avm_text_width(action),
+                         18, MENU_BUTTON_A, action);
     }
 
     char const PROGMEM* summary = quest_summary(id);
@@ -827,7 +837,7 @@ static char const PROGMEM* party_member_name(PartyMember const& member) {
 }
 
 static constexpr int16_t PARTY_ROW_SUBTITLE = 18;
-static constexpr int16_t PARTY_ROW_BODY = 28;
+static constexpr int16_t PARTY_ROW_BODY = 29;
 static constexpr int16_t PARTY_ROW_STEP = 7;
 static constexpr int16_t PARTY_MARGIN = MENU_LEFT_EDGE;
 static constexpr int16_t PARTY_EDGE = MENU_RIGHT_EDGE;
