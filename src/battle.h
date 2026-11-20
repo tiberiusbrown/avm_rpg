@@ -306,7 +306,7 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter);
 // Writes final ally HP back to the saved roster, without changing its classes or membership. After
 // a victory, every member of the saved party, including one that fell, recovers AP up to its
 // maximum.
-void battle_finish(BattleState const& state);
+LevelUpNotice battle_finish(BattleState const& state);
 uint8_t battle_max_hp(BattleUnit const& unit);
 
 // The living unit on a cell, or BATTLE_NO_UNIT. Defeated units occupy no cell.
@@ -384,11 +384,13 @@ enum BATTLE_ACTION_KIND : uint8_t {
 BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction action);
 
 // The engagement a move to `destination` would make: how many living enemies of the unit stand
-// orthogonally adjacent to it, which each take BATTLE_ENGAGEMENT_DAMAGE, and how many of them that
-// defeats. The destination is assumed empty, as for any legal move.
+// orthogonally adjacent to it, how many are defeated, and how much HP is lost in total. The
+// destination is assumed empty, as for any legal move.
 struct BattleEngagement {
-    uint8_t hits, kills;
+    uint8_t hits, kills, damage;
 };
+
+uint8_t battle_engagement_damage(BattleUnit const& actor, uint8_t destination);
 
 BattleEngagement battle_engagement(BattleState const& state, uint8_t unit_index,
                                    uint8_t destination);
@@ -403,7 +405,7 @@ constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
 // Resolves a legal action, all of it, before deciding whether the battle has ended.
 //
 // A move (an empty destination) has three effects in order: the unit stands on its destination;
-// every living enemy orthogonally adjacent to the destination loses BATTLE_ENGAGEMENT_DAMAGE, once
+// every living enemy orthogonally adjacent to the destination takes engagement damage, once
 // each; then the mover pays BATTLE_MOVE_COST. A unit with 1 HP may move, deal its engagement
 // damage, and fall. When the engagement defeats the last opponent, the battle ends there, the
 // acting side wins, and the price is never paid, so a 1 HP unit that finishes the battle this way

@@ -12,10 +12,11 @@ enum PARTY_PAGE : uint8_t {
     PARTY_PAGE_OVERVIEW,        // the member's header and the three categories
     PARTY_PAGE_SPECIALS,        // the member's starting specials
     PARTY_PAGE_SPECIAL_DETAILS, // one special's cost, range, and effect
-    PARTY_PAGE_PERKS,        // the perk index: two tracks, equipment perks, and the choice preview
+    PARTY_PAGE_PERKS,        // the perk index: two tracks, equipment perks, and learning
     PARTY_PAGE_PERK_LIST,    // a movement or attack track, or the equipment perks
-    PARTY_PAGE_PERK_CHOICE,  // the next rank of each track, as a preview
+    PARTY_PAGE_PERK_CHOICE,  // the next rank of each track, for learning
     PARTY_PAGE_PERK_DETAILS, // one perk or rank, reached from PERK_LIST or PERK_CHOICE
+    PARTY_PAGE_PERK_CONFIRM,
     PARTY_PAGE_EQUIPMENT,    // the weapon, armor and relic slots
     PARTY_PAGE_ITEM_LIST,    // the preview items of one slot
     PARTY_PAGE_ITEM_DETAILS, // one preview item
@@ -29,6 +30,7 @@ enum PARTY_EVENT : uint8_t {
     PARTY_EVENT_SELECT, // a page opened
     PARTY_EVENT_CANCEL, // a page closed to the page above it
     PARTY_EVENT_EDGE,   // nothing moved, because the list or description has no further entry
+    PARTY_EVENT_LEARN,  // the controller commits the confirmed choice
     PARTY_EVENT_CLOSE,  // the Party panel closes
 };
 
@@ -40,7 +42,7 @@ enum PARTY_CATEGORY : uint8_t {
     CATEGORY_COUNT
 };
 
-// The rows of the perk index. The first three open lists, and the last opens the choice preview.
+// The rows of the perk index. The first three open lists, and the last opens the choice screen.
 enum PARTY_PERK_ROW : uint8_t {
     PERK_ROW_MOVEMENT,
     PERK_ROW_ATTACK,
@@ -60,13 +62,14 @@ inline constexpr uint8_t PARTY_TEXT_WIDTH = 110;
 inline constexpr uint8_t PARTY_TEXT_ROWS = 4;
 inline constexpr uint8_t PARTY_TEXT_LINES = 8;
 
-// A perk code names one rank of a track, as track * PREVIEW_RANK_COUNT + rank, or one equipment
-// effect, as PERK_EQUIPMENT + index. An item code names one preview item, as slot *
+// A perk code names one rank of a track, as track * PERK_TRACK_RANKS + rank, or one equipment
+// effect, as PERK_EQUIPMENT + index. The rank component is zero-based. An item code names one preview item, as slot *
 // PREVIEW_ITEMS_PER_SLOT + index.
-inline constexpr uint8_t PERK_EQUIPMENT = PREVIEW_TRACK_COUNT * PREVIEW_RANK_COUNT;
+inline constexpr uint8_t PARTY_PERK_TRACK_COUNT = MOVEMENT_CLASS_COUNT + (uint8_t)ATTACK_CLASS_COUNT;
+inline constexpr uint8_t PERK_EQUIPMENT = PARTY_PERK_TRACK_COUNT * PERK_TRACK_RANKS;
 
 constexpr uint8_t party_perk_code(uint8_t track, uint8_t rank) {
-    return (uint8_t)(track * PREVIEW_RANK_COUNT + rank);
+    return (uint8_t)(track * PERK_TRACK_RANKS + rank);
 }
 
 constexpr uint8_t party_item_code(uint8_t slot, uint8_t index) {
@@ -87,6 +90,7 @@ struct PartyUi {
     uint8_t entry;   // the perk, item, or special that a detail page shows
     uint8_t scroll;  // the first visible description line of a detail page
     uint8_t line_count;
+    bool perk_learned; // feedback on returning to the choice page
     // The highlighted entry of each page. A page keeps its highlight while a page above it is
     // open, so B returns to the same entry.
     uint8_t selection[PARTY_PAGE_COUNT];
@@ -108,7 +112,16 @@ constexpr bool party_ui_describes(PARTY_PAGE page) {
 uint8_t party_ui_entries(PartyUi const& ui, Party const& party);
 // The starting specials a member has. Each member has one, from its attack class.
 uint8_t party_special_count(PartyMember const& member);
-// The perk code of row `index` of a perk list or the choice preview.
+// The track selected for inspection or confirmation.
+PERK_TRACK_KIND party_ui_choice_track(PartyUi const& ui);
+void party_ui_perk_learned(PartyUi& ui);
+
+enum PARTY_PERK_STATUS : uint8_t {
+    PERK_STATUS_FUTURE, PERK_STATUS_LOCKED, PERK_STATUS_LEARNABLE, PERK_STATUS_EARNED
+};
+PARTY_PERK_STATUS party_perk_status(PartyMember const& member, PERK_TRACK_KIND track, uint8_t rank);
+
+// The perk code of row `index` of a perk list or learning.
 uint8_t party_ui_row_perk(PartyUi const& ui, Party const& party, uint8_t index);
 // The description of a detail page, or null for any other page.
 char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party);

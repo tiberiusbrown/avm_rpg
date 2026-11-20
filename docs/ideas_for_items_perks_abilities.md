@@ -141,9 +141,9 @@ Store an **acquired-equipment bitset** plus **twelve equipped IDs** (4 character
 
 ### Level schedule
 
-**Recommended first campaign cap:** Level 10, with modest automatic stat growth and one perk-track advancement at every even-numbered level. The numbers below are balance placeholders.
+The campaign caps at level 10. Each victory grants 2 XP per member, and every even-numbered level earns one perk choice. Choices can be saved for later.
 
-| Level | XP to next level (example) | Reward |
+| Level | XP to next level | Reward |
 |---:|---:|---|
 | 1 | 10 | Movement + attack class rules; first attack-class special already available |
 | 2 | 15 | **Advance movement track OR attack track** (rank 1) |
@@ -158,23 +158,21 @@ Store an **acquired-equipment bitset** plus **twelve equipped IDs** (4 character
 
 Experience is **not cumulative**. Each member's experience counts only toward the next level and resets at every level-up, so each requirement is 10 plus 5 per level already gained and fits in one byte. The requirements are `5 × (level + 1)`.
 
-At each choice the player sees only two options: **the next unowned perk in the movement track** and **the next unowned perk in the attack track**. Selection permanently advances that track by one rank; previously skipped ranks remain obtainable later. Five selections can produce a 5/0 specialist, a 3/2 hybrid, and everything between. A higher-tier perk never requires choosing an arbitrary earlier perk from a branching tree: it merely requires sufficient investment in that axis.
+Each choice permanently advances one track by one rank. Rank 1 is available on both tracks. With both first ranks learned, any remaining choices stay pending until more ranks are implemented. The five-rank plan allows builds from a 5/0 specialist to a 3/2 hybrid.
 
-**Example:** A `Leap + Shoot` character could choose Leap at levels 2 and 4, Shoot at level 6, then Shoot again at level 8. They would have Leap ranks 1–2 and Shoot ranks 1–2. At level 10 the options would be Leap rank 3 or Shoot rank 3. A different `Leap + Shoot` character could invest only in Shoot to reach its capstone early.
+### Starter tracks
 
-### Curated starter tracks
-
-The following eight five-rank tracks are a **recommended starting layout**, not a promise to implement forty separate effect handlers. Reuse the common modifier system for ordinary bonuses; reserve extra per-battle flags for truly conditional effects. Names and values are tunable. Ranks are awarded **in sequence within each track**.
+Rank 1 is implemented in each table. Ranks 2–5 show proposals for future versions. Direct damage perks apply to normal and special attacks and stack with level and special bonuses.
 
 #### Movement tracks
 
 | Rank | **Step** (1-tile orthogonal) | **Leap** (knight-shaped leap) | **Charge** (up to 2 orthogonal tiles) |
 |---:|---|---|---|
-| 1 | **Steady Step:** first move each battle costs 0 HP | **Soft Landing:** first leap each battle costs 0 HP | **Easy Stride:** first move each battle costs 0 HP |
-| 2 | **Battle Stance:** first incoming enemy hit each battle deals −1 damage | **Landing Strike:** automatic movement damage +1 to one adjacent target | **Momentum:** a move of 2 tiles adds +1 automatic damage to one adjacent target |
+| 1 | **Steadfast:** +3 maximum HP, with no healing on learning | **Renewal:** +1 AP recovery after victory, capped at maximum AP | **Momentum:** +1 engagement damage to each adjacent enemy after a two-cell move |
+| 2 | **Battle Stance:** first incoming enemy hit each battle deals −1 damage | **Landing Strike:** automatic movement damage +1 to one adjacent target | Reserved |
 | 3 | **Engagement:** automatic movement damage +1 to one adjacent target | **Evasion:** first incoming enemy hit each battle deals −2 damage | **Pursuit:** automatic movement damage +1 against one already-injured adjacent enemy |
-| 4 | **Endurance:** +3 maximum HP | **Second Wind:** restore 2 HP after victory | **Afterglow:** recover +1 additional AP after victory |
-| 5 | **Veteran March:** restore 2 HP after victory | **Skyfall:** add +2 automatic damage to one target after a leap | **Overrun:** when moving 2 tiles, +1 automatic damage to *each* adjacent enemy |
+| 4 | Reserved | **Second Wind:** restore 2 HP after victory | **Afterglow:** recover +1 additional AP after victory |
+| 5 | **Veteran March:** restore 2 HP after victory | **Skyfall:** add +2 automatic damage to one target after a leap | Reserved |
 
 **Movement-track design:** Step movement emphasizes resilience, Leap movement emphasizes reliable engagements and defense, and Charge movement emphasizes making long moves worth their HP. Movement perks may improve survival or post-battle recovery; they do not need to change move geometry. A universal +1 range modifier would violate the current compact maximum-action assumptions for some classes, so leave range-changing perks in the experimental bank until the move generator and AI bounds are explicitly updated.
 
@@ -182,13 +180,13 @@ The following eight five-rank tracks are a **recommended starting layout**, not 
 
 | Rank | **Strike** | **Shoot** | **Reach** | **Impact** | **Rend** |
 |---:|---|---|---|---|---|
-| 1 | **Heavy Hand:** +1 normal damage | **First Mark:** +1 normal damage vs full-HP targets | **Extended Pressure:** +1 normal damage at range 2 | **Solid Hit:** +1 normal damage | **Wound Sense:** +1 normal damage vs injured targets |
+| 1 | **Keen Edge:** +1 damage against full-HP targets | **Longshot:** +1 damage at range 4 | **Lunge:** +1 damage at range 2 | **Heavy Blow:** +1 damage | **Blood Sense:** +1 damage against targets below maximum HP |
 | 2 | **Executioner:** +2 normal damage vs targets at half HP or less | **Reservoir:** +1 maximum AP | **Supporting Thrust:** +1 normal damage vs targets next to an ally | **Wall Breaker:** +2 normal damage if knockback is obstructed | **Fierce Technique:** first special each battle costs −1 AP (minimum 1) |
 | 3 | **Unlock Execution** as a second special | **Unlock Deadeye** as a second special | **Unlock Impale** as a second special | **Unlock Shatter Blow** as a second special | **Unlock Blood Rush** as a second special |
 | 4 | **Afterglow:** +1 AP recovered after victory | **Efficient Aim:** first special each battle costs −1 AP (minimum 1) | **Reservoir:** +1 maximum AP | **Iron Will:** first incoming enemy hit each battle deals −1 damage | **Afterglow:** +1 AP recovered after victory |
 | 5 | **Mastery:** +1 to special damage | **Deadeye:** +2 special damage vs isolated targets | **Perfect Reach:** +2 normal damage at range 2 | **Siegebreaker:** +2 special damage when a push succeeds | **Relentless:** +2 special damage while below half HP |
 
-**Attack-track design:** each class has a meaningful starter special at level 1. Attack rank **3 unlocks a second special**; a movement-focused character retains the starter and simply delays that second option. The named second specials are specified in section 7, and all use a primary enemy target. Only one attack-class special may be used per action, and AP is spent once.
+**Attack-track design:** each class has a meaningful starter special at level 1. The proposed rank 3 unlocks a second special; a movement-focused character retains the starter and simply delays that second option. The named second specials are specified in section 7, and all use a primary enemy target. Only one attack-class special may be used per action, and AP is spent once.
 
 **Balance caution:** A rank-5 specialization is reached only if the player spends all five perk choices on that axis. It is therefore okay for rank 5 to be relatively exciting, but a 3/2 hybrid should remain viable. Some suggested late perks need transient first-use flags or conditional hit checks; initially implement one or two ranks per class, and add remaining ranks as progression content supports them.
 
@@ -196,9 +194,9 @@ The following eight five-rank tracks are a **recommended starting layout**, not 
 
 **Experience:** Track level and experience **per member**. Each member stores `level` (1–10) and `experience` as a `uint8_t` toward the next level. Experience resets at each level-up, so no cumulative total is kept. Experience is awarded after each combat victory: the full award goes to every party member, including incapacitated ones, and level-ups are processed immediately, carrying any surplus into the next level. Do not split awards four ways. New recruits can join near the current party level to avoid permanently weak recruits.
 
-**Perk screen:** At any earned choice, show `Move: <class>` with the next movement perk name/effect versus `Attack: <class>` with the next attack perk name/effect. If the player defers, keep the choice pending in the Party screen. No large perk-tree viewer is needed; optionally show `Move 2 / Attack 1` in character details. Fixed rank definitions and descriptions belong in flash.
+**Perk screen.** The member overview shows XP and pending choices. In Party → Perks → Learn Perk, use A to inspect, A to open confirmation, and A to learn or B to cancel. The choice page shows the updated count and confirms successful learning. Rank lists identify earned, ready, locked and future ranks. Equipment-granted perks have a separate preview page.
 
-**Persist only progress, not an entire history:** Track `movement_rank` and `attack_rank` per member, each 0–5. Together they take **six bits per character**, or **three packed bytes for a four-member party**. The number of unspent choices can be derived from earned even-level milestones minus `(movement_rank + attack_rank)`, so no per-level choice mask is required. If choices must always be made immediately, only one rank per character is needed because the sum is then known from level (about two packed bytes total). The safer deferred-choice model uses both ranks and validates that their sum never exceeds milestones earned.
+**Save version 16.** Each member stores movement rank in bits 0–2 and attack rank in bits 3–5 of a single byte. Bits 6–7 are reserved and must be zero. The save validator checks that each rank is implemented and that their sum fits the number of milestones earned. Pending choices equal `level / 2 - movement_rank - attack_rank` using integer division. Definition text stays in flash. Older versions are rejected.
 
 **Derived values:** Compute maximum HP/AP, attack bonuses, post-battle AP recovery, and other modifiers from base class, level, chosen ranks, and equipped gear instead of storing duplicate effective stats. Keep actual current HP and AP saved; clamp them when maximum values fall. Do not grant free HP/AP merely by toggling equipment.
 
@@ -861,16 +859,16 @@ For **four party members, 24 distinct unlocked unique items split across weapons
 | Equipped armor | Four 8-bit item IDs | 4 |
 | Equipped relics | Four 8-bit item IDs | 4 |
 | Character level and XP | Four level + experience byte pairs | 8 |
-| Perk track ranks | Two 3-bit ranks per character; deferred choices derived | 3 |
-| **Subtotal** | **Excludes existing HP/AP, party fields, flags, and transient UI state** | **28** |
+| Perk track ranks | One byte per character holding two 3-bit ranks | 4 |
+| **Subtotal** | **Excludes existing HP/AP, party fields, flags, and transient UI state** | **29** |
 
 Compare with the previous single-slot model: **twelve equipped item IDs rather than four** is an **8-byte** increase, before accounting for a larger unlocked-item bitset. At 12 acquired-item definitions, the bitset uses 2 bytes; at 48 it uses 6. A useful general formula for equipment state is **`12 + ceil(unique_item_count / 8)` bytes**, with one global unique ID per item and each equipped slot storing that ID. The item category and allowed slot can be inferred from the immutable definition in flash; item definitions need no persistent instance objects.
 
-A 24-item initial collection (8 weapons, 8 armor, 8 relics) fits the 28-byte illustrated subtotal. The **much larger idea bank is not a shipping commitment**. If, hypothetically, all 148 equipment candidates were shipped, the equipment bitset would need 19 bytes but the equipped-slot total would still be 12 bytes while IDs remain under 256. The current data-layout and actual persistent RAM budget should be checked in the repository before committing to these formats.
+A 24-item initial collection (8 weapons, 8 armor, 8 relics) fits the 29-byte illustrated subtotal. The **much larger idea bank is not a shipping commitment**. If, hypothetically, all 148 equipment candidates were shipped, the equipment bitset would need 19 bytes but the equipped-slot total would still be 12 bytes while IDs remain under 256. The current data-layout and actual persistent RAM budget should be checked in the repository before committing to these formats.
 
-The packed budget is an **estimate, not a claim about existing structs**. Byte-aligned consumables, perk state, or extra "choice made" flags may cost more and may be worth the simplicity. If HP, attack, defense, movement range, and AP maxima are computed from **both independent classes + level + track ranks + equipped item IDs**, **do not persist all of those derived stats separately**. Each member's current HP and AP are stored, and neither maximum is saved. The **base +1 after-victory AP recovery needs no extra saved counter**; compute the sum of base + perk + item bonuses when victory resolves, and clamp to maximum AP.
+The consumable and equipment rows are estimates. Level, XP and perk ranks use the sizes shown in the table. If HP, attack, defense, movement range, and AP maxima are computed from **both independent classes + level + track ranks + equipped item IDs**, **do not persist all of those derived stats separately**. Each member's current HP and AP are stored, and neither maximum is saved. The **base +1 after-victory AP recovery needs no extra saved counter**; compute the sum of base + perk + item bonuses when victory resolves, and clamp to maximum AP.
 
-Per-battle "first hit" or "first special" equipment effects need transient per-battle flags, not persistent save bytes. An unmade perk choice requires **no separate choice-made mask** when both movement/attack ranks are saved: compare `(movement_rank + attack_rank)` against the number of even-level perk milestones already earned. Validate both ranks individually as 0–5 and reject a sum exceeding the earned milestones.
+Per-battle "first hit" or "first special" equipment effects need transient per-battle flags, not persistent save bytes. An unmade perk choice requires **no separate choice-made mask** when both movement/attack ranks are saved: compare `(movement_rank + attack_rank)` against the number of even-level perk milestones already earned. Validate each rank against the implemented maximum and reject a sum exceeding the earned milestones.
 
 ### Implementation tiers
 
@@ -909,16 +907,16 @@ Per-battle "first hit" or "first special" equipment effects need transient per-b
 - **Gold:** Funds supplies, recovery, and straightforward shop equipment, but unique dungeon treasures should remain special.
 - **Exploration:** Hand-place weapons, armor, and relics as different dungeon headlines, occasionally reward a special upgrade or extra technique (without replacing the normal attack-class progression), and tie one-off discovery XP to flags.
 
-### Implementation status (2026-11-19)
+### Implementation status
 
 Built:
 
 - The movement and attack classes use the names in section 1. Rend deals 2 damage, or 4 against a target strictly below half HP, in the battle rules and AI. The Wolf enemy also uses Rend, so the shipping Grove battle has changed.
-- Party members store current HP and AP. Maximum HP and AP are derived for each member: 20 HP for the traveler and 18 for Rowan for now, and 4 AP for everyone. Items and perks will change them.
-- A victory restores 1 AP to every saved member, including one that fell, up to its maximum. A defeat restores none.
-- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks and Equipment are navigable previews with sample text that changes nothing.
+- Party members store current HP and AP. Maximum HP uses the traveler's base of 20 or Rowan's base of 18, plus level bonuses and Steadfast when earned. Maximum AP is 4.
+- A victory restores 1 AP to every saved member, or 2 with Renewal, up to maximum AP. Recovery also applies to incapacitated members.
+- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning at rank 1. Equipment and equipment-granted perks are previews.
 - The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and deals the damage and effect in section 7A. A unit short of AP attacks normally at once.
 
-Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk ranks, perk effects, levels, and XP (the Perks pages are previews); equipment ownership, equipping, and effects (the Equipment pages are previews); consumables and the Supplies menu; and maximum HP based on class instead of identity.
+Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk ranks 2–5; equipment ownership, equipping, and effects (the Equipment pages are previews); consumables and the Supplies menu; and maximum HP based on class instead of identity.
 
 **North star:** After a successful expedition, players should have new tactical choices: *“Should I advance my movement style or my attack style? Which weapon improves my offense, which armor changes my defense or movement, and which relic bends the rules enough to make a new build?”*

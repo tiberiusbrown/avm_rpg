@@ -410,13 +410,13 @@ static bool wins(BattleState const& state, uint8_t packed) {
     uint8_t destination = (uint8_t)(packed & (BATTLE_CELLS - 1));
     bool attack = battle_unit_at(state, destination) != BATTLE_NO_UNIT;
     uint8_t opponents = 0, defeated = attack ? 1 : 0;
+    uint8_t damage = attack ? 0 : battle_engagement_damage(state.units[packed >> 5], destination);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(!unit.hp || unit.team == state.turn)
             continue;
         ++opponents;
-        if(!attack && unit.hp <= BATTLE_ENGAGEMENT_DAMAGE &&
-           battle_cells_adjacent(unit.cell, destination))
+        if(unit.hp <= damage && battle_cells_adjacent(unit.cell, destination))
             ++defeated;
     }
     return defeated == opponents;
@@ -472,11 +472,10 @@ static uint8_t partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE
 // Kept out of line, so its working values never sit on the search's deepest frames.
 RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
                                           uint8_t attacks, bool approach) {
-    // Two masks of cells beside living opponents: rows[0..3] for any opponent, rows[4..7] for one
-    // that a single engagement hit defeats. A move's engagement is then one bit test. The same
-    // bytes hold the approach targets afterwards.
-    uint8_t rows[2 * BATTLE_ROWS] = {};
-    bool fragile = false; // An opponent that one engagement hit defeats.
+    // Masks of cells beside any opponent, an opponent with 1 HP, or one with 2 HP.
+    // The same bytes hold the approach targets afterwards.
+    uint8_t rows[3 * BATTLE_ROWS] = {};
+    bool fragile = false, momentum_target = false;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(!unit.hp || unit.team == state.turn)
@@ -485,6 +484,9 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE) {
             mark_neighbors(rows + BATTLE_ROWS, unit.cell);
             fragile = true;
+        } else if(state.turn == BATTLE_PARTY && unit.hp == BATTLE_ENGAGEMENT_DAMAGE + MOMENTUM_BONUS) {
+            mark_neighbors(rows + 2 * BATTLE_ROWS, unit.cell);
+            momentum_target = true;
         }
     }
 
@@ -494,10 +496,14 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
     uint8_t attack_kills =
         partition(actions, 0, attacks, [&](uint8_t packed) { return kills(state, packed); });
     uint8_t move_kills = 0;
-    if(fragile) {
-        move_kills = (uint8_t)(partition(actions, attacks, count,
-                                         [&](uint8_t packed) { return in_rows(killing, packed); }) -
-                               attacks);
+    if(fragile || momentum_target) {
+        move_kills = (uint8_t)(partition(actions, attacks, count, [&](uint8_t packed) {
+            return in_rows(killing, packed) ||
+                   (momentum_target && in_rows(rows + 2 * BATTLE_ROWS, packed) &&
+                    battle_engagement_damage(state.units[packed >> 5],
+                                             packed & (BATTLE_CELLS - 1)) >
+                        BATTLE_ENGAGEMENT_DAMAGE);
+        }) - attacks);
         // Rotate the move kills ahead of the other attacks, so every kill leads.
         reverse(actions, attack_kills, attacks);
         reverse(actions, attacks, (uint8_t)(attacks + move_kills));
@@ -817,7 +823,7 @@ int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
         return GREEDY_LOSS; // The side's last unit would fall without winning.
     int16_t value =
         (int16_t)(GREEDY_KILL * engagement.kills +
-                  GREEDY_HP * (engagement.hits - BATTLE_MOVE_COST) - (falls ? GREEDY_KILL : 0));
+                  GREEDY_HP * (engagement.damage - BATTLE_MOVE_COST) - (falls ? GREEDY_KILL : 0));
     return (int16_t)(value - nearest_gap(state, actor.team,
                                          OUTSIDE.cells[battle_attack_class(actor.id)],
                                          action.destination));

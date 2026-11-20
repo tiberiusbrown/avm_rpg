@@ -83,6 +83,14 @@ __attribute__((noinline)) void party_screen() {
             case PARTY_EVENT_CANCEL:
                 sfx_play(SFX_CANCEL);
                 break;
+            case PARTY_EVENT_LEARN:
+                if(!party_learn_perk(game.party.members[ui.member], party_ui_choice_track(ui))) {
+                    sfx_play(SFX_CURSOR_EDGE);
+                    continue;
+                }
+                party_ui_perk_learned(ui);
+                sfx_play(SFX_SELECT);
+                break;
             case PARTY_EVENT_CLOSE:
                 sfx_play(SFX_CANCEL);
                 closing = true;
@@ -371,11 +379,21 @@ __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
     }
 }
 
+RPG_NOINLINE static void show_quest_level_ups(LevelUpNotice notice) {
+    rpg_render_world();
+    render_level_up_notice(F("LEVEL UP"), notice);
+    avm_display(false);
+    input_wait_press(BTN_A);
+    input_sync();
+}
+
 __attribute__((noinline)) void explore() {
     input_sync();
 
     for(;;) {
         dialogue_close();
+        if(LevelUpNotice notice = quest_take_level_ups(); notice.members)
+            show_quest_level_ups(notice);
         input_wait_frame();
         uint8_t pressed = input_pressed();
 

@@ -473,10 +473,12 @@ void render_title(uint16_t ticks) {
     avm_draw_sprite_plus_mask(TITLE_LOGO_X, TITLE_LOGO_Y, TITLE_LOGO, 0);
 }
 
-static char const PROGMEM* menu_label(PAUSE_ITEM item) {
+RPG_NOINLINE static char const PROGMEM* menu_label(PAUSE_ITEM item) {
     static char const PROGMEM* const PROGMEM LABELS[] = {F("Resume"),  F("Save"), F("Party"),
                                                          F("Journal"), F("Map"),  F("Resign"),
                                                          F("Audio"),   F("Pass"), F("Load")};
+    if(item == PAUSE_PARTY && party_has_unspent_perks(game.party))
+        return F("Party !");
     return LABELS[item];
 }
 
@@ -736,6 +738,11 @@ static void draw_label_value(int16_t x, int16_t baseline, char const PROGMEM* la
     avm_draw_text((int16_t)(end + avm_text_width(F(" "))), baseline, value);
 }
 
+static char const PROGMEM* party_member_name(PartyMember const& member) {
+    auto name = npc_name(member.id);
+    return name ? name : F("Traveler");
+}
+
 // Party rows are the font's seven-pixel lines. A title sits on the first row and a subtitle on the
 // second, with a white divider beneath them. Entries start below the divider, and the footer's
 // hints sit on the last row. Text starts PARTY_MARGIN pixels in from the panel's left edge, and
@@ -771,13 +778,32 @@ text_draw_clipped(int16_t x, int16_t y, char const PROGMEM* text, uint16_t width
     return text_draw_range(x, y, text, 0, fit);
 }
 
+void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice) {
+    avm_draw_filled_rect_black(3, 2, 122, 60);
+    avm_draw_filled_rect_white(4, 3, 120, 58);
+    avm_draw_filled_rect_black(5, 4, 118, 56);
+    avm_draw_text(8, 13, title);
+    uint8_t y = 21;
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        if(!(notice.members & (1 << i)))
+            continue;
+        PartyMember const& member = game.party.members[i];
+        text_draw_clipped(8, y, party_member_name(member), 78);
+        avm_draw_textf(90, y, F("Lv %u"), member.level);
+        y += 7;
+    }
+    if(notice.perk_earned)
+        avm_draw_text(8, 57, F("Perk available!"));
+    avm_draw_text(79, 57, F("A continue"));
+}
+
 // The member's name between arrows when the party has more than one member, with the page number
 // at the right, as in "< Rowan >   2/2". A long name is clipped before the page number.
 static void render_party_header(int16_t x, PartyUi const& ui) {
     PartyMember const& member = game.party.members[ui.member];
     uint8_t count = game.party.count;
-    auto name = npc_name(member.id);
-    auto title = name ? name : F("Traveler");
+    auto title = party_member_name(member);
+    bool pending_perk = party_unspent_perks(member);
     int16_t name_x = x + PARTY_MARGIN;
     if(count > 1) {
         avm_draw_text(name_x, PARTY_ROW_TITLE, F("<"));
@@ -789,7 +815,11 @@ static void render_party_header(int16_t x, PartyUi const& ui) {
     int16_t room = (int16_t)(number_x - avm_text_width(F(" ")) - name_x);
     if(count > 1)
         room = (int16_t)(room - avm_text_width(F(" >")));
+    if(pending_perk)
+        room -= avm_text_width(F(" !"));
     int16_t end = text_draw_clipped(name_x, PARTY_ROW_TITLE, title, (uint16_t)room);
+    if(pending_perk)
+        end = avm_draw_text(end, PARTY_ROW_TITLE, F(" !")).x;
     if(count > 1)
         avm_draw_text((int16_t)(end + avm_text_width(F(" "))), PARTY_ROW_TITLE, F(">"));
 }
@@ -825,6 +855,13 @@ static void render_party_overview(int16_t x, PartyUi const& ui) {
                    member.hp, party_max_hp(member), member.ap, party_max_ap(member));
     avm_draw_textf(left, 25, F("Move/Attack: %S/%S"), party_movement_name(member.movement_class),
                    party_attack_name(member.attack_class));
+    if(member.level == PARTY_MAX_LEVEL)
+        avm_draw_text(left, 33, F("Max level"));
+    else
+        avm_draw_textf(left, 33, F("XP: %u/%u"), member.experience,
+                       party_experience_needed(member.level));
+    if(uint8_t available = party_unspent_perks(member))
+        avm_draw_textf(x + 68, 33, F("Perks: %u"), available);
 
     static char const PROGMEM* const PROGMEM CATEGORIES[CATEGORY_COUNT] = {
         F("Special Attacks"),
@@ -835,8 +872,10 @@ static void render_party_overview(int16_t x, PartyUi const& ui) {
         int16_t y = (int16_t)(41 + 8 * category);
         if(category == ui.selection[PARTY_PAGE_OVERVIEW])
             avm_draw_text(left, y, F(">"));
-        avm_draw_text((int16_t)(left + 6), y, CATEGORIES[category]);
-        // Special attacks show how many there are. The other categories lead to pages of previews.
+        avm_draw_text((int16_t)(left + 6), y,
+                      category == CATEGORY_PERKS && party_unspent_perks(member)
+                          ? F("Perks !") : CATEGORIES[category]);
+        // Special attacks show how many there are.
         if(category == CATEGORY_SPECIALS)
             avm_draw_textf((int16_t)(x + PARTY_EDGE - 12), y, F("%u >"),
                            party_special_count(member));
@@ -892,24 +931,36 @@ static void render_party_perk_index(int16_t x, PartyUi const& ui) {
     int16_t left = x + PARTY_MARGIN;
     render_party_header(x, ui);
     avm_draw_text(left, PARTY_ROW_SUBTITLE, F("PERKS"));
-    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
     render_party_divider(x);
 
     uint8_t selected = ui.selection[PARTY_PAGE_PERKS];
+    int16_t right = x + PARTY_EDGE - 20;
+    uint8_t available = party_unspent_perks(member);
     for(uint8_t row = 0; row < PERK_ROW_COUNT; ++row) {
         int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * row);
         int16_t label_x = (int16_t)(left + 6);
         if(row == selected)
             avm_draw_text(left, y, F(">"));
-        if(row == PERK_ROW_MOVEMENT)
-            draw_label_value(label_x, y, F("Movement:"),
-                             party_movement_name(member.movement_class));
-        else if(row == PERK_ROW_ATTACK)
+        if(row == PERK_ROW_MOVEMENT) {
+            draw_label_value(label_x, y, F("Movement:"), party_movement_name(member.movement_class));
+            avm_draw_textf(right, y, F("%u/5"), party_movement_perk_rank(member));
+        } else if(row == PERK_ROW_ATTACK) {
             draw_label_value(label_x, y, F("Attack:"), party_attack_name(member.attack_class));
-        else if(row == PERK_ROW_EQUIPMENT)
+            avm_draw_textf(right, y, F("%u/5"), party_attack_perk_rank(member));
+        } else if(row == PERK_ROW_EQUIPMENT) {
             avm_draw_text(label_x, y, F("From Equipment"));
-        else
-            avm_draw_text(label_x, y, F("Perk Choices"));
+            avm_draw_text(x + PARTY_EDGE - 36, y, F("PREVIEW"));
+        } else {
+            if(available) {
+                avm_draw_filled_rect_white(label_x - 1, y - 5, 56, 7);
+                avm_set_text_mode(AVM_TEXT_BLACK_TRANSPARENT);
+                avm_draw_text(label_x, y, F("Learn Perk!"));
+                avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+            } else {
+                avm_draw_text(label_x, y, F("Perk Choices"));
+            }
+            avm_draw_textf(right, y, F("%u"), available);
+        }
     }
     avm_draw_text(left, PARTY_ROW_FOOTER, F("A open   B back"));
 }
@@ -930,13 +981,13 @@ static void render_party_perk_list(int16_t x, PartyUi const& ui) {
     if(equipment) {
         avm_draw_text(left, PARTY_ROW_TITLE, F("Equipment Perks"));
         avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Sample effects"));
+        avm_draw_text(x + PARTY_EDGE - 42, PARTY_ROW_SUBTITLE, F("PREVIEW"));
     } else {
         avm_draw_text(left, PARTY_ROW_TITLE,
                       kind == PERK_ROW_MOVEMENT ? F("Movement Perks") : F("Attack Perks"));
         uint8_t track = party_perk_track(party_ui_row_perk(ui, game.party, 0));
         avm_draw_text(left, PARTY_ROW_SUBTITLE, party_track_name(track));
     }
-    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
     render_party_divider(x);
 
     for(uint8_t k = 0; k < visible && first + k < count; ++k) {
@@ -952,6 +1003,14 @@ static void render_party_perk_list(int16_t x, PartyUi const& ui) {
         } else {
             avm_draw_textf((int16_t)(left + 6), y, F("%u."), index + 1);
             avm_draw_text((int16_t)(left + 18), y, party_perk_name(code));
+            PartyMember const& member = game.party.members[ui.member];
+            PERK_TRACK_KIND track = kind == PERK_ROW_MOVEMENT ? PERK_MOVEMENT : PERK_ATTACK;
+            PARTY_PERK_STATUS status = party_perk_status(member, track, index + 1);
+            if(status != PERK_STATUS_FUTURE) {
+                char const PROGMEM* label = status == PERK_STATUS_EARNED ? F("Earned") :
+                                            status == PERK_STATUS_LEARNABLE ? F("Ready") : F("Locked");
+                avm_draw_text(x + PARTY_EDGE - 8 - avm_text_width(label), y, label);
+            }
         }
     }
     if(first)
@@ -964,9 +1023,12 @@ static void render_party_perk_list(int16_t x, PartyUi const& ui) {
 
 static void render_party_perk_choice(int16_t x, PartyUi const& ui) {
     int16_t left = x + PARTY_MARGIN;
-    avm_draw_text(left, PARTY_ROW_TITLE, F("Perk Choices"));
-    avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Next ranks"));
-    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    PartyMember const& member = game.party.members[ui.member];
+    uint8_t available = party_unspent_perks(member);
+    avm_draw_text(left, PARTY_ROW_TITLE, F("CHOOSE PERK"));
+    avm_draw_textf(left, PARTY_ROW_SUBTITLE, F("Available: %u"), available);
+    if(ui.perk_learned)
+        avm_draw_text(x + PARTY_EDGE - 44, PARTY_ROW_SUBTITLE, F("Learned!"));
     render_party_divider(x);
 
     uint8_t selected = ui.selection[PARTY_PAGE_PERK_CHOICE];
@@ -975,10 +1037,18 @@ static void render_party_perk_choice(int16_t x, PartyUi const& ui) {
         int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * index);
         if(index == selected)
             avm_draw_text(left, y, F(">"));
-        draw_label_value((int16_t)(left + 6), y, index == 0 ? F("Move:") : F("Attack:"),
-                         party_perk_name(party_ui_row_perk(ui, game.party, index)));
+        PERK_TRACK_KIND track = index == 0 ? PERK_MOVEMENT : PERK_ATTACK;
+        char const PROGMEM* name = party_perk_rank(member, track) >= PERK_IMPLEMENTED_RANKS
+                                        ? F("Next unavailable")
+                                        : party_perk_name(party_ui_row_perk(ui, game.party, index));
+        draw_label_value((int16_t)(left + 6), y, index == 0 ? F("Move:") : F("Attack:"), name);
     }
-    avm_draw_text(left, (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * 3), F("Not available yet."));
+    int16_t note_y = PARTY_ROW_BODY + PARTY_ROW_STEP * 3;
+    if(party_movement_perk_rank(member) >= PERK_IMPLEMENTED_RANKS &&
+       party_attack_perk_rank(member) >= PERK_IMPLEMENTED_RANKS)
+        avm_draw_text(left, note_y, F("More ranks in future"));
+    else if(!available)
+        avm_draw_text(left, note_y, F("No choices available"));
     avm_draw_text(left, PARTY_ROW_FOOTER, F("A inspect   B back"));
 }
 
@@ -995,10 +1065,20 @@ static void render_party_perk_details(int16_t x, PartyUi const& ui) {
     render_party_divider(x);
     render_party_text(x, ui);
 
-    // Nothing is earned or owned yet, so the note says so.
-    avm_draw_text(left, PARTY_ROW_FOOTER, F("B back"));
-    char const PROGMEM* note = track == PARTY_NO_TRACK ? F("Preview only") : F("Not earned");
-    avm_draw_text((int16_t)(x + PARTY_EDGE - avm_text_width(note)), PARTY_ROW_FOOTER, note);
+    avm_draw_text(left, PARTY_ROW_FOOTER,
+                  ui.back == PARTY_PAGE_PERK_CHOICE ? F("A continue   B back") : F("B back"));
+    if(track == PARTY_NO_TRACK)
+        avm_draw_text(x + PARTY_EDGE - 68, PARTY_ROW_FOOTER, F("Preview only"));
+}
+
+static void render_party_perk_confirm(int16_t x, PartyUi const& ui) {
+    int16_t left = x + PARTY_MARGIN;
+    avm_draw_text(left, PARTY_ROW_TITLE, F("LEARN PERK?"));
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, party_perk_name(ui.entry));
+    render_party_divider(x);
+    avm_draw_text(left, PARTY_ROW_BODY, F("Spend 1 choice."));
+    avm_draw_text(left, PARTY_ROW_BODY + PARTY_ROW_STEP, F("This is permanent."));
+    avm_draw_text(left, PARTY_ROW_FOOTER, F("A learn   B cancel"));
 }
 
 static void render_party_equipment(int16_t x, PartyUi const& ui) {
@@ -1078,6 +1158,9 @@ static void render_party_panel(int16_t x, PartyUi const& ui) {
             break;
         case PARTY_PAGE_PERK_DETAILS:
             render_party_perk_details(x, ui);
+            break;
+        case PARTY_PAGE_PERK_CONFIRM:
+            render_party_perk_confirm(x, ui);
             break;
         case PARTY_PAGE_EQUIPMENT:
             render_party_equipment(x, ui);

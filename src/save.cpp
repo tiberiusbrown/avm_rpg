@@ -13,9 +13,10 @@ bool save_valid() {
         return false;
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember const& member = game.party.members[i];
-        if(member.hp > party_max_hp(member) || member.ap > party_max_ap(member) ||
-           !party_progress_valid(member) || member.id >= NPC_ID_LIMIT || member.movement_class >= MOVEMENT_CLASS_COUNT ||
-           member.attack_class >= ATTACK_CLASS_COUNT)
+        if(!party_progress_valid(member) || member.id >= NPC_ID_LIMIT ||
+           member.movement_class >= MOVEMENT_CLASS_COUNT ||
+           member.attack_class >= ATTACK_CLASS_COUNT ||
+           member.hp > party_max_hp(member) || member.ap > party_max_ap(member))
             return false;
         for(uint8_t j = 0; j < i; ++j)
             if(game.party.members[j].id == member.id)

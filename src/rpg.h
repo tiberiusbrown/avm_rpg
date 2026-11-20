@@ -39,7 +39,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 15;
+inline constexpr uint8_t SAVE_VERSION = 16;
 
 enum {
     BTN_B = 4,
@@ -119,6 +119,7 @@ struct PartyMember {
     NPC_ID id; // NPC_NONE identifies the traveler; other identities prevent duplicate recruits.
     uint8_t level;      // 1 through PARTY_MAX_LEVEL
     uint8_t experience; // toward the next level only; it resets to zero at each level-up
+    uint8_t perk_ranks; // movement in bits 0–2, attack in bits 3–5
 };
 
 struct Party {
@@ -126,7 +127,7 @@ struct Party {
     uint8_t count;
 };
 
-static_assert(sizeof(PartyMember) == 7, "byte-sized party statistics, identity and progress");
+static_assert(sizeof(PartyMember) == 8, "byte-sized party statistics, identity and progress");
 
 inline constexpr uint8_t PARTY_MAX_LEVEL = 10;
 
@@ -136,9 +137,46 @@ constexpr uint8_t party_experience_needed(uint8_t level) {
     return (uint8_t)(5 * (level + 1));
 }
 
-// A level within the cap, and experience below what that level needs. At the cap nothing is kept.
+#define MOVEMENT_PERK(cls, id, amount, range, name, text) \
+    inline constexpr uint8_t id##_CLASS = cls, id##_BONUS = amount, id##_RANGE = range;
+#define ATTACK_PERK MOVEMENT_PERK
+#include "perks.def"
+#undef ATTACK_PERK
+#undef MOVEMENT_PERK
+
+enum PERK_TRACK_KIND : uint8_t { PERK_MOVEMENT, PERK_ATTACK };
+
+inline constexpr uint8_t PERK_TRACK_RANKS = 5;
+inline constexpr uint8_t PERK_IMPLEMENTED_RANKS = 1;
+
+constexpr uint8_t party_movement_perk_rank(PartyMember const& member) {
+    return member.perk_ranks & 7;
+}
+
+constexpr uint8_t party_attack_perk_rank(PartyMember const& member) {
+    return (member.perk_ranks >> 3) & 7;
+}
+
+constexpr uint8_t party_perk_rank(PartyMember const& member, PERK_TRACK_KIND track) {
+    return track == PERK_MOVEMENT ? party_movement_perk_rank(member)
+                                 : party_attack_perk_rank(member);
+}
+
+constexpr uint8_t party_unspent_perks(PartyMember const& member) {
+    int remaining = member.level / 2 - party_movement_perk_rank(member) -
+                    party_attack_perk_rank(member);
+    return remaining > 0 ? (uint8_t)remaining : 0;
+}
+
+bool party_can_learn_perk(PartyMember const& member, PERK_TRACK_KIND track);
+bool party_learn_perk(PartyMember& member, PERK_TRACK_KIND track);
+
+// Checks level, XP toward the next level, and ranks funded by the earned milestones.
 constexpr bool party_progress_valid(PartyMember const& member) {
-    if(member.level < 1 || member.level > PARTY_MAX_LEVEL)
+    if(member.level < 1 || member.level > PARTY_MAX_LEVEL || (member.perk_ranks & 0xc0) ||
+       party_movement_perk_rank(member) > PERK_IMPLEMENTED_RANKS ||
+       party_attack_perk_rank(member) > PERK_IMPLEMENTED_RANKS ||
+       party_movement_perk_rank(member) + party_attack_perk_rank(member) > member.level / 2)
         return false;
     return member.level == PARTY_MAX_LEVEL ? member.experience == 0
                                            : member.experience < party_experience_needed(member.level);
@@ -155,10 +193,12 @@ constexpr uint8_t party_victory_experience(PartyMember const&) {
 inline constexpr uint8_t PARTY_BASE_AP = 4;
 
 // The maximum HP of a party member: the base of its identity, the traveler's 20 or Rowan's 18, plus
-// 2 at level 3 and 2 more at level 7. Items and perks will add to it.
+// 2 at level 3, 2 more at level 7, and 3 with Steadfast.
 constexpr uint8_t party_max_hp(PartyMember const& member) {
     uint8_t base = member.id == NPC_ROWAN ? 18 : 20;
-    return (uint8_t)(base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0));
+    uint8_t steadfast = member.movement_class == STEADFAST_CLASS && party_movement_perk_rank(member)
+                            ? STEADFAST_BONUS : 0;
+    return (uint8_t)(base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0) + steadfast);
 }
 
 // The normal-attack damage a party member adds: 1 at level 5 and 1 more at level 9.
@@ -170,11 +210,13 @@ constexpr uint8_t party_max_ap(PartyMember const&) {
     return PARTY_BASE_AP;
 }
 
-// The AP a member recovers after each victory, up to its maximum. Perks and items will add to it.
+// Base AP recovery after each victory, capped at the member's maximum.
 inline constexpr uint8_t PARTY_VICTORY_AP = 1;
 
-constexpr uint8_t party_victory_ap(PartyMember const&) {
-    return PARTY_VICTORY_AP;
+constexpr uint8_t party_victory_ap(PartyMember const& member) {
+    uint8_t renewal = member.movement_class == RENEWAL_CLASS && party_movement_perk_rank(member)
+                          ? RENEWAL_BONUS : 0;
+    return PARTY_VICTORY_AP + renewal;
 }
 
 // A member at full HP and AP, level 1 with no experience, as the traveler and new recruits join.
@@ -183,6 +225,15 @@ PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS at
 // Adds experience to one member and processes each level it completes at once. Returns the number
 // of levels gained. At the cap, the experience is discarded.
 uint8_t party_gain_experience(PartyMember& member, uint8_t amount);
+
+struct LevelUpNotice {
+    uint8_t members = 0;
+    bool perk_earned = false;
+
+    void award(Party& party, uint8_t slot, uint8_t experience);
+};
+
+bool party_has_unspent_perks(Party const& party);
 
 bool party_contains(NPC_ID id);
 // Rejects duplicate identities, HP or AP above the member's maximum, invalid classes, and a full
@@ -311,6 +362,8 @@ inline constexpr uint8_t PLAYER_PIXELS_PER_FRAME = 1;
 inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 // Center the player in the uncovered viewport, clamped to the map.
 Camera game_camera(uint8_t view_height = 64);
+void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice);
+
 // Block until acknowledged (true) or dismissed with B (false).
 bool dialogue_show(char const PROGMEM* words);
 // Show the speaker's name in a left-aligned panel above the dialogue. An ID with a portrait also

@@ -100,6 +100,10 @@ template <NPC_ID ID> void quest_emit(NpcTalked<ID>) {
 // Evaluates the pending quests in bounded passes. Anything left over stays pending for the next
 // settle, and the tracked quest is cleared if it is no longer active.
 void quest_settle();
+// A quest completion handler may award XP once when it records completion. The exploration
+// screen consumes any resulting level-ups after the world update and dialogue finish.
+void quest_award_experience(uint8_t experience);
+LevelUpNotice quest_take_level_ups();
 // Clears transient evaluation state on a new game or a loaded save.
 void quest_reset();
 // Saved quest state is valid when the selection names a defined ID and every quest is consistent.

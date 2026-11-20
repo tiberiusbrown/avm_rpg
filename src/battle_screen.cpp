@@ -763,9 +763,12 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         }
     }
 
-    battle_finish(state);
+    LevelUpNotice notice = battle_finish(state);
     draw_board(screen, BATTLE_NO_UNIT, SOUTH);
-    draw_result(state.result);
+    if(notice.members)
+        render_level_up_notice(F("VICTORY"), notice);
+    else
+        draw_result(state.result);
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);

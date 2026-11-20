@@ -65,7 +65,7 @@ No status is stored for a quest. `status()` reads the quest's own flags, so Find
 - otherwise not started.
 
 The only quest-specific saved field is `Game::selected_quest`, the tracked quest or `QUEST_NONE`.
-The save layout is version 14, and older saves are rejected.
+The save layout is version 16, and older saves are rejected.
 
 On load, `save_valid()` rejects an out-of-range `selected_quest`, and `quest_saved_state_valid()`
 calls each quest's `consistent()`. For Find Iona, completion without the start flag is rejected.
@@ -210,8 +210,10 @@ template <> struct Quest<QUEST_FIND_IONA> {
         return !game.get_flag(FLAG_QUEST_FIND_IONA_DONE) || game.get_flag(FLAG_QUEST_FIND_IONA_STARTED);
     }
     static void on(NpcTalked<NPC_VILLAGER>) {
-        if(status() == QUEST_ACTIVE)
+        if(status() == QUEST_ACTIVE) {
             game.set_flag(FLAG_QUEST_FIND_IONA_DONE);
+            quest_award_experience(2);
+        }
     }
 };
 ```
@@ -225,7 +227,10 @@ The conversations are in `src/logic/npc_logic.cpp`:
   for every conversation, whatever the quest says. Then `quest_emit(NpcTalked<NPC_VILLAGER>{})`
   delivers the event. Her ordinary line is unchanged.
 
-Find Iona has no failure state, and it has no item, experience or gold reward.
+Find Iona awards 2 XP to every party member once, when Iona's conversation completes the
+quest. A reward that raises a member's level queues the same notice used for battle victories.
+Exploration presents it after the dialogue and world update finish. Any earned perk choices
+stay pending in Party after the notice is dismissed.
 
 ## Limitations
 

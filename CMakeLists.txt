@@ -41,7 +41,7 @@ set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
 file(GLOB_RECURSE LOGIC_HEADERS CONFIGURE_DEPENDS src/logic/*.h src/logic/*.inc)
 file(GLOB_RECURSE QUEST_HEADERS CONFIGURE_DEPENDS src/quest*.h src/quests/*.h)
-set(RULES src/game.cpp src/runtime_workspace.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
+set(RULES src/game.cpp src/party_progress.cpp src/runtime_workspace.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
     src/battle.cpp src/battle_ai.cpp generated/map_assets.cpp src/chunk_dispatch.cpp generated/npc_routes.cpp
     src/quest_runtime.cpp)
 add_library(rpg_rules STATIC ${RULES})
@@ -133,6 +133,7 @@ add_test(NAME world_map COMMAND rpg_world_map_tests)
 # The Party's navigation and sample catalog compile without the AVM runtime, so their state machine
 # is tested natively.
 add_executable(rpg_party_ui_tests tests/test_party_ui.cpp src/party_ui.cpp src/party_preview.cpp)
+target_link_libraries(rpg_party_ui_tests PRIVATE rpg_rules)
 target_compile_features(rpg_party_ui_tests PRIVATE cxx_std_20)
 target_include_directories(rpg_party_ui_tests PRIVATE src generated)
 add_dependencies(rpg_party_ui_tests rpg_assets)
@@ -301,7 +302,7 @@ if(RPG_BUILD_GUEST)
                 COMMAND "${AVM_CLANG}" -std=c++20 -O2 -g -flto=full -fno-discard-value-names -Wall -Wextra -Werror
                     ${defines} -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                     -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-                DEPENDS "${source}" src/rpg.h src/world_map.h src/ambient.h src/sfx.h src/soundscape.h ${SFX_OUTPUTS} src/title.h src/flags.h src/world_types.h src/static_chunk_dispatch.h src/npc_policy.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h src/journal.h src/text_wrap.h src/party_ui.h src/party_preview.h ${LOGIC_HEADERS} ${QUEST_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
+                DEPENDS "${source}" src/rpg.h src/perks.def src/world_map.h src/ambient.h src/sfx.h src/soundscape.h ${SFX_OUTPUTS} src/title.h src/flags.h src/world_types.h src/static_chunk_dispatch.h src/npc_policy.h src/chunk.h src/npc.h src/npc_types.h src/actor_draw_order.h src/battle.h src/battle_ai.h src/battle_motion.h src/battle_cursor.h src/journal.h src/text_wrap.h src/party_ui.h src/party_preview.h ${LOGIC_HEADERS} ${QUEST_HEADERS} tests/npc_scenarios.h tests/world_scenarios.h tests/battle_fixtures.h ${ASSET_OUTPUTS} ${source_dependencies} ${SDK_DEPS} "${AVM_CLANG}"
                 VERBATIM)
             list(APPEND objects "${object}")
         endforeach()
@@ -344,7 +345,7 @@ if(RPG_BUILD_GUEST)
                 -DRPG_AVM=1 -DRPG_NPC_ID_LIMIT=65
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/src" -I "${CMAKE_CURRENT_SOURCE_DIR}/generated"
                 -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${object}"
-            DEPENDS "${source}" src/rpg.h src/npc.h src/npc_types.h src/npc_ids.h src/journal.h src/text_wrap.h src/party_ui.h src/party_preview.h ${QUEST_HEADERS}
+            DEPENDS "${source}" src/rpg.h src/perks.def src/npc.h src/npc_types.h src/npc_ids.h src/journal.h src/text_wrap.h src/party_ui.h src/party_preview.h ${QUEST_HEADERS}
                 ${ASSET_OUTPUTS} ${MUSIC_OUTPUTS} ${SDK_DEPS} "${AVM_CLANG}"
             VERBATIM)
         list(APPEND SCALING_UI_OBJECTS "${object}")

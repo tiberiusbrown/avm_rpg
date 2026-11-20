@@ -31,6 +31,7 @@ static constexpr uint16_t ROW_TEXT_ROOM = 114;
 static PartyMember make_member(NPC_ID id, uint8_t movement, uint8_t attack) {
     PartyMember member{};
     member.id = id;
+    member.level = 1;
     member.movement_class = movement;
     member.attack_class = attack;
     member.hp = party_max_hp(member);
@@ -256,8 +257,8 @@ static void test_perk_tracks_follow_classes() {
     // Member 0 moves by Step and strikes, so its movement track is Step.
     open_perk_row(ui, party, PERK_ROW_MOVEMENT);
     CHECK(ui.page == PARTY_PAGE_PERK_LIST);
-    CHECK(party_ui_entries(ui, party) == PREVIEW_RANK_COUNT);
-    for(uint8_t rank = 0; rank < PREVIEW_RANK_COUNT; ++rank) {
+    CHECK(party_ui_entries(ui, party) == PERK_TRACK_RANKS);
+    for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank) {
         uint8_t code = party_ui_row_perk(ui, party, rank);
         CHECK(party_perk_track(code) == MOVEMENT_STEP);
         CHECK(party_perk_source(code) == nullptr);
@@ -301,10 +302,15 @@ static void test_perk_index_keeps_rows_on_return() {
     CHECK(ui.page == PARTY_PAGE_PERKS && ui.selection[PARTY_PAGE_PERKS] == PERK_ROW_EQUIPMENT);
 }
 
-static void test_perk_choice_preview() {
+static void test_perk_selection() {
     Party party = make_party(4);
     PartyUi ui{};
     // Member 2 moves by Charge and rends.
+    PartyMember& member = party.members[2];
+    CHECK(party_gain_experience(member, 10) == 1);
+    CHECK(party_unspent_perks(member) == 1);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 1) == PERK_STATUS_LEARNABLE);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 2) == PERK_STATUS_FUTURE);
     open_category(ui, party, CATEGORY_PERKS);
     CHECK(press(ui, party, BTN_RIGHT) == PARTY_EVENT_TICK && ui.member == 1);
     CHECK(press(ui, party, BTN_RIGHT) == PARTY_EVENT_TICK && ui.member == 2);
@@ -316,7 +322,7 @@ static void test_perk_choice_preview() {
     CHECK(party_ui_row_perk(ui, party, 1) ==
           party_perk_code((uint8_t)MOVEMENT_CLASS_COUNT + ATTACK_REND, 0));
 
-    // A inspects either choice. Nothing is learned, and the choice never closes the page.
+    // Inspection and cancellation leave the selection unspent.
     CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK &&
           ui.selection[PARTY_PAGE_PERK_CHOICE] == 1);
     CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK &&
@@ -326,10 +332,38 @@ static void test_perk_choice_preview() {
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
     CHECK(ui.page == PARTY_PAGE_PERK_DETAILS && ui.back == PARTY_PAGE_PERK_CHOICE);
     CHECK(ui.entry == party_perk_code((uint8_t)MOVEMENT_CLASS_COUNT + ATTACK_REND, 0));
-    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
-    CHECK(ui.page == PARTY_PAGE_PERK_CHOICE && ui.selection[PARTY_PAGE_PERK_CHOICE] == 1);
-    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
-    CHECK(ui.page == PARTY_PAGE_PERKS);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT && ui.page == PARTY_PAGE_PERK_CONFIRM);
+    CHECK(press(ui, party, 0) == PARTY_EVENT_NONE);
+    CHECK(press(ui, party, BTN_B | BTN_A) == PARTY_EVENT_CANCEL);
+    CHECK(ui.page == PARTY_PAGE_PERK_DETAILS && party_unspent_perks(member) == 1);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_LEARN);
+    CHECK(party_unspent_perks(member) == 1);
+    CHECK(party_learn_perk(member, party_ui_choice_track(ui)));
+    party_ui_perk_learned(ui);
+    CHECK(ui.page == PARTY_PAGE_PERK_CHOICE && ui.perk_learned);
+    CHECK(party_perk_status(member, PERK_ATTACK, 1) == PERK_STATUS_EARNED);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 1) == PERK_STATUS_LOCKED);
+    CHECK(party_unspent_perks(member) == 0);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
+
+    CHECK(party_gain_experience(member, 35) == 2 && member.level == 4);
+    CHECK(party_unspent_perks(member) == 1);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
+    CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_LEARN);
+    CHECK(party_learn_perk(member, party_ui_choice_track(ui)));
+    party_ui_perk_learned(ui);
+    party_gain_experience(member, 255);
+    CHECK(member.level == 10 && party_unspent_perks(member) == 3);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
+    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
+    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_PERKS);
+    CHECK(press(ui, party, BTN_LEFT) == PARTY_EVENT_TICK && ui.member == 1);
+    CHECK(party_unspent_perks(party.members[ui.member]) == 0);
 }
 
 // Every equipment description is opened and scrolled, so a scroll limit applies to each length.
@@ -407,9 +441,9 @@ static void test_catalog_entries_are_complete() {
         }
         CHECK(party_slot_name(slot) != nullptr && *party_slot_name(slot) != 0);
     }
-    for(uint8_t track = 0; track < PREVIEW_TRACK_COUNT; ++track) {
+    for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track) {
         CHECK(party_track_name(track) != nullptr && *party_track_name(track) != 0);
-        for(uint8_t rank = 0; rank < PREVIEW_RANK_COUNT; ++rank) {
+        for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank) {
             uint8_t code = party_perk_code(track, rank);
             CHECK(party_perk_track(code) == track);
             CHECK(party_perk_name(code) != nullptr && *party_perk_name(code) != 0);
@@ -447,9 +481,27 @@ static void check_wrap(char const* text) {
     }
 }
 
+static void test_perk_descriptions() {
+    static constexpr char const* NAMES[] = {
+        "Steadfast", "Renewal", "Momentum", "Keen Edge", "Longshot", "Lunge", "Heavy Blow",
+        "Blood Sense",
+    };
+    static constexpr char const* EFFECTS[] = {
+        "Maximum HP increases by 3", "1 additional AP after each victory",
+        "two-cell move deals 1 extra engagement damage", "at full HP", "at range 4",
+        "at range 2", "deal 1 extra damage", "below full HP",
+    };
+    for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track) {
+        uint8_t code = party_perk_code(track, 0);
+        CHECK(strcmp(party_perk_name(code), NAMES[track]) == 0);
+        CHECK(strstr(party_perk_text(code), EFFECTS[track]));
+        CHECK(strcmp(party_perk_name(party_perk_code(track, 1)), "Future rank") == 0);
+    }
+}
+
 static void test_descriptions_wrap() {
-    for(uint8_t track = 0; track < PREVIEW_TRACK_COUNT; ++track)
-        for(uint8_t rank = 0; rank < PREVIEW_RANK_COUNT; ++rank)
+    for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track)
+        for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank)
             check_wrap(party_perk_text(party_perk_code(track, rank)));
     for(uint8_t index = 0; index < PREVIEW_EQUIPMENT_COUNT; ++index)
         check_wrap(party_perk_text((uint8_t)(PERK_EQUIPMENT + index)));
@@ -464,6 +516,7 @@ static void test_descriptions_wrap() {
 // whole traversal, including the pages that show every kind of entry.
 static void test_preview_pages_leave_party_unchanged() {
     Party party = make_party(4);
+    party.members[0].level = 2;
     Party before = party;
     PartyUi ui{};
     open_perk_row(ui, party, PERK_ROW_CHOICE);
@@ -530,10 +583,11 @@ int main() {
     test_specials_for_each_attack_class();
     test_perk_tracks_follow_classes();
     test_perk_index_keeps_rows_on_return();
-    test_perk_choice_preview();
+    test_perk_selection();
     test_perk_details_scroll();
     test_equipment_preview_flow();
     test_catalog_entries_are_complete();
+    test_perk_descriptions();
     test_descriptions_wrap();
     test_preview_pages_leave_party_unchanged();
     test_random_presses_stay_in_bounds();

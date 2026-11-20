@@ -46,8 +46,10 @@ template <> struct Quest<QUEST_FIND_IONA> {
 
     // The handler checks status, so a conversation before the offer or after completion does nothing.
     static void on(NpcTalked<NPC_VILLAGER>) {
-        if(status() == QUEST_ACTIVE)
+        if(status() == QUEST_ACTIVE) {
             game.set_flag(FLAG_QUEST_FIND_IONA_DONE);
+            quest_award_experience(2);
+        }
     }
 };
 

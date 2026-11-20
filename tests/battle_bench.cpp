@@ -201,6 +201,22 @@ int main() {
         contact.units[i].cell = (uint8_t)(contact.units[i].cell - 2);
     report("four a side in contact", contact);
 
+    // Use saved party definitions so search exercises the perk checks on the party's replies.
+    BattleState trained = initial;
+    game.party.count = 2;
+    game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_CHARGE, ATTACK_IMPACT);
+    game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        game.party.members[i].level = 4;
+        trained.units[i].id = battle_party_id(i);
+    }
+    trained.units[WOLF].hp = 2;
+    report("trained party, perks unspent", trained);
+    party_learn_perk(game.party.members[0], PERK_MOVEMENT);
+    party_learn_perk(game.party.members[0], PERK_ATTACK);
+    party_learn_perk(game.party.members[1], PERK_ATTACK);
+    report("trained party, perks learned", trained);
+
     // Spread over random legal positions with the enemy to act.
     unsigned samples = 0, budget_hits = 0, max_nodes = 0, max_nodes_seed = 0;
     unsigned depth_counts[BATTLE_AI_DEPTH + 1] = {};

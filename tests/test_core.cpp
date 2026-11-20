@@ -364,6 +364,55 @@ static void party_progression() {
     CHECK(save_valid());
 }
 
+static void permanent_perks() {
+    game_new();
+    PartyMember& member = game.party.members[0];
+    CHECK(member.perk_ranks == 0 && party_unspent_perks(member) == 0);
+    CHECK(!party_learn_perk(member, PERK_MOVEMENT));
+    CHECK(member.perk_ranks == 0 && save_valid());
+    member.hp = 16;
+    CHECK(party_gain_experience(member, 10) == 1 && party_unspent_perks(member) == 1);
+    CHECK(party_learn_perk(member, PERK_MOVEMENT));
+    CHECK(party_movement_perk_rank(member) == 1 && party_attack_perk_rank(member) == 0);
+    CHECK(member.hp == 16 && member.ap == 4 && party_max_hp(member) == 23);
+    CHECK(!party_learn_perk(member, PERK_ATTACK));
+    CHECK(party_gain_experience(member, 35) == 2 && party_unspent_perks(member) == 1);
+    CHECK(!party_learn_perk(member, PERK_MOVEMENT));
+    CHECK(party_learn_perk(member, PERK_ATTACK) && party_unspent_perks(member) == 0);
+    CHECK(party_max_hp(member) == 25);
+    party_gain_experience(member, 255);
+    CHECK(member.level == 10 && party_unspent_perks(member) == 3 && party_max_hp(member) == 27);
+    CHECK(!party_learn_perk(member, PERK_MOVEMENT) && !party_learn_perk(member, PERK_ATTACK));
+    CHECK(!party_learn_perk(member, (PERK_TRACK_KIND)255));
+    Game saved = game;
+    CHECK(save_valid());
+    game_new();
+    CHECK(game.party.members[0].perk_ranks == 0);
+    game = saved;
+    CHECK(save_restore());
+    CHECK(party_movement_perk_rank(member) == 1 && party_attack_perk_rank(member) == 1);
+    CHECK(party_unspent_perks(member) == 3 && member.hp == 16);
+
+    static constexpr uint8_t INVALID_RANKS[] = {0x40, 0x80, 2, 16, 17, 47, 63};
+    for(uint8_t bad : INVALID_RANKS) {
+        member.perk_ranks = bad;
+        PartyMember before = member;
+        CHECK(!save_valid() && !save_restore());
+        CHECK(!party_learn_perk(member, PERK_MOVEMENT) && !party_learn_perk(member, PERK_ATTACK));
+        CHECK(!memcmp(&before, &member, sizeof(member)));
+    }
+    member = saved.party.members[0];
+    member.level = 2;
+    CHECK(!save_valid() && !party_learn_perk(member, PERK_ATTACK));
+
+    PartyMember delayed = party_new_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT);
+    CHECK(party_gain_experience(delayed, 100) == 5);
+    CHECK(delayed.level == 6 && party_unspent_perks(delayed) == 3);
+    CHECK(party_learn_perk(delayed, PERK_ATTACK));
+    CHECK(party_attack_perk_rank(delayed) == 1 && party_movement_perk_rank(delayed) == 0);
+    CHECK(party_learn_perk(delayed, PERK_MOVEMENT) && party_unspent_perks(delayed) == 1);
+}
+
 int main() {
     dialogue_camera_bounds();
     animate();
@@ -373,5 +422,6 @@ int main() {
     saves();
     party_statistics();
     party_progression();
+    permanent_perks();
     printf("PASS 16x16 core: %u checks\n", checks);
 }

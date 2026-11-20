@@ -2418,14 +2418,16 @@ static void victory_ap_recovery() {
 
     state.ended = true;
     state.result = BATTLE_DEFEAT;
-    battle_finish(state);
+    LevelUpNotice notice = battle_finish(state);
+    CHECK(!notice.members && !notice.perk_earned);
     CHECK(game.party.members[0].ap == 0 && game.party.members[1].ap == 3 &&
           game.party.members[2].ap == 4);
     CHECK(game.party.members[0].experience == 0 && game.party.members[2].experience == 0);
 
     game.party = saved;
     state.result = BATTLE_VICTORY;
-    battle_finish(state);
+    notice = battle_finish(state);
+    CHECK(!notice.members && !notice.perk_earned);
     CHECK(game.party.members[0].ap == 1);
     CHECK(game.party.members[1].ap == 4); // Recovered from a member who fell.
     CHECK(game.party.members[2].ap == 4); // Already full, so the recovery is capped.
@@ -2436,8 +2438,19 @@ static void victory_ap_recovery() {
     // A victory that completes a level processes it at once and keeps only the surplus.
     game.party = saved;
     game.party.members[0].experience = 9;
-    battle_finish(state);
+    game.party.members[1].level = 2;
+    game.party.members[1].experience = 13;
+    notice = battle_finish(state);
+    CHECK(notice.members == 0x03 && notice.perk_earned);
     CHECK(game.party.members[0].level == 2 && game.party.members[0].experience == 1);
+    CHECK(game.party.members[1].level == 3 && game.party.members[1].experience == 0);
+    CHECK(party_has_unspent_perks(game.party));
+
+    game.party.members[0].level = 2;
+    game.party.members[0].experience = 13;
+    notice = battle_finish(state);
+    CHECK(notice.members == 0x01 && !notice.perk_earned);
+    CHECK(party_has_unspent_perks(game.party));
 }
 
 // A saved member's starting special costs AP and needs the normal attack's reach. It deals the
@@ -2513,7 +2526,135 @@ static void special_attacks() {
     CHECK(game.party.members[0].ap == 2);
 }
 
+static void attack_perks() {
+    game = {};
+    game.party.count = 1;
+    PartyMember& member = game.party.members[0];
+    BattleUnit attacker{cell(1, 1), 20, battle_party_id(0), BATTLE_PARTY};
+    BattleUnit victim{cell(2, 1), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+    struct Case {
+        ATTACK_CLASS attack;
+        uint8_t range, hp, normal, bonus;
+    };
+    static constexpr Case CASES[] = {
+        {ATTACK_STRIKE, 1, 10, 3, 1}, {ATTACK_STRIKE, 1, 9, 3, 0},
+        {ATTACK_SHOOT, 2, 10, 3, 0},  {ATTACK_SHOOT, 3, 10, 3, 0},
+        {ATTACK_SHOOT, 4, 10, 3, 1},  {ATTACK_REACH, 1, 10, 3, 0},
+        {ATTACK_REACH, 2, 10, 3, 1},  {ATTACK_IMPACT, 1, 10, 2, 1},
+        {ATTACK_REND, 1, 10, 2, 0},   {ATTACK_REND, 1, 6, 2, 1},
+        {ATTACK_REND, 1, 5, 2, 1},    {ATTACK_REND, 1, 4, 4, 1},
+    };
+    for(Case const& test : CASES) {
+        member = party_new_member(NPC_NONE, MOVEMENT_STEP, test.attack);
+        member.level = 2;
+        victim.cell = cell(1 + test.range, 1);
+        victim.hp = test.hp;
+        CHECK(battle_attack_damage(attacker, victim) == test.normal);
+        uint8_t special = battle_special_damage(attacker, victim);
+        CHECK(party_learn_perk(member, PERK_ATTACK));
+        CHECK(battle_attack_damage(attacker, victim) == test.normal + test.bonus);
+        CHECK(battle_special_damage(attacker, victim) == special + test.bonus);
+        member.level = 5;
+        CHECK(battle_attack_damage(attacker, victim) == test.normal + test.bonus + 1);
+        member.level = 9;
+        CHECK(battle_special_damage(attacker, victim) == special + test.bonus + 2);
+        CHECK(battle_attack_damage(victim, attacker) == 3);
+    }
+
+    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_IMPACT);
+    member.level = 2;
+    CHECK(party_learn_perk(member, PERK_ATTACK));
+    ENEMY_ID id = (ENEMY_ID)attacker.id;
+    BattleState normal =
+        board(BATTLE_PARTY, {{1, 1, id, BATTLE_PARTY, 20}, {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleState special = normal;
+    battle_apply(normal, act(0, 2, 1));
+    battle_apply_special(special, act(0, 2, 1));
+    CHECK(normal.units[1].hp == 7 && normal.units[1].cell == cell(3, 1));
+    CHECK(special.units[1].hp == 4 && special.units[1].cell == cell(3, 1));
+}
+
+static void renewal_recovery() {
+    game = {};
+    game.party.count = 2;
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        PartyMember& member = game.party.members[i];
+        member = party_new_member(NPC_NONE, MOVEMENT_LEAP, ATTACK_REACH);
+        member.level = 2;
+        member.hp = 0;
+        member.ap = 0;
+    }
+    CHECK(party_learn_perk(game.party.members[0], PERK_MOVEMENT));
+    BattleState victory{};
+    victory.ended = true;
+    victory.result = BATTLE_VICTORY;
+    battle_finish(victory);
+    CHECK(game.party.members[0].ap == 2 && game.party.members[1].ap == 1);
+    CHECK(game.party.members[0].hp == 0);
+    game.party.members[0].ap = 3;
+    battle_finish(victory);
+    CHECK(game.party.members[0].ap == 4);
+}
+
+static void perk_winning_action(BattleState const& state, BattleAction action, bool wins) {
+    CHECK(battle_legal(state, action));
+    CHECK((battle_action_kind(state, action) == BATTLE_ACTION_WIN) == wins);
+    CHECK((battle_search_priority(state, action) == BATTLE_PRIORITY_WIN) == wins);
+    BattleState child = state;
+    battle_apply(child, action);
+    CHECK((child.ended && child.result == BATTLE_VICTORY) == wins);
+    if(wins) {
+        CHECK(same_action(battle_search(state, 1).action, action));
+        CHECK(same_action(battle_think(state, BATTLE_AI_DEPTH, BATTLE_AI_NODE_BUDGET).action, action));
+        CHECK(same_action(battle_greedy_action(state), action));
+    }
+}
+
+static void momentum_and_perk_ordering() {
+    game = {};
+    game.party.count = 1;
+    PartyMember& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_CHARGE, ATTACK_IMPACT);
+    member.level = 4;
+    ENEMY_ID id = (ENEMY_ID)battle_party_id(0);
+    BattleState charge = board(BATTLE_PARTY, {{1, 1, id, BATTLE_PARTY, 1},
+                                             {3, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 2},
+                                             {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 2}});
+    BattleAction long_move = act(0, 3, 1);
+    perk_winning_action(charge, long_move, false);
+    BattleEngagement hit = battle_engagement(charge, 0, long_move.destination);
+    CHECK(hit.hits == 2 && hit.kills == 0 && hit.damage == 2);
+    BattleState sacrifice = charge;
+    battle_apply(sacrifice, long_move);
+    CHECK(sacrifice.units[0].hp == 0 && sacrifice.units[1].hp == 1 && sacrifice.units[2].hp == 1);
+    CHECK(party_learn_perk(member, PERK_MOVEMENT));
+    CHECK(battle_engagement_damage(charge.units[0], cell(2, 1)) == 1);
+    CHECK(battle_engagement_damage(charge.units[1], cell(5, 0)) == 1);
+    BattleState short_move = charge;
+    short_move.units[0].cell = cell(2, 1);
+    battle_apply(short_move, long_move);
+    CHECK(short_move.units[0].hp == 0 && short_move.units[1].hp == 1 &&
+          short_move.units[2].hp == 1);
+    hit = battle_engagement(charge, 0, long_move.destination);
+    CHECK(hit.hits == 2 && hit.kills == 2 && hit.damage == 4);
+    perk_winning_action(charge, long_move, true);
+    expect_same_as_reference(charge, 2);
+    battle_apply(charge, long_move);
+    CHECK(charge.units[0].hp == 1 && !charge.units[1].hp && !charge.units[2].hp);
+
+    BattleState strike = board(
+        BATTLE_PARTY, {{1, 1, id, BATTLE_PARTY, 20}, {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 3}});
+    BattleAction attack = act(0, 2, 1);
+    perk_winning_action(strike, attack, false);
+    CHECK(party_learn_perk(member, PERK_ATTACK));
+    perk_winning_action(strike, attack, true);
+    expect_same_as_reference(strike, 2);
+}
+
 int main() {
+    attack_perks();
+    renewal_recovery();
+    momentum_and_perk_ordering();
     saved_party_battles();
     rend_damage();
     level_attack_damage();

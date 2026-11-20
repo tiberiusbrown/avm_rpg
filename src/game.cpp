@@ -31,29 +31,11 @@ bool party_contains(NPC_ID id) {
     return false;
 }
 
-PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack) {
-    PartyMember member{0, 0, movement, attack, id, 1, 0};
-    member.hp = party_max_hp(member);
-    member.ap = party_max_ap(member);
-    return member;
-}
-
-uint8_t party_gain_experience(PartyMember& member, uint8_t amount) {
-    uint16_t experience = member.experience + amount;
-    uint8_t gained = 0;
-    while(member.level < PARTY_MAX_LEVEL && experience >= party_experience_needed(member.level)) {
-        experience -= party_experience_needed(member.level);
-        ++member.level;
-        ++gained;
-    }
-    member.experience = member.level < PARTY_MAX_LEVEL ? (uint8_t)experience : 0;
-    return gained;
-}
-
 bool party_add(PartyMember member) {
     if(game.party.count >= PARTY_CAPACITY || member.id >= NPC_ID_LIMIT ||
+       !party_progress_valid(member) || member.movement_class >= MOVEMENT_CLASS_COUNT ||
+       member.attack_class >= ATTACK_CLASS_COUNT ||
        member.hp > party_max_hp(member) || member.ap > party_max_ap(member) ||
-       !party_progress_valid(member) || member.movement_class >= MOVEMENT_CLASS_COUNT || member.attack_class >= ATTACK_CLASS_COUNT ||
        party_contains(member.id))
         return false;
     game.party.members[game.party.count++] = member;
@@ -71,7 +53,9 @@ void game_start() {
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
     quest_reset();
-    party_add(party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE));
+    // The traveler occupies the first slot from the start. Recruitment is for NPCs.
+    game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.count = 1;
     game.level = 1;
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);

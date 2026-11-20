@@ -341,6 +341,29 @@ static void journal_wrap_scenario() {
     CHECK(count == 1);
 }
 
+static void completion_experience() {
+    reset_game();
+    PartyMember& member = game.party.members[0];
+    member.experience = 8;
+    talk(NPC_VILLAGER);
+    CHECK(member.experience == 8 && !quest_take_level_ups().members);
+
+    offer_and_accept();
+    talk(NPC_VILLAGER);
+    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_COMPLETED);
+    CHECK(member.level == 2 && member.experience == 0 && party_unspent_perks(member) == 1);
+    LevelUpNotice notice = quest_take_level_ups();
+    CHECK(notice.members == 1 && notice.perk_earned);
+    CHECK(!quest_take_level_ups().members && party_has_unspent_perks(game.party));
+    talk(NPC_VILLAGER);
+    CHECK(member.experience == 0 && !quest_take_level_ups().members);
+
+    quest_award_experience(15);
+    CHECK(member.level == 3);
+    CHECK(save_restore());
+    CHECK(!quest_take_level_ups().members && party_unspent_perks(member) == 1);
+}
+
 static void save_scenario() {
     reset_game();
     offer_and_accept();
@@ -433,6 +456,7 @@ int main() {
     query_side_effects_scenario();
     normal_frames_scenario();
     journal_wrap_scenario();
+    completion_experience();
     save_scenario();
     malformed_save_scenario();
     reset_scenario();

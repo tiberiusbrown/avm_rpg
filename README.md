@@ -21,27 +21,45 @@ opens the highlighted category, and B climbs back one level. B on the overview c
 directly to gameplay, and A never closes it. Party pages change without replaying the slide, and the world
 is not drawn while the panel covers the screen.
 - The overview shows the member's name, current/maximum HP and AP, the movement and attack types
-  (`Move: Step`, `Attack: Shoot`), and how many specials the member has.
+  (`Move: Step`, `Attack: Shoot`), XP toward the next level or `Max level`, and any unspent perk choices.
 - **Specials** lists the starting special, with its AP cost, for the member's attack type. A opens its
   details: the cost, the range along a row or column, and the effect. The bonuses are read from the
   battle's tables, and the description scrolls with up and down. Power Strike, Opening Shot, Driving Thrust,
   Crushing Bash and Wound Hunter are the only specials, and no others are unlocked.
-- **Perks** is a `PREVIEW` of the planned two-track progression. Its movement track follows the member's
-  movement type, and its attack track follows the attack type. Each track lists sample ranks, and a choice
-  page previews the next rank of each track. Every sample rank is shown as "Not earned". Nothing can be
-  learned, and no perk changes gameplay, the party or the save.
+- **Perks** shows two ordered tracks, one for the member's movement class and one for their attack
+  class. Levels 2, 4, 6, 8 and 10 each grant one choice. Pick **Learn Perk!**, press A to inspect
+  either available perk, press A again to open the confirmation, then press A to learn it permanently
+  or B to cancel. Only the first of five planned ranks on each track is available. Extra choices
+  stay pending, so a level-10 member with both first ranks learned still has three choices.
+  **From Equipment** remains a preview.
+  A `!` beside Party in the pause menu and beside a member's name marks pending choices.
+  Victory shows the names and new levels of members who leveled up, with `Perk available!`
+  when the reward earned a choice. Find Iona awards 2 XP to each member on completion and uses
+  the same level-up notice after dialogue closes.
 - **Equipment** shows the weapon, armor and relic slots as `(None)`, because no equipment exists yet. A
   opens a `SAMPLE ITEMS` list for the slot, where A opens an item's details. Equipping is unavailable and
   shows `Equip: n/a`. Sample items and their sample owners are labeled `PREVIEW` and change nothing.
 
 The panel's navigation lives only while it is open, so closing and reopening Party starts at the overview
-of the first member. Navigation never changes HP, AP, classes or the save. The sample perk and item text is
-in `src/party_preview.cpp`, which is separate from the navigation in `src/party_ui.cpp`, so the sample tables
-can be replaced when perk and equipment systems exist.
+of the first member. Learning a perk leaves current HP and AP as they were.
+
+| Track | Class | First perk | Effect |
+|---|---|---|---|
+| Movement | Step | Steadfast | +3 maximum HP |
+| Movement | Leap | Renewal | +1 AP after victory, up to maximum AP |
+| Movement | Charge | Momentum | +1 engagement damage to each adjacent enemy after a two-cell move |
+| Attack | Strike | Keen Edge | +1 direct damage against full-HP enemies |
+| Attack | Shoot | Longshot | +1 direct damage at range 4 |
+| Attack | Reach | Lunge | +1 direct damage at range 2 |
+| Attack | Impact | Heavy Blow | +1 direct damage |
+| Attack | Rend | Blood Sense | +1 direct damage against injured enemies |
+
+Attack perks apply to both normal and special attacks. See [the progression design](docs/ideas_for_items_perks_abilities.md#4-character-levels-and-two-track-perk-progression).
+
 A new game starts with the traveler (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
 of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, step movement, shoot attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
-Party membership, current HP and current AP, level and experience are saved. The version 15 save layout rejects older saves. The world stays frozen while the menu is open; music continues.
+Party membership, current HP and AP, level, experience and both perk ranks are saved. The world stays frozen while the menu is open; music continues.
 Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
@@ -264,9 +282,12 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 15.** Version 15 writes the live,
+**This development build rejects saves older than version 16.** Version 16 writes the live,
 pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
-save buffer or checksum. Startup loads and validates that state to initialize the global
+save buffer or checksum. Each member stores both perk ranks in a single byte, with three bits
+per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down
+minus the two ranks. Save validation checks the implemented rank limit and the number of choices
+earned. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. The title shows an animated
 scene under the game's name and no menu, with Call of Venlor playing: A or B continues the saved game when the flag is set
 and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
@@ -392,7 +413,8 @@ overworld cache and from the current area.
   exploration, with the frozen board behind it. Confirmed Pass voluntarily consumes the party's
   turn. The AI considers Pass for either side at every search depth, alongside moves and attacks.
 - Each activation is one move, one attack, or a pass. Every move costs its mover 1 HP, whatever its
-  distance, but first deals 1 damage to every enemy beside its destination; an attack costs nothing
+  distance, but first deals 1 damage to every enemy beside its destination (2 with Momentum on a
+  two-cell move). An attack costs nothing
   and hits only its target. A unit with 1 HP may still move: it deals its damage and then falls,
   unless that damage defeats the last enemy, which wins the battle before the cost is paid. A side
   with no legal action passes automatically. Every pass deals 1 damage to every living member

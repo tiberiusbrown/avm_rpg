@@ -342,7 +342,7 @@ struct Device {
                     trace.begin(state());
                 previous_phase = 0;
                 phase_begin = begin;
-                if(proof || (state().area == AREA_OUTDOOR && state().party.members[0].hp == 20))
+                if(proof || state().party.count)
                     started = true;
             }
             if(marker == 2)
@@ -1110,6 +1110,46 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     require(d.serial() != serial, "Party B from the overview did not return to gameplay");
 }
 
+static void verify_perk_choice(Device& d, fs::path const& out) {
+    Game milestone = d.state();
+    milestone.party.members[0].level = 2;
+    milestone.party.members[0].hp = 16;
+    d.set_state(milestone);
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.capture(out / "pause-perk-pending.pgm");
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Party
+    d.advance(0, 8000000);
+    d.capture(out / "perk-overview.pgm");
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Perks
+    d.tap(BTN_UP);
+    d.tap(BTN_A); // Learn Perk
+    d.tap(BTN_A); // Inspect Steadfast
+    d.advance(BTN_A, 8000000); // Open confirmation and hold A across multiple frames.
+    require(d.state().party.members[0].perk_ranks == 0, "holding A learned the perk");
+    d.capture(out / "perk-confirm.pgm");
+    d.tap(BTN_B);
+    require(d.state().party.members[0].perk_ranks == 0, "canceling changed the perk ranks");
+    d.tap(BTN_A);
+    d.tap(BTN_A);
+    PartyMember learned = d.state().party.members[0];
+    require(party_movement_perk_rank(learned) == 1 && party_attack_perk_rank(learned) == 0 &&
+                party_unspent_perks(learned) == 0 && learned.hp == 16 &&
+                party_max_hp(learned) == 23,
+            "confirmed Steadfast did not spend one choice and increase maximum HP");
+    d.tap(BTN_A);
+    require(d.state().party.members[0].perk_ranks == learned.perk_ranks,
+            "another press learned an unavailable rank");
+    d.capture(out / "perk-learned.pgm");
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+}
+
 static void verify_party_recruitment(Device& d, fs::path const& out) {
     Game original = d.state();
     require(original.party.count == 1, "new game did not start with one party member");
@@ -1548,7 +1588,13 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
 // Plays the sign's battle from its first board through the victory overlay, then closes the
 // outcome line. The battle starts after the welcome line closes, so the caller resumes with
 // exploration.
-static void play_grove_battle(Device& d, bool verify_transition = false) {
+static void play_grove_battle(Device& d, bool verify_transition = false,
+                              fs::path const* level_up_capture = nullptr) {
+    if(level_up_capture) {
+        Game near_level = d.state();
+        near_level.party.members[0].experience = 8;
+        d.set_state(near_level);
+    }
     // A caller may have just closed the welcome; let the entry transition finish before acting.
     d.wait_for_battle();
     BattleState fixture;
@@ -1575,6 +1621,12 @@ static void play_grove_battle(Device& d, bool verify_transition = false) {
             "grove battle did not reach victory");
     // The victory overlay waits for a fresh A. Its outcome line then opens over exploration.
     d.advance(0, 1600000);
+    if(level_up_capture) {
+        auto rewarded = d.state().party.members[0];
+        require(rewarded.level == 2 && party_unspent_perks(rewarded) == 1,
+                "battle victory did not earn a level and leave the perk choice pending");
+        d.capture(*level_up_capture);
+    }
     if(verify_transition) {
         FadeTrace trace(d);
         auto frozen = d.state();
@@ -1884,6 +1936,36 @@ static void press_with_music_fade(Device& d) {
         require(trace.levels[i] < trace.levels[i - 1], "music fade did not ramp down");
 }
 
+static void verify_quest_level_up(Device& d, fs::path const& out) {
+    Snapshot fixture = d.state();
+    auto villager = std::find_if(fixture.npcs.actors, fixture.npcs.actors + NPC_CAPACITY,
+                                 [](Npc const& n) { return n.id == NPC_VILLAGER; });
+    require(villager != fixture.npcs.actors + NPC_CAPACITY, "Iona is not active");
+    fixture.player = {villager->actor.x, (uint16_t)(villager->actor.y - TILE), SOUTH, 0};
+    fixture.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
+    fixture.party.members[0].experience = 8;
+    d.set_state(fixture);
+    d.frame();
+    d.tap(BTN_A);
+    d.wait_for_prompt();
+    require(d.state().party.members[0].level == 1, "quest awarded XP before dialogue finished");
+    d.tap(BTN_A);
+    d.advance(0, 3200000);
+    Snapshot rewarded = d.state();
+    require(d.prompt() == DIALOGUE_CLOSED && rewarded.get_flag(FLAG_QUEST_FIND_IONA_DONE) &&
+                rewarded.party.members[0].level == 2 &&
+                party_unspent_perks(rewarded.party.members[0]) == 1,
+            "Iona's completed quest did not earn a level and a perk choice");
+    unsigned serial = d.serial();
+    d.advance(0, 3200000);
+    require(d.serial() == serial, "quest level-up notice did not wait for dismissal");
+    d.capture(out / "quest-level-up.pgm");
+    d.tap(BTN_A);
+    d.frame();
+    require(d.serial() != serial && party_unspent_perks(d.state().party.members[0]) == 1,
+            "dismissing the quest notice did not resume exploration with a pending perk");
+}
+
 static void verify_smoke(Device& d, fs::path const& package, fs::path const& out) {
     d.advance(0, 3200000);
     require(d.serial() == 0 && d.music_enabled(), "smoke boot did not reach the title");
@@ -1896,6 +1978,8 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     d.hold(BTN_DOWN, 4);
     require(d.state().player.y > initial.player.y, "smoke movement failed");
     d.capture(out / "exploration.pgm");
+    verify_quest_level_up(d, out);
+    verify_perk_choice(d, out);
     d.tap(BTN_B);
     unsigned serial = d.serial();
     d.advance(0, 800000);
@@ -1909,6 +1993,7 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
             "smoke save did not persist the live game");
 
     Device restarted(package, d.game_addr, d.marker_addr, d.serial_addr, d.dialogue_addr);
+    restarted.phase_addr = d.phase_addr;
     restarted.import_sector(sector);
     restarted.advance(0, 3200000);
     restarted.tap(BTN_A);
@@ -1917,7 +2002,12 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     require(restarted.serial() != 0 && loaded.area == saved.area && loaded.gold == saved.gold &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y,
             "smoke restart did not restore the save");
-    std::cout << "{\"result\":\"PASS\",\"scenario\":\"boot, input, display, pause and save/restart\"}\n";
+    PartyMember const& member = loaded.party.members[0];
+    require(party_movement_perk_rank(member) == 1 && member.hp == 16 &&
+                party_max_hp(member) == 23 && party_unspent_perks(member) == 0,
+            "smoke restart did not restore the learned perk and current HP");
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"boot, input, display, perk confirmation and "
+                 "save/restart\"}\n";
 }
 
 // Journal frames: the opening slide, steady windows, and the latency from a press to its redraw.
@@ -2075,6 +2165,9 @@ int main(int argc, char** argv) try {
     }
     verify_options(d, out);
     verify_pause_party(d, out);
+    Game before_perk = d.state();
+    verify_perk_choice(d, out);
+    d.set_state(before_perk);
     if(std::string(argv[6]) == "pause") {
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"Audio and pause redraw\"}\n";
         return 0;
@@ -2159,7 +2252,8 @@ int main(int argc, char** argv) try {
     }
     d.capture(out / "grove-battle.pgm");
     verify_battle_menu(d, out);
-    play_grove_battle(d, true);
+    auto level_up_capture = out / "victory-level-up.pgm";
+    play_grove_battle(d, true, &level_up_capture);
     require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
     d.tap(BTN_A);
     d.wait_for_prompt();

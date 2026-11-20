@@ -1,0 +1,17 @@
+// Class, perk identifier, effect magnitude, required range (0 for any), name, description.
+MOVEMENT_PERK(MOVEMENT_STEP, STEADFAST, 3, 0, "Steadfast",
+              "Maximum HP increases by 3. Learning this perk does not restore HP.")
+MOVEMENT_PERK(MOVEMENT_LEAP, RENEWAL, 1, 0, "Renewal",
+              "Recover 1 additional AP after each victory, up to maximum AP.")
+MOVEMENT_PERK(MOVEMENT_CHARGE, MOMENTUM, 1, 2, "Momentum",
+              "A two-cell move deals 1 extra engagement damage to each adjacent enemy.")
+ATTACK_PERK(ATTACK_STRIKE, KEEN_EDGE, 1, 0, "Keen Edge",
+            "Normal and special attacks deal 1 extra damage against enemies at full HP.")
+ATTACK_PERK(ATTACK_SHOOT, LONGSHOT, 1, 4, "Longshot",
+            "Normal and special attacks deal 1 extra damage at range 4.")
+ATTACK_PERK(ATTACK_REACH, LUNGE, 1, 2, "Lunge",
+            "Normal and special attacks deal 1 extra damage at range 2.")
+ATTACK_PERK(ATTACK_IMPACT, HEAVY_BLOW, 1, 0, "Heavy Blow",
+            "Normal and special attacks deal 1 extra damage.")
+ATTACK_PERK(ATTACK_REND, BLOOD_SENSE, 1, 0, "Blood Sense",
+            "Normal and special attacks deal 1 extra damage against enemies below full HP.")

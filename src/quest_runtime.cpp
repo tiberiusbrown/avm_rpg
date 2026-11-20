@@ -21,6 +21,7 @@ constexpr uint8_t SETTLE_PASSES = 4;
 
 // Transient evaluation bits, one per QUEST_ID. They never reach the save.
 uint8_t pending[QUEST_BYTES];
+LevelUpNotice pending_level_ups;
 
 using StatusFn = QUEST_STATUS (*)();
 using TextFn = char const PROGMEM* (*)();
@@ -229,7 +230,19 @@ void quest_settle() {
     validate_selection();
 }
 
+void quest_award_experience(uint8_t experience) {
+    for(uint8_t i = 0; i < game.party.count; ++i)
+        pending_level_ups.award(game.party, i, experience);
+}
+
+LevelUpNotice quest_take_level_ups() {
+    LevelUpNotice notice = pending_level_ups;
+    pending_level_ups = {};
+    return notice;
+}
+
 void quest_reset() {
+    pending_level_ups = {};
     for(uint8_t i = 0; i < QUEST_BYTES; ++i)
         pending[i] = 0;
 }

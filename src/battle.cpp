@@ -157,22 +157,24 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) 
     }
 }
 
-void battle_finish(BattleState const& state) {
+LevelUpNotice battle_finish(BattleState const& state) {
+    LevelUpNotice notice;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(unit.team == BATTLE_PARTY && (unit.id & BATTLE_PARTY_SOURCE))
             game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].hp = unit.hp;
     }
     if(!state.ended || state.result != BATTLE_VICTORY)
-        return;
+        return notice;
     // Every member recovers and earns experience, including one that fell or did not deploy.
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember& member = game.party.members[i];
         uint16_t ap = member.ap + party_victory_ap(member);
         uint8_t maximum = party_max_ap(member);
         member.ap = ap < maximum ? (uint8_t)ap : maximum;
-        party_gain_experience(member, party_victory_experience(member));
+        notice.award(game.party, i, party_victory_experience(member));
     }
+    return notice;
 }
 
 uint8_t battle_max_hp(BattleUnit const& unit) {
@@ -227,6 +229,29 @@ DIRECTION battle_direction(uint8_t from, uint8_t to) {
     return dy > 0 ? SOUTH : NORTH;
 }
 
+static bool at_range(uint8_t from, uint8_t to, uint8_t distance) {
+    uint8_t delta = from < to ? to - from : from - to;
+    return (delta == distance && battle_row(from) == battle_row(to)) ||
+           delta == distance * BATTLE_COLUMNS;
+}
+
+static uint8_t attack_perk_bonus(uint8_t attack, BattleUnit const& attacker, BattleUnit const& victim) {
+    switch(attack) {
+        case KEEN_EDGE_CLASS:
+            return victim.hp == battle_max_hp(victim) ? KEEN_EDGE_BONUS : 0;
+        case LONGSHOT_CLASS:
+            return at_range(attacker.cell, victim.cell, LONGSHOT_RANGE) ? LONGSHOT_BONUS : 0;
+        case LUNGE_CLASS:
+            return at_range(attacker.cell, victim.cell, LUNGE_RANGE) ? LUNGE_BONUS : 0;
+        case HEAVY_BLOW_CLASS:
+            return HEAVY_BLOW_BONUS;
+        case BLOOD_SENSE_CLASS:
+            return victim.hp < battle_max_hp(victim) ? BLOOD_SENSE_BONUS : 0;
+        default:
+            return 0;
+    }
+}
+
 uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim) {
     BattleUnitRules const& rules = battle_rules(attacker.id);
     uint8_t damage = rules.damage;
@@ -234,9 +259,12 @@ uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victi
     if(rules.injured_damage != rules.damage && 2 * (uint16_t)victim.hp < battle_max_hp(victim))
         damage = rules.injured_damage;
     // A party member's level adds to its normal damage; enemies have no levels.
-    if(attacker.id & BATTLE_PARTY_SOURCE)
-        damage = (uint8_t)(damage +
-                           party_attack_bonus(game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE]));
+    if(attacker.id & BATTLE_PARTY_SOURCE) {
+        PartyMember const& member = game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE];
+        damage += party_attack_bonus(member);
+        if(party_attack_perk_rank(member))
+            damage += attack_perk_bonus(member.attack_class, attacker, victim);
+    }
     return damage;
 }
 
@@ -477,17 +505,29 @@ RPG_NOINLINE bool battle_can_act(BattleState const& state) {
     return false;
 }
 
+uint8_t battle_engagement_damage(BattleUnit const& actor, uint8_t destination) {
+    if(actor.id & BATTLE_PARTY_SOURCE) {
+        PartyMember const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
+        if(member.movement_class == MOMENTUM_CLASS && party_movement_perk_rank(member) &&
+           at_range(actor.cell, destination, MOMENTUM_RANGE))
+            return BATTLE_ENGAGEMENT_DAMAGE + MOMENTUM_BONUS;
+    }
+    return BATTLE_ENGAGEMENT_DAMAGE;
+}
+
 // Kept out of line: the ordering, the killer bookkeeping, and the greedy choice share one copy.
 RPG_NOINLINE BattleEngagement battle_engagement(BattleState const& state, uint8_t unit_index,
                                                 uint8_t destination) {
-    BattleEngagement engagement{0, 0};
-    BATTLE_TEAM team = state.units[unit_index].team;
+    BattleEngagement engagement{};
+    BattleUnit const& actor = state.units[unit_index];
+    uint8_t damage = battle_engagement_damage(actor, destination);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(!unit.hp || unit.team == team || !battle_cells_adjacent(unit.cell, destination))
+        if(!unit.hp || unit.team == actor.team || !battle_cells_adjacent(unit.cell, destination))
             continue;
         ++engagement.hits;
-        if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE)
+        engagement.damage += unit.hp < damage ? unit.hp : damage;
+        if(unit.hp <= damage)
             ++engagement.kills;
     }
     return engagement;
@@ -588,10 +628,11 @@ static void battle_act(BattleState& state, BattleAction action, bool special) {
     if(occupant == BATTLE_NO_UNIT) {
         // Move, then engage every adjacent enemy once, then pay the blood price, even with 1 HP
         // left.
+        uint8_t damage = engaged ? battle_engagement_damage(actor, destination) : 0;
         actor.cell = destination;
         for(uint8_t i = 0; engaged; ++i, engaged = (uint8_t)(engaged >> 1))
             if(engaged & 1)
-                fell = battle_damage(state.units[i], BATTLE_ENGAGEMENT_DAMAGE) || fell;
+                fell = battle_damage(state.units[i], damage) || fell;
         // An engagement that defeats the last opponent ends the battle before the price is due.
         if(fell && battle_check(state, acting))
             return;

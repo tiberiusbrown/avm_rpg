@@ -47,9 +47,8 @@ adding another member or resetting his HP. Recruitment retires his map actor imm
 being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
 4/4 AP, and step movement/strike attack. Both start at full HP and AP through `party_new_member`.
 Party current HP and AP and both class identifiers are bytes. Maximum HP is derived by `party_max_hp`
-from the member's identity, whose base is 20 HP except Rowan's 18, and maximum AP by `party_max_ap`, which
-is 4 for every member for now. Items and perks will add to both. Its count, unique NPC identities and
-statistics are validated on load. The pause menu's Party panel shows one page per member, turned with left and
+from identity (20 base HP, or 18 for Rowan), level bonuses, and Steadfast if learned. Maximum AP
+is 4. Saves validate the party count, unique NPC identities, statistics, and both perk ranks. The pause menu's Party panel shows one page per member, turned with left and
 right, and freezes world simulation while it eases in and out.
 
 `NpcDefinition` is an 11-byte ROM record: behavior/facing, period, pause/walk, leash,
@@ -243,7 +242,7 @@ and target reached/failed. Retirement reports reset, recruitment or safe unloadi
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 14 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 16 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage

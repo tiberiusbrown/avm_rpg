@@ -28,6 +28,7 @@ static void clamp_highlight(PartyUi& ui, Party const& party) {
 
 // Enters a page from the page above it. The new page's highlight starts at its first entry.
 static PARTY_EVENT open(PartyUi& ui, PARTY_PAGE page) {
+    ui.perk_learned = false;
     ui.page = page;
     highlight(ui) = 0;
     ui.scroll = 0;
@@ -62,6 +63,9 @@ static PARTY_EVENT back(PartyUi& ui) {
         case PARTY_PAGE_PERK_LIST:
         case PARTY_PAGE_PERK_CHOICE:
             return leave(ui, PARTY_PAGE_PERKS);
+        case PARTY_PAGE_PERK_CONFIRM:
+            ui.page = PARTY_PAGE_PERK_DETAILS;
+            return PARTY_EVENT_CANCEL;
         case PARTY_PAGE_PERK_DETAILS:
             return leave(ui, ui.back);
         case PARTY_PAGE_ITEM_LIST:
@@ -87,10 +91,22 @@ static PARTY_EVENT activate(PartyUi& ui, Party const& party) {
         case PARTY_PAGE_PERKS:
             return open(ui, highlight(ui) == PERK_ROW_CHOICE ? PARTY_PAGE_PERK_CHOICE
                                                              : PARTY_PAGE_PERK_LIST);
-        case PARTY_PAGE_PERK_LIST:
         case PARTY_PAGE_PERK_CHOICE:
+            if(!party_can_learn_perk(party.members[ui.member], party_ui_choice_track(ui)))
+                return PARTY_EVENT_EDGE;
+            ui.perk_learned = false;
+            [[fallthrough]];
+        case PARTY_PAGE_PERK_LIST:
             ui.entry = party_ui_row_perk(ui, party, highlight(ui));
             return open_details(ui, PARTY_PAGE_PERK_DETAILS, ui.page);
+        case PARTY_PAGE_PERK_DETAILS:
+            if(ui.back != PARTY_PAGE_PERK_CHOICE ||
+               !party_can_learn_perk(party.members[ui.member], party_ui_choice_track(ui)))
+                return PARTY_EVENT_EDGE;
+            ui.page = PARTY_PAGE_PERK_CONFIRM;
+            return PARTY_EVENT_SELECT;
+        case PARTY_PAGE_PERK_CONFIRM:
+            return PARTY_EVENT_LEARN;
         case PARTY_PAGE_EQUIPMENT:
             return open(ui, PARTY_PAGE_ITEM_LIST);
         case PARTY_PAGE_ITEM_LIST:
@@ -134,6 +150,23 @@ static PARTY_EVENT move(PartyUi& ui, Party const& party, bool down) {
     return PARTY_EVENT_TICK;
 }
 
+PERK_TRACK_KIND party_ui_choice_track(PartyUi const& ui) {
+    return ui.selection[PARTY_PAGE_PERK_CHOICE] == 0 ? PERK_MOVEMENT : PERK_ATTACK;
+}
+
+void party_ui_perk_learned(PartyUi& ui) {
+    leave(ui, PARTY_PAGE_PERK_CHOICE);
+    ui.perk_learned = true;
+}
+
+PARTY_PERK_STATUS party_perk_status(PartyMember const& member, PERK_TRACK_KIND track, uint8_t rank) {
+    if(rank > PERK_IMPLEMENTED_RANKS)
+        return PERK_STATUS_FUTURE;
+    if(rank <= party_perk_rank(member, track))
+        return PERK_STATUS_EARNED;
+    return party_can_learn_perk(member, track) ? PERK_STATUS_LEARNABLE : PERK_STATUS_LOCKED;
+}
+
 void party_ui_open(PartyUi& ui) {
     ui = PartyUi{};
 }
@@ -160,7 +193,7 @@ uint8_t party_ui_entries(PartyUi const& ui, Party const& party) {
             return PERK_ROW_COUNT;
         case PARTY_PAGE_PERK_LIST:
             return ui.selection[PARTY_PAGE_PERKS] == PERK_ROW_EQUIPMENT ? PREVIEW_EQUIPMENT_COUNT
-                                                                        : PREVIEW_RANK_COUNT;
+                                                                        : PERK_TRACK_RANKS;
         case PARTY_PAGE_PERK_CHOICE:
             return PERK_CHOICE_COUNT;
         case PARTY_PAGE_EQUIPMENT:
@@ -181,7 +214,8 @@ uint8_t party_ui_row_perk(PartyUi const& ui, Party const& party, uint8_t index) 
     PartyMember const& member = party.members[ui.member];
     uint8_t attack_track = (uint8_t)(MOVEMENT_CLASS_COUNT + member.attack_class);
     if(ui.page == PARTY_PAGE_PERK_CHOICE)
-        return party_perk_code(index == 0 ? member.movement_class : attack_track, 0);
+        return party_perk_code(index == 0 ? member.movement_class : attack_track,
+                               party_perk_rank(member, index == 0 ? PERK_MOVEMENT : PERK_ATTACK));
     uint8_t row = ui.selection[PARTY_PAGE_PERKS];
     if(row == PERK_ROW_EQUIPMENT)
         return (uint8_t)(PERK_EQUIPMENT + index);
@@ -241,14 +275,34 @@ char const PROGMEM* party_special_text(uint8_t attack) {
 }
 
 char const PROGMEM* party_perk_name(uint8_t code) {
-    if(code < PERK_EQUIPMENT)
-        return preview_rank_name(code / PREVIEW_RANK_COUNT, code % PREVIEW_RANK_COUNT);
+    if(code < PERK_EQUIPMENT) {
+        if(code % PERK_TRACK_RANKS)
+            return F("Future rank");
+        static char const PROGMEM* const PROGMEM NAMES[PARTY_PERK_TRACK_COUNT] = {
+#define MOVEMENT_PERK(cls, id, amount, range, name, text) F(name),
+#define ATTACK_PERK MOVEMENT_PERK
+#include "perks.def"
+#undef ATTACK_PERK
+#undef MOVEMENT_PERK
+        };
+        return NAMES[code / PERK_TRACK_RANKS];
+    }
     return preview_equipment_name(code - PERK_EQUIPMENT);
 }
 
 char const PROGMEM* party_perk_text(uint8_t code) {
-    if(code < PERK_EQUIPMENT)
-        return preview_rank_text(code / PREVIEW_RANK_COUNT, code % PREVIEW_RANK_COUNT);
+    if(code < PERK_EQUIPMENT) {
+        if(code % PERK_TRACK_RANKS)
+            return F("This rank is reserved for a future version.");
+        static char const PROGMEM* const PROGMEM TEXTS[PARTY_PERK_TRACK_COUNT] = {
+#define MOVEMENT_PERK(cls, id, amount, range, name, text) F(text),
+#define ATTACK_PERK MOVEMENT_PERK
+#include "perks.def"
+#undef ATTACK_PERK
+#undef MOVEMENT_PERK
+        };
+        return TEXTS[code / PERK_TRACK_RANKS];
+    }
     return preview_equipment_text(code - PERK_EQUIPMENT);
 }
 
@@ -257,7 +311,7 @@ char const PROGMEM* party_perk_source(uint8_t code) {
 }
 
 uint8_t party_perk_track(uint8_t code) {
-    return code < PERK_EQUIPMENT ? (uint8_t)(code / PREVIEW_RANK_COUNT) : PARTY_NO_TRACK;
+    return code < PERK_EQUIPMENT ? (uint8_t)(code / PERK_TRACK_RANKS) : PARTY_NO_TRACK;
 }
 
 char const PROGMEM* party_track_name(uint8_t track) {
