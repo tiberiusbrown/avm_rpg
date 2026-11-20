@@ -838,7 +838,7 @@ static void render_party_overview(int16_t x, PartyUi const& ui) {
         avm_draw_text((int16_t)(left + 6), y, CATEGORIES[category]);
         // Special attacks show how many there are. The other categories lead to pages of previews.
         if(category == CATEGORY_SPECIALS)
-            avm_draw_textf((int16_t)(x + PARTY_EDGE - 18), y, F("%u >"),
+            avm_draw_textf((int16_t)(x + PARTY_EDGE - 12), y, F("%u >"),
                            party_special_count(member));
         else
             avm_draw_text((int16_t)(x + PARTY_EDGE - 6), y, F(">"));
