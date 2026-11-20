@@ -455,7 +455,6 @@ struct JournalView;
 void journal_open(JournalView& view, QUEST_ID id);
 // Measures the positions of the detail view's text. It runs when the view opens and when tracking
 // changes, so the frame draws without measuring.
-void journal_layout(JournalView& view);
 void render_journal(uint8_t revealed, bool closing, JournalView const& view);
 
 void input_sync();

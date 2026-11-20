@@ -18,10 +18,6 @@ struct JournalView {
     QUEST_ID open;     // QUEST_NONE while the list is shown
     uint8_t scroll;    // first visible summary line
     uint8_t line_count;
-    // Panel-local positions of text whose width is measured when the view changes, not per frame.
-    uint8_t status_x; // the status value
-    uint8_t track_x;  // the tracking hint, right-aligned
-    uint8_t goal_x;   // the goal's text
     uint8_t starts[JOURNAL_SUMMARY_LINES + 1];
 };
 

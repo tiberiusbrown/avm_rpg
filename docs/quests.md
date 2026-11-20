@@ -125,10 +125,14 @@ so the Journal stores no list. The cursor is a row index, and it is transient.
 - In the detail view, A tracks or untracks an active quest, and Up and Down scroll the summary.
   B returns to the list. A completed or failed quest answers A with the cursor-edge sound.
 
+The list highlights the selected quest and right-aligns its status. The detail view keeps the
+tracking action near the status and the current goal below the summary. Chevron icons appear
+when more entries or summary lines are available.
+
 The summary is wrapped once, when the quest opens. The wrap records line offsets into the summary
 in program memory, and it keeps at most `JOURNAL_SUMMARY_LINES` lines. Nothing is copied, so the
-Journal has no text buffer. Widths and drawing use chunks of up to four characters on the stack,
-as the dialogue does. The native tests check the wrap with a fixed-width stand-in font, which
+Journal has no text buffer. Measurement and drawing use small chunks on the stack.
+The native tests check the wrap with a fixed-width stand-in font, which
 confirms that lines fit their width and that no text is lost. The device suite starts Find Iona for one
 pause menu, opens its detail view, captures it for review, and checks that the view leaves the game
 state unchanged. It does not assert the rendered pixels. The world does not simulate while the Journal is open.

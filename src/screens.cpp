@@ -115,7 +115,6 @@ static void journal_track(JournalView& view) {
         quest_deselect();
     else
         quest_select(view.open);
-    journal_layout(view);
 }
 
 // The list highlights and opens quests. The detail view tracks, scrolls and goes back. The world
@@ -137,7 +136,7 @@ __attribute__((noinline)) void journal_screen() {
         if(redraw || cursor_pixel(revealed) != pixel) {
             RPG_QA_MARK(rpg_qa_journal_begin());
             render_journal((uint8_t)cursor_pixel(revealed), closing, view);
-            avm_display(true);
+            avm_display(false);
             RPG_QA_MARK(rpg_qa_journal_end());
             redraw = false;
         }

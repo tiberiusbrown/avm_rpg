@@ -20,8 +20,8 @@ right switch members and wrap at either end. Up and down choose **Specials**, **
 opens the highlighted category, and B climbs back one level. B on the overview closes the panel and returns
 directly to gameplay, and A never closes it. Party pages change without replaying the slide, and the world
 is not drawn while the panel covers the screen.
-- The overview shows the member's name, current/maximum HP and AP, the movement and attack types
-  (`Move: Step`, `Attack: Shoot`), XP toward the next level or `Max level`, and any unspent perk choices.
+- The overview groups level, current/maximum HP and AP, movement and attack types, and XP above the
+  category list. For parties with more than one member, chevrons flank the member counter.
 - **Specials** lists the starting special, with its AP cost, for the member's attack type. A opens its
   details: the cost, the range along a row or column, and the effect. The bonuses are read from the
   battle's tables, and the description scrolls with up and down. Power Strike, Opening Shot, Driving Thrust,
@@ -32,7 +32,7 @@ is not drawn while the panel covers the screen.
   or B to cancel. Only the first of five planned ranks on each track is available. Extra choices
   stay pending, so a level-10 member with both first ranks learned still has three choices.
   **From Equipment** remains a preview.
-  A `!` beside Party in the pause menu and beside a member's name marks pending choices.
+  A `!` beside Party in the pause menu and a star beside the member's name mark pending choices.
   Victory shows the names and new levels of members who leveled up, with `Perk available!`
   when the reward earned a choice. Find Iona awards 2 XP to each member on completion and uses
   the same level-up notice after dialogue closes.
