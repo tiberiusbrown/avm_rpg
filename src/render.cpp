@@ -821,14 +821,13 @@ static void render_party_overview(int16_t x, PartyUi const& ui) {
     PartyMember const& member = game.party.members[ui.member];
     int16_t left = x + PARTY_MARGIN;
     render_party_header(x, ui);
-    avm_draw_textf(left, PARTY_ROW_SUBTITLE, F("HP %u/%u"), member.hp, party_max_hp(member));
-    avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("AP %u/%u"), member.ap,
-                   party_max_ap(member));
-    draw_label_value(left, 25, F("Move:"), party_movement_name(member.movement_class));
-    draw_label_value(left, 33, F("Attack:"), party_attack_name(member.attack_class));
+    avm_draw_textf(left, PARTY_ROW_SUBTITLE, F("Level %u   HP: %u/%u   AP: %u/%u"), member.level,
+                   member.hp, party_max_hp(member), member.ap, party_max_ap(member));
+    avm_draw_textf(left, 25, F("Move/Attack: %S/%S"), party_movement_name(member.movement_class),
+                   party_attack_name(member.attack_class));
 
     static char const PROGMEM* const PROGMEM CATEGORIES[CATEGORY_COUNT] = {
-        F("Specials"),
+        F("Special Attacks"),
         F("Perks"),
         F("Equipment"),
     };
@@ -837,7 +836,7 @@ static void render_party_overview(int16_t x, PartyUi const& ui) {
         if(category == ui.selection[PARTY_PAGE_OVERVIEW])
             avm_draw_text(left, y, F(">"));
         avm_draw_text((int16_t)(left + 6), y, CATEGORIES[category]);
-        // Specials shows how many there are. The other categories lead to pages of previews.
+        // Special attacks show how many there are. The other categories lead to pages of previews.
         if(category == CATEGORY_SPECIALS)
             avm_draw_textf((int16_t)(x + PARTY_EDGE - 18), y, F("%u >"),
                            party_special_count(member));
