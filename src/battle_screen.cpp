@@ -8,7 +8,6 @@
 
 #include <avm.h>
 
-static constexpr uint16_t DISPLAY_WIDTH = 128;
 // Frames at 50 Hz. The party's result stays on screen for this long before the enemy chooses.
 static constexpr uint8_t RESULT_FRAMES = 25;
 
@@ -535,16 +534,6 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action, bool
     }
 }
 
-static void draw_result(BATTLE_RESULT result) {
-    draw_panel(24, 18, 80, 28);
-
-    char const PROGMEM* title = result == BATTLE_VICTORY ? F("VICTORY") : F("DEFEAT");
-    avm_draw_text((int16_t)((DISPLAY_WIDTH - avm_text_width(title)) / 2), 30, title);
-
-    char const PROGMEM* hint = F("A continue");
-    avm_draw_text((int16_t)((DISPLAY_WIDTH - avm_text_width(hint)) / 2), 41, hint);
-}
-
 // Handles an A press on `cell`. A friendly hero toggles its selection, replacing any other.
 // Otherwise the selected hero acts on the cell if that is legal. Returns the action taken, or one
 // with no unit when no action is taken. A selection chirps, deselection cancels, and an invalid
@@ -602,28 +591,8 @@ RPG_NOINLINE static BattleAction press_offer(BattleScreen& screen, uint8_t selec
 // or position over the same frames later.
 RPG_NOINLINE static void draw_offer(BattleScreen const& screen, uint8_t selected) {
     uint8_t attack = battle_attack_class(screen.state.units[selected].id);
-    // The panel is sized for the special's name, so it does not change with the cost.
-    int16_t name_width = (int16_t)avm_text_width(BATTLE_SPECIAL_NAMES[attack]);
-    int16_t attack_width = (int16_t)avm_text_width(F("Attack"));
-    int16_t cost_width = (int16_t)avm_text_width(F("9 AP"));
-    int16_t widest = name_width > attack_width ? name_width : attack_width;
-    int16_t width = (int16_t)(10 + widest + 6 + cost_width + 4);
-    int16_t height = 18;
-    int16_t x = (int16_t)((DISPLAY_WIDTH - width) / 2);
-    int16_t y = battle_row(screen.offer_cell) < BATTLE_ROWS / 2 ? (int16_t)(64 - height - 2) : 2;
-    draw_panel(x, y, width, height);
-    for(uint8_t row = 0; row < 2; ++row) {
-        int16_t baseline = (int16_t)(y + 7 + row * 7);
-        if(row == screen.offer_choice)
-            avm_draw_text((int16_t)(x + 4), baseline, F(">"));
-        if(row == 0) {
-            avm_draw_text((int16_t)(x + 10), baseline, F("Attack"));
-        } else {
-            avm_draw_text((int16_t)(x + 10), baseline, BATTLE_SPECIAL_NAMES[attack]);
-            avm_draw_textf((int16_t)(x + width - 4 - cost_width), baseline, F("%u AP"),
-                           SPECIAL_INFO[attack].ap);
-        }
-    }
+    render_battle_offer(BATTLE_SPECIAL_NAMES[attack], SPECIAL_INFO[attack].ap, screen.offer_choice,
+                        battle_row(screen.offer_cell) < BATTLE_ROWS / 2);
 }
 
 // Runs the party's turn one frame at a time, so the cursor keeps easing and its dashes keep moving
@@ -768,7 +737,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     if(notice.members)
         render_level_up_notice(F("VICTORY"), notice);
     else
-        draw_result(state.result);
+        render_battle_result(state.result == BATTLE_VICTORY ? F("VICTORY") : F("DEFEAT"));
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);

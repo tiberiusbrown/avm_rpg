@@ -475,6 +475,94 @@ void render_title(uint16_t ticks) {
     avm_draw_sprite_plus_mask(TITLE_LOGO_X, TITLE_LOGO_Y, TITLE_LOGO, 0);
 }
 
+static int16_t text_draw_clipped(int16_t x, int16_t y, char const PROGMEM* text, uint16_t width);
+
+// Five columns per icon, with the least significant bit at the top.
+enum MENU_ICON : uint8_t {
+    MENU_LEFT,
+    MENU_RIGHT,
+    MENU_UP,
+    MENU_DOWN,
+    MENU_BOOK,
+    MENU_BLADE,
+    MENU_STAR,
+    MENU_PACK,
+};
+
+static constexpr uint8_t MENU_ICONS[] PROGMEM = {
+    5, 5,
+    0x04, 0x0a, 0x11, 0x00, 0x00, // Left
+    0x11, 0x0a, 0x04, 0x00, 0x00, // Right
+    0x04, 0x02, 0x01, 0x02, 0x04, // Up
+    0x01, 0x02, 0x04, 0x02, 0x01, // Down
+    0x0f, 0x09, 0x1f, 0x09, 0x0f, // Open book
+    0x10, 0x18, 0x0c, 0x06, 0x03, // Blade
+    0x04, 0x0e, 0x1f, 0x0e, 0x04, // Star
+    0x1e, 0x15, 0x17, 0x15, 0x1e, // Pack
+};
+
+enum MENU_BUTTON : uint8_t { MENU_BUTTON_A, MENU_BUTTON_B };
+
+static constexpr uint8_t MENU_BUTTON_SPRITES[] PROGMEM = {
+    7, 7,
+    0x3e, 0x7f, 0x43, 0x75, 0x43, 0x7f, 0x3e, // A
+    0x3e, 0x7f, 0x41, 0x55, 0x6b, 0x7f, 0x3e, // B
+};
+
+static constexpr int16_t MENU_BUTTON_LABEL_OFFSET = 10;
+static constexpr int16_t MENU_LEFT_EDGE = 4;
+static constexpr int16_t MENU_RIGHT_EDGE = 124;
+static constexpr int16_t MENU_FOOTER = 60;
+
+static void draw_menu_rule(int16_t x, int16_t y, int16_t width = DISPLAY_WIDTH) {
+    avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y, width - 2 * MENU_LEFT_EDGE, 1);
+}
+
+static void draw_menu_frame(int16_t x, int16_t y = 0, int16_t width = DISPLAY_WIDTH,
+                            int16_t height = 64) {
+    avm_draw_filled_rect_black(x, y, width, height);
+    avm_draw_filled_rect_white(x + 1, y + 1, width - 2, height - 2);
+    avm_draw_filled_rect_black(x + 2, y + 2, width - 4, height - 4);
+}
+
+static int16_t draw_menu_title(int16_t x, char const PROGMEM* title, uint16_t width, int16_t y = 10) {
+    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
+    int16_t end = text_draw_clipped(x, y, title, width);
+    avm_set_text_font(AVM_FONT_BR5D);
+    return end;
+}
+
+static void draw_menu_button(int16_t x, int16_t y, MENU_BUTTON button,
+                             char const PROGMEM* action) {
+    avm_draw_sprite_overwrite(x, y - 6, MENU_BUTTON_SPRITES, button);
+    avm_draw_text(x + MENU_BUTTON_LABEL_OFFSET, y, action);
+}
+
+static void draw_menu_footer(int16_t x, char const PROGMEM* action,
+                             char const PROGMEM* back = F("Back")) {
+    draw_menu_rule(x, 52);
+    if(action)
+        draw_menu_button(x + MENU_LEFT_EDGE, MENU_FOOTER, MENU_BUTTON_A, action);
+    draw_menu_button(x + MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - avm_text_width(back),
+                     MENU_FOOTER, MENU_BUTTON_B, back);
+}
+
+static void begin_menu_row(int16_t x, int16_t y, bool selected, int16_t width) {
+    if(selected) {
+        // Leave one pixel above BR5D's ascenders and include the baseline for descenders.
+        avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y - 6, width, 7);
+        avm_set_text_mode(AVM_TEXT_BLACK_TRANSPARENT);
+    }
+}
+
+static void draw_menu_scroll(int16_t x, int16_t top, int16_t bottom, bool above, bool below,
+                             int16_t width = DISPLAY_WIDTH) {
+    if(above)
+        avm_draw_sprite_self_masked(x + width - 10, top - 5, MENU_ICONS, MENU_UP);
+    if(below)
+        avm_draw_sprite_self_masked(x + width - 10, bottom - 3, MENU_ICONS, MENU_DOWN);
+}
+
 RPG_NOINLINE static char const PROGMEM* menu_label(PAUSE_ITEM item) {
     static char const PROGMEM* const PROGMEM LABELS[] = {
         F("Resume"), F("Save"), F("Party"), F("Supplies"), F("Journal"), F("Map"),
@@ -486,7 +574,9 @@ RPG_NOINLINE static char const PROGMEM* menu_label(PAUSE_ITEM item) {
 }
 
 uint8_t menu_width(PauseMenuView const& view) {
+    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
     uint16_t width = avm_text_width(F("Paused")) + 8;
+    avm_set_text_font(AVM_FONT_BR5D);
     for(uint8_t row = 0; row < view.count; ++row) {
         uint16_t item_width = avm_text_width(menu_label(pause_item(view, row))) + 14;
         if(item_width > width)
@@ -509,39 +599,40 @@ void render_menu(uint8_t revealed, uint8_t width, PauseMenuView const& view,
         return;
 
     int16_t x = (int16_t)revealed - width;
-    avm_draw_filled_rect_black(x, 0, width, 64);
-    avm_draw_filled_rect_white(x + 1, 1, width - 2, 62);
-    avm_draw_filled_rect_black(x + 2, 2, width - 4, 60);
-    avm_draw_text(x + 4, 8, F("Paused"));
+    // Keep one black row beneath the last highlight before the bottom border.
+    draw_menu_frame(x, 0, width, 65);
+    draw_menu_title(x + 4, F("Paused"), width - 8);
+    draw_menu_rule(x, PAUSE_DIVIDER, width);
 
     uint8_t y = PAUSE_FIRST_BASELINE;
     uint8_t end = view.first + PAUSE_ROWS;
+    uint8_t gutter = view.count > PAUSE_ROWS ? 8 : 0;
     for(uint8_t row = view.first; row < end && row < view.count; ++row) {
-        avm_draw_text(x + 10, y, menu_label(pause_item(view, row)));
-        if(row == view.selected)
-            avm_draw_text(x + 4, y, F(">"));
+        begin_menu_row(x, y, row == view.selected, width - 8 - gutter);
+        avm_draw_text(x + 7, y, menu_label(pause_item(view, row)));
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
         y += PAUSE_ROW_STEP;
     }
-    if(view.first)
-        avm_draw_text(x + width - 7, PAUSE_FIRST_BASELINE, F("^"));
-    if(end < view.count)
-        avm_draw_text(x + width - 7, PAUSE_FIRST_BASELINE + (PAUSE_ROWS - 1) * PAUSE_ROW_STEP,
-                      F("v"));
+    constexpr int16_t LAST_BASELINE = PAUSE_FIRST_BASELINE + (PAUSE_ROWS - 1) * PAUSE_ROW_STEP;
+    draw_menu_scroll(x, PAUSE_FIRST_BASELINE, LAST_BASELINE, view.first, end < view.count, width);
     if(feedback && revealed == width)
         avm_draw_text(width + 4, 58, feedback);
 }
 
 void render_menu_confirmation(PAUSE_ITEM selection) {
-    char const PROGMEM* prompt = F("A Accept  B Cancel");
+    char const PROGMEM* accept = F("Accept");
+    char const PROGMEM* cancel = F("Cancel");
     char const PROGMEM* title = selection == PAUSE_PASS ? F("Pass turn?") : F("Resign?");
-    uint8_t width = (uint8_t)avm_text_width(prompt) + 12;
+    int16_t accept_width = MENU_BUTTON_LABEL_OFFSET + avm_text_width(accept);
+    int16_t cancel_width = MENU_BUTTON_LABEL_OFFSET + avm_text_width(cancel);
+    int16_t width = 12 + accept_width + 8 + cancel_width;
     int16_t x = (DISPLAY_WIDTH - width) / 2;
     constexpr uint8_t Y = 18, HEIGHT = 28;
-    avm_draw_filled_rect_black(x, Y, width, HEIGHT);
-    avm_draw_filled_rect_white(x + 1, Y + 1, width - 2, HEIGHT - 2);
-    avm_draw_filled_rect_black(x + 2, Y + 2, width - 4, HEIGHT - 4);
-    avm_draw_text((DISPLAY_WIDTH - avm_text_width(title)) / 2, Y + 10, title);
-    avm_draw_text(x + 6, Y + 21, prompt);
+    draw_menu_frame(x, Y, width, HEIGHT);
+    draw_menu_title(x + 6, title, width - 12, Y + 10);
+    draw_menu_rule(x, Y + 13, width);
+    draw_menu_button(x + 6, Y + 23, MENU_BUTTON_A, accept);
+    draw_menu_button(x + width - 6 - cancel_width, Y + 23, MENU_BUTTON_B, cancel);
 }
 
 void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
@@ -556,25 +647,32 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
         return;
 
     int16_t x = DISPLAY_WIDTH - revealed;
-    avm_draw_filled_rect_black(x, 0, AUDIO_WIDTH, 64);
-    avm_draw_filled_rect_white(x + 1, 1, AUDIO_WIDTH - 2, 62);
-    avm_draw_filled_rect_black(x + 2, 2, AUDIO_WIDTH - 4, 60);
-    avm_draw_text(x + 4, 8, F("Audio"));
-    avm_draw_text(x + 51, 8, F("B resume"));
+    draw_menu_frame(x, 0, AUDIO_WIDTH);
+    draw_menu_title(x + 4, F("Audio"), AUDIO_WIDTH - 8);
+    draw_menu_rule(x, 13, AUDIO_WIDTH);
+    draw_menu_rule(x, 52, AUDIO_WIDTH);
+    draw_menu_button(x + 53, MENU_FOOTER, MENU_BUTTON_B, F("Back"));
 
     static char const PROGMEM* const PROGMEM LABELS[] = {F("Music"), F("SFX")};
     for(uint8_t item = 0; item < OPTION_ITEM_COUNT; ++item) {
         uint8_t y = 22 + item * 16;
         uint8_t level = option_level((OPTION_ITEM)item);
-        avm_draw_text(x + 10, y, LABELS[item]);
-        if(item == selection)
-            avm_draw_text(x + 4, y, F(">"));
+        bool selected = item == selection;
+        begin_menu_row(x, y, selected, AUDIO_WIDTH - 8);
+        avm_draw_text(x + 7, y, LABELS[item]);
         if(!level)
             avm_draw_text(x + 63, y, F("Off"));
         else
             avm_draw_textf(x + 63, y, F("%u%%"),
                            (level * 100 + OPTION_SLIDER_MAX / 2) / OPTION_SLIDER_MAX);
 
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+        if(selected) {
+            if(level)
+                avm_draw_sprite_self_masked(x + 5, y + 3, MENU_ICONS, MENU_LEFT);
+            if(level < OPTION_VOLUME_MAX)
+                avm_draw_sprite_self_masked(x + AUDIO_WIDTH - 9, y + 3, MENU_ICONS, MENU_RIGHT);
+        }
         constexpr uint8_t TRACK_WIDTH = AUDIO_WIDTH - 20;
         avm_draw_filled_rect_white(x + 10, y + 5, TRACK_WIDTH, 1);
         avm_draw_filled_rect_white(x + 10, y + 3, 1, 5);
@@ -637,91 +735,6 @@ text_draw_clipped(int16_t x, int16_t y, char const PROGMEM* text, uint16_t width
     while(fit < length && text_range_width(text, 0, (uint8_t)(fit + 1)) <= width)
         ++fit;
     return text_draw_range(x, y, text, 0, fit);
-}
-
-// Five columns per icon, with the least significant bit at the top.
-enum MENU_ICON : uint8_t {
-    MENU_LEFT,
-    MENU_RIGHT,
-    MENU_UP,
-    MENU_DOWN,
-    MENU_BOOK,
-    MENU_BLADE,
-    MENU_STAR,
-    MENU_PACK,
-};
-
-static constexpr uint8_t MENU_ICONS[] PROGMEM = {
-    5, 5,
-    0x04, 0x0a, 0x11, 0x00, 0x00, // Left
-    0x11, 0x0a, 0x04, 0x00, 0x00, // Right
-    0x04, 0x02, 0x01, 0x02, 0x04, // Up
-    0x01, 0x02, 0x04, 0x02, 0x01, // Down
-    0x0f, 0x09, 0x1f, 0x09, 0x0f, // Open book
-    0x10, 0x18, 0x0c, 0x06, 0x03, // Blade
-    0x04, 0x0e, 0x1f, 0x0e, 0x04, // Star
-    0x1e, 0x15, 0x17, 0x15, 0x1e, // Pack
-};
-
-enum MENU_BUTTON : uint8_t { MENU_BUTTON_A, MENU_BUTTON_B };
-
-static constexpr uint8_t MENU_BUTTON_SPRITES[] PROGMEM = {
-    7, 7,
-    0x3e, 0x7f, 0x43, 0x75, 0x43, 0x7f, 0x3e, // A
-    0x3e, 0x7f, 0x41, 0x55, 0x6b, 0x7f, 0x3e, // B
-};
-
-static constexpr int16_t MENU_BUTTON_LABEL_OFFSET = 10;
-static constexpr int16_t MENU_LEFT_EDGE = 4;
-static constexpr int16_t MENU_RIGHT_EDGE = 124;
-static constexpr int16_t MENU_FOOTER = 60;
-
-static void draw_menu_rule(int16_t x, int16_t y) {
-    avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y, MENU_RIGHT_EDGE - MENU_LEFT_EDGE, 1);
-}
-
-static void draw_menu_frame(int16_t x) {
-    avm_draw_filled_rect_black(x, 0, DISPLAY_WIDTH, 64);
-    avm_draw_filled_rect_white(x + 1, 1, DISPLAY_WIDTH - 2, 62);
-    avm_draw_filled_rect_black(x + 2, 2, DISPLAY_WIDTH - 4, 60);
-}
-
-static int16_t draw_menu_title(int16_t x, char const PROGMEM* title, uint16_t width) {
-    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
-    int16_t end = text_draw_clipped(x, 10, title, width);
-    avm_set_text_font(AVM_FONT_BR5D);
-    return end;
-}
-
-static void draw_menu_button(int16_t x, int16_t y, MENU_BUTTON button,
-                             char const PROGMEM* action) {
-    avm_draw_sprite_overwrite(x, y - 6, MENU_BUTTON_SPRITES, button);
-    avm_draw_text(x + MENU_BUTTON_LABEL_OFFSET, y, action);
-}
-
-static void draw_menu_footer(int16_t x, char const PROGMEM* action,
-                             char const PROGMEM* back = F("Back")) {
-    draw_menu_rule(x, 52);
-    if(action)
-        draw_menu_button(x + MENU_LEFT_EDGE, MENU_FOOTER, MENU_BUTTON_A, action);
-    draw_menu_button(x + MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - avm_text_width(back),
-                     MENU_FOOTER, MENU_BUTTON_B, back);
-}
-
-static void begin_menu_row(int16_t x, int16_t y, bool selected, int16_t width) {
-    if(selected) {
-        // BR5D starts five pixels above the baseline. Leave one row above it
-        // and include the baseline row for descenders.
-        avm_draw_filled_rect_white(x + MENU_LEFT_EDGE, y - 6, width, 7);
-        avm_set_text_mode(AVM_TEXT_BLACK_TRANSPARENT);
-    }
-}
-
-static void draw_menu_scroll(int16_t x, int16_t top, int16_t bottom, bool above, bool below) {
-    if(above)
-        avm_draw_sprite_self_masked(x + 118, top - 5, MENU_ICONS, MENU_UP);
-    if(below)
-        avm_draw_sprite_self_masked(x + 118, bottom - 3, MENU_ICONS, MENU_DOWN);
 }
 
 void journal_open(JournalView& view, QUEST_ID id) {
@@ -851,12 +864,41 @@ static void render_party_divider(int16_t x) {
     draw_menu_rule(x, 21);
 }
 
+void render_battle_result(char const PROGMEM* title) {
+    constexpr int16_t X = 24, Y = 18, WIDTH = 80;
+    draw_menu_frame(X, Y, WIDTH, 28);
+    draw_menu_title(X + 6, title, WIDTH - 12, Y + 10);
+    draw_menu_rule(X, Y + 13, WIDTH);
+    draw_menu_button(X + 6, Y + 23, MENU_BUTTON_A, F("Continue"));
+}
+
+void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom) {
+    uint16_t widest = avm_text_width(special);
+    uint16_t attack_width = avm_text_width(F("Attack"));
+    if(attack_width > widest)
+        widest = attack_width;
+    uint16_t cost_width = avm_text_width(F("9 AP"));
+    int16_t width = 18 + widest + cost_width;
+    // Leave one interior pixel between each outer row and the frame.
+    constexpr int16_t HEIGHT = 20;
+    int16_t x = (DISPLAY_WIDTH - width) / 2;
+    int16_t y = at_bottom ? 64 - HEIGHT - 2 : 2;
+    draw_menu_frame(x, y, width, HEIGHT);
+    for(uint8_t row = 0; row < 2; ++row) {
+        int16_t baseline = y + 9 + row * 7;
+        begin_menu_row(x, baseline, row == choice, width - 8);
+        avm_draw_text(x + 7, baseline, row == 0 ? F("Attack") : special);
+        if(row)
+            avm_draw_textf(x + width - 6 - cost_width, baseline, F("%u AP"), ap);
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    }
+}
+
 void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice) {
-    avm_draw_filled_rect_black(3, 2, 122, 60);
-    avm_draw_filled_rect_white(4, 3, 120, 58);
-    avm_draw_filled_rect_black(5, 4, 118, 56);
-    avm_draw_text(8, 13, title);
-    uint8_t y = 21;
+    draw_menu_frame(3, 2, 122, 60);
+    draw_menu_title(8, title, 112, 13);
+    draw_menu_rule(3, 16, 122);
+    uint8_t y = 24;
     for(uint8_t i = 0; i < game.party.count; ++i) {
         if(!(notice.members & (1 << i)))
             continue;
@@ -867,7 +909,8 @@ void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice) {
     }
     if(notice.perk_earned)
         avm_draw_text(8, 57, F("Perk available!"));
-    avm_draw_text(79, 57, F("A continue"));
+    draw_menu_rule(3, 49, 122);
+    draw_menu_button(79, 57, MENU_BUTTON_A, F("Continue"));
 }
 
 static void render_party_header(int16_t x, PartyUi const& ui) {

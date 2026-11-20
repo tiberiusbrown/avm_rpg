@@ -16,8 +16,8 @@ world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Sup
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
 immediately after saving. Seven rows fit in the pause panel. When more entries are visible,
-the list follows the selection and arrows show entries above or below. Up/down still wraps
-between the first and last available actions.
+the list follows the inverted selection bar and arrow sprites show entries above or below.
+Up/down still wraps between the first and last available actions.
 
 Party opens an eased sliding panel on the overview of the first member. Left and
 right switch members and wrap at either end. Up and down choose **Specials**, **Perks** or **Equipment**; A
@@ -106,8 +106,9 @@ fades it completely back in before play resumes.
 
 Selecting **Audio** eases the pause panel out to the left, then immediately eases the
 Audio panel in from the right. The world remains frozen at 50% fade throughout the
-handoff. Up/down selects **Music** or **SFX**; left/right adjusts the
-slider, with repeat while held. Volume sliders run from Off to 200% in 31 positions, with a default of 100%.
+handoff. Up/down moves the selection bar between **Music** and **SFX**.
+Arrow sprites show which directions the selected slider can move. Left/right adjusts it,
+with repeat while held. Volume sliders run from Off to 200% in 31 positions, with a default of 100%.
 B eases Audio out and returns directly to gameplay.
 
 Audio settings take effect immediately and are stored alongside progress when **Save** is
@@ -395,8 +396,9 @@ overworld cache and from the current area.
   A on the selected hero or B cancels a selection. The selected hero has a two-pixel white border.
   An invalid confirmation does nothing, and it does not use up the turn. After a hero acts, the
   cursor returns to that hero, so it can be selected again without moving the cursor.
-  When the enemy can also take the hero's starting special, A on it opens a small offer: Attack is
-  highlighted first, and the special lists its AP cost. UP and DOWN choose, A confirms, and B closes
+  When the enemy can also take the hero's starting special, A on it opens a small titleless offer.
+  A filled bar highlights Attack first, and the special lists its AP cost. UP and DOWN choose,
+  A confirms, and B closes
   the offer without acting, leaving the hero selected. A special needs enough AP for its cost, so a
   hero short of AP attacks normally at once. A special deals the normal damage plus a bonus: Power
   Strike +3, Opening Shot +4 against a full-HP enemy and +1 otherwise, Driving Thrust +2 and a knockback,

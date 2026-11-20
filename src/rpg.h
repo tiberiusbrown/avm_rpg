@@ -364,6 +364,8 @@ inline constexpr uint8_t PLAYER_PIXELS_PER_FRAME = 1;
 inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 // Center the player in the uncovered viewport, clamped to the map.
 Camera game_camera(uint8_t view_height = 64);
+void render_battle_result(char const PROGMEM* title);
+void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom);
 void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice);
 
 // Block until acknowledged (true) or dismissed with B (false).

@@ -1295,6 +1295,7 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
             "closing the offer with B acted on the battle");
     d.tap(BTN_A);
     d.tap(BTN_DOWN); // Highlight Opening Shot.
+    d.capture(out / "battle-special-selected.pgm");
     unsigned activations = d.battle_state().activations;
     d.tap(BTN_A);
     d.wait_for_battle(activations);

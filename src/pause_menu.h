@@ -3,10 +3,11 @@
 
 #include "rpg.h"
 
-inline constexpr uint8_t PAUSE_FIRST_BASELINE = 17;
+inline constexpr uint8_t PAUSE_DIVIDER = 11;
+inline constexpr uint8_t PAUSE_FIRST_BASELINE = 19;
 inline constexpr uint8_t PAUSE_ROW_STEP = 7;
 inline constexpr uint8_t PAUSE_ROWS = 7;
-static_assert(PAUSE_FIRST_BASELINE - 6 > 8);
+static_assert(PAUSE_FIRST_BASELINE - 6 == PAUSE_DIVIDER + 2);
 static_assert(PAUSE_FIRST_BASELINE + (PAUSE_ROWS - 1) * PAUSE_ROW_STEP < 62);
 
 constexpr bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle, bool outdoors) {

@@ -25,3 +25,11 @@
 - Define every NPC identity with `NpcPolicy<ID> : AtOneOf<...>` in `logic/npc_policies.h`; use `When<POS, predicate>` for saved quest conditions. Keep possible sites and conditions together, without a second location registry or per-identity coordinates. Add positions in Tiled. Identity, portrait row and active slot are independent.
 - Preserve the eight-slot compact actor prefix, bounded candidate priority (higher priority then lower ID), guarded offscreen activation/retirement and pinned unfinished target/route actors. Reacquire actor pointers after NPC-stage compaction. Run the full NPC stage every frame and throughout destination scene preparation.
 - Python emits map catalogs and area dimensions; C++20 owns chunk specialization and dense PROGMEM function tables. Keep 24-bit code pointers, full LTO and complete stack bounds. Save version 13 reconstructs transient actors from quest policies.
+
+## UI panel style
+
+- Use Journal, Party, and Supplies as the visual reference for menus and popups. Reuse the shared panel drawing helpers in `src/render.cpp`.
+- Draw panel titles in `AVM_FONT_PIXELOIDSANSBOLD` with a horizontal divider below. Use `AVM_FONT_BR5D` for rows and prompts. Keep the battle special-attack popup titleless.
+- Highlight the selected row with a filled, seven-pixel-high white bar and draw the row text in black inside it. Keep one clear black pixel between the bar and any adjacent horizontal divider or panel border when the first or last row is selected. Adjust the row positions or panel height to provide that gap.
+- Use the shared arrow sprites for scrolling or directional adjustments. Show them where movement in that direction is available.
+- Use the shared A and B button sprites with adjacent action labels in prompts and footers, including battle confirmations.
