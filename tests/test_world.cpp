@@ -733,7 +733,7 @@ static void cave_mechanisms() {
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_CLOSED && played() == 0);
     --game.supplies.quantity[SUPPLY_ETHER];
     press_a();
-    CHECK(game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold + CHEST_GOLD);
+    CHECK(game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold + 25);
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
     EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
     CHECK(supply_count(game.supplies, SUPPLY_POTION) == 3);
@@ -745,7 +745,7 @@ static void cave_mechanisms() {
     press_a();
     CHECK(supply_count(game.supplies, SUPPLY_POTION) == 3);
     CHECK(supply_count(game.supplies, SUPPLY_ETHER) == SUPPLY_LIMIT);
-    CHECK(game.gold == gold + CHEST_GOLD);
+    CHECK(game.gold == gold + 25);
     CHECK(played() == 1);
 
     // The vent blows by the clock alone and blocks its passage while it blows.
@@ -878,7 +878,7 @@ static void dungeon_mechanisms() {
     sfx_stub_reset();
     press_a();
     EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
-    CHECK(game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold + CHEST_GOLD);
+    CHECK(game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold + 25);
     CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
     CHECK(supply_count(game.supplies, SUPPLY_ELIXIR) == 2);
     CHECK(supply_count(game.supplies, SUPPLY_REVIVE) == 2);
@@ -886,7 +886,7 @@ static void dungeon_mechanisms() {
     update_visible_world(0, false);
     CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
     press_a();
-    CHECK(game.gold == gold + CHEST_GOLD);
+    CHECK(game.gold == gold + 25);
     CHECK(supply_count(game.supplies, SUPPLY_ELIXIR) == 2);
     CHECK(supply_count(game.supplies, SUPPLY_REVIVE) == 2);
 }

@@ -2,6 +2,7 @@
 #define LOGIC_AREA_CAVE_H
 
 #include "mechanisms.h"
+#include "container_rewards.h"
 #include "area_ids.h"
 #include "tile_ids.h"
 
@@ -24,6 +25,11 @@ template <> struct AreaMechanisms<AREA_CAVE> {
          CAVE_TILE_BRIDGE_VERTICAL},
         {MECHANISM_CHEST, one_cell(positions::CaveChest), FLAG_CAVE_CHEST, CAVE_TILE_CHEST_OPEN},
     };
+};
+
+template <>
+struct ChestReward<positions::CaveChest> : GoldSupplyReward<25, {SUPPLY_POTION, 1}, {SUPPLY_ETHER, 1}> {
+    static constexpr auto MESSAGE = F("You find 25 gold, a Potion, and an Ether.");
 };
 
 // The mouth and the ladder hole lead outdoors, each to its own doorway in the cave.

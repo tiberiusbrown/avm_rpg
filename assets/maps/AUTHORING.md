@@ -863,6 +863,9 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   `CHEST_CLOSED` becomes `CHEST_OPEN`. The map shows the initial state. Content code must
   record the collected state in a world flag, because the cache is rebuilt from the map
   when it reloads.
+  For `open_chest`, add the chest's mechanism row and specialize `ChestReward<positions::Name>`
+  in the area's logic header. The shared handler changes the flag and lid after the reward
+  succeeds. `GoldSupplyReward` supplies the capacity check and grant for gold and supplies.
 - **Portals.** No tile sets `portal=true` yet. The flag stops an NPC from spawning
   when its foot centre lies on that cell. Doorways are not driven by tile flags.
   Content code triggers them from a handler with `teleport_player<POS>()`, as the house

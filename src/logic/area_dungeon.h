@@ -2,6 +2,7 @@
 #define LOGIC_AREA_DUNGEON_H
 
 #include "mechanisms.h"
+#include "container_rewards.h"
 #include "area_ids.h"
 #include "tile_ids.h"
 
@@ -36,6 +37,11 @@ template <> struct AreaMechanisms<AREA_DUNGEON> {
         {MECHANISM_CHEST, one_cell(positions::DungeonChest), FLAG_DUNGEON_CHEST,
          DUNGEON_TILE_CHEST_OPEN},
     };
+};
+
+template <>
+struct ChestReward<positions::DungeonChest> : GoldSupplyReward<25, {SUPPLY_ELIXIR, 1}, {SUPPLY_REVIVE, 1}> {
+    static constexpr auto MESSAGE = F("You find 25 gold, an Elixir, and a Revive.");
 };
 
 // The mine door outdoors leads to the doorway at the south end of the dungeon.
