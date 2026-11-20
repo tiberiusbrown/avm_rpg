@@ -8,6 +8,9 @@ bool save_valid() {
         return false;
     if(game.save_version != SAVE_VERSION || game.player.facing > WEST || !game.level || !game.rng)
         return false;
+    for(uint8_t quantity : game.supplies.quantity)
+        if(quantity > SUPPLY_LIMIT)
+            return false;
     if(!game.party.count || game.party.count > PARTY_CAPACITY ||
        game.party.members[0].id != NPC_NONE)
         return false;

@@ -67,6 +67,10 @@ bool dialogue_show(char const PROGMEM*) {
     return true;
 }
 
+bool dialogue_ask(char const PROGMEM*) {
+    return false;
+}
+
 bool dialogue_show(NPC_ID, char const PROGMEM*) {
     return true;
 }

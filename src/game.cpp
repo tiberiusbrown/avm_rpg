@@ -56,6 +56,7 @@ void game_start() {
     // The traveler occupies the first slot from the start. Recruitment is for NPCs.
     game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.count = 1;
+    game.supplies = STARTING_SUPPLIES;
     game.level = 1;
 
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);

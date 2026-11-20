@@ -7,6 +7,8 @@
 #include "ambient.h"
 #include "journal.h"
 #include "party_ui.h"
+#include "pause_menu.h"
+#include "supplies_ui.h"
 #include "quest.h"
 #include "title.h"
 #include "world_assets.h"
@@ -474,27 +476,26 @@ void render_title(uint16_t ticks) {
 }
 
 RPG_NOINLINE static char const PROGMEM* menu_label(PAUSE_ITEM item) {
-    static char const PROGMEM* const PROGMEM LABELS[] = {F("Resume"),  F("Save"), F("Party"),
-                                                         F("Journal"), F("Map"),  F("Resign"),
-                                                         F("Audio"),   F("Pass"), F("Load")};
+    static char const PROGMEM* const PROGMEM LABELS[] = {
+        F("Resume"), F("Save"), F("Party"), F("Supplies"), F("Journal"), F("Map"),
+        F("Resign"), F("Audio"), F("Pass"), F("Load"),
+    };
     if(item == PAUSE_PARTY && party_has_unspent_perks(game.party))
         return F("Party !");
     return LABELS[item];
 }
 
-uint8_t menu_width(bool in_battle) {
+uint8_t menu_width(PauseMenuView const& view) {
     uint16_t width = avm_text_width(F("Paused")) + 8;
-    for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
-        if(!menu_item_visible((PAUSE_ITEM)item, save_exists, in_battle))
-            continue;
-        uint16_t item_width = avm_text_width(menu_label((PAUSE_ITEM)item)) + 14;
+    for(uint8_t row = 0; row < view.count; ++row) {
+        uint16_t item_width = avm_text_width(menu_label(pause_item(view, row))) + 14;
         if(item_width > width)
             width = item_width;
     }
-    return (uint8_t)width;
+    return (uint8_t)(width + (view.count > PAUSE_ROWS ? 6 : 0));
 }
 
-void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
+void render_menu(uint8_t revealed, uint8_t width, PauseMenuView const& view,
                  char const PROGMEM* feedback, MENU_EXIT action, BattleScreen const* battle) {
     if(battle)
         render_battle(*battle);
@@ -513,15 +514,19 @@ void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can
     avm_draw_filled_rect_black(x + 2, 2, width - 4, 60);
     avm_draw_text(x + 4, 8, F("Paused"));
 
-    uint8_t y = 17;
-    for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
-        if(!menu_item_visible((PAUSE_ITEM)item, can_load, battle != nullptr))
-            continue;
-        avm_draw_text(x + 10, y, menu_label((PAUSE_ITEM)item));
-        if(item == selection)
+    uint8_t y = PAUSE_FIRST_BASELINE;
+    uint8_t end = view.first + PAUSE_ROWS;
+    for(uint8_t row = view.first; row < end && row < view.count; ++row) {
+        avm_draw_text(x + 10, y, menu_label(pause_item(view, row)));
+        if(row == view.selected)
             avm_draw_text(x + 4, y, F(">"));
-        y += 7;
+        y += PAUSE_ROW_STEP;
     }
+    if(view.first)
+        avm_draw_text(x + width - 7, PAUSE_FIRST_BASELINE, F("^"));
+    if(end < view.count)
+        avm_draw_text(x + width - 7, PAUSE_FIRST_BASELINE + (PAUSE_ROWS - 1) * PAUSE_ROW_STEP,
+                      F("v"));
     if(feedback && revealed == width)
         avm_draw_text(width + 4, 58, feedback);
 }
@@ -1241,4 +1246,84 @@ void render_party(uint8_t revealed, bool closing, PartyUi const& ui) {
 
 void party_layout(PartyUi& ui) {
     party_ui_layout(ui, game.party, TextRangeWidth{});
+}
+
+void supplies_layout(SuppliesUi& ui) {
+    ui.lines = text_wrap(supply_description(ui.supply), 110, TextRangeWidth{}, ui.starts,
+                         SUPPLIES_WRAP_CAPACITY);
+}
+
+static void render_supplies_rows(int16_t x, SuppliesUi const& ui) {
+    bool targets = ui.page == SUPPLIES_TARGET;
+    uint8_t count = targets ? game.party.count : SUPPLY_COUNT;
+    for(uint8_t row = 0; row < count; ++row) {
+        int16_t y = 22 + row * 8;
+        bool selected = row == (targets ? (uint8_t)ui.target : (uint8_t)ui.supply);
+        begin_menu_row(x, y, selected, 120);
+        if(targets) {
+            PartyMember const& member = game.party.members[row];
+            bool ap = ui.supply == SUPPLY_ETHER;
+            bool valid = supply_can_use(ui.supply, game.party, row);
+            if(!valid)
+                avm_draw_text(x + 7, y, F("-"));
+            text_draw_clipped(x + 15, y, party_member_name(member), 57);
+            avm_draw_textf(x + 76, y, ap ? F("AP %u/%u") : F("HP %u/%u"),
+                           ap ? member.ap : member.hp,
+                           ap ? party_max_ap(member) : party_max_hp(member));
+        } else {
+            auto id = (SUPPLY_ID)row;
+            avm_draw_text(x + 7, y, supply_name(id));
+            avm_draw_textf(x + 104, y, F("x%u"), supply_count(game.supplies, id));
+        }
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    }
+}
+
+static void render_supplies_panel(int16_t x, SuppliesUi const& ui) {
+    draw_menu_frame(x);
+    draw_menu_title(x + 4, ui.page == SUPPLIES_LIST ? F("Supplies") : supply_name(ui.supply), 120);
+    draw_menu_rule(x, 13);
+    if(ui.page == SUPPLIES_TARGET)
+        avm_draw_text(x + 65, 10, F("Choose target"));
+
+    switch(ui.page) {
+        case SUPPLIES_LIST:
+        case SUPPLIES_TARGET:
+            render_supplies_rows(x, ui);
+            draw_menu_footer(x, ui.page == SUPPLIES_LIST ? F("Inspect") : F("Use"));
+            if(ui.feedback)
+                avm_draw_text(x + 60, MENU_FOOTER, ui.feedback);
+            break;
+        case SUPPLIES_DETAILS: {
+            auto description = supply_description(ui.supply);
+            for(uint8_t row = 0; row < SUPPLIES_DETAIL_LINES && ui.scroll + row < ui.lines; ++row) {
+                uint8_t line = ui.scroll + row;
+                uint8_t from = ui.starts[line], to = ui.starts[line + 1];
+                while(to > from && description[to - 1] == ' ')
+                    --to;
+                text_draw_range(x + 4, 22 + 7 * row, description, from, to);
+            }
+            draw_menu_scroll(x, 22, 36, ui.scroll, ui.scroll + SUPPLIES_DETAIL_LINES < ui.lines);
+            avm_draw_textf(x + 4, 47, F("Owned: %u"), supply_count(game.supplies, ui.supply));
+            if(ui.feedback)
+                text_draw_clipped(x + 47, 47, ui.feedback, 77);
+            draw_menu_footer(x, F("Use"));
+            break;
+        }
+        case SUPPLIES_CONFIRM:
+            avm_draw_text(x + 4, 25, F("Restore up to 4 HP to all"));
+            avm_draw_text(x + 4, 33, F("conscious party members?"));
+            draw_menu_footer(x, F("Confirm"), F("Cancel"));
+            break;
+    }
+}
+
+void render_supplies(uint8_t revealed, bool closing, SuppliesUi const& ui) {
+    if(revealed < SUPPLIES_WIDTH) {
+        rpg_render_world();
+        draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / SUPPLIES_WIDTH)
+                          : FADE_STEPS / 2);
+    }
+    if(revealed)
+        render_supplies_panel(DISPLAY_WIDTH - revealed, ui);
 }

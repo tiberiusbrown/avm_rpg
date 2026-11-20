@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "world_types.h"
+#include "supplies.h"
 #include "area_ids.h"
 #include "npc_ids.h"
 #include "quest_ids.h"
@@ -39,7 +40,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 16;
+inline constexpr uint8_t SAVE_VERSION = 17;
 
 enum {
     BTN_B = 4,
@@ -252,6 +253,7 @@ struct Game {
     WorldFlags flags;
     uint8_t area, level;
     Party party;
+    Supplies supplies;
     MapDimensions dimensions; // Active area dimensions, cached on entry or teleport.
     TilePos previous_player_tile;
     bool can_interact;
@@ -402,6 +404,7 @@ enum PAUSE_ITEM : uint8_t {
     PAUSE_RESUME,
     PAUSE_SAVE,
     PAUSE_PARTY,
+    PAUSE_SUPPLIES,
     PAUSE_JOURNAL,
     PAUSE_MAP,
     PAUSE_RESIGN,
@@ -416,6 +419,7 @@ enum MENU_EXIT : uint8_t {
     MENU_LOAD,
     MENU_AUDIO,
     MENU_PARTY,
+    MENU_SUPPLIES,
     MENU_JOURNAL,
     MENU_MAP,
     MENU_PASS,
@@ -432,9 +436,9 @@ inline constexpr uint8_t AUDIO_WIDTH = 88;
 
 struct BattleScreen;
 void render_battle(BattleScreen const& screen);
-bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle = false);
-uint8_t menu_width(bool in_battle = false);
-void render_menu(uint8_t revealed, uint8_t width, PAUSE_ITEM selection, bool can_load,
+struct PauseMenuView;
+uint8_t menu_width(PauseMenuView const& view);
+void render_menu(uint8_t revealed, uint8_t width, PauseMenuView const& view,
                  char const PROGMEM* feedback, MENU_EXIT action,
                  BattleScreen const* battle = nullptr);
 void render_menu_confirmation(PAUSE_ITEM selection);

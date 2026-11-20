@@ -5,6 +5,7 @@
 
 #pragma pack(push, 1)
 #include "rpg.h"
+#include "pause_menu.h"
 #include "soundscape.h"
 #include "map_positions.h"
 #include "world_assets.h"
@@ -31,7 +32,7 @@ namespace fs = std::filesystem;
 static bool check_timing = true;
 static uint64_t worst_exploration_cycles;
 
-static_assert(sizeof(Game) == 21 + sizeof(Party) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
+static_assert(sizeof(Game) == 21 + sizeof(Party) + sizeof(Supplies) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -878,8 +879,10 @@ static FadeTrace::Frame pause_frame(Device& d) {
 }
 
 static bool pause_row_visible(Device& d, unsigned row) {
+    require(row < PAUSE_ROWS, "pause test row outside the viewport");
     auto pixels = pause_frame(d).pixels;
-    for(unsigned y = 12 + 7 * row; y < 18 + 7 * row; ++y)
+    unsigned baseline = PAUSE_FIRST_BASELINE + PAUSE_ROW_STEP * row;
+    for(unsigned y = baseline - 5; y <= baseline; ++y)
         for(unsigned x = 4; x < 35; ++x)
             if(pixels[(y / 8) * 128 + x] & (1 << (y % 8)))
                 return true;
@@ -907,10 +910,14 @@ static void verify_options_handoff(FadeTrace const& trace) {
         return true;
     };
     auto const& source = trace.frames[1];
+    int width = 2;
+    while(width < 128 && pixel(source, width - 1, 1))
+        ++width;
+    require(width > 2 && width < 128 && !pixel(source, 0, 1), "pause panel is missing");
     size_t at = 1;
-    while(at < trace.frames.size() && !left_edge(trace.frames[at], 20))
+    while(at < trace.frames.size() && !left_edge(trace.frames[at], (width + 1) / 2))
         ++at;
-    int position = 39 * 16;
+    int position = width * 16;
     uint64_t previous = 0;
     do {
         position -= position / 2;
@@ -919,7 +926,7 @@ static void verify_options_handoff(FadeTrace const& trace) {
                 "pause did not ease out before Audio");
         auto const& frame = trace.frames[at++];
         for(unsigned i = 0; i < source.pixels.size(); ++i)
-            if(i % 128 >= 39)
+            if(i % 128 >= (unsigned)width)
                 require(frame.pixels[i] == source.pixels[i],
                         "world brightened during Audio handoff");
         require(!check_timing || !previous || frame.cycle - previous < 336000,
@@ -927,6 +934,8 @@ static void verify_options_handoff(FadeTrace const& trace) {
         previous = frame.cycle;
     } while((position + 8) / 16);
 
+    auto const& faded_world = trace.frames[at - 1];
+    constexpr int OUTSIDE_AUDIO = 128 - AUDIO_WIDTH - 1;
     position = 0;
     do {
         bool first_options_frame = position == 0;
@@ -940,7 +949,8 @@ static void verify_options_handoff(FadeTrace const& trace) {
                         pixel(frame, x, 1) == (x > left && x < left + AUDIO_WIDTH - 1),
                     "Audio did not ease in from the right");
         for(unsigned page = 0; page < 8; ++page)
-            require(frame.pixels[page * 128 + 39] == source.pixels[page * 128 + 39],
+            require(frame.pixels[page * 128 + OUTSIDE_AUDIO] ==
+                        faded_world.pixels[page * 128 + OUTSIDE_AUDIO],
                     "Audio changed the world's half fade");
         // The first Audio image has more drawing work than the outgoing empty pause image.
         // Subsequent presentations must keep the usual 50 Hz cadence.
@@ -1079,6 +1089,7 @@ static void verify_pause_party(Device& d, fs::path const& out) {
     d.advance(0, 1600000);
     frozen = d.state();
     serial = d.serial();
+    d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_UP);
@@ -1519,7 +1530,7 @@ static void verify_house_fades(Device& d) {
             "house entry revealed the wrong destination or tile cache");
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    require(pause_row_visible(d, 4) && !pause_row_visible(d, 5),
+    require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
             "interior pause menu did not hide Map and Load");
     d.tap(BTN_B);
     d.frame();
@@ -1966,6 +1977,53 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
             "dismissing the quest notice did not resume exploration with a pending perk");
 }
 
+static void verify_supplies(Device& d, fs::path const& out) {
+    Game original = d.state();
+    require(original.supplies.quantity[SUPPLY_POTION] == 2 &&
+                original.supplies.quantity[SUPPLY_ELIXIR] == 1 &&
+                original.supplies.quantity[SUPPLY_REVIVE] == 1 &&
+                original.supplies.quantity[SUPPLY_ETHER] == 1,
+            "new game supplies have incorrect quantities");
+    Game injured = original;
+    injured.party.members[0].hp = 1;
+    d.set_state(injured);
+    d.tap(BTN_B);
+    unsigned serial = d.serial();
+    for(unsigned i = 0; i < 3; ++i)
+        d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 3200000);
+    d.capture(out / "supplies-list.pgm");
+    d.tap(BTN_A);
+    d.capture(out / "supplies-details.pgm");
+    d.tap(BTN_A);
+    d.capture(out / "supplies-target.pgm");
+    d.advance(BTN_A, 3200000);
+    require(d.state().party.members[0].hp == 9 &&
+                d.state().supplies.quantity[SUPPLY_POTION] == 1,
+            "Potion target or held-A handling is incorrect");
+    d.advance(0);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.tap(BTN_A);
+    d.capture(out / "supplies-confirm.pgm");
+    d.tap(BTN_B);
+    require(d.state().party.members[0].hp == 9 &&
+                d.state().supplies.quantity[SUPPLY_ELIXIR] == 1,
+            "cancelled Elixir changed the party or inventory");
+    d.tap(BTN_A);
+    d.tap(BTN_A);
+    require(d.state().party.members[0].hp == 13 &&
+                !d.state().supplies.quantity[SUPPLY_ELIXIR],
+            "confirmed Elixir did not heal the party");
+    require(d.serial() == serial, "Supplies advanced exploration");
+    d.tap(BTN_B);
+    d.frame();
+    require(d.serial() != serial, "Supplies did not resume exploration");
+    original.supplies = d.state().supplies;
+    d.set_state(original);
+}
+
 static void verify_smoke(Device& d, fs::path const& package, fs::path const& out) {
     d.advance(0, 3200000);
     require(d.serial() == 0 && d.music_enabled(), "smoke boot did not reach the title");
@@ -1978,6 +2036,7 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     d.hold(BTN_DOWN, 4);
     require(d.state().player.y > initial.player.y, "smoke movement failed");
     d.capture(out / "exploration.pgm");
+    verify_supplies(d, out);
     verify_quest_level_up(d, out);
     verify_perk_choice(d, out);
     d.tap(BTN_B);
@@ -1986,6 +2045,11 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     require(d.serial() == serial, "smoke menu did not pause exploration");
     d.tap(BTN_DOWN); // Save, immediately below Resume.
     d.tap(BTN_A);
+    d.capture(out / "pause-top.pgm");
+    d.tap(BTN_UP); // Save to Resume.
+    d.tap(BTN_UP); // Wrap to Load and reveal the final row.
+    d.capture(out / "pause-scrolled.pgm");
+    d.tap(BTN_DOWN); // Wrap back to Resume.
     auto saved = d.state();
     auto sector = d.sector();
     require((sector[0] | (uint16_t)sector[1] << 8) == sizeof(Game) &&
@@ -2002,6 +2066,9 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     require(restarted.serial() != 0 && loaded.area == saved.area && loaded.gold == saved.gold &&
                 loaded.player.x == saved.player.x && loaded.player.y == saved.player.y,
             "smoke restart did not restore the save");
+    require(loaded.supplies.quantity[SUPPLY_POTION] == 1 &&
+                loaded.supplies.quantity[SUPPLY_ELIXIR] == 0,
+            "smoke restart did not restore used supplies");
     PartyMember const& member = loaded.party.members[0];
     require(party_movement_perk_rank(member) == 1 && member.hp == 16 &&
                 party_max_hp(member) == 23 && party_unspent_perks(member) == 0,
@@ -2431,7 +2498,7 @@ int main(int argc, char** argv) try {
             "menu did not pause exploration");
     d.verify_music();
     d.capture(out / "menu.pgm");
-    require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
+    require(pause_row_visible(d, 6),
             "overworld menu did not show Map or hid an invalid save incorrectly");
 
     // Up wraps to Audio. Map owns its loop and returns directly to gameplay.
@@ -2486,6 +2553,7 @@ int main(int argc, char** argv) try {
     d.tap(BTN_UP);
     d.tap(BTN_UP);
     d.tap(BTN_UP);
+    d.tap(BTN_UP);
     d.tap(BTN_UP); // Party
     d.tap(BTN_A);
     d.advance(0, 8000000);
@@ -2499,7 +2567,9 @@ int main(int argc, char** argv) try {
     menu_serial = d.serial();
     d.tap(BTN_DOWN); // Save
     d.tap(BTN_A);
-    require(pause_row_visible(d, 6), "successful Save did not reveal Load immediately");
+    d.tap(BTN_UP); // Resume
+    d.tap(BTN_UP); // Wrap to the newly visible Load row and scroll.
+    require(pause_row_visible(d, 6), "saved outdoor menu did not render its final row");
     d.capture(out / "menu-saved.pgm");
     auto saved = d.state();
     auto sector = d.sector();
@@ -2524,6 +2594,7 @@ int main(int argc, char** argv) try {
     // Load restores persistent state and refreshes the cache before exploration resumes.
     Game changed = d.state();
     changed.gold = saved.gold + 123;
+    changed.supplies.quantity[SUPPLY_POTION] = 0;
     changed.player = {(uint16_t)(positions::ElderDoor.x * TILE),
                       (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
     d.set_state(changed);
@@ -2540,7 +2611,7 @@ int main(int argc, char** argv) try {
     d.frame();
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    require(pause_row_visible(d, 5) && !pause_row_visible(d, 6),
+    require(pause_row_visible(d, 6),
             "interior menu did not show Load while hiding Map");
     d.tap(BTN_UP); // Load
     {
@@ -2550,6 +2621,8 @@ int main(int argc, char** argv) try {
         timing.verify("pause_load");
     }
     auto menu_loaded = d.state();
+    require(!memcmp(&menu_loaded.supplies, &saved.supplies, sizeof(Supplies)),
+            "physical load did not restore supplies");
     require(menu_loaded.gold == saved.gold && menu_loaded.area == saved.area &&
                 menu_loaded.player.x == saved.player.x && menu_loaded.player.y == saved.player.y &&
                 menu_loaded.view.cache.origin_tx == saved.view.cache.origin_tx &&
@@ -2604,7 +2677,13 @@ int main(int argc, char** argv) try {
     verify_audio_options(continued, 102, 85);
     continued.tap(BTN_B);
     continued.advance(0, 1600000);
-    require(pause_row_visible(continued, 6),
+    Game changed_continue = continued.state();
+    changed_continue.gold = saved.gold + 123;
+    continued.set_state(changed_continue);
+    continued.tap(BTN_UP); // Wrap to Load on the scrolled viewport.
+    continued.tap(BTN_A);
+    continued.frame();
+    require(continued.serial() != 0 && continued.state().gold == saved.gold,
             "continuing a game lost the save flag checked at startup");
 
     sector[2] ^= 0x40; // Invalid Game layout version; there is no checksum.
@@ -2615,7 +2694,11 @@ int main(int argc, char** argv) try {
     corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);
-    require(!pause_row_visible(corrupt, 6), "startup accepted an invalid save payload");
+    corrupt.tap(BTN_UP); // With Load hidden, the last action is Audio.
+    unsigned corrupt_serial = corrupt.serial();
+    corrupt.tap(BTN_A);
+    corrupt.advance(0, 3200000);
+    require(corrupt.serial() == corrupt_serial, "startup accepted an invalid save payload");
     corrupt.tap(BTN_B);
     corrupt.frame();
 

@@ -181,7 +181,7 @@ swaps in.
   | `use_lever` | `SWITCH_LEFT` | Facing it and pressing A toggles the flag. |
   | `press_plate` | `PRESSURE_PLATE` | Standing on it sets the flag for good. |
   | `show_state` | a gate, or a rectangle of chasm cells | Shows the set tile while the flag is set. |
-  | `open_chest` | `CHEST_CLOSED` | Pressing A gives gold once and opens the chest. |
+  | `open_chest` | `CHEST_CLOSED` | Pressing A gives 25 gold, a Potion and an Ether once if both stacks have room. |
   | `steam_vent` | `VENT` | Blows for 96 ticks of every 256, on the game clock. |
   | `show_message` | `SIGN` | Pressing A shows the notice's words, listed in `AreaMessages<AREA_CAVE>`. |
   | `take_passage` | an exit or a doorway | Walking onto it leaves the cave. See [Exits](#exits). |

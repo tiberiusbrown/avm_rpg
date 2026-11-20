@@ -144,7 +144,7 @@ swaps in.
   | `open_door` | `BARS_DOOR` | Facing it and pressing A sets the flag for good. |
   | `light_orb` | `ORB_DARK` | Pressing A sets the flag for good and says what happened. |
   | `show_state` | a gate, spikes, blocks, a rune, a portcullis | Shows the set tile while the flag is set. |
-  | `open_chest` | `CHEST_CLOSED` | Pressing A gives gold once and opens the chest. |
+  | `open_chest` | `CHEST_CLOSED` | Pressing A gives 25 gold, an Elixir and a Revive once if both stacks have room. |
   | `show_message` | `PLAQUE` | Pressing A shows the plaque's words, listed in `AreaMessages<AREA_DUNGEON>`. |
   | `take_passage` | an exit or a doorway | Walking onto it leaves the dungeon. See [Exits](#exits). |
 

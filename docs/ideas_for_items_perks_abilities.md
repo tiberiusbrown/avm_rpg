@@ -196,7 +196,7 @@ Rank 1 is implemented in each table. Ranks 2–5 show proposals for future versi
 
 **Perk screen.** The member overview shows XP and pending choices. In Party → Perks → Learn Perk, use A to inspect, A to open confirmation, and A to learn or B to cancel. The choice page shows the updated count and confirms successful learning. Rank lists identify earned, ready, locked and future ranks. Equipment-granted perks have a separate preview page.
 
-**Save version 16.** Each member stores movement rank in bits 0–2 and attack rank in bits 3–5 of a single byte. Bits 6–7 are reserved and must be zero. The save validator checks that each rank is implemented and that their sum fits the number of milestones earned. Pending choices equal `level / 2 - movement_rank - attack_rank` using integer division. Definition text stays in flash. Older versions are rejected.
+**Save version 17.** Each member stores movement rank in bits 0–2 and attack rank in bits 3–5 of a single byte. Bits 6–7 are reserved and must be zero. The save validator checks that each rank is implemented and that their sum fits the number of milestones earned. Pending choices equal `level / 2 - movement_rank - attack_rank` using integer division. Definition text stays in flash. Older versions are rejected.
 
 **Derived values:** Compute maximum HP/AP, attack bonuses, post-battle AP recovery, and other modifiers from base class, level, chosen ranks, and equipped gear instead of storing duplicate effective stats. Keep actual current HP and AP saved; clamp them when maximum values fall. Do not grant free HP/AP merely by toggling equipment.
 

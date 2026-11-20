@@ -112,7 +112,7 @@ assert {o["handler"] for o in m.objects if o["handler"]} == {
     "take_passage",
     "show_message",
 }
-assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house"}
+assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house", "rest_at_inn"}
 # Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
 assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["collision"] == 0xFFFF
 assert 0 not in m.data, "0x00 is EMPTY and must not be painted outdoors"
@@ -355,6 +355,12 @@ for name, room in room_cells.items():
         for dx in range(-5, 6):
             for dy in range(-3, 4):
                 assert owner.get((x + dx, y + dy), name) == name, f"{name} can see another interior"
+rest = names["InnRest"]
+rest_x, rest_y = rest["tx"], rest["ty"]
+assert rest["handler"] == "rest_at_inn" and rest["area"] == interiors.area
+assert owner[rest_x, rest_y] == "Inn"
+assert inside(rest_x, rest_y) == house_symbol["COUNTER_RIGHT"]
+assert (rest_x, rest_y + 1) in room_cells["Inn"]
 spawn = names[interiors.spawn]
 assert house[inside(spawn["tx"], spawn["ty"])]["collision"] == 0
 

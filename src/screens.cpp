@@ -3,6 +3,8 @@
 #include "journal.h"
 #include "music_catalog.h"
 #include "party_ui.h"
+#include "pause_menu.h"
+#include "supplies_ui.h"
 #include "quest.h"
 #include "sfx.h"
 #include "soundscape.h"
@@ -100,6 +102,64 @@ __attribute__((noinline)) void party_screen() {
         // A detail page needs its description measured before the scroll limits apply.
         if(ui.page != before && party_ui_describes(ui.page))
             party_layout(ui);
+    }
+}
+
+RPG_NOINLINE static void supplies_screen() {
+    SuppliesUi ui{};
+    int16_t revealed = 0;
+    bool closing = false;
+    bool redraw = true;
+    input_sync();
+
+    for(;;) {
+        input_wait_frame();
+        int16_t pixel = cursor_pixel(revealed);
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(SUPPLIES_WIDTH));
+        if(redraw || cursor_pixel(revealed) != pixel) {
+            render_supplies((uint8_t)cursor_pixel(revealed), closing, ui);
+            avm_display(false);
+            redraw = false;
+        }
+        if(closing) {
+            if(!revealed)
+                return;
+            continue;
+        }
+
+        auto previous_feedback = ui.feedback;
+        switch(supplies_press(ui, game.supplies, game.party, input_pressed())) {
+            case SUPPLIES_NONE:
+                continue;
+            case SUPPLIES_EDGE:
+                sfx_play(SFX_CURSOR_EDGE);
+                redraw = ui.feedback != previous_feedback;
+                continue;
+            case SUPPLIES_MOVE:
+                sfx_menu_tick();
+                break;
+            case SUPPLIES_OPEN:
+                if(ui.page == SUPPLIES_DETAILS)
+                    supplies_layout(ui);
+                sfx_play(SFX_SELECT);
+                break;
+            case SUPPLIES_CLOSE:
+                closing = true;
+                [[fallthrough]];
+            case SUPPLIES_BACK:
+                sfx_play(SFX_CANCEL);
+                break;
+            case SUPPLIES_APPLY:
+                if(!supply_use(game.supplies, game.party, ui.supply, ui.target)) {
+                    sfx_play(SFX_CURSOR_EDGE);
+                    continue;
+                }
+                ui.page = SUPPLIES_LIST;
+                ui.feedback = F("Used");
+                sfx_play(SFX_SELECT);
+                break;
+        }
+        redraw = true;
     }
 }
 
@@ -203,27 +263,9 @@ __attribute__((noinline)) void map_screen() {
     }
 }
 
-bool menu_item_visible(PAUSE_ITEM item, bool can_load, bool in_battle) {
-    switch(item) {
-        case PAUSE_SAVE:
-        case PAUSE_PARTY:
-        case PAUSE_JOURNAL:
-            return !in_battle;
-        case PAUSE_MAP:
-            return !in_battle && game.area == AREA_OUTDOOR;
-        case PAUSE_PASS:
-        case PAUSE_RESIGN:
-            return in_battle;
-        case PAUSE_LOAD:
-            return !in_battle && can_load;
-        default:
-            return true;
-    }
-}
-
 __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUSE_ITEM initial) {
-    PAUSE_ITEM selection = initial;
-    uint8_t width = menu_width(battle != nullptr);
+    PauseMenuView view = pause_open(initial, save_exists, battle != nullptr, game.area == AREA_OUTDOOR);
+    uint8_t width = menu_width(view);
     int16_t revealed = 0;
     bool closing = false;
     MENU_EXIT action = MENU_RESUME;
@@ -237,8 +279,8 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
     for(;;) {
         input_wait_frame();
         revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(width));
-        render_menu((uint8_t)cursor_pixel(revealed), width, selection, save_exists, feedback,
-                    action, battle);
+        render_menu((uint8_t)cursor_pixel(revealed), width, view, feedback, action, battle);
+        PAUSE_ITEM selection = pause_item(view, view.selected);
         if(confirmation)
             render_menu_confirmation(selection);
         avm_display(true);
@@ -268,11 +310,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
             feedback = nullptr;
         } else if(pressed & (BTN_DOWN | BTN_UP)) {
             sfx_menu_tick();
-            do {
-                selection =
-                    (PAUSE_ITEM)((selection + (pressed & BTN_DOWN ? 1 : PAUSE_ITEM_COUNT - 1)) %
-                                 PAUSE_ITEM_COUNT);
-            } while(!menu_item_visible(selection, save_exists, battle != nullptr));
+            pause_move(view, pressed & BTN_DOWN);
             feedback = nullptr;
         } else if(pressed & BTN_A) {
             sfx_play(SFX_SELECT);
@@ -283,10 +321,17 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
                     break;
                 case PAUSE_SAVE:
                     game_save();
+                    view = pause_open(PAUSE_SAVE, save_exists, false, game.area == AREA_OUTDOOR);
+                    width = menu_width(view);
                     feedback = F("Saved");
                     break;
                 case PAUSE_PARTY:
                     action = MENU_PARTY;
+                    closing = true;
+                    feedback = nullptr;
+                    break;
+                case PAUSE_SUPPLIES:
+                    action = MENU_SUPPLIES;
                     closing = true;
                     feedback = nullptr;
                     break;
@@ -401,6 +446,8 @@ __attribute__((noinline)) void explore() {
             MENU_EXIT action = menu_screen();
             if(action == MENU_PARTY)
                 party_screen();
+            else if(action == MENU_SUPPLIES)
+                supplies_screen();
             else if(action == MENU_JOURNAL)
                 journal_screen();
             else if(action == MENU_MAP)

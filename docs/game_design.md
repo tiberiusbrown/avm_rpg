@@ -291,6 +291,25 @@ Start with a compact system: HP, energy/magic (optional), attack, defense, speed
 
 Keep the economy deterministic and simple: a single currency, compact item database, understandable purchase/sell behavior, and region/faction discounts only where narratively useful. Do not store individual merchant stock inventories persistently unless quests require them; derive availability from static lists and flags.
 
+### 9.5 Supplies and recovery
+
+The party starts with two Potions and one each of Elixir, Revive and Ether. A Potion heals
+one conscious member by up to 8 HP. An Elixir heals every conscious member by up to 4 HP.
+A Revive restores one incapacitated member to 5 HP, capped by their maximum. An Ether
+restores up to 3 AP even when its target has 0 HP. A stack holds at most 15 and is shared
+by every recruit. Version 17 adds four saved quantity bytes.
+
+Supplies are available outside battle. The pause menu scrolls its filtered list when more
+than seven actions are visible. Supplies uses Party and Journal's full-width slide,
+highlight, wrapped descriptions, arrows and footer buttons. Inspecting a stack leads to
+a target picker or Elixir confirmation. Successful use returns to the selected stack.
+An invalid action or cancel leaves party stats and supplies unchanged.
+
+The inn counter offers unlimited free recovery to every member's derived HP and AP
+maximums, including an incapacitated party. Hollow Mine's chest adds a Potion and an
+Ether to its gold, and Old Vault's adds an Elixir and a Revive. Each chest is claimed once
+and stays intact when either stack lacks room. Shops and equipment ownership are deferred.
+
 ## 10. Content authoring pipeline (offline; no runtime script VM)
 
 1. **Invent:** agent develops setting, region design, quest and character outline, map sketches, level structure, dialogue, and art motifs.

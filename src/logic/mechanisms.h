@@ -189,7 +189,7 @@ template <TilePos POS> void open_door(Tiles<POS>) {
 
 inline constexpr uint8_t CHEST_GOLD = 25;
 
-// A chest gives its gold once. The open lid is drawn before the words appear.
+// Check the whole reward before opening the chest and drawing its lid.
 template <TilePos POS> void open_chest(Dialogue<POS>) {
     constexpr Mechanism entry = mechanism<POS>();
     static_assert(entry.kind == MECHANISM_CHEST, "the handler does not match the kind of the row");
@@ -199,10 +199,21 @@ template <TilePos POS> void open_chest(Dialogue<POS>) {
         dialogue_show(F("The chest is empty."));
         return;
     }
+    static_assert(entry.flag == FLAG_CAVE_CHEST || entry.flag == FLAG_DUNGEON_CHEST);
+    constexpr bool cave = entry.flag == FLAG_CAVE_CHEST;
+    constexpr SUPPLY_ID first = cave ? SUPPLY_POTION : SUPPLY_ELIXIR;
+    constexpr SUPPLY_ID second = cave ? SUPPLY_ETHER : SUPPLY_REVIVE;
+    if(!supplies_can_add(game.supplies, first, 1) || !supplies_can_add(game.supplies, second, 1)) {
+        dialogue_show(F("You cannot carry all the supplies."));
+        return;
+    }
+    supplies_add(game.supplies, first, 1);
+    supplies_add(game.supplies, second, 1);
     switch_mechanism<POS>(true);
     game.gold += CHEST_GOLD;
     set_tile<POS>(entry.tile);
-    dialogue_show(F("You find 25 gold coins."));
+    dialogue_show(cave ? F("You find 25 gold, a Potion and an Ether.")
+                       : F("You find 25 gold, an Elixir and a Revive."));
 }
 
 template <TilePos POS> void open_chest(Tiles<POS>) {

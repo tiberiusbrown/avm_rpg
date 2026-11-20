@@ -167,6 +167,8 @@ static void grove_battle() {
 
 static void saves() {
     game_new();
+    CHECK(!memcmp(&game.supplies, &STARTING_SUPPLIES, sizeof(Supplies)));
+    game.supplies = {{0, 9, 6, 15}};
     game.gold = 37;
     game.set_flag(FLAG_RESERVED);
     Game saved = game;
@@ -195,6 +197,11 @@ static void saves() {
     game = saved;
     game.player.facing = STILL;
     reject();
+    for(uint8_t i = 0; i < SUPPLY_COUNT; ++i) {
+        game = saved;
+        game.supplies.quantity[i] = SUPPLY_LIMIT + 1;
+        reject();
+    }
     game = saved;
     game.party.members[0].hp = party_max_hp(game.party.members[0]) + 1;
     reject();
@@ -244,6 +251,7 @@ static void saves() {
     game.player.walking = 1;
     CHECK(save_restore());
     CHECK(game.gold == 37 && game.get_flag(FLAG_RESERVED));
+    CHECK(!memcmp(&game.supplies, &saved.supplies, sizeof(Supplies)));
     CHECK(!game.ticks && !game.player.walking);
     CHECK(game.flags.get_flag(FLAG_VILLAGER_EAST) == saved.flags.get_flag(FLAG_VILLAGER_EAST));
     update_visible_world(0, false);

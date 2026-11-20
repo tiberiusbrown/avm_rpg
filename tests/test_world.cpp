@@ -30,8 +30,10 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
+static bool accept_prompt = true;
+
 bool dialogue_ask(char const PROGMEM*) {
-    return true;
+    return accept_prompt;
 }
 
 bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
@@ -722,13 +724,27 @@ static void cave_mechanisms() {
     uint16_t gold = game.gold;
     stand(below(positions::CaveChest), NORTH);
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_CLOSED);
+    game.supplies.quantity[SUPPLY_ETHER] = SUPPLY_LIMIT;
+    Supplies blocked = game.supplies;
     sfx_stub_reset();
+    press_a();
+    CHECK(!game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold);
+    CHECK(!memcmp(&blocked, &game.supplies, sizeof(Supplies)));
+    CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_CLOSED && played() == 0);
+    --game.supplies.quantity[SUPPLY_ETHER];
     press_a();
     CHECK(game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold + CHEST_GOLD);
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
     EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
-    // The empty chest is silent.
+    CHECK(supply_count(game.supplies, SUPPLY_POTION) == 3);
+    CHECK(supply_count(game.supplies, SUPPLY_ETHER) == SUPPLY_LIMIT);
+    // The saved flag restores the open lid and prevents another reward.
+    CHECK(save_restore());
+    update_visible_world(0, false);
+    CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
     press_a();
+    CHECK(supply_count(game.supplies, SUPPLY_POTION) == 3);
+    CHECK(supply_count(game.supplies, SUPPLY_ETHER) == SUPPLY_LIMIT);
     CHECK(game.gold == gold + CHEST_GOLD);
     CHECK(played() == 1);
 
@@ -864,6 +880,15 @@ static void dungeon_mechanisms() {
     EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
     CHECK(game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold + CHEST_GOLD);
     CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
+    CHECK(supply_count(game.supplies, SUPPLY_ELIXIR) == 2);
+    CHECK(supply_count(game.supplies, SUPPLY_REVIVE) == 2);
+    CHECK(save_restore());
+    update_visible_world(0, false);
+    CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
+    press_a();
+    CHECK(game.gold == gold + CHEST_GOLD);
+    CHECK(supply_count(game.supplies, SUPPLY_ELIXIR) == 2);
+    CHECK(supply_count(game.supplies, SUPPLY_REVIVE) == 2);
 }
 
 // Each message answers a press from the cell in front of it.
@@ -905,10 +930,40 @@ static void battle_reclaim() {
     CHECK(!memcmp(&cache, &view, sizeof(view)) && camera.x == shown.x && camera.y == shown.y);
 }
 
+static void inn_recovery() {
+    game_new();
+    stand(below(positions::InnDoor), NORTH);
+    press_a();
+    CHECK(player_at(handler_impl::house_inside(positions::InnDoor), NORTH));
+
+    // Follow the floor from the arrival mat to the counter, then face it.
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_LEFT, 0);
+    game_update(BTN_UP, 0);
+    game_update(0, 0);
+    CHECK(game.can_interact);
+    PartyMember& traveler = game.party.members[0];
+    traveler.hp = traveler.ap = 0;
+    accept_prompt = false;
+    press_a();
+    CHECK(traveler.hp == 0 && traveler.ap == 0);
+    accept_prompt = true;
+    press_a();
+    CHECK(traveler.hp == party_max_hp(traveler) && traveler.ap == party_max_ap(traveler));
+    CHECK(game.area == AREA_INTERIORS);
+
+    for(unsigned i = 0; i < 2 * TILE; ++i)
+        game_update(BTN_RIGHT, 0);
+    for(unsigned i = 0; i < TILE && game.area == AREA_INTERIORS; ++i)
+        game_update(BTN_DOWN, 0);
+    CHECK(player_at(handler_impl::house_front(positions::InnExit), SOUTH));
+}
+
 int main() {
     run_world_scenarios();
     battle_reclaim();
     house_doors();
+    inn_recovery();
     passages();
     mechanism_states();
     mechanism_kinds();

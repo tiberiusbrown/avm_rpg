@@ -52,6 +52,13 @@ struct MapOperation_read_sign {
         Handler<POS, STAGE>{}.read_sign();
     }
 };
+struct MapOperation_rest_at_inn {
+    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
+        handler_impl::implemented_rest_at_inn<POS, STAGE>();
+    template <TilePos POS, HandlerStage STAGE> static void run() {
+        Handler<POS, STAGE>{}.rest_at_inn();
+    }
+};
 struct MapOperation_show_message {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
         handler_impl::implemented_show_message<POS, STAGE>();
@@ -118,6 +125,7 @@ using AllMapHandlers = TypeList<
     MapSite<positions::FisherExit, MapOperation_leave_house>,
     MapSite<positions::HutExit, MapOperation_leave_house>,
     MapSite<positions::InnExit, MapOperation_leave_house>,
+    MapSite<positions::InnRest, MapOperation_rest_at_inn>,
     MapSite<positions::ShopExit, MapOperation_leave_house>,
     MapSite<positions::SmithyExit, MapOperation_leave_house>,
     MapSite<positions::WeaverExit, MapOperation_leave_house>,

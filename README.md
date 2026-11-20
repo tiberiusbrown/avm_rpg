@@ -11,11 +11,15 @@ black as battles. The destination's camera, tile cache and actors are prepared w
 is black. The shared fade adds no static RAM.
 
 The pause menu slides in from the left, easing halfway to its target each frame while the
-world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Journal**,
+world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Supplies**, **Journal**,
 **Map**, **Audio**, or **Load**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
-immediately after saving. Party opens an eased sliding panel on the overview of the first member. Left and
+immediately after saving. Seven rows fit in the pause panel. When more entries are visible,
+the list follows the selection and arrows show entries above or below. Up/down still wraps
+between the first and last available actions.
+
+Party opens an eased sliding panel on the overview of the first member. Left and
 right switch members and wrap at either end. Up and down choose **Specials**, **Perks** or **Equipment**; A
 opens the highlighted category, and B climbs back one level. B on the overview closes the panel and returns
 directly to gameplay, and A never closes it. Party pages change without replaying the slide, and the world
@@ -61,6 +65,28 @@ of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, step 
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
 Party membership, current HP and AP, level, experience and both perk ranks are saved. The world stays frozen while the menu is open; music continues.
 Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
+
+**Supplies** opens a full-width panel with the same slide, fade, row highlight, footer buttons
+and wrapped descriptions as Party and Journal. Up/down selects a stack, including empty stacks.
+A inspects it, then opens a target list or Elixir confirmation. The target list shows every member
+and skips ineligible members as you move the highlight. A uses the item and returns to its stack.
+B goes back one page and closes the list to resume exploration.
+
+| Supply | Starting count | Effect |
+|---|---:|---|
+| Potion | 2 | Restore up to 8 HP to one conscious member |
+| Elixir | 1 | Restore up to 4 HP to every conscious member |
+| Revive | 1 | Raise one member at 0 HP to 5 HP, capped at their maximum |
+| Ether | 1 | Restore up to 3 AP to one member, including at 0 HP |
+
+The party shares a limit of 15 per supply. Supplies are usable outside battle, and a use
+with no effect leaves the stack unchanged. The Hollow Mine chest adds a Potion and an Ether.
+The Old Vault chest adds an Elixir and a Revive. Each still gives 25 gold once, and stays
+closed if the party cannot carry the entire reward.
+
+Face the counter inside the inn and press A to ask for free rest. A accepts and restores the
+entire party to full HP and AP, including members at 0 HP. B declines. Shops and equipment
+ownership remain deferred.
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
 building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
@@ -282,9 +308,10 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 16.** Version 16 writes the live,
+**This development build rejects saves older than version 17.** Version 17 writes the live,
 pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
-save buffer or checksum. Each member stores both perk ranks in a single byte, with three bits
+save buffer or checksum. It adds four supply counters, each validated against the limit of 15.
+Each member stores both perk ranks in a single byte, with three bits
 per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down
 minus the two ranks. Save validation checks the implemented rank limit and the number of choices
 earned. Startup loads and validates that state to initialize the global

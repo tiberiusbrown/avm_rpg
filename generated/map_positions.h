@@ -54,6 +54,7 @@ inline constexpr TilePos HutDoor{1, 53, 38};
 inline constexpr TilePos HutExit{2, 5, 31};
 inline constexpr TilePos InnDoor{1, 42, 39};
 inline constexpr TilePos InnExit{2, 44, 21};
+inline constexpr TilePos InnRest{2, 42, 19};
 inline constexpr TilePos InteriorsSpawn{2, 7, 6};
 inline constexpr TilePos MineEntrance{1, 38, 4};
 inline constexpr TilePos PlayerStart{1, 27, 26};
