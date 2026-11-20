@@ -1,7 +1,7 @@
 #ifndef FLAGS_H
 #define FLAGS_H
 
-#include <stdint.h>
+#include "equipment_ids.h"
 
 // Stable bit indices, not masks. Append new flags before FLAG_COUNT.
 // The cave and dungeon flags record a mechanism's state: set means that its lever is thrown, its
@@ -24,8 +24,17 @@ enum FLAG : uint16_t {
     // without the start bit.
     FLAG_QUEST_FIND_IONA_STARTED,
     FLAG_QUEST_FIND_IONA_DONE,
-    FLAG_COUNT
+    // Append future unrelated flags after the item ownership range.
+    FLAG_ITEM_FIRST,
+    FLAG_ITEM_END = FLAG_ITEM_FIRST + ITEM_DEFINED_COUNT,
+    FLAG_COUNT = FLAG_ITEM_END
 };
+
+static_assert(FLAG_ITEM_END - FLAG_ITEM_FIRST == ITEM_DEFINED_COUNT);
+
+constexpr FLAG equipment_flag(uint8_t item) {
+    return item < ITEM_DEFINED_COUNT ? (FLAG)(FLAG_ITEM_FIRST + item) : FLAG_COUNT;
+}
 
 template <uint16_t COUNT> struct FlagSet {
     static_assert(COUNT > 0, "a flag set needs at least one flag");

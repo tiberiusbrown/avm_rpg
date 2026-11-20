@@ -5,7 +5,10 @@
 
 // Quest identities are save and dispatch contracts. Journal order, activity and storage offsets
 // never define them, and a quest keeps its ID for as long as it exists.
-enum QUEST_ID : uint8_t { QUEST_NONE = 0, QUEST_FIND_IONA = 1 };
+enum QUEST_ID : uint8_t {
+    QUEST_NONE,
+    QUEST_FIND_IONA
+};
 
 // One past the largest stable identity. Test catalogs override it to build larger registries.
 #ifndef RPG_QUEST_ID_LIMIT

@@ -28,8 +28,8 @@ template <> struct AreaMechanisms<AREA_CAVE> {
 };
 
 template <>
-struct ChestReward<positions::CaveChest> : GoldSupplyReward<25, {SUPPLY_POTION, 1}, {SUPPLY_ETHER, 1}> {
-    static constexpr auto MESSAGE = F("You find 25 gold, a Potion, and an Ether.");
+struct ChestReward<positions::CaveChest> : ContainerReward<25, {ITEM_TRAVELERS_BOOTS}, {SUPPLY_POTION, 1}, {SUPPLY_ETHER, 1}> {
+    static constexpr auto MESSAGE = F("You find 25 gold, a Potion, an Ether, and Traveler's Boots.");
 };
 
 // The mouth and the ladder hole lead outdoors, each to its own doorway in the cave.

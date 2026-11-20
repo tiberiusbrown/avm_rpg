@@ -262,6 +262,8 @@ uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victi
     if(attacker.id & BATTLE_PARTY_SOURCE) {
         PartyMember const& member = game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE];
         damage += party_attack_bonus(member);
+        if(equipment_get(member, SLOT_WEAPON) == ITEM_IRON_FANG)
+            damage += IRON_FANG_DAMAGE;
         if(party_attack_perk_rank(member))
             damage += attack_perk_bonus(member.attack_class, attacker, victim);
     }

@@ -1978,6 +1978,61 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
             "dismissing the quest notice did not resume exploration with a pending perk");
 }
 
+static void verify_equipment(Device& d, fs::path const& out) {
+    Game fixture = d.state();
+    require(fixture.get_flag(equipment_flag(ITEM_IRON_FANG)) &&
+                equipment_get(fixture.party.members[0], SLOT_WEAPON) == ITEM_NONE,
+            "new game did not start with Iron Fang owned and unequipped");
+    fixture.party.members[1] = {18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0, 0, {}};
+    fixture.party.count = 2;
+    d.set_state(fixture);
+
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Party
+    d.advance(0, 8000000);
+    d.tap(BTN_UP);
+    d.tap(BTN_A); // Equipment
+    d.tap(BTN_RIGHT); // Rowan
+    d.tap(BTN_A); // Weapon picker
+    d.tap(BTN_DOWN); // Iron Fang
+    d.tap(BTN_A); // Details
+    d.capture(out / "equipment-details.pgm");
+    d.tap(BTN_A); // Equip
+    Game equipped = d.state();
+    require(equipment_get(equipped.party.members[1], SLOT_WEAPON) == ITEM_IRON_FANG,
+            "Party did not equip Iron Fang");
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.tap(BTN_LEFT); // Traveler
+    d.tap(BTN_A);
+    d.tap(BTN_DOWN);
+    d.capture(out / "equipment-picker-worn.pgm");
+    d.tap(BTN_A);
+    d.tap(BTN_A); // Transfer
+    Game transferred = d.state();
+    require(equipment_get(transferred.party.members[0], SLOT_WEAPON) == ITEM_IRON_FANG &&
+                equipment_get(transferred.party.members[1], SLOT_WEAPON) == ITEM_NONE,
+            "Party did not transfer Iron Fang to the traveler");
+    d.tap(BTN_B);
+    d.tap(BTN_UP); // Unequip
+    d.tap(BTN_A);
+    Game unequipped = d.state();
+    require(equipment_get(unequipped.party.members[0], SLOT_WEAPON) == ITEM_NONE &&
+                unequipped.get_flag(equipment_flag(ITEM_IRON_FANG)),
+            "Party unequip did not preserve ownership");
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.tap(BTN_A); // Equip for the save/restart check.
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+}
+
 static void verify_supplies(Device& d, fs::path const& out) {
     Game original = d.state();
     require(original.supplies.quantity[SUPPLY_POTION] == 2 &&
@@ -2040,6 +2095,7 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     verify_supplies(d, out);
     verify_quest_level_up(d, out);
     verify_perk_choice(d, out);
+    verify_equipment(d, out);
     d.tap(BTN_B);
     unsigned serial = d.serial();
     d.advance(0, 800000);
@@ -2071,6 +2127,10 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
                 loaded.supplies.quantity[SUPPLY_ELIXIR] == 0,
             "smoke restart did not restore used supplies");
     PartyMember const& member = loaded.party.members[0];
+    require(loaded.get_flag(equipment_flag(ITEM_IRON_FANG)) &&
+                equipment_get(member, SLOT_WEAPON) == ITEM_IRON_FANG &&
+                equipment_get(loaded.party.members[1], SLOT_WEAPON) == ITEM_NONE,
+            "smoke restart did not restore equipment ownership and slots");
     require(party_movement_perk_rank(member) == 1 && member.hp == 16 &&
                 party_max_hp(member) == 23 && party_unspent_perks(member) == 0,
             "smoke restart did not restore the learned perk and current HP");

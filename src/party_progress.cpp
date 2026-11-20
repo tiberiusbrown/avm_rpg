@@ -1,7 +1,7 @@
 #include "rpg.h"
 
 PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack) {
-    PartyMember member{0, 0, movement, attack, id, 1, 0, 0};
+    PartyMember member{0, 0, movement, attack, id, 1, 0, 0, {}};
     member.hp = party_max_hp(member);
     member.ap = party_max_ap(member);
     return member;

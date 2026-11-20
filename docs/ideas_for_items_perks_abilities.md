@@ -194,9 +194,9 @@ Rank 1 is implemented in each table. Ranks 2–5 show proposals for future versi
 
 **Experience:** Track level and experience **per member**. Each member stores `level` (1–10) and `experience` as a `uint8_t` toward the next level. Experience resets at each level-up, so no cumulative total is kept. Experience is awarded after each combat victory: the full award goes to every party member, including incapacitated ones, and level-ups are processed immediately, carrying any surplus into the next level. Do not split awards four ways. New recruits can join near the current party level to avoid permanently weak recruits.
 
-**Perk screen.** The member overview shows XP and pending choices. In Party → Perks → Learn Perk, use A to inspect, A to open confirmation, and A to learn or B to cancel. The choice page shows the updated count and confirms successful learning. Rank lists identify earned, ready, locked and future ranks. Equipment-granted perks have a separate preview page.
+**Perk screen.** The member overview shows XP and pending choices. In Party → Perks → Learn Perk, use A to inspect, A to open confirmation, and A to learn or B to cancel. The choice page shows the updated count and confirms successful learning. Rank lists identify earned, ready, locked and future ranks. From Equipment lists active effects with their granting items and opens their full descriptions.
 
-**Save version 17.** Each member stores movement rank in bits 0–2 and attack rank in bits 3–5 of a single byte. Bits 6–7 are reserved and must be zero. The save validator checks that each rank is implemented and that their sum fits the number of milestones earned. Pending choices equal `level / 2 - movement_rank - attack_rank` using integer division. Definition text stays in flash. Older versions are rejected.
+**Perk ranks in the save.** Each member stores movement rank in bits 0–2 and attack rank in bits 3–5 of a single byte. Bits 6–7 are reserved and must be zero. The save validator checks that each rank is implemented and that their sum fits the number of milestones earned. Pending choices equal `level / 2 - movement_rank - attack_rank` using integer division. Definition text stays in flash. Older versions are rejected.
 
 **Derived values:** Compute maximum HP/AP, attack bonuses, post-battle AP recovery, and other modifiers from base class, level, chosen ranks, and equipped gear instead of storing duplicate effective stats. Keep actual current HP and AP saved; clamp them when maximum values fall. Do not grant free HP/AP merely by toggling equipment.
 
@@ -847,28 +847,32 @@ This dungeon gives the player **money, recovery, experience, lore, and unique eq
 - **Avoid essential-item hoarding traps.** If a quest requires a specific item, represent it as a quest flag rather than requiring an inventory slot that can be filled, dropped, or sold.
 - **Favor deterministic effects.** A straightforward +1 or first-hit reduction is easier to display, test, and tune than hidden critical chances or dozens of status timers.
 
-### Illustrative persistent-storage budget
+### Equipment storage and rewards
 
-For **four party members, 24 distinct unlocked unique items split across weapons/armor/relics, five ordered movement-or-attack track selections per member, and four 0–15 consumable quantities**:
+IDs are zero-based and stable in catalog order. Iron Fang (0) adds +1 direct attack damage,
+including specials. Traveler’s Boots (1) add +2 maximum HP. Dawn Pendant (2) adds +1 AP
+recovery after victory, including for incapacitated members. Vital Pendant (3) adds +3 maximum
+HP. HP bonuses stack with level and Steadfast. Dawn Pendant stacks with Renewal up to
+maximum AP. Movement engagement uses its existing damage calculation.
 
-| New state | Example representation | Bytes |
-|---|---|---:|
-| Consumables | Four 4-bit quantities | 2 |
-| Unlocked equipment | 24-bit bitset | 3 |
-| Equipped weapons | Four 8-bit item IDs (`0` = none) | 4 |
-| Equipped armor | Four 8-bit item IDs | 4 |
-| Equipped relics | Four 8-bit item IDs | 4 |
-| Character level and XP | Four level + experience byte pairs | 8 |
-| Perk track ranks | One byte per character holding two 3-bit ranks | 4 |
-| **Subtotal** | **Excludes existing HP/AP, party fields, flags, and transient UI state** | **29** |
+`Game::flags` uses a contiguous range of `ITEM_DEFINED_COUNT` bits for equipment ownership.
+Item `id` maps to `FLAG_ITEM_FIRST + id`. Append items in catalog order to preserve their IDs
+and ownership indices. Account for any change to the flag allocation when updating the save
+format. Save version 18 uses one additional flag byte and twelve slot bytes across four members. Slot bytes encode the
+wearer’s item as ID plus one, with zero for empty. Ownership persists regardless of which
+member wears an item. The validator checks defined IDs, slot categories, ownership, unique
+wearers, unused world-flag bits and current HP/AP against the derived maxima. Older saves are rejected.
 
-Compare with the previous single-slot model: **twelve equipped item IDs rather than four** is an **8-byte** increase, before accounting for a larger unlocked-item bitset. At 12 acquired-item definitions, the bitset uses 2 bytes; at 48 it uses 6. A useful general formula for equipment state is **`12 + ceil(unique_item_count / 8)` bytes**, with one global unique ID per item and each equipped slot storing that ID. The item category and allowed slot can be inferred from the immutable definition in flash; item definitions need no persistent instance objects.
+The party starts owning Iron Fang. The Hollow Mine chest grants the boots, and the Old Vault
+chest grants both pendants. Each chest grants its equipment, gold and supplies together and
+uses its existing collection flag. Party → Equipment supports member switching, slot
+selection, item inspection, equipping, unequipping and automatic transfer from another
+wearer. A displaced item stays owned. Changing equipment clamps both affected members’
+HP/AP to their new maxima without healing or refilling them. Party → Perks → From Equipment
+reads the current slots and shows the active modifiers and their sources.
 
-A 24-item initial collection (8 weapons, 8 armor, 8 relics) fits the 29-byte illustrated subtotal. The **much larger idea bank is not a shipping commitment**. If, hypothetically, all 148 equipment candidates were shipped, the equipment bitset would need 19 bytes but the equipped-slot total would still be 12 bytes while IDs remain under 256. The current data-layout and actual persistent RAM budget should be checked in the repository before committing to these formats.
-
-The consumable and equipment rows are estimates. Level, XP and perk ranks use the sizes shown in the table. If HP, attack, defense, movement range, and AP maxima are computed from **both independent classes + level + track ranks + equipped item IDs**, **do not persist all of those derived stats separately**. Each member's current HP and AP are stored, and neither maximum is saved. The **base +1 after-victory AP recovery needs no extra saved counter**; compute the sum of base + perk + item bonuses when victory resolves, and clamp to maximum AP.
-
-Per-battle "first hit" or "first special" equipment effects need transient per-battle flags, not persistent save bytes. An unmade perk choice requires **no separate choice-made mask** when both movement/attack ranks are saved: compare `(movement_rank + attack_rank)` against the number of even-level perk milestones already earned. Validate each rank against the implemented maximum and reject a sum exceeding the earned milestones.
+Shops, sales, randomized equipment, duplicate items, durability, crafting, upgrades and
+level or class restrictions are deferred.
 
 ### Implementation tiers
 
@@ -914,9 +918,9 @@ Built:
 - The movement and attack classes use the names in section 1. Rend deals 2 damage, or 4 against a target strictly below half HP, in the battle rules and AI. The Wolf enemy also uses Rend, so the shipping Grove battle has changed.
 - Party members store current HP and AP. Maximum HP uses the traveler's base of 20 or Rowan's base of 18, plus level bonuses and Steadfast when earned. Maximum AP is 4.
 - A victory restores 1 AP to every saved member, or 2 with Renewal, up to maximum AP. Recovery also applies to incapacitated members.
-- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning at rank 1. Equipment and equipment-granted perks are previews.
+- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning at rank 1. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
 - The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and deals the damage and effect in section 7A. A unit short of AP attacks normally at once.
 
-Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk ranks 2–5; equipment ownership, equipping, and effects (the Equipment pages are previews); consumables and the Supplies menu; and maximum HP based on class instead of identity.
+Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk ranks 2–5; and maximum HP based on class instead of identity.
 
 **North star:** After a successful expedition, players should have new tactical choices: *“Should I advance my movement style or my attack style? Which weapon improves my offense, which armor changes my defense or movement, and which relic bends the rules enough to make a new build?”*

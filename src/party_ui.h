@@ -2,7 +2,7 @@
 #define PARTY_UI_H
 
 #include "rpg.h"
-#include "party_preview.h"
+#include "equipment.h"
 #include "text_wrap.h"
 
 // The Party screen is one state machine with a page for each screen. A press moves one level down
@@ -18,8 +18,8 @@ enum PARTY_PAGE : uint8_t {
     PARTY_PAGE_PERK_DETAILS, // one perk or rank, reached from PERK_LIST or PERK_CHOICE
     PARTY_PAGE_PERK_CONFIRM,
     PARTY_PAGE_EQUIPMENT,    // the weapon, armor and relic slots
-    PARTY_PAGE_ITEM_LIST,    // the preview items of one slot
-    PARTY_PAGE_ITEM_DETAILS, // one preview item
+    PARTY_PAGE_ITEM_LIST,    // the owned items of one slot
+    PARTY_PAGE_ITEM_DETAILS, // one item
     PARTY_PAGE_COUNT,
 };
 
@@ -31,6 +31,8 @@ enum PARTY_EVENT : uint8_t {
     PARTY_EVENT_CANCEL, // a page closed to the page above it
     PARTY_EVENT_EDGE,   // nothing moved, because the list or description has no further entry
     PARTY_EVENT_LEARN,  // the controller commits the confirmed choice
+    PARTY_EVENT_EQUIP,
+    PARTY_EVENT_UNEQUIP,
     PARTY_EVENT_CLOSE,  // the Party panel closes
 };
 
@@ -51,33 +53,18 @@ enum PARTY_PERK_ROW : uint8_t {
     PERK_ROW_COUNT
 };
 
-// The equipment slots, in the order the preview items are listed.
-enum PARTY_SLOT : uint8_t { SLOT_WEAPON, SLOT_ARMOR, SLOT_RELIC, SLOT_COUNT };
-
-static_assert(SLOT_COUNT == PREVIEW_SLOT_COUNT, "every slot has a preview item list");
-
 // A description is wrapped to this many pixels and shown a few lines at a time. The longest
 // description is PARTY_TEXT_LINES lines, and native tests check the shipped descriptions.
 inline constexpr uint8_t PARTY_TEXT_WIDTH = 110;
 inline constexpr uint8_t PARTY_TEXT_ROWS = 4;
 inline constexpr uint8_t PARTY_TEXT_LINES = 8;
 
-// A perk code names one rank of a track, as track * PERK_TRACK_RANKS + rank, or one equipment
-// effect, as PERK_EQUIPMENT + index. The rank component is zero-based. An item code names one preview item, as slot *
-// PREVIEW_ITEMS_PER_SLOT + index.
+// Equipment perk codes are PERK_EQUIPMENT plus the granting item's ID.
 inline constexpr uint8_t PARTY_PERK_TRACK_COUNT = MOVEMENT_CLASS_COUNT + (uint8_t)ATTACK_CLASS_COUNT;
 inline constexpr uint8_t PERK_EQUIPMENT = PARTY_PERK_TRACK_COUNT * PERK_TRACK_RANKS;
 
 constexpr uint8_t party_perk_code(uint8_t track, uint8_t rank) {
     return (uint8_t)(track * PERK_TRACK_RANKS + rank);
-}
-
-constexpr uint8_t party_item_code(uint8_t slot, uint8_t index) {
-    return (uint8_t)(slot * PREVIEW_ITEMS_PER_SLOT + index);
-}
-
-constexpr uint8_t party_item_slot(uint8_t code) {
-    return (uint8_t)(code / PREVIEW_ITEMS_PER_SLOT);
 }
 
 // The track of a rank code, or PARTY_NO_TRACK for an equipment effect.
@@ -90,6 +77,8 @@ struct PartyUi {
     uint8_t entry;   // the perk, item, or special that a detail page shows
     uint8_t scroll;  // the first visible description line of a detail page
     uint8_t line_count;
+    enum EQUIPMENT_FEEDBACK : uint8_t { NO_FEEDBACK, EQUIPPED, TRANSFERRED, UNEQUIPPED };
+    EQUIPMENT_FEEDBACK equipment_feedback;
     bool perk_learned; // feedback on returning to the choice page
     // The highlighted entry of each page. A page keeps its highlight while a page above it is
     // open, so B returns to the same entry.
@@ -148,11 +137,12 @@ char const PROGMEM* party_perk_source(uint8_t code);
 uint8_t party_perk_track(uint8_t code);
 char const PROGMEM* party_track_name(uint8_t track);
 
-// Item codes and equipment slots.
-char const PROGMEM* party_item_name(uint8_t code);
-char const PROGMEM* party_item_text(uint8_t code);
+// Row zero is the unequip action. The remaining rows are owned items in catalog order.
+ITEM_ID party_ui_row_item(PartyUi const& ui, uint8_t row);
+constexpr EQUIPMENT_SLOT party_ui_slot(PartyUi const& ui) {
+    return (EQUIPMENT_SLOT)ui.selection[PARTY_PAGE_EQUIPMENT];
+}
 char const PROGMEM* party_slot_name(uint8_t slot);
-// The item equipped in a slot. No equipment exists yet, so every slot is empty.
 char const PROGMEM* party_equipped(PartyMember const& member, uint8_t slot);
 
 #endif

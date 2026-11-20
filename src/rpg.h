@@ -40,7 +40,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 17;
+inline constexpr uint8_t SAVE_VERSION = 18;
 
 enum {
     BTN_B = 4,
@@ -121,6 +121,7 @@ struct PartyMember {
     uint8_t level;      // 1 through PARTY_MAX_LEVEL
     uint8_t experience; // toward the next level only; it resets to zero at each level-up
     uint8_t perk_ranks; // movement in bits 0–2, attack in bits 3–5
+    uint8_t equipment[SLOT_COUNT]; // zero is empty, otherwise item ID plus one
 };
 
 struct Party {
@@ -128,7 +129,11 @@ struct Party {
     uint8_t count;
 };
 
-static_assert(sizeof(PartyMember) == 8, "byte-sized party statistics, identity and progress");
+constexpr ITEM_ID equipment_get(PartyMember const& member, EQUIPMENT_SLOT slot) {
+    return slot < SLOT_COUNT ? equipment_decode(member.equipment[slot]) : ITEM_NONE;
+}
+
+static_assert(sizeof(PartyMember) == 11, "byte-sized party statistics, identity and progress");
 
 inline constexpr uint8_t PARTY_MAX_LEVEL = 10;
 
@@ -199,7 +204,11 @@ constexpr uint8_t party_max_hp(PartyMember const& member) {
     uint8_t base = member.id == NPC_ROWAN ? 18 : 20;
     uint8_t steadfast = member.movement_class == STEADFAST_CLASS && party_movement_perk_rank(member)
                             ? STEADFAST_BONUS : 0;
-    return (uint8_t)(base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0) + steadfast);
+    uint8_t boots = equipment_get(member, SLOT_ARMOR) == ITEM_TRAVELERS_BOOTS
+                        ? TRAVELERS_BOOTS_HP : 0;
+    uint8_t pendant = equipment_get(member, SLOT_RELIC) == ITEM_VITAL_PENDANT
+                          ? VITAL_PENDANT_HP : 0;
+    return (uint8_t)(boots + pendant + base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0) + steadfast);
 }
 
 // The normal-attack damage a party member adds: 1 at level 5 and 1 more at level 9.
@@ -217,7 +226,8 @@ inline constexpr uint8_t PARTY_VICTORY_AP = 1;
 constexpr uint8_t party_victory_ap(PartyMember const& member) {
     uint8_t renewal = member.movement_class == RENEWAL_CLASS && party_movement_perk_rank(member)
                           ? RENEWAL_BONUS : 0;
-    return PARTY_VICTORY_AP + renewal;
+    uint8_t dawn = equipment_get(member, SLOT_RELIC) == ITEM_DAWN_PENDANT ? DAWN_PENDANT_AP : 0;
+    return PARTY_VICTORY_AP + renewal + dawn;
 }
 
 // A member at full HP and AP, level 1 with no experience, as the traveler and new recruits join.

@@ -29,6 +29,7 @@ static void clamp_highlight(PartyUi& ui, Party const& party) {
 // Enters a page from the page above it. The new page's highlight starts at its first entry.
 static PARTY_EVENT open(PartyUi& ui, PARTY_PAGE page) {
     ui.perk_learned = false;
+    ui.equipment_feedback = PartyUi::NO_FEEDBACK;
     ui.page = page;
     highlight(ui) = 0;
     ui.scroll = 0;
@@ -37,6 +38,7 @@ static PARTY_EVENT open(PartyUi& ui, PARTY_PAGE page) {
 
 // Enters a detail page that B returns to. The page above keeps its highlight.
 static PARTY_EVENT open_details(PartyUi& ui, PARTY_PAGE page, PARTY_PAGE back_page) {
+    ui.equipment_feedback = PartyUi::NO_FEEDBACK;
     ui.back = back_page;
     ui.page = page;
     ui.scroll = 0;
@@ -46,6 +48,7 @@ static PARTY_EVENT open_details(PartyUi& ui, PARTY_PAGE page, PARTY_PAGE back_pa
 // Returns to the page above without changing the highlight it keeps.
 static PARTY_EVENT leave(PartyUi& ui, PARTY_PAGE page) {
     ui.page = page;
+    ui.equipment_feedback = PartyUi::NO_FEEDBACK;
     ui.scroll = 0;
     return PARTY_EVENT_CANCEL;
 }
@@ -97,6 +100,8 @@ static PARTY_EVENT activate(PartyUi& ui, Party const& party) {
             ui.perk_learned = false;
             [[fallthrough]];
         case PARTY_PAGE_PERK_LIST:
+            if(!party_ui_entries(ui, party))
+                return PARTY_EVENT_EDGE;
             ui.entry = party_ui_row_perk(ui, party, highlight(ui));
             return open_details(ui, PARTY_PAGE_PERK_DETAILS, ui.page);
         case PARTY_PAGE_PERK_DETAILS:
@@ -110,10 +115,15 @@ static PARTY_EVENT activate(PartyUi& ui, Party const& party) {
         case PARTY_PAGE_EQUIPMENT:
             return open(ui, PARTY_PAGE_ITEM_LIST);
         case PARTY_PAGE_ITEM_LIST:
-            ui.entry = party_item_code(ui.selection[PARTY_PAGE_EQUIPMENT], highlight(ui));
+            if(!highlight(ui))
+                return PARTY_EVENT_UNEQUIP;
+            ui.entry = party_ui_row_item(ui, highlight(ui));
+            if(ui.entry == ITEM_NONE)
+                return PARTY_EVENT_EDGE;
             return open_details(ui, PARTY_PAGE_ITEM_DETAILS, PARTY_PAGE_ITEM_LIST);
+        case PARTY_PAGE_ITEM_DETAILS:
+            return PARTY_EVENT_EQUIP;
         default:
-            // The detail pages' actions, such as equipping, are not available yet.
             return PARTY_EVENT_EDGE;
     }
 }
@@ -145,6 +155,7 @@ static PARTY_EVENT move(PartyUi& ui, Party const& party, bool down) {
         return PARTY_EVENT_NONE;
     if(count == 1)
         return PARTY_EVENT_EDGE;
+    ui.equipment_feedback = PartyUi::NO_FEEDBACK;
     uint8_t& selected = highlight(ui);
     selected = (uint8_t)((selected + (down ? 1 : count - 1)) % count);
     return PARTY_EVENT_TICK;
@@ -183,6 +194,21 @@ PARTY_EVENT party_ui_press(PartyUi& ui, Party const& party, uint8_t pressed) {
     return PARTY_EVENT_NONE;
 }
 
+static ITEM_ID picker_item(EQUIPMENT_SLOT slot, uint8_t row, uint8_t& count) {
+    count = 1;
+    for(uint8_t id = 0; id < ITEM_DEFINED_COUNT; ++id) {
+        ITEM_ID item = (ITEM_ID)id;
+        if(equipment_owned(item) && equipment_item(item)->slot == slot && count++ == row)
+            return item;
+    }
+    return ITEM_NONE;
+}
+
+ITEM_ID party_ui_row_item(PartyUi const& ui, uint8_t row) {
+    uint8_t count;
+    return picker_item(party_ui_slot(ui), row, count);
+}
+
 uint8_t party_ui_entries(PartyUi const& ui, Party const& party) {
     switch(ui.page) {
         case PARTY_PAGE_OVERVIEW:
@@ -191,15 +217,24 @@ uint8_t party_ui_entries(PartyUi const& ui, Party const& party) {
             return party_special_count(party.members[ui.member]);
         case PARTY_PAGE_PERKS:
             return PERK_ROW_COUNT;
-        case PARTY_PAGE_PERK_LIST:
-            return ui.selection[PARTY_PAGE_PERKS] == PERK_ROW_EQUIPMENT ? PREVIEW_EQUIPMENT_COUNT
-                                                                        : PERK_TRACK_RANKS;
+        case PARTY_PAGE_PERK_LIST: {
+            if(ui.selection[PARTY_PAGE_PERKS] != PERK_ROW_EQUIPMENT)
+                return PERK_TRACK_RANKS;
+            uint8_t count = 0;
+            for(uint8_t slot = 0; slot < SLOT_COUNT; ++slot)
+                if(equipment_get(party.members[ui.member], (EQUIPMENT_SLOT)slot) != ITEM_NONE)
+                    ++count;
+            return count;
+        }
         case PARTY_PAGE_PERK_CHOICE:
             return PERK_CHOICE_COUNT;
         case PARTY_PAGE_EQUIPMENT:
             return SLOT_COUNT;
-        case PARTY_PAGE_ITEM_LIST:
-            return PREVIEW_ITEMS_PER_SLOT;
+        case PARTY_PAGE_ITEM_LIST: {
+            uint8_t count;
+            picker_item(party_ui_slot(ui), 0, count);
+            return count;
+        }
         default:
             return 0;
     }
@@ -217,8 +252,14 @@ uint8_t party_ui_row_perk(PartyUi const& ui, Party const& party, uint8_t index) 
         return party_perk_code(index == 0 ? member.movement_class : attack_track,
                                party_perk_rank(member, index == 0 ? PERK_MOVEMENT : PERK_ATTACK));
     uint8_t row = ui.selection[PARTY_PAGE_PERKS];
-    if(row == PERK_ROW_EQUIPMENT)
-        return (uint8_t)(PERK_EQUIPMENT + index);
+    if(row == PERK_ROW_EQUIPMENT) {
+        for(uint8_t slot = 0; slot < SLOT_COUNT; ++slot) {
+            ITEM_ID item = equipment_get(member, (EQUIPMENT_SLOT)slot);
+            if(item != ITEM_NONE && index-- == 0)
+                return (uint8_t)(PERK_EQUIPMENT + item);
+        }
+        return (uint8_t)(PERK_EQUIPMENT + ITEM_DEFINED_COUNT);
+    }
     return party_perk_code(row == PERK_ROW_MOVEMENT ? member.movement_class : attack_track, index);
 }
 
@@ -229,7 +270,7 @@ char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party) {
         case PARTY_PAGE_PERK_DETAILS:
             return party_perk_text(ui.entry);
         case PARTY_PAGE_ITEM_DETAILS:
-            return party_item_text(ui.entry);
+            return equipment_item((ITEM_ID)ui.entry)->description;
         default:
             return nullptr;
     }
@@ -287,7 +328,7 @@ char const PROGMEM* party_perk_name(uint8_t code) {
         };
         return NAMES[code / PERK_TRACK_RANKS];
     }
-    return preview_equipment_name(code - PERK_EQUIPMENT);
+    return equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->modifier;
 }
 
 char const PROGMEM* party_perk_text(uint8_t code) {
@@ -303,11 +344,11 @@ char const PROGMEM* party_perk_text(uint8_t code) {
         };
         return TEXTS[code / PERK_TRACK_RANKS];
     }
-    return preview_equipment_text(code - PERK_EQUIPMENT);
+    return equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->description;
 }
 
 char const PROGMEM* party_perk_source(uint8_t code) {
-    return code < PERK_EQUIPMENT ? nullptr : preview_equipment_source(code - PERK_EQUIPMENT);
+    return code < PERK_EQUIPMENT ? nullptr : equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->name;
 }
 
 uint8_t party_perk_track(uint8_t code) {
@@ -320,14 +361,6 @@ char const PROGMEM* party_track_name(uint8_t track) {
     return party_attack_name((uint8_t)(track - MOVEMENT_CLASS_COUNT));
 }
 
-char const PROGMEM* party_item_name(uint8_t code) {
-    return preview_item_name(party_item_slot(code), code % PREVIEW_ITEMS_PER_SLOT);
-}
-
-char const PROGMEM* party_item_text(uint8_t code) {
-    return preview_item_text(party_item_slot(code), code % PREVIEW_ITEMS_PER_SLOT);
-}
-
 char const PROGMEM* party_slot_name(uint8_t slot) {
     static char const PROGMEM* const PROGMEM NAMES[SLOT_COUNT] = {
         F("Weapon"),
@@ -337,6 +370,7 @@ char const PROGMEM* party_slot_name(uint8_t slot) {
     return NAMES[slot];
 }
 
-char const PROGMEM* party_equipped(PartyMember const&, uint8_t) {
-    return nullptr;
+char const PROGMEM* party_equipped(PartyMember const& member, uint8_t slot) {
+    auto item = equipment_item(equipment_get(member, (EQUIPMENT_SLOT)slot));
+    return item ? item->name : F("(None)");
 }

@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "equipment.h"
 #include "chunk.h"
 #include "world_assets.h"
 #include "map_positions.h"
@@ -421,6 +422,117 @@ static void permanent_perks() {
     CHECK(party_learn_perk(delayed, PERK_MOVEMENT) && party_unspent_perks(delayed) == 1);
 }
 
+static void equipment_operations() {
+    static_assert(equipment_valid_item(ITEM_IRON_FANG) && FLAG_ITEM_FIRST > FLAG_RESERVED);
+    static_assert(equipment_flag(ITEM_IRON_FANG) == FLAG_ITEM_FIRST);
+    static_assert(equipment_flag(ITEM_DEFINED_COUNT - 1) == FLAG_ITEM_END - 1);
+    static_assert(equipment_flag(ITEM_NONE) == FLAG_COUNT);
+    static_assert(equipment_flag(ITEM_DEFINED_COUNT) == FLAG_COUNT);
+    for(uint8_t id = 1; id < ITEM_DEFINED_COUNT; ++id)
+        CHECK(equipment_flag(id) == equipment_flag(id - 1) + 1);
+
+    for(uint8_t count = 1; count <= PARTY_CAPACITY; ++count) {
+        game_start();
+        CHECK(equipment_owned(ITEM_IRON_FANG));
+        for(uint8_t i = 1; i < count; ++i)
+            CHECK(party_add(party_new_member((NPC_ID)i, MOVEMENT_STEP, ATTACK_STRIKE)));
+        for(auto const& member : game.party.members)
+            for(uint8_t stored : member.equipment)
+                CHECK(stored == 0);
+
+        Game before = game;
+        CHECK(!equipment_equip(count, ITEM_IRON_FANG));
+        CHECK(!equipment_equip(0, ITEM_TRAVELERS_BOOTS));
+        CHECK(!equipment_equip(0, ITEM_NONE) && !equipment_owned(ITEM_NONE));
+        CHECK(!equipment_unequip(0, SLOT_COUNT));
+        CHECK(!equipment_acquire(ITEM_IRON_FANG));
+        CHECK(!equipment_acquire(ITEM_NONE));
+        CHECK(!equipment_acquire(ITEM_DEFINED_COUNT));
+        CHECK(!equipment_equip(0, ITEM_DEFINED_COUNT));
+        CHECK(!memcmp(&before, &game, sizeof(Game)));
+
+        CHECK(equipment_acquire(ITEM_TRAVELERS_BOOTS));
+        CHECK(equipment_acquire(ITEM_DAWN_PENDANT));
+        CHECK(equipment_acquire(ITEM_VITAL_PENDANT));
+        for(uint16_t flag = 0; flag < FLAG_COUNT; ++flag) {
+            bool acquired = flag >= equipment_flag(ITEM_TRAVELERS_BOOTS) &&
+                            flag <= equipment_flag(ITEM_VITAL_PENDANT);
+            CHECK(game.flags.get_flag(flag) == (acquired || before.flags.get_flag(flag)));
+        }
+
+        PartyMember& leader = game.party.members[0];
+        leader.level = 7;
+        CHECK(party_learn_perk(leader, PERK_MOVEMENT));
+        uint8_t hp = leader.hp;
+        CHECK(party_max_hp(leader) == 27);
+        CHECK(equipment_equip(0, ITEM_IRON_FANG));
+        CHECK(equipment_get(leader, SLOT_ARMOR) == ITEM_NONE);
+        CHECK(equipment_equip(0, ITEM_TRAVELERS_BOOTS));
+        CHECK(party_max_hp(leader) == 29);
+        CHECK(equipment_equip(0, ITEM_VITAL_PENDANT));
+        CHECK(party_max_hp(leader) == 32 && leader.hp == hp);
+        leader.hp = 32;
+
+        if(count > 1) {
+            CHECK(equipment_equip(count - 1, ITEM_VITAL_PENDANT));
+            CHECK(equipment_wearer(ITEM_VITAL_PENDANT) == count - 1);
+            CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_NONE && leader.hp == 29);
+        } else {
+            CHECK(equipment_equip(0, ITEM_DAWN_PENDANT));
+            CHECK(equipment_owned(ITEM_VITAL_PENDANT));
+            CHECK(leader.hp == 29 && party_victory_ap(leader) == 2);
+        }
+        CHECK(equipment_unequip(0, SLOT_ARMOR));
+        CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && leader.hp == 27);
+        before = game;
+        CHECK(!equipment_equip(0, ITEM_IRON_FANG) && !equipment_unequip(0, SLOT_ARMOR));
+        CHECK(!memcmp(&before, &game, sizeof(Game)));
+        CHECK(save_valid());
+    }
+}
+
+static void equipment_saves() {
+    game_start();
+    CHECK(party_add(party_new_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT)));
+    CHECK(equipment_acquire(ITEM_VITAL_PENDANT));
+    CHECK(equipment_equip(0, ITEM_VITAL_PENDANT) && equipment_equip(0, ITEM_IRON_FANG));
+    game.party.members[0].hp = 22;
+    game.party.members[0].ap = 2;
+    Game saved = game;
+
+    auto reject = [&] {
+        Game corrupt = game;
+        CHECK(!save_valid() && !save_restore());
+        CHECK(!memcmp(&corrupt, &game, sizeof(Game)));
+        game = saved;
+    };
+    game.party.members[0].equipment[SLOT_WEAPON] = 255;
+    reject();
+    game.clear_flag(equipment_flag(ITEM_IRON_FANG));
+    reject();
+    game.party.members[1].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    reject();
+    game.party.members[0].equipment[SLOT_ARMOR] = equipment_encode(ITEM_VITAL_PENDANT);
+    reject();
+    game.party.members[2].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    reject();
+    game.party.members[0].hp = 24;
+    reject();
+    game.flags.bytes[WorldFlags::BYTE_COUNT - 1] |= 0x80;
+    reject();
+
+    game_start();
+    unsigned char image[sizeof(Game)];
+    memcpy(image, &saved, sizeof(image));
+    memcpy(&game, image, sizeof(image));
+    CHECK(save_restore());
+    PartyMember const& leader = game.party.members[0];
+    CHECK(equipment_owned(ITEM_IRON_FANG) && equipment_owned(ITEM_VITAL_PENDANT));
+    CHECK(equipment_get(leader, SLOT_WEAPON) == ITEM_IRON_FANG);
+    CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_VITAL_PENDANT);
+    CHECK(leader.hp == 22 && leader.ap == 2 && party_max_hp(leader) == 23);
+}
+
 int main() {
     dialogue_camera_bounds();
     animate();
@@ -431,5 +543,7 @@ int main() {
     party_statistics();
     party_progression();
     permanent_perks();
+    equipment_operations();
+    equipment_saves();
     printf("PASS 16x16 core: %u checks\n", checks);
 }

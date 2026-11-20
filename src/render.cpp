@@ -1057,7 +1057,6 @@ static void render_party_perk_index(int16_t x, PartyUi const& ui) {
             avm_draw_textf(right, y, F("%u/5"), party_attack_perk_rank(member));
         } else if(row == PERK_ROW_EQUIPMENT) {
             avm_draw_text(label_x, y, F("From Equipment"));
-            avm_draw_text(x + PARTY_EDGE - 36, y, F("PREVIEW"));
         } else {
             avm_draw_text(label_x, y, available ? F("Learn Perk!") : F("Perk Choices"));
             avm_draw_textf(right, y, F("%u"), available);
@@ -1075,15 +1074,15 @@ static void render_party_perk_list(int16_t x, PartyUi const& ui) {
     uint8_t selected = ui.selection[PARTY_PAGE_PERK_LIST];
 
     // A track's entries take one line each. An equipment entry takes two lines, the effect and the
-    // item that would grant it, so fewer of them fit on the list.
+    // item that grants it, so fewer of them fit on the list.
     uint8_t lines = equipment ? 2 : 1;
     uint8_t visible = PARTY_TEXT_ROWS / lines;
     uint8_t first = selected >= visible ? (uint8_t)(selected - (visible - 1)) : 0;
 
     if(equipment) {
-        draw_menu_title(left, F("Equipment Perks"), 120);
-        avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Sample effects"));
-        avm_draw_text(x + PARTY_EDGE - 42, PARTY_ROW_SUBTITLE, F("PREVIEW"));
+        draw_menu_title(left, F("From Equipment"), 120);
+        if(!count)
+            avm_draw_text(left, PARTY_ROW_BODY, F("No equipment effects"));
     } else {
         draw_menu_title(left, kind == PERK_ROW_MOVEMENT ? F("Movement Perks") : F("Attack Perks"),
                         120);
@@ -1117,7 +1116,7 @@ static void render_party_perk_list(int16_t x, PartyUi const& ui) {
     }
     draw_menu_scroll(x, PARTY_ROW_BODY, PARTY_ROW_BODY + PARTY_ROW_STEP * 3, first,
                      first + visible < count);
-    draw_menu_footer(x, F("Open"));
+    draw_menu_footer(x, count ? F("Open") : nullptr);
 }
 
 static void render_party_perk_choice(int16_t x, PartyUi const& ui) {
@@ -1156,7 +1155,7 @@ static void render_party_perk_details(int16_t x, PartyUi const& ui) {
     uint8_t track = party_perk_track(ui.entry);
     draw_menu_title(left, party_perk_name(ui.entry), 120);
     if(track == PARTY_NO_TRACK)
-        avm_draw_text(left, PARTY_ROW_SUBTITLE, F("From equipment"));
+        avm_draw_text(left, PARTY_ROW_SUBTITLE, party_perk_source(ui.entry));
     else
         draw_label_value(left, PARTY_ROW_SUBTITLE,
                          track < MOVEMENT_CLASS_COUNT ? F("Movement:") : F("Attack:"),
@@ -1165,8 +1164,6 @@ static void render_party_perk_details(int16_t x, PartyUi const& ui) {
     render_party_text(x, ui);
 
     draw_menu_footer(x, ui.back == PARTY_PAGE_PERK_CHOICE ? F("Continue") : nullptr);
-    if(track == PARTY_NO_TRACK)
-        avm_draw_text(left, MENU_FOOTER, F("Preview only"));
 }
 
 static void render_party_perk_confirm(int16_t x, PartyUi const& ui) {
@@ -1184,7 +1181,6 @@ static void render_party_equipment(int16_t x, PartyUi const& ui) {
     int16_t left = x + PARTY_MARGIN;
     render_party_header(x, ui);
     avm_draw_text(left, PARTY_ROW_SUBTITLE, F("EQUIPMENT"));
-    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
     render_party_divider(x);
 
     uint8_t selected = ui.selection[PARTY_PAGE_EQUIPMENT];
@@ -1193,7 +1189,7 @@ static void render_party_equipment(int16_t x, PartyUi const& ui) {
         begin_menu_row(x, y, slot == selected, PARTY_EDGE - PARTY_MARGIN);
         avm_draw_text(left + 3, y, party_slot_name(slot));
         char const PROGMEM* equipped = party_equipped(member, slot);
-        avm_draw_text(x + 46, y, equipped ? equipped : F("(None)"));
+        avm_draw_text(x + 46, y, equipped);
         avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     }
     draw_menu_footer(x, F("Open"));
@@ -1201,34 +1197,56 @@ static void render_party_equipment(int16_t x, PartyUi const& ui) {
 
 static void render_party_item_list(int16_t x, PartyUi const& ui) {
     int16_t left = x + PARTY_MARGIN;
-    uint8_t slot = ui.selection[PARTY_PAGE_EQUIPMENT];
-    draw_menu_title(left, party_slot_name(slot), 120);
-    avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Sample items"));
-    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    draw_menu_title(left, party_slot_name(party_ui_slot(ui)), 120);
+    if(ui.equipment_feedback == PartyUi::UNEQUIPPED)
+        avm_draw_text(left, PARTY_ROW_SUBTITLE, F("Unequipped"));
     render_party_divider(x);
 
+    constexpr uint8_t VISIBLE = 2;
     uint8_t count = party_ui_entries(ui, game.party);
     uint8_t selected = ui.selection[PARTY_PAGE_ITEM_LIST];
-    for(uint8_t index = 0; index < count; ++index) {
-        int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * index);
-        begin_menu_row(x, y, index == selected, PARTY_EDGE - PARTY_MARGIN);
-        avm_draw_text((int16_t)(left + 3), y, party_item_name(party_item_code(slot, index)));
+    uint8_t first = selected >= VISIBLE ? selected - (VISIBLE - 1) : 0;
+    for(uint8_t row = 0; row < VISIBLE && first + row < count; ++row) {
+        uint8_t index = first + row;
+        ITEM_ID item = party_ui_row_item(ui, index);
+        auto definition = equipment_item(item);
+        int16_t y = PARTY_ROW_BODY + 2 * PARTY_ROW_STEP * row;
+        begin_menu_row(x, y, index == selected, 112);
+        avm_draw_text(left + 3, y, definition ? definition->name : F("(Unequip)"));
         avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+        uint8_t wearer = equipment_wearer(item);
+        if(wearer != PARTY_CAPACITY)
+            avm_draw_text(left + 3, y + PARTY_ROW_STEP,
+                          wearer == ui.member ? F("Equipped") :
+                                                party_member_name(game.party.members[wearer]));
     }
-    draw_menu_footer(x, F("Inspect"));
+    draw_menu_scroll(x, PARTY_ROW_BODY, PARTY_ROW_BODY + PARTY_ROW_STEP * 3, first,
+                     first + VISIBLE < count);
+    draw_menu_footer(x, selected ? F("Inspect") : F("Unequip"));
 }
 
 static void render_party_item_details(int16_t x, PartyUi const& ui) {
     int16_t left = x + PARTY_MARGIN;
-    draw_menu_title(left, party_item_name(ui.entry), 120);
-    avm_draw_text(left, PARTY_ROW_SUBTITLE, party_slot_name(party_item_slot(ui.entry)));
-    avm_draw_text((int16_t)(x + PARTY_EDGE - 42), PARTY_ROW_SUBTITLE, F("PREVIEW"));
+    ITEM_ID item = (ITEM_ID)ui.entry;
+    auto definition = equipment_item(item);
+    draw_menu_title(left, definition->name, 120);
+    avm_draw_text(left, PARTY_ROW_SUBTITLE, party_slot_name(definition->slot));
+    uint8_t wearer = equipment_wearer(item);
+    if(wearer != PARTY_CAPACITY) {
+        auto name = party_member_name(game.party.members[wearer]);
+        int16_t name_x = x + PARTY_EDGE - avm_text_width(name);
+        avm_draw_text(name_x - avm_text_width(F("Worn: ")), PARTY_ROW_SUBTITLE, F("Worn: "));
+        avm_draw_text(name_x, PARTY_ROW_SUBTITLE, name);
+    }
     render_party_divider(x);
     render_party_text(x, ui);
 
-    // Equipping is not available yet, so the action is named but does nothing.
-    draw_menu_footer(x, nullptr);
-    avm_draw_text(left, MENU_FOOTER, F("Equip: n/a"));
+    draw_menu_footer(x, wearer == ui.member ? nullptr :
+                        wearer == PARTY_CAPACITY ? F("Equip") : F("Transfer"));
+    if(wearer == ui.member)
+        avm_draw_text(left, MENU_FOOTER,
+                      ui.equipment_feedback == PartyUi::TRANSFERRED ? F("Transferred") :
+                                                                    F("Equipped"));
 }
 
 static void render_party_panel(int16_t x, PartyUi const& ui) {

@@ -93,6 +93,26 @@ __attribute__((noinline)) void party_screen() {
                 party_ui_perk_learned(ui);
                 sfx_play(SFX_SELECT);
                 break;
+            case PARTY_EVENT_EQUIP: {
+                ITEM_ID item = (ITEM_ID)ui.entry;
+                uint8_t wearer = equipment_wearer(item);
+                if(!equipment_equip(ui.member, item)) {
+                    sfx_play(SFX_CURSOR_EDGE);
+                    continue;
+                }
+                ui.equipment_feedback = wearer == PARTY_CAPACITY ? PartyUi::EQUIPPED
+                                                                : PartyUi::TRANSFERRED;
+                sfx_play(SFX_SELECT);
+                break;
+            }
+            case PARTY_EVENT_UNEQUIP:
+                if(!equipment_unequip(ui.member, party_ui_slot(ui))) {
+                    sfx_play(SFX_CURSOR_EDGE);
+                    continue;
+                }
+                ui.equipment_feedback = PartyUi::UNEQUIPPED;
+                sfx_play(SFX_SELECT);
+                break;
             case PARTY_EVENT_CLOSE:
                 sfx_play(SFX_CANCEL);
                 closing = true;

@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "equipment.h"
 #include "map_positions.h"
 #include "npc.h"
 #include "quest.h"
@@ -32,6 +33,9 @@ bool party_contains(NPC_ID id) {
 }
 
 bool party_add(PartyMember member) {
+    for(uint8_t stored : member.equipment)
+        if(stored)
+            return false;
     if(game.party.count >= PARTY_CAPACITY || member.id >= NPC_ID_LIMIT ||
        !party_progress_valid(member) || member.movement_class >= MOVEMENT_CLASS_COUNT ||
        member.attack_class >= ATTACK_CLASS_COUNT ||
@@ -53,6 +57,7 @@ void game_start() {
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
     quest_reset();
+    equipment_acquire(ITEM_IRON_FANG);
     // The traveler occupies the first slot from the start. Recruitment is for NPCs.
     game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.count = 1;

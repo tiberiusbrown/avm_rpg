@@ -242,7 +242,7 @@ and target reached/failed. Retirement reports reset, recruitment or safe unloadi
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 17 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 18 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage

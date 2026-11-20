@@ -69,7 +69,7 @@ struct BattleScreen {
     uint8_t motion; // SCREEN_MOTION
     // Bit i is set for each unit flashing after damage.
     uint8_t flashing;
-    // The HP each flashing unit lost, four bits per unit: unit i is in damage[i / 2], in the high
+    // Damage dealt to each flashing unit, four bits per unit: unit i is in damage[i / 2], in the high
     // half when i is odd. Current attack and engagement damage fit four bits.
     uint8_t damage[BATTLE_UNIT_CAPACITY / 2];
     // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
@@ -340,14 +340,14 @@ static inline __attribute__((always_inline)) void walk_unit(BattleScreen& screen
     screen.motion = MOTION_STILL;
 }
 
-// The HP that unit `index` lost to the action being played.
+// The damage dealt to unit `index` by the action being played.
 static uint8_t damage_taken(BattleScreen const& screen, uint8_t index) {
     uint8_t pair = screen.damage[index / 2];
     return (uint8_t)(index & 1 ? pair >> 4 : pair & 0x0F);
 }
 
-// Draws a damage indicator over every flashing unit: a spiky burst on the unit's cell, with the HP
-// the unit lost in its black middle. It stays up for the whole flash, over the visible and the
+// Draws a damage indicator over every flashing unit: a spiky burst on the unit's cell, with the damage
+// dealt in its black middle. It stays up for the whole flash, over the visible and the
 // hidden phases alike, and it is drawn after the board, so no neighbouring actor covers it.
 RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
     avm_set_sprite(BATTLE_DAMAGE_SPRITES);
@@ -355,8 +355,14 @@ RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
         if(!((screen.flashing >> i) & 1))
             continue;
         uint8_t cell = screen.state.units[i].cell;
-        avm_draw_plus_mask(cell_x(cell), cell_y(cell),
-                           battle_damage_frame(damage_taken(screen, i)));
+        uint8_t damage = damage_taken(screen, i);
+        int16_t x = cell_x(cell), y = cell_y(cell);
+        avm_draw_plus_mask(x, y, battle_damage_frame(damage));
+        if(damage > BATTLE_DAMAGE_FRAMES) {
+            static constexpr char PROGMEM NUMBERS[][3] = {"10", "11", "12", "13", "14", "15"};
+            avm_draw_filled_rect_black(x + 4, y + 4, 8, 7);
+            avm_draw_text(x + 4, y + 10, NUMBERS[damage - 10]);
+        }
     }
 }
 
@@ -413,9 +419,8 @@ static inline __attribute__((always_inline)) void animate_reaction(BattleScreen&
 
 // Applies a legal action to the rules and records its motion on the screen. The actor becomes the
 // mover. A move sets up its walk from the old cell, however far away it is. Every unit whose HP the
-// action lowers is marked to flash, with the HP it lost, found by comparing HP before and after: an
-// attack's victim, and
-// for a move every enemy its engagement hit and the mover itself, which pays the blood price. When
+// action lowers is marked to flash with the full damage computed before the hit. The HP comparison
+// identifies which units were hit, including whether the mover actually paid the blood price. When
 // the engagement defeats the last enemy, the battle ends before the price, so the mover keeps its
 // HP: its victims flash and vanish, and it stays drawn on the result screen. Units are marked by
 // index, so a knockback that moves its victim still flashes the right unit, drawn at its new cell.
@@ -427,10 +432,16 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action, boo
     uint8_t actor = action.unit_index;
     DIRECTION toward = battle_direction(state.units[actor].cell, action.destination);
     screen.mover = actor;
-    if(battle_unit_at(state, action.destination) == BATTLE_NO_UNIT) {
+    uint8_t target = battle_unit_at(state, action.destination);
+    uint8_t damage;
+    if(target == BATTLE_NO_UNIT) {
+        damage = battle_engagement_damage(state.units[actor], action.destination);
         // The walk starts at the old cell, which may be a straight run or a knight leap away.
         screen.mover_dx = (int8_t)(cell_x(state.units[actor].cell) - cell_x(action.destination));
         screen.mover_dy = (int8_t)(cell_y(state.units[actor].cell) - cell_y(action.destination));
+    } else {
+        damage = special ? battle_special_damage(state.units[actor], state.units[target])
+                         : battle_attack_damage(state.units[actor], state.units[target]);
     }
     uint8_t before[BATTLE_UNIT_CAPACITY];
     for(uint8_t i = 0; i < state.unit_count; ++i)
@@ -445,9 +456,9 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action, boo
         screen.damage[i] = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         if(state.units[i].hp < before[i]) {
-            uint8_t lost = (uint8_t)(before[i] - state.units[i].hp);
+            uint8_t dealt = i == actor ? BATTLE_MOVE_COST : damage;
             screen.flashing = (uint8_t)(screen.flashing | (1 << i));
-            screen.damage[i / 2] = (uint8_t)(screen.damage[i / 2] | (i & 1 ? lost << 4 : lost));
+            screen.damage[i / 2] |= (uint8_t)(i & 1 ? dealt << 4 : dealt);
         }
     }
     return toward;

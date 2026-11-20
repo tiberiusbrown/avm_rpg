@@ -5,6 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+// These tests open Party directly and never enter world dialogue.
+bool dialogue_show(char const PROGMEM*) { return false; }
+bool dialogue_show(NPC_ID, char const PROGMEM*) { return false; }
+bool dialogue_ask(char const PROGMEM*) { return false; }
+bool dialogue_ask(NPC_ID, char const PROGMEM*) { return false; }
+
 static unsigned checks;
 #define CHECK(value)                                                                               \
     do {                                                                                           \
@@ -201,8 +207,13 @@ static void test_list_bounds_and_wrap() {
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
 
     open_perk_row(ui, party, PERK_ROW_EQUIPMENT);
-    CHECK(party_ui_entries(ui, party) == PREVIEW_EQUIPMENT_COUNT);
-    CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK && ui.selection[PARTY_PAGE_PERK_LIST] == 5);
+    CHECK(party_ui_entries(ui, party) == 0);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
+    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
+    CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(party_ui_entries(ui, party) == PERK_TRACK_RANKS);
+    CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK && ui.selection[PARTY_PAGE_PERK_LIST] == PERK_TRACK_RANKS - 1);
     CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK &&
           ui.selection[PARTY_PAGE_PERK_LIST] == 0);
 }
@@ -283,21 +294,21 @@ static void test_perk_tracks_follow_classes() {
 
 static void test_perk_index_keeps_rows_on_return() {
     Party party = make_party(1);
+    party.members[0].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_VITAL_PENDANT);
     PartyUi ui{};
     open_perk_row(ui, party, PERK_ROW_EQUIPMENT);
     CHECK(ui.page == PARTY_PAGE_PERK_LIST);
     CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-    CHECK(ui.selection[PARTY_PAGE_PERK_LIST] == 3);
+    CHECK(ui.selection[PARTY_PAGE_PERK_LIST] == 1);
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
     CHECK(ui.page == PARTY_PAGE_PERK_DETAILS && ui.back == PARTY_PAGE_PERK_LIST);
-    CHECK(ui.entry == PERK_EQUIPMENT + 3);
+    CHECK(ui.entry == PERK_EQUIPMENT + ITEM_VITAL_PENDANT);
     CHECK(party_perk_track(ui.entry) == PARTY_NO_TRACK);
     CHECK(party_perk_source(ui.entry) != nullptr);
     // Returning from the details keeps the entry, and returning from the list keeps the row.
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
-    CHECK(ui.page == PARTY_PAGE_PERK_LIST && ui.selection[PARTY_PAGE_PERK_LIST] == 3);
+    CHECK(ui.page == PARTY_PAGE_PERK_LIST && ui.selection[PARTY_PAGE_PERK_LIST] == 1);
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
     CHECK(ui.page == PARTY_PAGE_PERKS && ui.selection[PARTY_PAGE_PERKS] == PERK_ROW_EQUIPMENT);
 }
@@ -366,81 +377,66 @@ static void test_perk_selection() {
     CHECK(party_unspent_perks(party.members[ui.member]) == 0);
 }
 
-// Every equipment description is opened and scrolled, so a scroll limit applies to each length.
-static void test_perk_details_scroll() {
-    Party party = make_party(1);
-    PartyUi ui{};
-    uint8_t long_descriptions = 0;
-    for(uint8_t index = 0; index < PREVIEW_EQUIPMENT_COUNT; ++index) {
-        open_perk_row(ui, party, PERK_ROW_EQUIPMENT);
-        for(uint8_t step = 0; step < index; ++step)
-            CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
-        CHECK(ui.scroll == 0 && ui.line_count >= 1 && ui.line_count <= PARTY_TEXT_LINES);
-        if(ui.line_count > PARTY_TEXT_ROWS) {
-            ++long_descriptions;
-            CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_EDGE);
-            // Scrolling stops once the last line is the bottom line.
-            uint8_t guard = 0;
-            while(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK) {
-                CHECK(ui.scroll + PARTY_TEXT_ROWS <= ui.line_count);
-                CHECK(++guard <= PARTY_TEXT_LINES);
-            }
-            CHECK(ui.scroll + PARTY_TEXT_ROWS == ui.line_count);
-            CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_EDGE);
-            while(ui.scroll)
-                CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK);
-            CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_EDGE);
-        } else {
-            // A short description has nothing to scroll, so both directions answer with the edge.
-            CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_EDGE);
-            CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_EDGE);
-        }
-        CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
-        CHECK(ui.page == PARTY_PAGE_PERK_LIST);
-    }
-    // Some descriptions run past a screen, so the scroll limit is exercised.
-    CHECK(long_descriptions > 0);
-}
-
-static void test_equipment_preview_flow() {
-    Party party = make_party(1);
+static void test_equipment_flow() {
+    game_start();
+    game.party = make_party(2);
+    Party const& party = game.party;
     PartyUi ui{};
     open_category(ui, party, CATEGORY_EQUIPMENT);
     CHECK(ui.page == PARTY_PAGE_EQUIPMENT);
     for(uint8_t slot = 0; slot < SLOT_COUNT; ++slot)
-        CHECK(party_equipped(party.members[0], slot) == nullptr);
-    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-    CHECK(ui.selection[PARTY_PAGE_EQUIPMENT] == SLOT_RELIC);
-    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
-    CHECK(ui.page == PARTY_PAGE_ITEM_LIST);
-    CHECK(party_ui_entries(ui, party) == PREVIEW_ITEMS_PER_SLOT);
+        CHECK(strcmp(party_equipped(party.members[0], slot), "(None)") == 0);
+
     CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
-    CHECK(ui.page == PARTY_PAGE_ITEM_DETAILS);
-    CHECK(ui.entry == party_item_code(SLOT_RELIC, 1));
-    CHECK(strcmp(party_item_name(ui.entry), "Vital Pendant") == 0);
-    CHECK(party_item_slot(ui.entry) == SLOT_RELIC);
-    // Equipping is a placeholder, so A does nothing and B climbs one level at a time.
-    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE && ui.page == PARTY_PAGE_ITEM_DETAILS);
-    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_ITEM_LIST);
-    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_EQUIPMENT);
-    CHECK(ui.selection[PARTY_PAGE_EQUIPMENT] == SLOT_RELIC);
-    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_OVERVIEW);
+    CHECK(party_ui_entries(ui, party) == 1);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_UNEQUIP);
+    CHECK(!equipment_unequip(ui.member, party_ui_slot(ui)));
+    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
+    CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK);
+
+    for(uint8_t member = 0; member < party.count; ++member) {
+        CHECK(ui.member == member);
+        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+        CHECK(party_ui_entries(ui, party) == 2);
+        CHECK(party_ui_row_item(ui, 0) == ITEM_NONE);
+        CHECK(party_ui_row_item(ui, 1) == ITEM_IRON_FANG);
+        CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+        CHECK(ui.page == PARTY_PAGE_ITEM_DETAILS && ui.entry == ITEM_IRON_FANG);
+        CHECK(strstr(party_ui_text(ui, party), "+1 damage"));
+        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EQUIP);
+        CHECK(equipment_equip(ui.member, (ITEM_ID)ui.entry));
+        CHECK(equipment_wearer(ITEM_IRON_FANG) == member);
+        CHECK(strcmp(party_equipped(party.members[member], SLOT_WEAPON), "Iron Fang") == 0);
+        CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
+        CHECK(ui.selection[PARTY_PAGE_ITEM_LIST] == 1);
+        CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
+        CHECK(press(ui, party, BTN_RIGHT) == PARTY_EVENT_TICK);
+    }
+
+    CHECK(press(ui, party, BTN_RIGHT) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
+    CHECK(press(ui, party, BTN_UP) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(party_ui_entries(ui, party) == 1);
+    CHECK(party_ui_row_perk(ui, party, 0) == PERK_EQUIPMENT + ITEM_IRON_FANG);
+    CHECK(equipment_unequip(ui.member, SLOT_WEAPON));
+    CHECK(party_ui_entries(ui, party) == 0);
 }
 
 static void test_catalog_entries_are_complete() {
-    for(uint8_t slot = 0; slot < PREVIEW_SLOT_COUNT; ++slot) {
-        for(uint8_t index = 0; index < PREVIEW_ITEMS_PER_SLOT; ++index) {
-            uint8_t code = party_item_code(slot, index);
-            CHECK(party_item_slot(code) == slot);
-            CHECK(party_item_name(code) != nullptr && *party_item_name(code) != 0);
-            CHECK(party_item_text(code) != nullptr && *party_item_text(code) != 0);
-            CHECK(strlen(party_item_name(code)) * 6 <= ROW_TEXT_ROOM);
-        }
-        CHECK(party_slot_name(slot) != nullptr && *party_slot_name(slot) != 0);
+    for(uint8_t id = 0; id < ITEM_DEFINED_COUNT; ++id) {
+        auto item = equipment_item((ITEM_ID)id);
+        CHECK(item && item->slot < SLOT_COUNT);
+        CHECK(*item->name && *item->description);
+        CHECK(strlen(item->name) * 6 <= ROW_TEXT_ROOM);
     }
+    for(uint8_t slot = 0; slot < SLOT_COUNT; ++slot)
+        CHECK(party_slot_name(slot) != nullptr && *party_slot_name(slot) != 0);
     for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track) {
         CHECK(party_track_name(track) != nullptr && *party_track_name(track) != 0);
         for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank) {
@@ -451,7 +447,7 @@ static void test_catalog_entries_are_complete() {
             CHECK(strlen(party_perk_name(code)) * 6 <= RANK_NAME_ROOM);
         }
     }
-    for(uint8_t index = 0; index < PREVIEW_EQUIPMENT_COUNT; ++index) {
+    for(uint8_t index = 0; index < ITEM_DEFINED_COUNT; ++index) {
         uint8_t code = (uint8_t)(PERK_EQUIPMENT + index);
         CHECK(party_perk_track(code) == PARTY_NO_TRACK);
         CHECK(party_perk_name(code) != nullptr && *party_perk_name(code) != 0);
@@ -503,18 +499,14 @@ static void test_descriptions_wrap() {
     for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track)
         for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank)
             check_wrap(party_perk_text(party_perk_code(track, rank)));
-    for(uint8_t index = 0; index < PREVIEW_EQUIPMENT_COUNT; ++index)
+    for(uint8_t index = 0; index < ITEM_DEFINED_COUNT; ++index)
         check_wrap(party_perk_text((uint8_t)(PERK_EQUIPMENT + index)));
-    for(uint8_t slot = 0; slot < PREVIEW_SLOT_COUNT; ++slot)
-        for(uint8_t index = 0; index < PREVIEW_ITEMS_PER_SLOT; ++index)
-            check_wrap(party_item_text(party_item_code(slot, index)));
     for(uint8_t attack = 0; attack < ATTACK_CLASS_COUNT; ++attack)
         check_wrap(party_special_text(attack));
 }
 
-// The preview pages must not change the party. The party is passed as const, and this checks the
-// whole traversal, including the pages that show every kind of entry.
-static void test_preview_pages_leave_party_unchanged() {
+// Navigation emits requests and leaves the party unchanged.
+static void test_navigation_leaves_party_unchanged() {
     Party party = make_party(4);
     party.members[0].level = 2;
     Party before = party;
@@ -529,9 +521,7 @@ static void test_preview_pages_leave_party_unchanged() {
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
     open_category(ui, party, CATEGORY_EQUIPMENT);
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
-    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
-    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
-    CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_UNEQUIP);
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
     CHECK(memcmp(&before, &party, sizeof(Party)) == 0);
@@ -584,12 +574,11 @@ int main() {
     test_perk_tracks_follow_classes();
     test_perk_index_keeps_rows_on_return();
     test_perk_selection();
-    test_perk_details_scroll();
-    test_equipment_preview_flow();
+    test_equipment_flow();
     test_catalog_entries_are_complete();
     test_perk_descriptions();
     test_descriptions_wrap();
-    test_preview_pages_leave_party_unchanged();
+    test_navigation_leaves_party_unchanged();
     test_random_presses_stay_in_bounds();
     printf("party_ui: %u checks passed\n", checks);
     return 0;

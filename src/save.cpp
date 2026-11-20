@@ -1,4 +1,5 @@
 #include "rpg.h"
+#include "equipment.h"
 #include "npc.h"
 #include "quest.h"
 #include <string.h>
@@ -25,6 +26,8 @@ bool save_valid() {
             if(game.party.members[j].id == member.id)
                 return false;
     }
+    if(!equipment_saved_state_valid())
+        return false;
     if(FLAG_COUNT % 8 && (game.flags.bytes[WorldFlags::BYTE_COUNT - 1] >> (FLAG_COUNT % 8)))
         return false;
     // Malformed quest IDs and impossible quest-specific states are rejected, not repaired.

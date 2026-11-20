@@ -1,3 +1,4 @@
+#include "equipment.h"
 #include "rpg.h"
 #include "chunk.h"
 #include "world_assets.h"
@@ -729,17 +730,20 @@ static void cave_mechanisms() {
     sfx_stub_reset();
     press_a();
     CHECK(!game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold);
+    CHECK(!equipment_owned(ITEM_TRAVELERS_BOOTS));
     CHECK(!memcmp(&blocked, &game.supplies, sizeof(Supplies)));
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_CLOSED && played() == 0);
     --game.supplies.quantity[SUPPLY_ETHER];
     press_a();
     CHECK(game.get_flag(FLAG_CAVE_CHEST) && game.gold == gold + 25);
+    CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS));
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
     EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
     CHECK(supply_count(game.supplies, SUPPLY_POTION) == 3);
     CHECK(supply_count(game.supplies, SUPPLY_ETHER) == SUPPLY_LIMIT);
     // The saved flag restores the open lid and prevents another reward.
     CHECK(save_restore());
+    CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS));
     update_visible_world(0, false);
     CHECK(cached_tile(positions::CaveChest) == CAVE_TILE_CHEST_OPEN);
     press_a();
@@ -875,10 +879,36 @@ static void dungeon_mechanisms() {
 
     uint16_t gold = game.gold;
     stand(below(positions::DungeonChest), NORTH);
+    uint8_t revives = game.supplies.quantity[SUPPLY_REVIVE];
+    game.supplies.quantity[SUPPLY_REVIVE] = SUPPLY_LIMIT;
+    Supplies blocked = game.supplies;
+    sfx_stub_reset();
+    press_a();
+    CHECK(!game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold && played() == 0);
+    CHECK(!memcmp(&blocked, &game.supplies, sizeof(Supplies)));
+    CHECK(!equipment_owned(ITEM_DAWN_PENDANT) && !equipment_owned(ITEM_VITAL_PENDANT));
+    game.supplies.quantity[SUPPLY_REVIVE] = revives;
+
+    // A pre-owned item or overflowing gold must also block the complete claim.
+    CHECK(equipment_acquire(ITEM_VITAL_PENDANT));
+    blocked = game.supplies;
+    press_a();
+    CHECK(!game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold && played() == 0);
+    CHECK(!equipment_owned(ITEM_DAWN_PENDANT) && equipment_owned(ITEM_VITAL_PENDANT));
+    CHECK(!memcmp(&blocked, &game.supplies, sizeof(Supplies)));
+    game.clear_flag(equipment_flag(ITEM_VITAL_PENDANT));
+    game.gold = UINT16_MAX;
+    press_a();
+    CHECK(!game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == UINT16_MAX && played() == 0);
+    CHECK(!equipment_owned(ITEM_DAWN_PENDANT) && !equipment_owned(ITEM_VITAL_PENDANT));
+    CHECK(!memcmp(&blocked, &game.supplies, sizeof(Supplies)));
+    game.gold = gold;
+
     sfx_stub_reset();
     press_a();
     EXPECT_SOUND(SFX_CHEST_OPEN, SFX_NONE);
     CHECK(game.get_flag(FLAG_DUNGEON_CHEST) && game.gold == gold + 25);
+    CHECK(equipment_owned(ITEM_DAWN_PENDANT) && equipment_owned(ITEM_VITAL_PENDANT));
     CHECK(cached_tile(positions::DungeonChest) == DUNGEON_TILE_CHEST_OPEN);
     CHECK(supply_count(game.supplies, SUPPLY_ELIXIR) == 2);
     CHECK(supply_count(game.supplies, SUPPLY_REVIVE) == 2);

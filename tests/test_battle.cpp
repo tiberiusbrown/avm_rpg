@@ -2559,6 +2559,12 @@ static void attack_perks() {
         member.level = 9;
         CHECK(battle_special_damage(attacker, victim) == special + test.bonus + 2);
         CHECK(battle_attack_damage(victim, attacker) == 3);
+        uint8_t engagement = battle_engagement_damage(attacker, cell(2, 1));
+        member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+        CHECK(battle_attack_damage(attacker, victim) == test.normal + test.bonus + 3);
+        CHECK(battle_special_damage(attacker, victim) == special + test.bonus + 3);
+        CHECK(battle_engagement_damage(attacker, cell(2, 1)) == engagement);
+        CHECK(battle_attack_damage(victim, attacker) == 3);
     }
 
     member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_IMPACT);
@@ -2568,10 +2574,11 @@ static void attack_perks() {
     BattleState normal =
         board(BATTLE_PARTY, {{1, 1, id, BATTLE_PARTY, 20}, {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
     BattleState special = normal;
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     battle_apply(normal, act(0, 2, 1));
     battle_apply_special(special, act(0, 2, 1));
-    CHECK(normal.units[1].hp == 7 && normal.units[1].cell == cell(3, 1));
-    CHECK(special.units[1].hp == 4 && special.units[1].cell == cell(3, 1));
+    CHECK(normal.units[1].hp == 6 && normal.units[1].cell == cell(3, 1));
+    CHECK(special.units[1].hp == 3 && special.units[1].cell == cell(3, 1));
 }
 
 static void renewal_recovery() {
@@ -2591,9 +2598,17 @@ static void renewal_recovery() {
     battle_finish(victory);
     CHECK(game.party.members[0].ap == 2 && game.party.members[1].ap == 1);
     CHECK(game.party.members[0].hp == 0);
-    game.party.members[0].ap = 3;
+    game.party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_DAWN_PENDANT);
+    game.party.members[0].ap = 0;
     battle_finish(victory);
-    CHECK(game.party.members[0].ap == 4);
+    CHECK(game.party.members[0].ap == 3 && game.party.members[0].hp == 0);
+    game.party.members[0].equipment[SLOT_RELIC] = 0;
+    game.party.members[1].equipment[SLOT_RELIC] = equipment_encode(ITEM_DAWN_PENDANT);
+    game.party.members[1].ap = 0;
+    battle_finish(victory);
+    CHECK(game.party.members[0].ap == 4 && game.party.members[1].ap == 2);
+    battle_finish(victory);
+    CHECK(game.party.members[1].ap == 4);
 }
 
 static void perk_winning_action(BattleState const& state, BattleAction action, bool wins) {
@@ -2647,6 +2662,12 @@ static void momentum_and_perk_ordering() {
     BattleAction attack = act(0, 2, 1);
     perk_winning_action(strike, attack, false);
     CHECK(party_learn_perk(member, PERK_ATTACK));
+    perk_winning_action(strike, attack, true);
+    expect_same_as_reference(strike, 2);
+
+    strike.units[1].hp = 4;
+    perk_winning_action(strike, attack, false);
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     perk_winning_action(strike, attack, true);
     expect_same_as_reference(strike, 2);
 }

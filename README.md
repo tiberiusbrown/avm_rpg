@@ -35,14 +35,27 @@ is not drawn while the panel covers the screen.
   either available perk, press A again to open the confirmation, then press A to learn it permanently
   or B to cancel. Only the first of five planned ranks on each track is available. Extra choices
   stay pending, so a level-10 member with both first ranks learned still has three choices.
-  **From Equipment** remains a preview.
+  **From Equipment** lists the selected member’s active item effects and their sources.
   A `!` beside Party in the pause menu and a star beside the member's name mark pending choices.
   Victory shows the names and new levels of members who leveled up, with `Perk available!`
   when the reward earned a choice. Find Iona awards 2 XP to each member on completion and uses
   the same level-up notice after dialogue closes.
-- **Equipment** shows the weapon, armor and relic slots as `(None)`, because no equipment exists yet. A
-  opens a `SAMPLE ITEMS` list for the slot, where A opens an item's details. Equipping is unavailable and
-  shows `Equip: n/a`. Sample items and their sample owners are labeled `PREVIEW` and change nothing.
+- **Equipment** shows the selected member’s weapon, armor and relic. Use left and right to switch
+  members. Press A on a slot to see compatible owned items, who wears them, and the **Unequip**
+  action. Press A on an item to inspect it, then A again to equip or transfer it. B returns to
+  the picker at the same item. Replacing or removing equipment keeps it available to the party.
+  Equipment changes preserve current HP and AP, clamping either value if its maximum falls.
+
+| Equipment | Effect | Where to get it |
+|---|---|---|
+| Iron Fang | +1 damage to normal and special attacks | Owned at the start, with empty equipment slots |
+| Traveler's Boots | +2 maximum HP | Hollow Mine chest |
+| Dawn Pendant | +1 AP recovered after victory, capped at maximum AP | Old Vault chest |
+| Vital Pendant | +3 maximum HP | Old Vault chest |
+
+Equipment ownership uses a contiguous world-flag range sized by `ITEM_DEFINED_COUNT`. Stable zero-based item
+IDs follow the order above and map to `FLAG_ITEM_FIRST + item_id`. Each member stores three
+separate wearer references, with zero for empty and item ID plus one for an occupied slot.
 
 The panel's navigation lives only while it is open, so closing and reopening Party starts at the overview
 of the first member. Learning a perk leaves current HP and AP as they were.
@@ -85,8 +98,8 @@ The Old Vault chest adds an Elixir and a Revive. Each still gives 25 gold once, 
 closed if the party cannot carry the entire reward.
 
 Face the counter inside the inn and press A to ask for free rest. A accepts and restores the
-entire party to full HP and AP, including members at 0 HP. B declines. Shops and equipment
-ownership remain deferred.
+entire party to full HP and AP, including members at 0 HP. B declines. Shops, buying and selling
+equipment, crafting, upgrades, durability and randomized equipment are deferred.
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
 building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
@@ -309,9 +322,11 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 17.** Version 17 writes the live,
+**This development build rejects saves older than version 18.** Version 18 writes the live,
 pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
-save buffer or checksum. It adds four supply counters, each validated against the limit of 15.
+save buffer or checksum. It adds three equipment bytes per member and one byte for the
+expanded world flags. Validation checks slot categories, ownership, unique wearers, unused
+world-flag bits and equipment-adjusted HP/AP. Supply quantities are validated against the limit of 15.
 Each member stores both perk ranks in a single byte, with three bits
 per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down
 minus the two ranks. Save validation checks the implemented rank limit and the number of choices
@@ -340,8 +355,9 @@ reports are verified by the full-LTO guest link.
 - `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle
   cursor, the destination markers, and the archer's arrow, one 16x16 frame per direction in
   north/east/south/west order.
-- `assets/images/battle_damage16.png`: the damage indicators, nine 16x16 frames for losses of
-  1 to 9 HP. Each is the same spiky burst with its own 3x5 digit in the black middle.
+- `assets/images/battle_damage16.png`: the damage indicators, nine 16x16 frames for damage
+  values 1 through 9. Each is the same spiky burst with its own 3x5 digit in the black middle.
+  The battle screen draws two-digit values over the burst.
 - `src/logic/`: the handlers that the maps name, split by environment, and the sample NPC
   definitions, separate from generic mechanics. `handlers.h` only includes the others.
   `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
@@ -455,9 +471,10 @@ overworld cache and from the current area.
   once the arrow arrives. Any other attacker lunges four pixels toward its target, holds for about a
   quarter second, and returns. Once a move arrives, every unit that lost HP flashes: for about a
   second when an enemy was hit, and briefly when only the mover paid. A knocked-back unit flashes at
-  its new cell. While a unit flashes, a spiky burst over its cell shows the HP it lost. The next
-  turn waits for the flashing to end, and a defeated unit flashes before it disappears. After the
-  enemy's action the cursor returns on the next frame.
+  its new cell. While a unit flashes, a spiky burst over its cell shows the full damage dealt,
+  including damage beyond its remaining HP. The next turn waits for the flashing to end, and a
+  defeated unit flashes before it disappears. After the enemy's action the cursor returns on
+  the next frame.
 - Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
   a time, up to four, within a budget of 480 positions (fewer with more than four living units), and
   uses the deepest completed search. It assumes the heroes reply with their best action. It scores a

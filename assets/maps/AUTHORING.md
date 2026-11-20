@@ -865,7 +865,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   when it reloads.
   For `open_chest`, add the chest's mechanism row and specialize `ChestReward<positions::Name>`
   in the area's logic header. The shared handler changes the flag and lid after the reward
-  succeeds. `GoldSupplyReward` supplies the capacity check and grant for gold and supplies.
+  succeeds. `ContainerReward` validates and grants the combined gold, supplies and equipment reward.
 - **Portals.** No tile sets `portal=true` yet. The flag stops an NPC from spawning
   when its foot centre lies on that cell. Doorways are not driven by tile flags.
   Content code triggers them from a handler with `teleport_player<POS>()`, as the house
