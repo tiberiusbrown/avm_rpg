@@ -6,7 +6,7 @@
 #include "map_positions.h"
 #include "npc.h"
 #include "story_stub.h"
-#include "logic/enemy_spawns.h"
+#include "logic/enemy_catalog.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,8 +34,10 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
 }
 
 static bool answer = true;
+static unsigned questions;
 
 bool dialogue_ask(char const PROGMEM* question) {
+    ++questions;
     dialogue_show(question);
     return answer;
 }
@@ -130,6 +132,14 @@ struct ConditionalWolfHooks : EnemyHooks {
 
 using ConditionalWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
                                   SPEED_NORMAL, 0, RESPAWN_REMEMBER, ConditionalWolfHooks>;
+struct CancelBattleHooks : EnemyHooks {
+    static bool before_battle() {
+        return false;
+    }
+};
+
+using CancelingWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
+                                SPEED_NORMAL, 0, RESPAWN_REMEMBER, CancelBattleHooks>;
 using ConditionalCatalog = EnemyCatalog<std::index_sequence<0>, TypeList<ConditionalWolf>>;
 
 static void enter_enemy_site(TilePos site, uint8_t east) {
@@ -170,6 +180,7 @@ static void hostile_patrol_unloads() {
 static void enemy_encounters() {
     game_new();
     story_stub_reset(BATTLE_VICTORY);
+    CHECK(CancelingWolf::prepare_battle() == nullptr);
     CHECK(ConditionalCatalog::location(WOLF) == NO_LOCATION);
     CHECK(ConditionalWolf::prepare_battle() == &BATTLE_GROVE_WOLVES);
     game.set_flag(FLAG_CAVE_GATE);
@@ -271,30 +282,25 @@ static void enemy_encounters() {
     uint16_t timer = game.remember_timer;
     uint16_t gold = game.gold;
     answer = false;
+    unsigned before_questions = questions;
     CHECK(!actor_move(&game.player, WEST, 1));
-    CHECK(encounter_run());
-    CHECK(story_stub_battles() == 2 && !npc_find(GUARD));
-    CHECK(!game.get_flag(enemy_defeated_flag(GUARD)) && game.gold == gold &&
-          game.remember_timer == timer);
-    game_update(0);
-    CHECK(!npc_find(GUARD) && encounter_run());
-
-    answer = true;
-    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
-    CHECK(npc_find(GUARD) && !actor_move(&game.player, WEST, 1));
     story_stub_set_result(BATTLE_DEFEAT);
     CHECK(!encounter_run());
     CHECK(!game.get_flag(enemy_defeated_flag(GUARD)) && game.gold == gold &&
           game.remember_timer == timer);
-    CHECK(story_stub_count() == 5 && story_stub_battles() == 3);
+    CHECK(story_stub_count() == 4 && story_stub_battles() == 3);
+    CHECK(strstr(story_stub_event(2).text, "ancient command"));
+    CHECK(story_stub_event(3).encounter == &BATTLE_VAULT_GUARDS);
+    CHECK(questions == before_questions);
+    answer = true;
     CHECK(encounter_run() && story_stub_battles() == 3);
 
     story_stub_set_result(BATTLE_VICTORY);
     enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
     CHECK(npc_find(GUARD) && !actor_move(&game.player, WEST, 1));
     CHECK(encounter_run());
-    CHECK(story_stub_battles() == 4 && story_stub_count() == 8);
-    CHECK(strstr(story_stub_event(7).text, "falls still"));
+    CHECK(story_stub_battles() == 4 && story_stub_count() == 7);
+    CHECK(strstr(story_stub_event(6).text, "falls still"));
     CHECK(game.get_flag(enemy_defeated_flag(GUARD)) && !npc_find(GUARD));
     CHECK(game.remember_timer == timer);
 

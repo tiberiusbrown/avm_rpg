@@ -1,6 +1,6 @@
 #include "encounter.h"
 
-#include "logic/enemy_spawns.h"
+#include "logic/enemy_catalog.h"
 
 namespace {
 NPC_ID pending_enemy;
@@ -34,14 +34,6 @@ struct EncounterHooks<TypeList<EnemySite<Spawns, I>...>> {
 
 using Hooks = EncounterHooks<AuthoredEnemies::sites>;
 } // namespace
-
-bool VaultGuardHooks::before_battle() {
-    return dialogue_ask(F("The guardian turns toward you. Its hollow eyes remember an ancient command. Challenge it?"));
-}
-
-void VaultGuardHooks::after_victory() {
-    dialogue_show(F("The guardian falls still. Whatever called it here has let go."));
-}
 
 EnemyPursuit enemy_pursuit(NPC_ID id) {
     auto const& rules = AuthoredEnemies::pursuit[id - NPC_ENEMY_FIRST];

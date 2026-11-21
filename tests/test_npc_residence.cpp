@@ -1,5 +1,5 @@
 #include "rpg.h"
-#include "logic/npc_policies.h"
+#include "logic/area_village.h"
 #include "npc.h"
 #include "logic/npc_logic.h"
 #include "map_positions.h"

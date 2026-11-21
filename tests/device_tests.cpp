@@ -15,7 +15,7 @@
 #include "battle.h"
 #include "runtime_workspace.h"
 #include "battle_fixtures.h"
-#include "logic/npc_definitions.h"
+#include "logic/area_village.h"
 #include "music_catalog.h"
 
 #include <filesystem>
@@ -615,11 +615,11 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
             }
         }
     };
-    compose(expected, rendered.npcs.actors[1].actor, npc_definitions::WANDERER.sprite_row);
+    compose(expected, rendered.npcs.actors[1].actor, NpcContent<NPC_WANDERER>::definition.sprite_row);
     compose(expected, rendered.player, 0);
-    compose(expected, rendered.npcs.actors[0].actor, npc_definitions::VILLAGER.sprite_row);
-    compose(old_order, rendered.npcs.actors[0].actor, npc_definitions::VILLAGER.sprite_row);
-    compose(old_order, rendered.npcs.actors[1].actor, npc_definitions::WANDERER.sprite_row);
+    compose(expected, rendered.npcs.actors[0].actor, NpcContent<NPC_VILLAGER>::definition.sprite_row);
+    compose(old_order, rendered.npcs.actors[0].actor, NpcContent<NPC_VILLAGER>::definition.sprite_row);
+    compose(old_order, rendered.npcs.actors[1].actor, NpcContent<NPC_WANDERER>::definition.sprite_row);
     compose(old_order, rendered.player, 0);
     require(expected != old_order, "depth fixture does not distinguish the previous draw order");
     d.capture(out / "actor-depth.pgm");

@@ -41,7 +41,7 @@ set(AVM_SDK_ROOT "" CACHE PATH "Installed AVM SDK")
 option(RPG_BUILD_GUEST "Build guest programs using installed SDK" ON)
 file(GLOB_RECURSE LOGIC_HEADERS CONFIGURE_DEPENDS src/logic/*.h src/logic/*.inc)
 file(GLOB_RECURSE QUEST_HEADERS CONFIGURE_DEPENDS src/quest*.h src/quests/*.h)
-set(RULES src/encounter.cpp src/equipment.cpp src/supplies.cpp src/shop.cpp src/game.cpp src/party_progress.cpp src/runtime_workspace.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp
+set(RULES src/encounter.cpp src/equipment.cpp src/supplies.cpp src/shop.cpp src/game.cpp src/party_progress.cpp src/runtime_workspace.cpp src/world.cpp src/save.cpp src/npc.cpp src/soundscape.cpp src/logic/npc_logic.cpp src/logic/npc_appearance.cpp
     src/battle.cpp src/battle_ai.cpp generated/map_assets.cpp src/chunk_dispatch.cpp generated/npc_routes.cpp
     src/quest_runtime.cpp)
 add_library(rpg_rules STATIC ${RULES})
@@ -67,7 +67,7 @@ foreach(fixture IN ITEMS index hook)
     add_dependencies(rpg_${fixture}_dispatch rpg_assets)
 endforeach()
 set(SCALING_RULES ${RULES})
-list(REMOVE_ITEM SCALING_RULES src/logic/npc_logic.cpp)
+list(REMOVE_ITEM SCALING_RULES src/logic/npc_logic.cpp src/logic/npc_appearance.cpp)
 add_library(rpg_scaling_rules STATIC ${SCALING_RULES})
 target_include_directories(rpg_scaling_rules PUBLIC src generated tests)
 target_compile_definitions(rpg_scaling_rules PUBLIC RPG_NPC_ID_LIMIT=65 RPG_DISABLE_ENEMY_SPAWNS RPG_NPC_POLICY_HEADER="scaling_policies.h")

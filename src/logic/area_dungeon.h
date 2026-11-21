@@ -1,6 +1,7 @@
 #ifndef LOGIC_AREA_DUNGEON_H
 #define LOGIC_AREA_DUNGEON_H
 
+#include "enemy_spawn.h"
 #include "mechanisms.h"
 #include "container_rewards.h"
 #include "area_ids.h"
@@ -8,6 +9,23 @@
 
 // The dungeon: the hall lever lowers the spikes, the cell's plate opens the east gate, the east
 // wing's lever sinks the blocks, and the orb opens the vault.
+
+inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS{
+    BATTLEFIELD_GROVE, 3, {ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE},
+    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
+    {battle_cell(6, 1), battle_cell(5, 2), battle_cell(7, 0)},
+};
+
+struct VaultGuardHooks : EnemyHooks {
+    static bool before_battle() {
+        dialogue_show(F("The guardian turns toward you. Its hollow eyes remember an ancient command."));
+        return true;
+    }
+
+    static void after_victory() {
+        dialogue_show(F("The guardian falls still. Whatever called it here has let go."));
+    }
+};
 
 namespace handler_impl {
 

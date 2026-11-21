@@ -1,10 +1,9 @@
 #include "map_handler_catalog.h"
 #include "runtime_workspace.h"
-#include "logic/enemy_spawns.h"
-#ifndef RPG_NPC_POLICY_HEADER
-#define RPG_NPC_POLICY_HEADER "logic/npc_policies.h"
-#endif
+#include "logic/enemy_catalog.h"
+#ifdef RPG_NPC_POLICY_HEADER
 #include RPG_NPC_POLICY_HEADER
+#endif
 
 using EssentialSites = typename PolicyCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>::sites;
 using AllNpcSites = typename Join<EssentialSites, AuthoredEnemies::sites>::type;

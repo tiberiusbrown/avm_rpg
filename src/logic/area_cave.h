@@ -1,6 +1,7 @@
 #ifndef LOGIC_AREA_CAVE_H
 #define LOGIC_AREA_CAVE_H
 
+#include "battle.h"
 #include "mechanisms.h"
 #include "container_rewards.h"
 #include "area_ids.h"
@@ -8,6 +9,12 @@
 
 // The cave: a lever opens the vault gate, the vault's lever opens the nook, and the nook's plate
 // runs the bridge out over the chasm. Steam vents blow across the way, and a message explains it.
+
+inline constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS{
+    BATTLEFIELD_GROVE, 2, {ENEMY_WOLF, ENEMY_BRUTE},
+    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
+    {battle_cell(6, 1), battle_cell(5, 2)},
+};
 
 namespace handler_impl {
 

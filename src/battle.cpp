@@ -1,4 +1,5 @@
 #include "battle.h"
+#include "npc.h"
 #include "runtime_workspace.h"
 #include "tile_ids.h"
 
@@ -127,22 +128,6 @@ constexpr bool battle_classes_fit() {
 }
 
 static_assert(battle_classes_fit());
-
-constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES{
-    BATTLEFIELD_GROVE, 1, {ENEMY_WOLF},
-    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
-    {battle_cell(6, 1)},
-};
-constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS{
-    BATTLEFIELD_GROVE, 2, {ENEMY_WOLF, ENEMY_BRUTE},
-    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
-    {battle_cell(6, 1), battle_cell(5, 2)},
-};
-constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS{
-    BATTLEFIELD_GROVE, 3, {ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE},
-    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
-    {battle_cell(6, 1), battle_cell(5, 2), battle_cell(7, 0)},
-};
 
 RPG_NOINLINE bool battle_encounter_valid(BattleEncounter const PROGMEM* encounter) {
     if(!encounter || encounter->field >= BATTLEFIELD_COUNT || !encounter->enemy_count ||
@@ -308,8 +293,9 @@ uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victi
 
 uint8_t battle_sprite_row(BattleUnit const& unit) {
     if(unit.id & BATTLE_PARTY_SOURCE) {
-        static constexpr uint8_t PROGMEM ROWS[NPC_ID_LIMIT] = {0, 9, 2, 3};
-        return ROWS[game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].id];
+        NPC_ID id = game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].id;
+        auto definition = npc_definition(id);
+        return definition ? definition->sprite_row : 0;
     }
     return ENEMY_INFO[unit.id].sprite_row;
 }

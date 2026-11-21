@@ -1,5 +1,5 @@
-#ifndef LOGIC_ENEMY_SPAWNS_H
-#define LOGIC_ENEMY_SPAWNS_H
+#ifndef LOGIC_ENEMY_SPAWN_H
+#define LOGIC_ENEMY_SPAWN_H
 
 #include "battle.h"
 #include "encounter.h"
@@ -25,11 +25,6 @@ struct EnemyHooks {
 
     static void victory() {}
     static void after_victory() {}
-};
-
-struct VaultGuardHooks : EnemyHooks {
-    static bool before_battle();
-    static void after_victory();
 };
 
 struct EnemySettings {
@@ -134,17 +129,5 @@ struct EnemyCatalog<std::index_sequence<I...>, TypeList<Entries...>> {
     };
     static constexpr bool PROGMEM remembers[] = {(Entries::respawn == RESPAWN_REMEMBER)..., false};
 };
-
-using AuthoredEnemies = EnemyCatalog<std::make_index_sequence<ENEMY_SPAWN_COUNT>,
-#ifndef RPG_DISABLE_ENEMY_SPAWNS
-    typename Join<
-#define ENEMY_SPAWN(...) TypeList<EnemySpawn<__VA_ARGS__>>,
-#include "enemy_spawns.inc"
-#undef ENEMY_SPAWN
-        TypeList<>>::type
-#else
-    TypeList<>
-#endif
->;
 
 #endif

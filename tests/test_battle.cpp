@@ -1,3 +1,4 @@
+#include "logic/area_cave.h"
 #include "battle.h"
 #include "battle_fixtures.h"
 #include "battle_ai.h"

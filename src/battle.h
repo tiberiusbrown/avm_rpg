@@ -299,7 +299,6 @@ inline constexpr uint8_t BATTLE_UNIT_ACTION_CAPACITY = BATTLE_MOVE_LIMIT + BATTL
 
 // Nocturne Grove: the saved player party against two creatures.
 extern uint8_t const PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS];
-extern BattleEncounter const PROGMEM BATTLE_GROVE_WOLVES, BATTLE_MINE_SCOUTS, BATTLE_VAULT_GUARDS;
 bool battle_encounter_valid(BattleEncounter const PROGMEM* encounter);
 
 // Deploys the saved party and the encounter's enemies; zero-HP members do not deploy.

@@ -1,10 +1,96 @@
 #ifndef LOGIC_AREA_VILLAGE_H
 #define LOGIC_AREA_VILLAGE_H
 
+#include "battle.h"
+#include "npc_content.h"
+#include "npc_policy.h"
+#include "quest.h"
 #include "mechanisms.h"
 #include "area_ids.h"
 
 // The village: the Grove's signs and the houses with their interiors.
+
+inline constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES{
+    BATTLEFIELD_GROVE, 1, {ENEMY_WOLF},
+    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
+    {battle_cell(6, 1)},
+};
+
+#ifndef RPG_NPC_POLICY_HEADER
+template <>
+struct NpcPolicy<NPC_VILLAGER>
+    : AtOneOf<positions::VillagerHome,
+              When<positions::VillagerEast,
+                   [] {
+                       return game.get_flag(FLAG_VILLAGER_MOVED) &&
+                              game.get_flag(FLAG_VILLAGER_EAST);
+                   }>,
+              When<positions::VillagerWest, [] {
+                  return game.get_flag(FLAG_VILLAGER_MOVED) && !game.get_flag(FLAG_VILLAGER_EAST);
+              }>> {};
+
+template <> struct NpcPolicy<NPC_WANDERER> : AtOneOf<positions::WandererHome> {};
+
+template <> struct NpcPolicy<NPC_ROWAN> : AtOneOf<positions::RowanHome> {};
+#endif
+
+template <> struct NpcContent<NPC_VILLAGER> {
+    static constexpr auto name = F("Iona");
+    static constexpr NpcDefinition PROGMEM definition{NPC_STAND, SOUTH, 2, 32, 32, 0, 0, 3, 0, 9, true};
+
+    static void talk() {
+        NPC_ID id = NPC_VILLAGER;
+        if(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE)
+            dialogue_show(id, F("Silas is worried about me? Tell him I'm fine. I just needed some time away from the village."));
+        else
+            dialogue_show(id,
+                F("Evening, traveler. The lanterns stay lit all night in Nocturne Grove. I hope you decide to stay here. It's a quiet place, and the trees are kind to those who respect them."));
+        // Talking sends the villager to the other end of the clearing, named by map markers.
+        if(game.get_flag(FLAG_VILLAGER_MOVED))
+            game.toggle_flag(FLAG_VILLAGER_EAST);
+        else
+            game.set_flag(FLAG_VILLAGER_EAST);
+        game.set_flag(FLAG_VILLAGER_MOVED);
+        quest_emit(NpcTalked<NPC_VILLAGER>{});
+    }
+};
+
+template <> struct NpcContent<NPC_WANDERER> {
+    static constexpr auto name = F("Silas");
+    static constexpr NpcDefinition PROGMEM definition{NPC_WANDER, WEST, 2, 48, 48, 16, 12, 2, 0, 2, true};
+
+    static void talk() {
+        NPC_ID id = NPC_WANDERER;
+        switch(quest_status(QUEST_FIND_IONA)) {
+            case QUEST_NOT_STARTED:
+                dialogue_show(id, F("I walk this path every night. Mind the roots near the old oak."));
+                if(dialogue_ask(id, F("Have you seen Iona? She's been wandering around the grove. Could you check on her?")))
+                    quest_start(QUEST_FIND_IONA);
+                else
+                    dialogue_show(id, F("Another time, then. I'll still be on this path."));
+                break;
+            case QUEST_ACTIVE:
+                dialogue_show(id, F("Let me know when you've found Iona."));
+                break;
+            case QUEST_COMPLETED:
+                dialogue_show(id, F("Good to hear Iona's safe. Thank you."));
+                break;
+            default:
+                dialogue_show(id, F("I walk this path every night. Mind the roots near the old oak."));
+                break;
+        }
+    }
+};
+
+template <> struct NpcContent<NPC_ROWAN> {
+    static constexpr auto name = F("Rowan");
+    static constexpr NpcDefinition PROGMEM definition{NPC_STAND, WEST, 0, 32, 32, 0, 0, 3, 0, 3, true};
+
+    static void talk() {
+        dialogue_show(NPC_ROWAN, F("I'm Rowan. You could use a bow on the road. I'll join you!"));
+        party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT));
+    }
+};
 
 namespace handler_impl {
 

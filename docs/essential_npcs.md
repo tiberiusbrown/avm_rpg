@@ -34,7 +34,7 @@ and play the `party_join` jingle. Failed additions and the initial traveler setu
 remain silent; the announcement uses the ordinary close/dismiss prompt.
 
 The replacement sample defines NPC_VILLAGER (standing, actor row 9) and NPC_WANDERER
-(bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The
+(bounded wandering, row 2) in `src/logic/area_village.h`. The player's row is 0. The
 villager follows quest flags between the map markers `VillagerWest` and `VillagerEast`,
 starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded wandering. They speak through `npc_dialogue` after `npc_talk`.
 
@@ -58,9 +58,9 @@ frames through `actor_frame`: north/east/south/west groups of three, idle 0, gai
 
 ## Declarative locations and presence
 
-`src/logic/npc_policies.h` specializes `NpcPolicy<ID>` for every contiguous identity
-from 1 through `NPC_ID_LIMIT - 1`. Add an identity in `npc_ids.h`, its definition in `logic/npc_definitions.h`,
-name/dialogue and policy. Name positions in Tiled; do not duplicate coordinates in C++.
+Each owning area header specializes `NpcPolicy<ID>` and `NpcContent<ID>` for its essential
+NPCs. The stable identities in `npc_ids.h` run from 1 through `NPC_ID_LIMIT - 1`.
+`NpcContent` supplies the name, definition and dialogue. Name positions in Tiled; do not duplicate coordinates in C++.
 For example:
 
 ```cpp
@@ -249,8 +249,11 @@ reconstruct actors from policies. Older save versions are rejected without migra
 ## Enemy encounters
 
 In Tiled, add a named point at the center of a walkable tile in the Logic layer. Rebuild the
-generated assets. Append an entry to `src/logic/enemy_spawns.inc` with the generated position,
-a program-memory `BattleEncounter` and a row from `actors16.png`.
+generated assets. Define the program-memory `BattleEncounter` in the area header and register
+it with the generated position and a row from `actors16.png` in an area-owned enemies list.
+`src/logic/enemy_spawns.inc` includes those lists in saved-ID order. Append new declarations
+after every existing declaration in the expanded order. For an earlier area, add another
+include at the end of the aggregator.
 
 ```cpp
 ENEMY_SPAWN(positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17)
@@ -275,12 +278,13 @@ inside walkable tiles. The first point can coincide with the spawn. The route su
 `once`, `loop` or `reverse` and a pause in frames at each waypoint. A hostile patrol releases its slot
 when its sprite is safely offscreen and both its feet and spawn are outside the cache.
 When normal admission casts it again, it starts its route from the spawn. A permanent guard with
-a question before battle and a message after victory can be authored as follows.
+dialogue before battle and a message after victory can be authored as follows.
 
 ```cpp
 struct VaultGuardHooks : EnemyHooks {
     static bool before_battle() {
-        return dialogue_ask(F("The guardian challenges you. Fight?"));
+        dialogue_show(F("The guardian turns toward you."));
+        return true;
     }
 
     static void after_victory() {
