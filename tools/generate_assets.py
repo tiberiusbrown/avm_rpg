@@ -1157,6 +1157,12 @@ def export_world(root=ROOT):
         collision += [t["collision"] for _, t in tiles] + [0xFFFF]
         portals += [t["portal"] for _, t in tiles] + [0]
         ambient += [AMBIENT_CLASSES.index(t["ambient"]) for _, t in tiles] + [0]
+    # Compile-time mask for rules that treat any tile collision as a whole blocked cell.
+    blocked = [
+        sum(bool(mask) << bit for bit, mask in enumerate(collision[i : i + 8]))
+        for i in range(0, len(collision), 8)
+    ]
+    ids += array_lines("inline constexpr uint8_t TILESET_BLOCKED[]", blocked)
     assets += array_lines("constexpr uint16_t PROGMEM TILE_COLLISION[]", collision)
     assets += array_lines("constexpr uint8_t PROGMEM TILE_PORTALS[]", portals)
     assets += array_lines("constexpr uint8_t PROGMEM TILE_AMBIENT[]", ambient)

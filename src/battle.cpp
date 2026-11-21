@@ -11,94 +11,6 @@
 #define BATTLE_ALWAYS_INLINE
 #endif
 
-// Grass with a few flowers, in a fixed arrangement, and four blocking tiles: a pine at (4,0) and a
-// round tree at (6,0) on the top row, rocks at (1,3) and a boulder at (4,3) on the bottom row. The
-// two on column 4 leave a central lane through rows 1 and 2. One initializer builds the
-// program-memory tiles and the ordinary constant copy the blocked mask is computed from.
-// clang-format off
-#define BATTLE_GROVE_TILE_INITIALIZER                                                              \
-    {                                                                                              \
-        TILE_GRASS_06,   TILE_GRASS_07,   TILE_GRASS_06,   TILE_FLOWERS_26,                        \
-        TILE_TREE,       TILE_GRASS_07,   TILE_TREE_ROUND, TILE_GRASS_06,                          \
-        TILE_GRASS_07,   TILE_GRASS_06,   TILE_GRASS_16,   TILE_GRASS_06,                          \
-        TILE_GRASS_06,   TILE_FLOWERS_27, TILE_GRASS_06,   TILE_GRASS_07,                          \
-        TILE_GRASS_06,   TILE_GRASS_16,   TILE_GRASS_07,   TILE_GRASS_06,                          \
-        TILE_FLOWERS_26, TILE_GRASS_06,   TILE_GRASS_06,   TILE_GRASS_07,                          \
-        TILE_GRASS_07,   TILE_ROCKS,      TILE_GRASS_06,   TILE_GRASS_06,                          \
-        TILE_BOULDER,    TILE_GRASS_16,   TILE_FLOWERS_27, TILE_GRASS_06,                          \
-    }
-// clang-format on
-
-constexpr uint8_t PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS] = BATTLE_GROVE_TILE_INITIALIZER;
-static constexpr uint8_t GROVE_TILES[BATTLE_CELLS] = BATTLE_GROVE_TILE_INITIALIZER;
-
-// The world tiles a battlefield uses that block. Each has collision in the world tileset, which the
-// tests check, along with the absence of collision on every other battlefield tile.
-static constexpr bool blocking_world_tile(uint8_t tile) {
-    return tile == TILE_TREE || tile == TILE_TREE_ROUND || tile == TILE_ROCKS ||
-           tile == TILE_BOULDER;
-}
-
-// The blocked mask of one row, from the constant copy of its tiles.
-static constexpr uint8_t blocked_row(uint8_t const* tiles, uint8_t row) {
-    uint8_t mask = 0;
-    for(uint8_t x = 0; x < BATTLE_COLUMNS; ++x)
-        if(blocking_world_tile(tiles[row * BATTLE_COLUMNS + x]))
-            mask = (uint8_t)(mask | (1 << x));
-    return mask;
-}
-
-static_assert(BATTLE_ROWS == 4 && BATTLE_CELLS == 32,
-              "a battlefield keeps one blocked mask per row and 32 by 32 screening bits");
-
-// The screening bits of one battlefield: for each pair of cells on one row or column, whether a
-// blocking tile stands strictly between them.
-struct Screening {
-    uint8_t bits[BATTLE_CELLS][4];
-};
-
-static constexpr Screening screening(uint8_t const* tiles) {
-    Screening screen{};
-    for(uint8_t a = 0; a < BATTLE_CELLS; ++a)
-        for(uint8_t b = 0; b < BATTLE_CELLS; ++b) {
-            uint8_t ax = battle_column(a), ay = battle_row(a), bx = battle_column(b),
-                    by = battle_row(b);
-            if(ax != bx && ay != by)
-                continue;
-            int sx = bx > ax ? 1 : bx < ax ? -1 : 0, sy = by > ay ? 1 : by < ay ? -1 : 0;
-            int x = ax + sx, y = ay + sy;
-            bool blocked = false;
-            while(x != bx || y != by) {
-                blocked = blocked || blocking_world_tile(tiles[y * BATTLE_COLUMNS + x]);
-                x += sx;
-                y += sy;
-            }
-            if(blocked)
-                screen.bits[a][b / 8] = (uint8_t)(screen.bits[a][b / 8] | (1 << (b % 8)));
-        }
-    return screen;
-}
-
-static constexpr Screening GROVE_SCREENING = screening(GROVE_TILES);
-
-// Copies a screening into the program-memory initializer, one row of four bytes per cell.
-#define BATTLE_SCREEN_ROW(s, a)                                                                    \
-    { s.bits[a][0], s.bits[a][1], s.bits[a][2], s.bits[a][3] }
-#define BATTLE_SCREEN_ROWS8(s, a)                                                                  \
-    BATTLE_SCREEN_ROW(s, a), BATTLE_SCREEN_ROW(s, a + 1), BATTLE_SCREEN_ROW(s, a + 2),             \
-        BATTLE_SCREEN_ROW(s, a + 3), BATTLE_SCREEN_ROW(s, a + 4), BATTLE_SCREEN_ROW(s, a + 5),     \
-        BATTLE_SCREEN_ROW(s, a + 6), BATTLE_SCREEN_ROW(s, a + 7)
-
-// The grove clearing, in the world tileset.
-constexpr Battlefield PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT] = {
-    {TILESET_WORLD,
-     BATTLE_GROVE_TILES,
-     {blocked_row(GROVE_TILES, 0), blocked_row(GROVE_TILES, 1), blocked_row(GROVE_TILES, 2),
-      blocked_row(GROVE_TILES, 3)},
-     {BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 0), BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 8),
-      BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 16), BATTLE_SCREEN_ROWS8(GROVE_SCREENING, 24)}},
-};
-
 bool battle_blocked(uint8_t field, uint8_t cell) {
     return (BATTLEFIELDS[field].blocked[battle_row(cell)] >> battle_column(cell)) & 1;
 }
@@ -130,44 +42,79 @@ constexpr bool battle_classes_fit() {
 static_assert(battle_classes_fit());
 
 RPG_NOINLINE bool battle_encounter_valid(BattleEncounter const PROGMEM* encounter) {
-    if(!encounter || encounter->field >= BATTLEFIELD_COUNT || !encounter->enemy_count ||
-       encounter->enemy_count > BATTLE_SIDE_CAPACITY)
+    if(!encounter || !encounter->fields || (encounter->fields & ~BATTLEFIELDS_ALL) ||
+       !encounter->enemy_count || encounter->enemy_count > BATTLE_SIDE_CAPACITY)
         return false;
 
-    uint32_t occupied = 0;
-    for(uint8_t i = 0; i < BATTLE_SIDE_CAPACITY + encounter->enemy_count; ++i) {
-        bool party = i < BATTLE_SIDE_CAPACITY;
-        uint8_t index = party ? i : i - BATTLE_SIDE_CAPACITY;
-        uint8_t cell = party ? encounter->party_cells[index] : encounter->enemy_cells[index];
-        if(cell >= BATTLE_CELLS ||
-           battle_blocked(encounter->field, cell) ||
-           (occupied & (uint32_t(1) << cell)) ||
-           (!party && encounter->enemies[index] >= ENEMY_COUNT))
+    for(uint8_t i = 0; i < encounter->enemy_count; ++i)
+        if(encounter->enemies[i] >= ENEMY_COUNT)
             return false;
-        occupied |= uint32_t(1) << cell;
-    }
     return true;
+}
+
+// The nonzero xorshift has 65,535 outputs. Reject the incomplete final bucket
+// so every eligible field or cell has the same chance of being selected.
+static uint8_t random_choice(uint8_t count) {
+    uint16_t limit = UINT16_MAX - UINT16_MAX % count;
+    uint16_t roll;
+    do {
+        roll = (uint16_t)(rng_next() - 1);
+    } while(roll >= limit);
+    return (uint8_t)(roll % count);
+}
+
+static uint8_t select_battlefield(BattlefieldSelection selection) {
+    uint8_t count = 0;
+    for(auto bits = selection; bits; bits >>= 1)
+        count += bits & 1;
+    uint8_t pick = random_choice(count);
+    for(uint8_t field = 0; ; ++field, selection >>= 1)
+        if((selection & 1) && pick-- == 0)
+            return field;
+}
+
+RPG_NOINLINE static void deploy(BattleState& state, BattleEncounter const PROGMEM* encounter,
+                                BattleRect area, BATTLE_TEAM team) {
+    uint8_t cells[BATTLE_CELLS];
+    uint8_t available = 0;
+    for(uint8_t y = area.y; y < area.y + area.height; ++y)
+        for(uint8_t x = area.x; x < area.x + area.width; ++x) {
+            uint8_t cell = battle_cell(x, y);
+            if(!battle_blocked(state.field, cell))
+                cells[available++] = cell;
+        }
+
+    uint8_t count = team == BATTLE_PARTY ? game.party.count : encounter->enemy_count;
+    for(uint8_t i = 0; i < count; ++i) {
+        uint8_t id = team == BATTLE_PARTY ? battle_party_id(i) : encounter->enemies[i];
+        uint8_t hp = team == BATTLE_PARTY ? game.party.members[i].hp : ENEMY_INFO[id].max_hp;
+        if(!hp)
+            continue;
+        uint8_t pick = random_choice(available);
+        state.units[state.unit_count++] = {cells[pick], hp, id, team};
+        cells[pick] = cells[--available];
+    }
 }
 
 void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) {
     state = {};
-    state.field = encounter->field;
-    for(uint8_t i = 0; i < game.party.count; ++i) {
-        PartyMember const& member = game.party.members[i];
-        if(member.hp)
-            state.units[state.unit_count++] = {encounter->party_cells[i], member.hp,
-                                               battle_party_id(i), BATTLE_PARTY};
-    }
-    for(uint8_t i = 0; i < encounter->enemy_count; ++i) {
-        uint8_t id = encounter->enemies[i];
-        state.units[state.unit_count++] = {encounter->enemy_cells[i], ENEMY_INFO[id].max_hp, id,
-                                           BATTLE_ENEMY};
-    }
     state.result = BATTLE_DEFEAT;
-    if(!battle_living(state, BATTLE_PARTY) || !battle_living(state, BATTLE_ENEMY)) {
+    if(!battle_encounter_valid(encounter)) {
         state.ended = true;
-        state.result = battle_living(state, BATTLE_PARTY) ? BATTLE_VICTORY : BATTLE_DEFEAT;
+        return;
     }
+
+    // New and loaded games already provide a nonzero seed.
+    if(!game.rng)
+        game.rng = 0xbabe;
+    state.field = select_battlefield(encounter->fields);
+    auto const& field = BATTLEFIELDS[state.field];
+    auto const& party = field.party_area;
+    auto const& enemy = field.enemy_area;
+    deploy(state, encounter, {party.x, party.y, party.width, party.height}, BATTLE_PARTY);
+    deploy(state, encounter, {enemy.x, enemy.y, enemy.width, enemy.height}, BATTLE_ENEMY);
+    if(!battle_living(state, BATTLE_PARTY))
+        state.ended = true;
 }
 
 BattleRewards battle_finish(BattleState const& state) {

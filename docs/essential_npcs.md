@@ -323,3 +323,31 @@ At zero, the next safe exploration frame plays The World Remembers. The reset cl
 defeats marked `RESPAWN_REMEMBER` and leaves re-admission to the normal chunk stage.
 `RESPAWN_NEVER` flags survive. The countdown adds two saved bytes, with defeated flags
 using one bit per authored spawn within the reserved range. The live actor remains 22 bytes and the pool remains 180 bytes.
+
+### Battlefield selection
+
+Define an encounter with the enemy roster and a battlefield selection. The short form uses the
+world tileset's defaults.
+
+```cpp
+battle_encounter(ENEMY_WOLF)
+battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF, ENEMY_BRUTE)
+battle_encounter(BATTLEFIELDS_DUNGEON, ENEMY_BRUTE)
+battle_encounter(battlefields(BATTLEFIELD_GROVE, BATTLEFIELD_MINE_CROSSING), ENEMY_WOLF)
+```
+
+`battlefields_for_tileset(tileset)` selects a tileset's defaults directly. The four named
+sets can be combined with `|`, and `BATTLEFIELDS_ALL` selects all boards. A one-element
+selection pins the encounter to one board.
+
+Author new boards in `src/battlefields.cpp` and add their IDs and default groups in
+`src/battle.h`. Each board has an 8×4 tile layout and separate party and enemy rectangles.
+Rectangles use zero-based `{x, y, width, height}` in cells. They must fit the board,
+remain disjoint, and each contain at least four unobstructed cells. Compile-time checks use
+tileset collision metadata to validate both rectangles and generate the blocking and
+screening masks used by combat.
+
+On entry, the game selects one board uniformly and draws an open cell for each living
+unit from its side's rectangle, without replacement. Battlefield and deployment rolls use the game's shared RNG.
+The rectangle metadata also identifies the legal starting area for a future party placement
+screen.

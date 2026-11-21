@@ -33,7 +33,15 @@ enum BATTLE_RESULT : uint8_t { BATTLE_VICTORY, BATTLE_DEFEAT };
 // Marker values used only by the instrumented device-QA guest.
 enum BATTLE_QA_PHASE : uint8_t { BATTLE_QA_BUSY, BATTLE_QA_INPUT, BATTLE_QA_RESULT };
 
-// Terrain only. Its tile IDs belong to one tileset, which need not be the overworld area's.
+struct BattleRect {
+    uint8_t x, y, width, height;
+
+    constexpr bool contains(uint8_t column, uint8_t row) const {
+        return column >= x && column < x + width && row >= y && row < y + height;
+    }
+};
+
+// Its tile IDs belong to one tileset, which need not be the overworld area's.
 // A cell whose tile has collision in its tileset blocks: no unit stands on it or moves through it,
 // no shot or thrust passes it, and no knockback pushes a unit onto it. A rogue's leap still passes
 // over it, as it passes over units, but cannot land on it. `blocked` holds the same information as
@@ -47,6 +55,7 @@ struct Battlefield {
     uint8_t const PROGMEM* tiles; // BATTLE_CELLS row-major tile IDs.
     uint8_t blocked[4];           // One mask per row; BATTLE_ROWS is 4.
     uint8_t screened[32][4];      // BATTLE_CELLS by BATTLE_CELLS bits.
+    BattleRect party_area, enemy_area;
 };
 
 // Cells are row-major, so one index gives both the column and the row.
@@ -63,7 +72,51 @@ constexpr uint8_t battle_cell(uint8_t column, uint8_t row) {
 }
 
 // Battlefields that encounters can name. Encounters and battles refer to one by its index.
-enum BATTLEFIELD_ID : uint8_t { BATTLEFIELD_GROVE, BATTLEFIELD_COUNT };
+enum BATTLEFIELD_ID : uint8_t {
+    BATTLEFIELD_GROVE, BATTLEFIELD_MEADOW, BATTLEFIELD_RIVERBANK,
+    BATTLEFIELD_MINE_GALLERY, BATTLEFIELD_MINE_CROSSING, BATTLEFIELD_MINE_CHAMBER,
+    BATTLEFIELD_VAULT_HALL, BATTLEFIELD_VAULT_CRYPT, BATTLEFIELD_VAULT_COURT,
+    BATTLEFIELD_HOUSE_TAVERN, BATTLEFIELD_HOUSE_STORE, BATTLEFIELD_HOUSE_HALL,
+    BATTLEFIELD_COUNT
+};
+
+using BattlefieldSelection = uint16_t;
+inline constexpr uint8_t BATTLEFIELD_SELECTION_BITS = 16;
+static_assert(BATTLEFIELD_COUNT <= BATTLEFIELD_SELECTION_BITS);
+
+constexpr BattlefieldSelection battlefield_bit(uint8_t field) {
+    return field < BATTLEFIELD_SELECTION_BITS ? (BattlefieldSelection)(1u << field) : 0;
+}
+
+template <typename... Fields>
+constexpr BattlefieldSelection battlefields(Fields... fields) {
+    return (0u | ... | battlefield_bit(fields));
+}
+
+inline constexpr BattlefieldSelection BATTLEFIELDS_WORLD =
+    battlefields(BATTLEFIELD_GROVE, BATTLEFIELD_MEADOW, BATTLEFIELD_RIVERBANK);
+inline constexpr BattlefieldSelection BATTLEFIELDS_CAVE =
+    battlefields(BATTLEFIELD_MINE_GALLERY, BATTLEFIELD_MINE_CROSSING, BATTLEFIELD_MINE_CHAMBER);
+inline constexpr BattlefieldSelection BATTLEFIELDS_DUNGEON =
+    battlefields(BATTLEFIELD_VAULT_HALL, BATTLEFIELD_VAULT_CRYPT, BATTLEFIELD_VAULT_COURT);
+inline constexpr BattlefieldSelection BATTLEFIELDS_HOUSE =
+    battlefields(BATTLEFIELD_HOUSE_TAVERN, BATTLEFIELD_HOUSE_STORE, BATTLEFIELD_HOUSE_HALL);
+inline constexpr BattlefieldSelection BATTLEFIELDS_ALL =
+    BATTLEFIELDS_WORLD | BATTLEFIELDS_CAVE | BATTLEFIELDS_DUNGEON | BATTLEFIELDS_HOUSE;
+
+constexpr BattlefieldSelection battlefields_for_tileset(uint8_t tileset) {
+    switch(tileset) {
+        case TILESET_WORLD: return BATTLEFIELDS_WORLD;
+        case TILESET_CAVE: return BATTLEFIELDS_CAVE;
+        case TILESET_DUNGEON: return BATTLEFIELDS_DUNGEON;
+        case TILESET_HOUSE: return BATTLEFIELDS_HOUSE;
+        default: return 0;
+    }
+}
+
+constexpr BattlefieldSelection battlefields_for_area(uint8_t area) {
+    return battlefields_for_tileset(area_tileset(area));
+}
 
 extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
 
@@ -221,14 +274,23 @@ struct BattleUnit {
 static_assert(sizeof(BattleUnit) == 3, "one placement byte plus full HP and source ID");
 static_assert(sizeof(EnemyInfo) == 4, "enemy statistics and artwork stay in ROM");
 
-// Encounters author only enemies and deployment cells. Allies always come from game.party.
+// Encounters select boards and enemy presets. The selected board supplies deployment areas.
 struct BattleEncounter {
-    uint8_t field;
+    BattlefieldSelection fields;
     uint8_t enemy_count;
     uint8_t enemies[BATTLE_SIDE_CAPACITY];
-    uint8_t party_cells[BATTLE_SIDE_CAPACITY];
-    uint8_t enemy_cells[BATTLE_SIDE_CAPACITY];
 };
+
+template <typename... Enemies>
+constexpr BattleEncounter battle_encounter(BattlefieldSelection fields, Enemies... enemies) {
+    static_assert(sizeof...(enemies) > 0 && sizeof...(enemies) <= BATTLE_SIDE_CAPACITY);
+    return {fields, sizeof...(enemies), {(uint8_t)enemies...}};
+}
+
+template <typename... Enemies>
+constexpr BattleEncounter battle_encounter(ENEMY_ID first, Enemies... enemies) {
+    return battle_encounter(BATTLEFIELDS_WORLD, first, enemies...);
+}
 
 // Live combat state. It is plain data and copies cheaply, so a search can branch from it.
 #pragma pack(push, 1)
@@ -298,7 +360,6 @@ inline constexpr uint8_t BATTLE_ACTION_CAPACITY = battle_action_capacity();
 inline constexpr uint8_t BATTLE_UNIT_ACTION_CAPACITY = BATTLE_MOVE_LIMIT + BATTLE_UNIT_CAPACITY - 1;
 
 // Nocturne Grove: the saved player party against two creatures.
-extern uint8_t const PROGMEM BATTLE_GROVE_TILES[BATTLE_CELLS];
 bool battle_encounter_valid(BattleEncounter const PROGMEM* encounter);
 
 // Deploys the saved party and the encounter's enemies; zero-HP members do not deploy.

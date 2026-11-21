@@ -294,7 +294,7 @@ static void unit_definitions() {
 
 static void initial_layout() {
     BattleState s = fresh();
-    CHECK(s.field == BATTLEFIELD_GROVE && BATTLE_MINE_SCOUTS.field == BATTLEFIELD_GROVE);
+    CHECK(s.field == BATTLEFIELD_GROVE && BATTLE_MINE_SCOUTS.fields == BATTLEFIELDS_CAVE);
     CHECK(s.unit_count == 4);
     CHECK(s.turn == BATTLE_PARTY && !s.ended && s.activations == 0);
 
@@ -355,7 +355,6 @@ static void teams_are_explicit() {
 }
 
 static void battlefield_data() {
-    static_assert(sizeof(BATTLE_GROVE_TILES) == BATTLE_CELLS, "exactly 32 terrain tiles");
     static_assert(BATTLE_COLUMNS == 8 && BATTLE_ROWS == 4, "the board is 8 by 4");
 
     // Fixed arrangement, row-major from the top left: grass and flowers, with a pine at (4,0), a
@@ -373,7 +372,6 @@ static void battlefield_data() {
     CHECK(s.field < BATTLEFIELD_COUNT);
     Battlefield const& field = BATTLEFIELDS[s.field];
     CHECK(field.tileset == TILESET_WORLD);
-    CHECK(field.tiles == BATTLE_GROVE_TILES);
     unsigned blocked = 0;
     for(uint8_t i = 0; i < BATTLE_CELLS; ++i) {
         uint8_t tile = field.tiles[i];
@@ -2287,6 +2285,94 @@ static void target_frames() {
     }
 }
 
+static void random_battle_deployment() {
+    CHECK(battlefields_for_area(AREA_OUTDOOR) == BATTLEFIELDS_WORLD);
+    CHECK(battlefields_for_area(AREA_CAVE) == BATTLEFIELDS_CAVE);
+    CHECK(battlefields_for_area(AREA_DUNGEON) == BATTLEFIELDS_DUNGEON);
+    CHECK(battlefields_for_area(AREA_INTERIORS) == BATTLEFIELDS_HOUSE);
+
+    for(uint8_t field = 0; field < BATTLEFIELD_COUNT; ++field) {
+        auto const& board = BATTLEFIELDS[field];
+        CHECK(battlefields_for_tileset(board.tileset) & battlefields(field));
+        uint8_t party_cells = 0, enemy_cells = 0;
+        for(uint8_t cell = 0; cell < BATTLE_CELLS; ++cell) {
+            uint8_t x = battle_column(cell), y = battle_row(cell);
+            bool party = board.party_area.contains(x, y);
+            bool enemy = board.enemy_area.contains(x, y);
+            CHECK(!party || !enemy);
+            CHECK(battle_blocked(field, cell) == oracle_blocked(field, x, y));
+            party_cells += party && !battle_blocked(field, cell);
+            enemy_cells += enemy && !battle_blocked(field, cell);
+            for(uint8_t other = 0; other < BATTLE_CELLS; ++other) {
+                int step = 0;
+                if(cell != other && y == battle_row(other))
+                    step = cell < other ? 1 : -1;
+                else if(cell != other && x == battle_column(other))
+                    step = cell < other ? BATTLE_COLUMNS : -BATTLE_COLUMNS;
+                bool screened = false;
+                if(step)
+                    for(int between = cell + step; between != other; between += step)
+                        screened |= oracle_blocked(field, battle_column((uint8_t)between),
+                                                   battle_row((uint8_t)between));
+                CHECK(((board.screened[cell][other / 8] >> (other % 8)) & 1) == screened);
+            }
+        }
+        CHECK(party_cells >= BATTLE_SIDE_CAPACITY && enemy_cells >= BATTLE_SIDE_CAPACITY);
+    }
+
+    constexpr auto selection =
+        battlefields(BATTLEFIELD_MEADOW, BATTLEFIELD_MINE_CROSSING, BATTLEFIELD_HOUSE_HALL);
+    constexpr BattleEncounter encounter =
+        battle_encounter(selection, ENEMY_FIGHTER, ENEMY_ROGUE, ENEMY_ARCHER, ENEMY_BRUTE);
+    CHECK(battle_encounter_valid(&encounter));
+    CHECK(!battle_encounter_valid(nullptr));
+    for(auto fields : {BattlefieldSelection(0), battlefields(BATTLEFIELD_COUNT)}) {
+        auto invalid = encounter;
+        invalid.fields = fields;
+        CHECK(!battle_encounter_valid(&invalid));
+        BattleState state;
+        battle_begin(state, &invalid);
+        CHECK(state.ended && state.result == BATTLE_DEFEAT && !state.unit_count);
+    }
+    auto invalid = encounter;
+    invalid.enemies[3] = ENEMY_COUNT;
+    CHECK(!battle_encounter_valid(&invalid));
+
+    game = {};
+    game.party.count = PARTY_CAPACITY;
+    for(auto& member : game.party.members)
+        member.hp = 10;
+    BattlefieldSelection seen = 0;
+    uint32_t party_positions = 0, enemy_positions = 0;
+    for(uint16_t seed = 1; seed <= 256; ++seed) {
+        game.rng = seed;
+        BattleState state;
+        battle_begin(state, &encounter);
+        CHECK(state.unit_count == BATTLE_UNIT_CAPACITY);
+        CHECK(selection & battlefields(state.field));
+        seen |= battlefields(state.field);
+        uint32_t occupied = 0;
+        for(uint8_t i = 0; i < state.unit_count; ++i) {
+            auto const& unit = state.units[i];
+            auto const& board = BATTLEFIELDS[state.field];
+            auto const& area = unit.team == BATTLE_PARTY ? board.party_area : board.enemy_area;
+            uint32_t bit = uint32_t(1) << unit.cell;
+            CHECK(area.contains(battle_column(unit.cell), battle_row(unit.cell)));
+            CHECK(!battle_blocked(state.field, unit.cell) && !(occupied & bit));
+            occupied |= bit;
+        }
+        party_positions |= uint32_t(1) << state.units[0].cell;
+        enemy_positions |= uint32_t(1) << state.units[BATTLE_SIDE_CAPACITY].cell;
+        CHECK(game.rng != seed);
+        game.rng = seed;
+        BattleState repeated;
+        battle_begin(repeated, &encounter);
+        CHECK(!memcmp(&state, &repeated, sizeof(state)));
+    }
+    CHECK(seen == selection);
+    CHECK((party_positions & (party_positions - 1)) && (enemy_positions & (enemy_positions - 1)));
+}
+
 static void saved_party_battles() {
     game = {};
     game.party.count = 2;
@@ -2301,6 +2387,12 @@ static void saved_party_battles() {
     CHECK(state.units[3].id == ENEMY_BRUTE && state.units[3].hp == ENEMY_INFO[ENEMY_BRUTE].max_hp);
     CHECK(battle_max_hp(state.units[0]) == 20 && battle_max_hp(state.units[1]) == 18);
     CHECK(battle_sprite_row(state.units[0]) == 0 && battle_sprite_row(state.units[1]) == 3);
+    // Use an exact board position for the movement and damage assertions below.
+    state.field = BATTLEFIELD_GROVE;
+    state.units[0].cell = cell(2, 1);
+    state.units[1].cell = cell(1, 2);
+    state.units[2].cell = cell(6, 1);
+    state.units[3].cell = cell(5, 2);
     CHECK(battle_can_move_to(state, 0, cell(3, 3)));
     CHECK(!battle_can_move_to(state, 0, cell(3, 1)));
     CHECK(battle_can_attack(state, 0, 2)); // Knight movement with the archer's range-four shot.
@@ -2701,6 +2793,7 @@ int main() {
     attack_perks();
     renewal_recovery();
     momentum_and_perk_ordering();
+    random_battle_deployment();
     saved_party_battles();
     rend_damage();
     level_attack_damage();

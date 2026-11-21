@@ -374,8 +374,9 @@ reports are verified by the full-LTO guest link.
   that only show words, and passages between areas. `area_village.h` has the
   outdoor messages and the houses, `area_cave.h` and `area_dungeon.h` have the mechanism, message and
   passage tables of their own areas and their own handlers.
-- `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
-  encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
+- `src/battle.h` and `src/battle.cpp`: the portable battle rules, encounter and unit types,
+  and the legal-action enumeration shared by the UI and AI. `src/battlefields.cpp` defines the
+  battlefield layouts and deployment areas.
   `src/battle_ai.*` holds the enemy's budgeted negamax search, its static evaluation, and the greedy
   choice it falls back on. `src/battle_screen.cpp` is the AVM screen behind `battle_show()`.
   `tests/test_battle.cpp` covers the rules and checks the search against an unpruned reference
@@ -419,8 +420,10 @@ choose Save.
 
 ## Battle
 
-Battles use an 8×4 battlefield distinct from the overworld. Both parties deploy into cells
-defined by the encounter.
+Battles use an 8×4 battlefield distinct from the overworld. An encounter randomly chooses one
+board from its selection, then randomly deploys each side in its own rectangle. Living units
+start on distinct, unobstructed cells. There are three boards each for the world, cave, dungeon,
+and house tilesets. See the [battlefield authoring guide](docs/essential_npcs.md#battlefield-selection).
 
 - Entering and leaving battle fades through black with a fixed 4x4 ordered dither. Each half
   takes eight frames at 50 Hz (160 ms), with the world and battle state paused. The cursor appears
@@ -465,10 +468,11 @@ defined by the encounter.
   pushes a surviving victim one cell straight away when that cell is on the board, empty, and open.
   Rend deals 2 to a victim at half its maximum HP or more and 4 to one below half; every other attack
   deals its fixed damage.
-  Attackers never move. A battle holds up to four units a side. The Grove deploys the living
-  members of the current saved party against a wolf and a brute. Recruitment therefore changes
-  the next battle's roster. HP supports the complete 0..255 range; zero-HP members do not deploy.
-- Battlefield tiles with collision in the world tileset block. No unit stands on them or moves
+  Attackers never move. A battle holds up to four units a side. Every encounter deploys the
+  living members of the current saved party against its authored enemy roster. Recruitment
+  changes the next battle's roster. HP supports the complete 0..255 range. Zero-HP members
+  stay out of deployment.
+- Battlefield tiles with collision in the board's tileset block. No unit stands on them or moves
   through them, and they stop arrows, spear thrusts, and knockback. A rogue's leap passes over them,
   as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at
   (6,0), rocks at (1,3), and a boulder at (4,3), which leave an open lane through rows 1 and 2.
@@ -516,9 +520,6 @@ defined by the encounter.
   A victory also restores 1 AP to every saved member, including one that fell, up to its maximum. A
   defeat restores none. During a battle, AP changes only when a special is used, which spends it at
   once from the saved member.
-
-The battle is the only feature in this prototype. Other encounters and battlefields are not
-implemented.
 
 The bottom-right atlas cell (0xFF) is reserved for the impassable outside-map
 sentinel. Black cells retain their indices. Characters use direction order

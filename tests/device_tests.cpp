@@ -1151,6 +1151,8 @@ static void verify_perk_choice(Device& d, fs::path const& out) {
 
 static void start_grove_contact(Device& d);
 
+static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target);
+
 static void verify_party_recruitment(Device& d, fs::path const& out) {
     Game original = d.state();
     require(original.party.count == 1, "new game did not start with one party member");
@@ -1260,12 +1262,21 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.set_state(combat);
     start_grove_contact(d);
     auto deployed = d.battle_state();
-    require(deployed.unit_count == 3 && deployed.units[0].id == battle_party_id(0) &&
+    require((BATTLEFIELDS_WORLD & battlefield_bit(deployed.field)) &&
+                deployed.unit_count == 3 && deployed.units[0].id == battle_party_id(0) &&
                 deployed.units[1].id == battle_party_id(1) && deployed.units[0].hp == 20 &&
                 deployed.units[1].hp == 17 && deployed.units[2].id == ENEMY_WOLF,
             "real battle did not deploy the recruited party with its saved HP");
     d.advance(0, 1600000);
     d.capture(out / "battle-saved-party.pgm");
+    // The shot scenario uses a fixed position after checking the real deployment.
+    GroveCell cursor{battle_column(deployed.units[0].cell), battle_row(deployed.units[0].cell)};
+    deployed.field = BATTLEFIELD_GROVE;
+    deployed.units[0].cell = battle_cell(2, 1);
+    deployed.units[1].cell = battle_cell(1, 2);
+    deployed.units[2].cell = battle_cell(6, 1);
+    d.set_battle(deployed);
+    grove_move_cursor(d, cursor, {2, 1});
     // The traveler's Shot reaches the wolf along row 1, so A on the wolf opens the offer. B closes
     // it without acting, and A on the still-selected traveler opens it again. Opening Shot costs 2
     // AP and deals 7 to the wolf at full HP, leaving it at 2.
@@ -1410,6 +1421,7 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     d.advance(0, 8000000);
 
     BattleState blocked = initial;
+    blocked.field = BATTLEFIELD_GROVE;
     blocked.turn = BATTLE_ENEMY;
     blocked.unit_count = 6;
     blocked.units[0] = {battle_cell(0, 0), 2, ENEMY_ARCHER, BATTLE_ENEMY};
@@ -1433,6 +1445,7 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
 
     // This archer has legal moves, but its completed search prefers staying put and passing.
     BattleState waiting = initial;
+    waiting.field = BATTLEFIELD_GROVE;
     waiting.turn = BATTLE_ENEMY;
     waiting.unit_count = 2;
     waiting.units[0] = {battle_cell(0, 0), 4, ENEMY_BRUTE, BATTLE_PARTY};
@@ -2501,8 +2514,10 @@ int main(int argc, char** argv) try {
         require(after.actor.x == before.actor.x + 20 && after.actor.y == before.actor.y,
                 "Mine Scout did not move one pixel per frame");
         d.wait_for_battle();
-        require(d.battle_state().unit_count == d.state().party.count + 2,
-                "Scout contact did not start the mixed encounter");
+        auto battle = d.battle_state();
+        require((BATTLEFIELDS_CAVE & battlefield_bit(battle.field)) &&
+                    battle.unit_count == d.state().party.count + 2,
+                "Scout contact did not deploy the mixed encounter on a cave board");
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"Mine Scout pursuit and contact\"}\n";
         return 0;
     }

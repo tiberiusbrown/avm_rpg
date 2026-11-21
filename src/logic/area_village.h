@@ -10,11 +10,8 @@
 
 // The village: the Grove's signs and the houses with their interiors.
 
-inline constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES{
-    BATTLEFIELD_GROVE, 1, {ENEMY_WOLF},
-    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
-    {battle_cell(6, 1)},
-};
+inline constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES =
+    battle_encounter(ENEMY_WOLF);
 
 #ifndef RPG_NPC_POLICY_HEADER
 template <>

@@ -10,11 +10,8 @@
 // The dungeon: the hall lever lowers the spikes, the cell's plate opens the east gate, the east
 // wing's lever sinks the blocks, and the orb opens the vault.
 
-inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS{
-    BATTLEFIELD_GROVE, 3, {ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE},
-    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
-    {battle_cell(6, 1), battle_cell(5, 2), battle_cell(7, 0)},
-};
+inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS =
+    battle_encounter(battlefields_for_area(AREA_DUNGEON), ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE);
 
 struct VaultGuardHooks : EnemyHooks {
     static bool before_battle() {
