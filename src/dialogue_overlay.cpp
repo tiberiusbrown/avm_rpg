@@ -481,11 +481,12 @@ bool dialogue_ask(char const PROGMEM* question) {
 bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
     open_overlay(id);
     // The legend sits at the right end of the last line, so the question stops short of it.
-    Typing typing = {false, false, 0,
+    Typing typing = {has_face(id), false, MOUTH_LETTERS - 1,
                      (uint8_t)(RIGHT - avm_text_width(choice_legend()) - PROMPT_GAP)};
-    bool accepted =
-        (!question || stream_text(question, true, typing)) && wait_for_input(DIALOGUE_CHOICE);
-    return accepted;
+    if(question && !stream_text(question, true, typing))
+        return false;
+    set_mouth(typing, false);
+    return wait_for_input(DIALOGUE_CHOICE);
 }
 
 void party_joined(NPC_ID id) {
