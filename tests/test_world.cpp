@@ -989,11 +989,39 @@ static void inn_recovery() {
     CHECK(player_at(handler_impl::house_front(positions::InnExit), SOUTH));
 }
 
+static void shop_counter() {
+    game_new();
+    stand(below(positions::ShopDoor), NORTH);
+    press_a();
+    CHECK(player_at(handler_impl::house_inside(positions::ShopDoor), NORTH));
+    CHECK(!shop_requested);
+
+    for(unsigned i = 0; i < 2 * TILE && !game.can_interact; ++i)
+        game_update(BTN_UP);
+    CHECK(game.can_interact);
+    auto gold = game.gold;
+    auto supplies = game.supplies;
+    press_a();
+    CHECK(shop_requested);
+    CHECK(game.gold == gold && !memcmp(&supplies, &game.supplies, sizeof(supplies)));
+
+    shop_requested = false; // Exploration consumes the request after dispatch.
+    for(unsigned i = 0; i < 3 * TILE && game.area == AREA_INTERIORS; ++i)
+        game_update(BTN_DOWN);
+    CHECK(player_at(handler_impl::house_front(positions::ShopExit), SOUTH));
+    CHECK(!shop_requested);
+
+    shop_requested = true;
+    game_new();
+    CHECK(!shop_requested);
+}
+
 int main() {
     run_world_scenarios();
     battle_reclaim();
     house_doors();
     inn_recovery();
+    shop_counter();
     passages();
     mechanism_states();
     mechanism_kinds();

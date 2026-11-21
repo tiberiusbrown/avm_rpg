@@ -700,3 +700,27 @@ Limitations: Windows/MSVC and emulated device verified; physical hardware, other
 host platforms and audio-enabled workloads remain unverified. The installed SDK's unfiltered visible buffer can be
 stale, so full-device QA refreshes it using Ardens advance(0). No VM/toolchain
 source changes were made to work around that capture issue.
+
+## Village shop and victory rewards (2026-11-20)
+
+The shipping AVM guest uses RelWithDebInfo and full LTO.
+
+| Resource | Before | After | Change |
+|---|---:|---:|---:|
+| Saved Game | 256 B | 256 B | 0 B |
+| Static RAM, including saved Game | 572 B | 573 B | +1 B |
+| Code (`.text`) | 80,451 B | 82,741 B | +2,290 B |
+| Read-only data (`.rodata`) | 337,302 B | 337,465 B | +163 B |
+| Complete stack bound | 251 B | 252 B | +1 B |
+
+The transient counter request accounts for the RAM byte. The save format remains
+version 18. The shop view lives on the stack, and the linker reports a complete
+bound within the 256-byte limit.
+
+The existing AVM battle probe recorded identical elapsed cycles between all 33
+sampled phase marks before and after the change. The opening enemy decision took
+33,938,584 cycles in both builds. Gold is calculated on battle finalization,
+outside enemy decisions and ordinary battle frames.
+
+The shop device replay's 16-frame battle exit peaked at 320,669 cycles on both
+standard and FXC packages, within the existing 336,000-cycle transition check.

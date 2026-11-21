@@ -743,16 +743,18 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         }
     }
 
-    LevelUpNotice notice = battle_finish(state);
+    BattleRewards rewards = battle_finish(state);
     draw_board(screen, BATTLE_NO_UNIT, SOUTH);
-    if(notice.members)
-        render_level_up_notice(F("VICTORY"), notice);
-    else
-        render_battle_result(state.result == BATTLE_VICTORY ? F("VICTORY") : F("DEFEAT"));
+    render_battle_result(state.result == BATTLE_VICTORY, rewards.gold_gained);
     avm_display(false);
     sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);
     input_wait_press(BTN_A);
+    if(rewards.levels.members) {
+        render_level_up_notice(F("LEVEL UP"), rewards.levels);
+        avm_display(false);
+        input_wait_press(BTN_A);
+    }
     music_play_area();
     // Dialogue still open from the battle closes over the board, before the world takes its place.
     dialogue_close();

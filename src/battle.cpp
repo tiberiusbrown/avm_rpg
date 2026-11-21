@@ -157,24 +157,32 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) 
     }
 }
 
-LevelUpNotice battle_finish(BattleState const& state) {
-    LevelUpNotice notice;
+BattleRewards battle_finish(BattleState const& state) {
+    BattleRewards rewards;
+    static_assert(BATTLE_UNIT_CAPACITY * 3 <= UINT8_MAX);
+    uint8_t gold = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(unit.team == BATTLE_PARTY && (unit.id & BATTLE_PARTY_SOURCE))
             game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].hp = unit.hp;
+        // Defeated units stay in the roster, so this counts every enemy deployed.
+        if(unit.team == BATTLE_ENEMY)
+            gold += 3;
     }
     if(!state.ended || state.result != BATTLE_VICTORY)
-        return notice;
+        return rewards;
+    uint16_t wallet_room = UINT16_MAX - game.gold;
+    rewards.gold_gained = gold < wallet_room ? gold : (uint8_t)wallet_room;
+    game.gold += rewards.gold_gained;
     // Every member recovers and earns experience, including one that fell or did not deploy.
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember& member = game.party.members[i];
         uint16_t ap = member.ap + party_victory_ap(member);
         uint8_t maximum = party_max_ap(member);
         member.ap = ap < maximum ? (uint8_t)ap : maximum;
-        notice.award(game.party, i, party_victory_experience(member));
+        rewards.levels.award(game.party, i, party_victory_experience(member));
     }
-    return notice;
+    return rewards;
 }
 
 uint8_t battle_max_hp(BattleUnit const& unit) {

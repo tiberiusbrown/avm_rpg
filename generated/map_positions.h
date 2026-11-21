@@ -59,6 +59,7 @@ inline constexpr TilePos InteriorsSpawn{2, 7, 6};
 inline constexpr TilePos MineEntrance{1, 38, 4};
 inline constexpr TilePos PlayerStart{1, 27, 26};
 inline constexpr TilePos RowanHome{1, 29, 27};
+inline constexpr TilePos ShopCounter{2, 60, 3};
 inline constexpr TilePos ShopDoor{1, 47, 27};
 inline constexpr TilePos ShopExit{2, 60, 6};
 inline constexpr TilePos SmithyDoor{1, 24, 38};

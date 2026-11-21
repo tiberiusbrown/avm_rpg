@@ -22,6 +22,8 @@ EmptyHandler open_chest(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler open_door(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
+EmptyHandler open_shop(Tag<POS, STAGE>) { return {}; }
+template <TilePos POS, HandlerStage STAGE>
 EmptyHandler press_plate(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler read_sign(Tag<POS, STAGE>) { return {}; }
@@ -78,6 +80,14 @@ constexpr bool implemented_open_door() {
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_open_door() {
     open_door(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_open_shop() {
+    return authored_handler<decltype(open_shop(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_open_shop() {
+    open_shop(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_press_plate() {
@@ -168,6 +178,9 @@ struct Handler {
     }
     void open_door() {
         handler_impl::dispatch_open_door<POS, STAGE>();
+    }
+    void open_shop() {
+        handler_impl::dispatch_open_shop<POS, STAGE>();
     }
     void press_plate() {
         handler_impl::dispatch_press_plate<POS, STAGE>();

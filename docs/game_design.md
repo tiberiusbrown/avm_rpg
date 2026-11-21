@@ -291,6 +291,18 @@ Start with a compact system: HP, energy/magic (optional), attack, defense, speed
 
 Keep the economy deterministic and simple: a single currency, compact item database, understandable purchase/sell behavior, and region/faction discounts only where narratively useful. Do not store individual merchant stock inventories persistently unless quests require them; derive availability from static lists and flags.
 
+The village General Store carries Potion (12 G), Elixir (22 G), Revive (30 G),
+and Ether (18 G). Face the shop counter and press A. Up/down selects an item or
+scrolls its description. A inspects, opens confirmation, and confirms. B backs
+out or leaves the list. Confirming adds one item and deducts its price in a
+single transaction after checking funds and the 15-item stack limit. Stock is
+unlimited. Selling, equipment purchases, and variable stock and pricing are deferred.
+
+Victory credits 3 gold per deployed enemy to the shared wallet, including in
+repeatable encounters. The wallet caps at 65,535. The victory panel reports the
+actual gold credited alongside XP, followed by a separate level-up page when
+needed. The existing save records gold and supplies.
+
 ### 9.5 Supplies and recovery
 
 The party starts with two Potions and one each of Elixir, Revive and Ether. A Potion heals
@@ -308,7 +320,7 @@ An invalid action or cancel leaves party stats and supplies unchanged.
 The inn counter offers unlimited free recovery to every member's derived HP and AP
 maximums, including an incapacitated party. Hollow Mine's chest adds a Potion and an
 Ether to its gold, and Old Vault's adds an Elixir and a Revive. Each chest is claimed once
-and stays intact when either stack lacks room. Shops and equipment ownership are deferred.
+and stays intact when the party cannot carry its complete reward.
 
 ## 10. Content authoring pipeline (offline; no runtime script VM)
 

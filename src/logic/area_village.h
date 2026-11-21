@@ -81,6 +81,11 @@ template <TilePos POS> void leave_house(Gameplay<POS>) {
     }
 }
 
+template <TilePos POS> void open_shop(Dialogue<POS>) {
+    if(player_just_interacted<POS>())
+        shop_requested = true;
+}
+
 template <TilePos POS> void rest_at_inn(Dialogue<POS>) {
     if(player_just_interacted<POS>() && dialogue_ask(F("Rest at the inn?"))) {
         party_rest(game.party);

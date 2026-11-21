@@ -306,7 +306,12 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter);
 // Writes final ally HP back to the saved roster, without changing its classes or membership. After
 // a victory, every member of the saved party, including one that fell, recovers AP up to its
 // maximum.
-LevelUpNotice battle_finish(BattleState const& state);
+struct BattleRewards {
+    LevelUpNotice levels{};
+    uint8_t gold_gained{};
+};
+
+BattleRewards battle_finish(BattleState const& state);
 uint8_t battle_max_hp(BattleUnit const& unit);
 
 // The living unit on a cell, or BATTLE_NO_UNIT. Defeated units occupy no cell.

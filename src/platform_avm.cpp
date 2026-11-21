@@ -148,6 +148,7 @@ extern "C" __attribute__((noinline)) void rpg_qa_journal_end() {
 #endif
 
 bool game_load() {
+    shop_requested = false;
     if(!save_exists)
         return false;
     AudioOptions options = game.options;

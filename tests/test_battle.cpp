@@ -2418,7 +2418,7 @@ static void victory_ap_recovery() {
 
     state.ended = true;
     state.result = BATTLE_DEFEAT;
-    LevelUpNotice notice = battle_finish(state);
+    LevelUpNotice notice = battle_finish(state).levels;
     CHECK(!notice.members && !notice.perk_earned);
     CHECK(game.party.members[0].ap == 0 && game.party.members[1].ap == 3 &&
           game.party.members[2].ap == 4);
@@ -2426,7 +2426,7 @@ static void victory_ap_recovery() {
 
     game.party = saved;
     state.result = BATTLE_VICTORY;
-    notice = battle_finish(state);
+    notice = battle_finish(state).levels;
     CHECK(!notice.members && !notice.perk_earned);
     CHECK(game.party.members[0].ap == 1);
     CHECK(game.party.members[1].ap == 4); // Recovered from a member who fell.
@@ -2440,7 +2440,7 @@ static void victory_ap_recovery() {
     game.party.members[0].experience = 9;
     game.party.members[1].level = 2;
     game.party.members[1].experience = 13;
-    notice = battle_finish(state);
+    notice = battle_finish(state).levels;
     CHECK(notice.members == 0x03 && notice.perk_earned);
     CHECK(game.party.members[0].level == 2 && game.party.members[0].experience == 1);
     CHECK(game.party.members[1].level == 3 && game.party.members[1].experience == 0);
@@ -2448,9 +2448,33 @@ static void victory_ap_recovery() {
 
     game.party.members[0].level = 2;
     game.party.members[0].experience = 13;
-    notice = battle_finish(state);
+    notice = battle_finish(state).levels;
     CHECK(notice.members == 0x01 && !notice.perk_earned);
     CHECK(party_has_unspent_perks(game.party));
+}
+
+static void victory_gold() {
+    game = {};
+    BattleState state{};
+    state.result = BATTLE_VICTORY;
+    state.unit_count = 4;
+    for(auto& unit : state.units)
+        unit.team = BATTLE_ENEMY;
+
+    CHECK(battle_finish(state).gold_gained == 0 && game.gold == 0);
+    state.ended = true;
+    state.result = BATTLE_DEFEAT; // Includes the result set by resignation.
+    CHECK(battle_finish(state).gold_gained == 0 && game.gold == 0);
+    state.result = BATTLE_VICTORY;
+    for(uint8_t enemies = 0; enemies <= 4; ++enemies) {
+        state.unit_count = enemies;
+        game.gold = 20;
+        CHECK(battle_finish(state).gold_gained == 3 * enemies);
+        CHECK(game.gold == 20 + 3 * enemies);
+    }
+    game.gold = UINT16_MAX - 5;
+    CHECK(battle_finish(state).gold_gained == 5 && game.gold == UINT16_MAX);
+    CHECK(battle_finish(state).gold_gained == 0 && game.gold == UINT16_MAX);
 }
 
 // A saved member's starting special costs AP and needs the normal attack's reach. It deals the
@@ -2680,6 +2704,7 @@ int main() {
     rend_damage();
     level_attack_damage();
     victory_ap_recovery();
+    victory_gold();
     special_attacks();
     unit_definitions();
     initial_layout();

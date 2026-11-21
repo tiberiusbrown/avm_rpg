@@ -1,5 +1,6 @@
 #include "pause_menu.h"
 #include "supplies_ui.h"
+#include "shop_ui.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -193,7 +194,69 @@ static void pause_navigation() {
     CHECK(!menu_opens_screen(MENU_PASS));
 }
 
+static void shop_transactions() {
+    constexpr uint8_t prices[] = {12, 22, 30, 18};
+    for(uint8_t i = 0; i < SUPPLY_COUNT; ++i) {
+        auto item = (SUPPLY_ID)i;
+        Supplies supplies = STARTING_SUPPLIES;
+        Supplies expected = supplies;
+        uint16_t gold = prices[i] * 2;
+        CHECK(shop_price(item) == prices[i]);
+        CHECK(shop_can_buy(gold, supplies, item) == SHOP_SUCCESS);
+        CHECK(shop_buy(gold, supplies, item) == SHOP_SUCCESS);
+        ++expected.quantity[i];
+        CHECK(gold == prices[i] && !memcmp(&supplies, &expected, sizeof(supplies)));
+        CHECK(shop_buy(gold, supplies, item) == SHOP_SUCCESS);
+        ++expected.quantity[i];
+        CHECK(gold == 0 && !memcmp(&supplies, &expected, sizeof(supplies)));
+        CHECK(shop_buy(gold, supplies, item) == SHOP_NOT_ENOUGH_GOLD);
+        CHECK(gold == 0 && !memcmp(&supplies, &expected, sizeof(supplies)));
+
+        supplies.quantity[i] = SUPPLY_LIMIT - 1;
+        expected.quantity[i] = SUPPLY_LIMIT;
+        gold = UINT16_MAX;
+        CHECK(shop_buy(gold, supplies, item) == SHOP_SUCCESS);
+        CHECK(gold == UINT16_MAX - prices[i] && !memcmp(&supplies, &expected, sizeof(supplies)));
+        CHECK(shop_buy(gold, supplies, item) == SHOP_STACK_FULL);
+        CHECK(gold == UINT16_MAX - prices[i] && !memcmp(&supplies, &expected, sizeof(supplies)));
+        CHECK(shop_buy(gold, supplies, SUPPLY_COUNT) == SHOP_INVALID_ITEM);
+        CHECK(shop_buy(gold, supplies, (SUPPLY_ID)255) == SHOP_INVALID_ITEM);
+        CHECK(gold == UINT16_MAX - prices[i] && !memcmp(&supplies, &expected, sizeof(supplies)));
+    }
+}
+
+static void shop_navigation() {
+    ShopUi ui{};
+    CHECK(ui.page == SHOP_LIST && ui.item == SUPPLY_POTION);
+    CHECK(shop_press(ui, 0) == SHOP_NONE);
+    CHECK(shop_press(ui, BTN_UP) == SHOP_MOVE && ui.item == SUPPLY_ETHER);
+    CHECK(shop_press(ui, BTN_DOWN) == SHOP_MOVE && ui.item == SUPPLY_POTION);
+    CHECK(shop_press(ui, BTN_DOWN) == SHOP_MOVE && ui.item == SUPPLY_ELIXIR);
+    CHECK(shop_press(ui, BTN_A) == SHOP_OPEN && ui.page == SHOP_DETAILS && ui.scroll == 0);
+    ui.lines = SUPPLIES_DETAIL_LINES + 1;
+    CHECK(shop_press(ui, BTN_DOWN) == SHOP_MOVE && ui.scroll == 1);
+    CHECK(shop_press(ui, BTN_DOWN) == SHOP_EDGE && ui.scroll == 1);
+    CHECK(shop_press(ui, BTN_UP) == SHOP_MOVE && ui.scroll == 0);
+    CHECK(shop_press(ui, BTN_B) == SHOP_BACK && ui.page == SHOP_LIST);
+    CHECK(shop_press(ui, BTN_A) == SHOP_OPEN && ui.page == SHOP_DETAILS);
+    CHECK(shop_press(ui, BTN_A) == SHOP_OPEN && ui.page == SHOP_CONFIRM);
+    CHECK(shop_press(ui, BTN_DOWN) == SHOP_NONE);
+    CHECK(shop_press(ui, BTN_A | BTN_B) == SHOP_BACK && ui.page == SHOP_DETAILS);
+    CHECK(shop_press(ui, BTN_A) == SHOP_OPEN && ui.page == SHOP_CONFIRM);
+    CHECK(shop_press(ui, 0) == SHOP_NONE);
+    CHECK(shop_press(ui, BTN_A) == SHOP_PURCHASE);
+    shop_feedback(ui, SHOP_NOT_ENOUGH_GOLD);
+    CHECK(ui.page == SHOP_CONFIRM && !strcmp(ui.feedback, "Not enough gold"));
+    shop_feedback(ui, SHOP_STACK_FULL);
+    CHECK(ui.page == SHOP_CONFIRM && !strcmp(ui.feedback, "Already carrying 15"));
+    shop_feedback(ui, SHOP_SUCCESS);
+    CHECK(ui.page == SHOP_LIST && ui.item == SUPPLY_ELIXIR && !strcmp(ui.feedback, "Purchased!"));
+    CHECK(shop_press(ui, BTN_B) == SHOP_CLOSE);
+}
+
 int main() {
+    shop_transactions();
+    shop_navigation();
     supplies_model();
     recovery();
     supplies_navigation();

@@ -38,6 +38,13 @@ struct MapOperation_open_door {
         Handler<POS, STAGE>{}.open_door();
     }
 };
+struct MapOperation_open_shop {
+    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
+        handler_impl::implemented_open_shop<POS, STAGE>();
+    template <TilePos POS, HandlerStage STAGE> static void run() {
+        Handler<POS, STAGE>{}.open_shop();
+    }
+};
 struct MapOperation_press_plate {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
         handler_impl::implemented_press_plate<POS, STAGE>();
@@ -126,6 +133,7 @@ using AllMapHandlers = TypeList<
     MapSite<positions::HutExit, MapOperation_leave_house>,
     MapSite<positions::InnExit, MapOperation_leave_house>,
     MapSite<positions::InnRest, MapOperation_rest_at_inn>,
+    MapSite<positions::ShopCounter, MapOperation_open_shop>,
     MapSite<positions::ShopExit, MapOperation_leave_house>,
     MapSite<positions::SmithyExit, MapOperation_leave_house>,
     MapSite<positions::WeaverExit, MapOperation_leave_house>,

@@ -1601,7 +1601,9 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
 // outcome line. The battle starts after the welcome line closes, so the caller resumes with
 // exploration.
 static void play_grove_battle(Device& d, bool verify_transition = false,
-                              fs::path const* level_up_capture = nullptr) {
+                              fs::path const* level_up_capture = nullptr,
+                              fs::path const* ordinary_capture = nullptr) {
+    uint16_t gold_before = d.state().gold;
     if(level_up_capture) {
         Game near_level = d.state();
         near_level.party.members[0].experience = 8;
@@ -1631,9 +1633,19 @@ static void play_grove_battle(Device& d, bool verify_transition = false,
     }
     require(d.battle_state().ended && d.battle_state().result == BATTLE_VICTORY,
             "grove battle did not reach victory");
-    // The victory overlay waits for a fresh A. Its outcome line then opens over exploration.
+    // Each results page waits for its own fresh A.
     d.advance(0, 1600000);
+    uint16_t gold_after = gold_before <= UINT16_MAX - 6 ? gold_before + 6 : UINT16_MAX;
+    require(d.state().gold == gold_after, "Grove victory did not credit six gold");
+    if(ordinary_capture)
+        d.capture(*ordinary_capture);
     if(level_up_capture) {
+        d.capture(level_up_capture->parent_path() / "victory-rewards.pgm");
+        d.advance(BTN_A, 3200000);
+        require(d.battle_address() != 0 && d.prompt() == DIALOGUE_CLOSED &&
+                    d.state().gold == gold_after,
+                "held A skipped the level-up notice or repeated the reward");
+        d.advance(0);
         auto rewarded = d.state().party.members[0];
         require(rewarded.level == 2 && party_unspent_perks(rewarded) == 1,
                 "battle victory did not earn a level and leave the perk choice pending");
@@ -1651,7 +1663,8 @@ static void play_grove_battle(Device& d, bool verify_transition = false,
         d.tap(BTN_A);
         d.advance(0, 4000000);
     }
-    require(d.prompt() == DIALOGUE_TYPING, "grove battle did not return to its outcome line");
+    require(d.prompt() == DIALOGUE_TYPING && d.state().gold == gold_after,
+            "Grove battle did not return to its outcome line with the credited gold");
     d.wait_for_prompt();
     d.tap(BTN_A);
     require(d.prompt() == DIALOGUE_CLOSED, "grove outcome line did not close");
@@ -2080,6 +2093,73 @@ static void verify_supplies(Device& d, fs::path const& out) {
     d.set_state(original);
 }
 
+static void verify_shop(Device& d, fs::path const& out) {
+    Game original = d.state();
+    Game street = original;
+    street.gold = 20;
+    street.player = {(uint16_t)(positions::ShopDoor.x * TILE),
+                     (uint16_t)((positions::ShopDoor.y + 1) * TILE), NORTH, 0};
+    d.set_state(street);
+    d.advance(0, 1600000);
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    require(d.state().area == positions::ShopExit.area, "Shop door did not enter the shop");
+    for(unsigned frames = 0; !d.state().can_interact; ++frames) {
+        require(frames < 2 * TILE, "Shop counter did not become interactive");
+        d.frame(BTN_UP);
+    }
+    d.advance(0);
+    d.advance(BTN_A, 3200000);
+    unsigned serial = d.serial();
+    d.advance(BTN_A, 1600000);
+    require(d.serial() == serial && d.state().gold == street.gold,
+            "Shop opening did not pause exploration or changed gold");
+    d.capture(out / "shop-list.pgm");
+    d.advance(0);
+    d.tap(BTN_A);
+    d.capture(out / "shop-details.pgm");
+    d.tap(BTN_A);
+    d.capture(out / "shop-confirm.pgm");
+    d.tap(BTN_B);
+    auto cancelled = d.state();
+    require(cancelled.gold == street.gold &&
+                !memcmp(&cancelled.supplies, &street.supplies, sizeof(Supplies)),
+            "Cancelled shop confirmation changed the wallet or inventory");
+    d.advance(BTN_A, 3200000);
+    require(d.state().gold == street.gold &&
+                d.state().supplies.quantity[SUPPLY_POTION] == street.supplies.quantity[SUPPLY_POTION],
+            "Holding A on confirmation entry purchased a Potion");
+    d.advance(0);
+    d.advance(BTN_A, 3200000);
+    require(d.state().gold == street.gold - 12 &&
+                d.state().supplies.quantity[SUPPLY_POTION] ==
+                    street.supplies.quantity[SUPPLY_POTION] + 1,
+            "Shop confirmation did not purchase exactly one Potion");
+    d.capture(out / "shop-purchased.pgm");
+    d.advance(0);
+    d.tap(BTN_A);
+    d.tap(BTN_A);
+    d.tap(BTN_A);
+    require(d.state().gold == street.gold - 12 &&
+                d.state().supplies.quantity[SUPPLY_POTION] ==
+                    street.supplies.quantity[SUPPLY_POTION] + 1,
+            "Unaffordable purchase changed the wallet or inventory");
+    d.capture(out / "shop-insufficient.pgm");
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.frame();
+    require(d.serial() != serial, "Closing the shop did not resume exploration");
+    for(unsigned frames = 0; d.state().area == positions::ShopExit.area; ++frames) {
+        require(frames < 3 * TILE, "Walking onto the Shop exit did not return to the village");
+        d.frame(BTN_DOWN);
+    }
+    original.gold = d.state().gold;
+    original.supplies = d.state().supplies;
+    d.set_state(original);
+    d.advance(0, 1600000);
+}
+
 static void verify_smoke(Device& d, fs::path const& package, fs::path const& out) {
     d.advance(0, 3200000);
     require(d.serial() == 0 && d.music_enabled(), "smoke boot did not reach the title");
@@ -2230,7 +2310,7 @@ int main(int argc, char** argv) try {
     require(
         argc >= 9 && argc <= 13,
         "device_tests package game_address marker_address serial_address "
-        "output_directory normal|fxc|proof|smoke|pause|battle|sounds|functional|sounds-functional "
+        "output_directory normal|fxc|proof|smoke|pause|battle|shop|sounds|functional|sounds-functional "
         "dialogue_address phase_address "
         "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
     // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
@@ -2261,6 +2341,36 @@ int main(int argc, char** argv) try {
     }
     if(std::string(argv[6]) == "smoke") {
         verify_smoke(d, package, out);
+        return 0;
+    }
+
+    if(std::string(argv[6]) == "shop") {
+        d.advance(0, 3200000);
+        d.tap(BTN_A);
+        d.advance(0, 3200000);
+        verify_shop(d, out);
+        d.tap(BTN_A);
+        d.wait_for_prompt();
+        d.tap(BTN_A);
+        auto victory_capture = out / "shop-grove-victory.pgm";
+        play_grove_battle(d, true, nullptr, &victory_capture);
+
+        auto earned = d.state();
+        d.tap(BTN_B);
+        d.tap(BTN_DOWN); // Save
+        d.tap(BTN_A);
+        auto sector = d.sector();
+        Device restarted(package, g, m, s, q);
+        restarted.phase_addr = d.phase_addr;
+        restarted.import_sector(sector);
+        restarted.advance(0, 3200000);
+        restarted.tap(BTN_A);
+        restarted.frame();
+        auto loaded = restarted.state();
+        require(loaded.gold == earned.gold &&
+                    !memcmp(&loaded.supplies, &earned.supplies, sizeof(Supplies)),
+                "Restart did not restore battle gold and purchased supplies");
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"shop, Grove victory and restart\"}\n";
         return 0;
     }
 
@@ -2335,6 +2445,7 @@ int main(int argc, char** argv) try {
     for(auto const& n : d.state().npcs.actors)
         actors += n.id != NPC_NONE;
     require(actors == 3, "sample NPCs and recruit did not activate");
+    verify_shop(d, out);
     verify_party_recruitment(d, out);
     verify_actor_layers(d, out);
     summary("idle_grove", d, 30);

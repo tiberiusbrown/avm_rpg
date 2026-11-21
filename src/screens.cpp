@@ -5,6 +5,7 @@
 #include "party_ui.h"
 #include "pause_menu.h"
 #include "supplies_ui.h"
+#include "shop_ui.h"
 #include "quest.h"
 #include "sfx.h"
 #include "soundscape.h"
@@ -178,6 +179,61 @@ RPG_NOINLINE static void supplies_screen() {
                 ui.feedback = F("Used");
                 sfx_play(SFX_SELECT);
                 break;
+        }
+        redraw = true;
+    }
+}
+
+RPG_NOINLINE static void shop_screen() {
+    ShopUi ui{};
+    int16_t revealed = 0;
+    bool closing = false;
+    bool redraw = true;
+    input_sync();
+
+    for(;;) {
+        input_wait_frame();
+        int16_t pixel = cursor_pixel(revealed);
+        revealed = cursor_ease(revealed, closing ? 0 : cursor_subpixel(SUPPLIES_WIDTH));
+        if(redraw || cursor_pixel(revealed) != pixel) {
+            render_shop((uint8_t)cursor_pixel(revealed), closing, ui);
+            avm_display(false);
+            redraw = false;
+        }
+        if(closing) {
+            if(!revealed)
+                return;
+            continue;
+        }
+
+        switch(shop_press(ui, input_pressed())) {
+            case SHOP_NONE:
+                continue;
+            case SHOP_EDGE:
+                sfx_play(SFX_CURSOR_EDGE);
+                continue;
+            case SHOP_MOVE:
+                sfx_menu_tick();
+                break;
+            case SHOP_OPEN:
+                if(ui.page == SHOP_DETAILS)
+                    shop_layout(ui);
+                sfx_play(SFX_SELECT);
+                break;
+            case SHOP_CLOSE:
+                closing = true;
+                [[fallthrough]];
+            case SHOP_BACK:
+                sfx_play(SFX_CANCEL);
+                break;
+            case SHOP_PURCHASE: {
+                auto previous_feedback = ui.feedback;
+                SHOP_RESULT result = shop_buy(game.gold, game.supplies, ui.item);
+                shop_feedback(ui, result);
+                sfx_play(result == SHOP_SUCCESS ? SFX_SELECT : SFX_CURSOR_EDGE);
+                redraw = result == SHOP_SUCCESS || ui.feedback != previous_feedback;
+                continue;
+            }
         }
         redraw = true;
     }
@@ -490,6 +546,10 @@ __attribute__((noinline)) void explore() {
             // A teleport takes the player to an area with its own song.
             if(game_update(0, pressed))
                 music_play_area();
+            if(shop_requested) {
+                shop_requested = false;
+                shop_screen();
+            }
             input_sync();
             continue;
         }

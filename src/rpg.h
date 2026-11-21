@@ -365,6 +365,10 @@ uint16_t rng_next();
 void game_start();
 // game_start followed by update_visible_world.
 void game_new();
+
+// The counter sets this during dispatch. Exploration clears it before opening the modal.
+extern bool shop_requested;
+
 // Returns true when the update teleported the player, so the area changed.
 bool game_update(uint8_t held, uint8_t pressed = 0);
 bool actor_move(Actor* actor, DIRECTION dir, uint8_t pixels);
@@ -374,7 +378,7 @@ inline constexpr uint8_t PLAYER_PIXELS_PER_FRAME = 1;
 inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 // Center the player in the uncovered viewport, clamped to the map.
 Camera game_camera(uint8_t view_height = 64);
-void render_battle_result(char const PROGMEM* title);
+void render_battle_result(bool victory, uint8_t gold_gained);
 void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom);
 void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice);
 

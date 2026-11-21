@@ -363,6 +363,9 @@ Rules for houses:
 - **Chairs face their table.** Choose the chair by the side of the table it stands on.
 - **A rug is at least 2x2.** For one cell, use `RUG_SMALL` or `DOORMAT`. Furniture hides
   the rug cell under it, so keep a rug's outline cells free.
+- **Shop.** `ShopCounter` is the `open_shop` point on the middle of the counter.
+  Keep the floor south of it clear. The dialogue-stage handler requests the shop
+  modal after world dispatch returns. `ShopExit` remains the walk-out doorway.
 - **Inn.** `InnRest` is the `rest_at_inn` point on the right end of the counter.
   Keep the floor south of it clear so the player can face the counter and use A.
   `InnExit` remains the walk-out doorway.

@@ -49,7 +49,10 @@ bool party_add(PartyMember member) {
     return true;
 }
 
+bool shop_requested;
+
 void game_start() {
+    shop_requested = false;
     AudioOptions options = game.options;
     memset(&game, 0, sizeof(game));
     game.options = options;

@@ -9,6 +9,7 @@
 #include "party_ui.h"
 #include "pause_menu.h"
 #include "supplies_ui.h"
+#include "shop_ui.h"
 #include "quest.h"
 #include "title.h"
 #include "world_assets.h"
@@ -864,12 +865,17 @@ static void render_party_divider(int16_t x) {
     draw_menu_rule(x, 21);
 }
 
-void render_battle_result(char const PROGMEM* title) {
-    constexpr int16_t X = 24, Y = 18, WIDTH = 80;
-    draw_menu_frame(X, Y, WIDTH, 28);
-    draw_menu_title(X + 6, title, WIDTH - 12, Y + 10);
-    draw_menu_rule(X, Y + 13, WIDTH);
-    draw_menu_button(X + 6, Y + 23, MENU_BUTTON_A, F("Continue"));
+void render_battle_result(bool victory, uint8_t gold_gained) {
+    constexpr int16_t X = 24, WIDTH = 80;
+    int16_t y = victory ? 10 : 18;
+    draw_menu_frame(X, y, WIDTH, victory ? 45 : 28);
+    draw_menu_title(X + 6, victory ? F("VICTORY") : F("DEFEAT"), WIDTH - 12, y + 10);
+    draw_menu_rule(X, y + 13, WIDTH);
+    if(victory) {
+        avm_draw_textf(X + 6, y + 23, F("+%u Gold"), gold_gained);
+        avm_draw_textf(X + 6, y + 31, F("+%u XP to party"), PARTY_VICTORY_EXPERIENCE);
+    }
+    draw_menu_button(X + 6, y + (victory ? 40 : 23), MENU_BUTTON_A, F("Continue"));
 }
 
 void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom) {
@@ -1387,4 +1393,65 @@ void render_supplies(uint8_t revealed, bool closing, SuppliesUi const& ui) {
     }
     if(revealed)
         render_supplies_panel(DISPLAY_WIDTH - revealed, ui);
+}
+
+
+void shop_layout(ShopUi& ui) {
+    ui.lines = text_wrap(supply_description(ui.item), 110, TextRangeWidth{}, ui.starts,
+                         SUPPLIES_WRAP_CAPACITY);
+}
+
+static void render_shop_panel(int16_t x, ShopUi const& ui) {
+    draw_menu_frame(x);
+    draw_menu_title(x + 4, ui.page == SHOP_LIST ? F("General Store") : supply_name(ui.item),
+                    ui.page == SHOP_LIST ? 81 : 120);
+    draw_menu_rule(x, 13);
+
+    if(ui.page == SHOP_LIST) {
+        avm_draw_textf(x + 88, 10, F("%u G"), game.gold);
+        for(uint8_t row = 0; row < SUPPLY_COUNT; ++row) {
+            auto item = (SUPPLY_ID)row;
+            int16_t y = 22 + row * 8;
+            begin_menu_row(x, y, item == ui.item, 120);
+            avm_draw_text(x + 7, y, supply_name(item));
+            avm_draw_textf(x + 78, y, F("%u G"), shop_price(item));
+            avm_draw_textf(x + 106, y, F("x%u"), supply_count(game.supplies, item));
+            avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+        }
+        draw_menu_footer(x, F("Inspect"), F("Exit"));
+        if(ui.feedback)
+            avm_draw_text(x + 52, MENU_FOOTER, ui.feedback);
+        return;
+    }
+
+    if(ui.page == SHOP_DETAILS) {
+        auto description = supply_description(ui.item);
+        for(uint8_t row = 0; row < SUPPLIES_DETAIL_LINES && ui.scroll + row < ui.lines; ++row) {
+            uint8_t line = ui.scroll + row;
+            uint8_t from = ui.starts[line], to = ui.starts[line + 1];
+            while(to > from && description[to - 1] == ' ')
+                --to;
+            text_draw_range(x + 4, 22 + 7 * row, description, from, to);
+        }
+        draw_menu_scroll(x, 22, 36, ui.scroll, ui.scroll + SUPPLIES_DETAIL_LINES < ui.lines);
+        draw_menu_footer(x, F("Buy"));
+    } else {
+        avm_draw_text(x + 4, 23, F("Buy one?"));
+        if(ui.feedback)
+            avm_draw_text(x + 4, 35, ui.feedback);
+        draw_menu_footer(x, F("Confirm"), F("Cancel"));
+    }
+    avm_draw_textf(x + 4, 47, F("Price: %u G"), shop_price(ui.item));
+    avm_draw_textf(x + 70, 47, F("Owned: %u/%u"), supply_count(game.supplies, ui.item),
+                   SUPPLY_LIMIT);
+}
+
+void render_shop(uint8_t revealed, bool closing, ShopUi const& ui) {
+    if(revealed < SUPPLIES_WIDTH) {
+        rpg_render_world();
+        draw_fade(closing ? (uint8_t)((uint16_t)revealed * (FADE_STEPS / 2) / SUPPLIES_WIDTH)
+                          : FADE_STEPS / 2);
+    }
+    if(revealed)
+        render_shop_panel(DISPLAY_WIDTH - revealed, ui);
 }

@@ -92,6 +92,21 @@ B goes back one page and closes the list to resume exploration.
 | Revive | 1 | Raise one member at 0 HP to 5 HP, capped at their maximum |
 | Ether | 1 | Restore up to 3 AP to one member, including at 0 HP |
 
+The village General Store sells Potion (12 G), Elixir (22 G), Revive (30 G), and
+Ether (18 G). The store is on the east side of the village. Inside, walk up to
+the counter, face it, and press **A**.
+Use up/down to select an item or scroll its description. Press **A** to inspect,
+open the purchase confirmation, and confirm. **B** backs out one page or exits
+the list. Each purchase adds one supply and deducts its price together, provided
+you have enough gold and are carrying fewer than 15 of that supply. The store has
+unlimited stock. Selling, equipment purchases, and variable prices are deferred.
+
+Each victory credits 3 gold per deployed enemy to the party wallet, up to 65,535
+gold. The repeatable Grove battle awards 6 gold. The victory panel shows the
+credited gold and party XP before any separate level-up notice. The inn heals
+the party and restores AP for free. Store purchases provide supplies you can carry
+and use later from the Supplies menu. Saving preserves both gold and supplies.
+
 The party shares a limit of 15 per supply. Supplies are usable outside battle, and a use
 with no effect leaves the stack unchanged. The Hollow Mine chest adds a Potion and an Ether.
 The Old Vault chest adds an Elixir and a Revive. Each still gives 25 gold once, and stays
