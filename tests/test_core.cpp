@@ -136,6 +136,37 @@ static void enter_enemy_site(TilePos site, uint8_t east) {
     world_enter(site.area, site.x * TILE + east, site.y * TILE, WEST);
 }
 
+static void hostile_patrol_unloads() {
+    game_new();
+    constexpr TilePos home = positions::VaultGuard;
+    constexpr TilePos distant = positions::DungeonSpawn;
+    static_assert(home.area == distant.area);
+
+    for(NPC_BEHAVIOR behavior : {NPC_ROUTE, NPC_TARGET}) {
+        enter_enemy_site(home, FOOT_WIDTH);
+        auto* guard = npc_find(GUARD);
+        CHECK(guard);
+        guard->behavior = behavior;
+        guard->waypoint = 1;
+        guard->state = NPC_BACKWARD;
+        update_visible_world(0, false);
+        CHECK(npc_find(GUARD) && npc_find(GUARD)->behavior == behavior);
+
+        game.player = {distant.x * TILE, distant.y * TILE, NORTH, 0};
+        update_visible_world(0, false);
+        CHECK(npc_location(GUARD) == home && !npc_find(GUARD));
+        CHECK(game.npcs.actors[0].id == NPC_NONE);
+
+        // Approach from the north until the spawn is cached just below the camera.
+        game.player = {home.x * TILE, (home.y - 3) * TILE, SOUTH, 0};
+        update_visible_world(0, false);
+        guard = npc_find(GUARD);
+        CHECK(guard && guard->behavior == NPC_ROUTE && guard->route == routes::VaultPatrol);
+        CHECK(guard->actor.x == home.x * TILE && guard->actor.y == home.y * TILE);
+        CHECK(guard->waypoint == 0 && guard->state == NPC_ROUTE_PENDING);
+    }
+}
+
 static void enemy_encounters() {
     game_new();
     story_stub_reset(BATTLE_VICTORY);
@@ -663,6 +694,7 @@ int main() {
     dialogue_camera_bounds();
     animate();
     movement();
+    hostile_patrol_unloads();
     enemy_encounters();
     saves();
     party_statistics();

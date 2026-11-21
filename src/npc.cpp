@@ -249,9 +249,8 @@ RPG_NOINLINE void npc_stage_begin() {
         auto& n = *current;
         if(npc_is_enemy(n.id)) {
             bool shown = protected_view(n.actor.x, n.actor.y);
-            bool pinned = n.behavior == NPC_ROUTE || n.behavior == NPC_TARGET;
             if(!shown && (npc_location(n.id) != n.assigned_site ||
-                          (!pinned && !foot_cached(n) &&
+                          (!foot_cached(n) &&
                            !foot_cached_at((uint16_t)n.assigned_site.x * TILE,
                                            (uint16_t)n.assigned_site.y * TILE)))) {
                 retire_slot(i);

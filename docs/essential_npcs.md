@@ -134,7 +134,7 @@ completes logically and releases its slot; casting at the destination still obey
 portal, actor, party and visibility checks. Other-area and absent destinations retain the
 visible actor until safe retirement. No uncached terrain is read.
 
-Unfinished `NPC_TARGET` and `NPC_ROUTE` actors are pinned even off cache. Their targets,
+Essential NPCs with unfinished `NPC_TARGET` or `NPC_ROUTE` movement keep their slots off cache. Their targets,
 waypoints, detours and pauses survive until completion or scene reset. Policy changes are
 applied after scripted motion completes. This can temporarily saturate the pool.
 
@@ -174,7 +174,7 @@ blocking dialogue freezes simulation.
 An NPC simulates only while its feet are inside the effective 11x7 terrain cache.
 The margin lets a sprite leave view before reaching uncached terrain. A partly visible
 uncached actor freezes; once safely offscreen, ordinary actors retire and travel completes
-logically through slot release. Unfinished targets/routes keep their physical state pinned
+logically through slot release. Essential NPCs with unfinished targets or routes retain their movement state
 and resume when cached again. No offscreen terrain lookup is introduced.
 
 A successful foot-clear check is derived state within the active actor. Movement validates
@@ -272,8 +272,9 @@ walk, wander extents, detection, disengagement, leash or admission priority.
 
 A patrol uses `ENEMY_ROUTE` and a named polyline in the same map's Routes layer. Put its points
 inside walkable tiles. The first point can coincide with the spawn. The route supports
-`once`, `loop` or `reverse` and a pause in frames at each waypoint. An unfinished active
-patrol retains its slot off cache while its spawn remains available. A permanent guard with
+`once`, `loop` or `reverse` and a pause in frames at each waypoint. A hostile patrol releases its slot
+when its sprite is safely offscreen and both its feet and spawn are outside the cache.
+When normal admission casts it again, it starts its route from the spawn. A permanent guard with
 a question before battle and a message after victory can be authored as follows.
 
 ```cpp
