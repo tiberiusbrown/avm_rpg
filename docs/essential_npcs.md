@@ -341,13 +341,20 @@ sets can be combined with `|`, and `BATTLEFIELDS_ALL` selects all boards. A one-
 selection pins the encounter to one board.
 
 Author new boards in `src/battlefields.cpp` and add their IDs and default groups in
-`src/battle.h`. Each board has an 8×4 tile layout and separate party and enemy rectangles.
-Rectangles use zero-based `{x, y, width, height}` in cells. They must fit the board,
-remain disjoint, and each contain at least four unobstructed cells. Compile-time checks use
+`src/battle.h`. Pass the tileset, board ID and four eight-character rows to `terrain()`.
+Use `.` for open ground and `#` for obstacles. The board ID seeds compile-time palette
+selection, giving outdoor boards patches of sparse and dense grass with roughly one
+flower tile per eight open cells. Each tileset supplies its own floor, accent and obstacle
+palette. The tile choices are stored in flash.
+
+Each board has separate party and enemy rectangles in zero-based `{x, y, width, height}`
+cell coordinates. They must fit the board, remain disjoint, and each contain at least four
+unobstructed cells. Compile-time checks use
 tileset collision metadata to validate both rectangles and generate the blocking and
 screening masks used by combat.
 
 On entry, the game selects one board uniformly and draws an open cell for each living
-unit from its side's rectangle, without replacement. Battlefield and deployment rolls use the game's shared RNG.
+unit from its side's rectangle, without replacement. Battlefield and deployment rolls use the
+game's shared RNG.
 The rectangle metadata also identifies the legal starting area for a future party placement
 screen.

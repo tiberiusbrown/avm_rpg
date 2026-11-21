@@ -357,17 +357,6 @@ static void teams_are_explicit() {
 static void battlefield_data() {
     static_assert(BATTLE_COLUMNS == 8 && BATTLE_ROWS == 4, "the board is 8 by 4");
 
-    // Fixed arrangement, row-major from the top left: grass and flowers, with a pine at (4,0), a
-    // round tree at (6,0), rocks at (1,3), and a boulder at (4,3).
-    uint8_t const expected[BATTLE_CELLS] = {
-        TILE_GRASS_06,   TILE_GRASS_07,   TILE_GRASS_06, TILE_FLOWERS_26, TILE_TREE,
-        TILE_GRASS_07,   TILE_TREE_ROUND, TILE_GRASS_06, TILE_GRASS_07,   TILE_GRASS_06,
-        TILE_GRASS_16,   TILE_GRASS_06,   TILE_GRASS_06, TILE_FLOWERS_27, TILE_GRASS_06,
-        TILE_GRASS_07,   TILE_GRASS_06,   TILE_GRASS_16, TILE_GRASS_07,   TILE_GRASS_06,
-        TILE_FLOWERS_26, TILE_GRASS_06,   TILE_GRASS_06, TILE_GRASS_07,   TILE_GRASS_07,
-        TILE_ROCKS,      TILE_GRASS_06,   TILE_GRASS_06, TILE_BOULDER,    TILE_GRASS_16,
-        TILE_FLOWERS_27, TILE_GRASS_06,
-    };
     BattleState s = fresh();
     CHECK(s.field < BATTLEFIELD_COUNT);
     Battlefield const& field = BATTLEFIELDS[s.field];
@@ -375,7 +364,6 @@ static void battlefield_data() {
     unsigned blocked = 0;
     for(uint8_t i = 0; i < BATTLE_CELLS; ++i) {
         uint8_t tile = field.tiles[i];
-        CHECK(tile == expected[i]);
         CHECK(tile < TILE_COUNT);
         // The blocked masks agree with the tileset's collision, cell by cell.
         bool collides = oracle_blocked(s.field, battle_column(i), battle_row(i));
@@ -2291,16 +2279,32 @@ static void random_battle_deployment() {
     CHECK(battlefields_for_area(AREA_DUNGEON) == BATTLEFIELDS_DUNGEON);
     CHECK(battlefields_for_area(AREA_INTERIORS) == BATTLEFIELDS_HOUSE);
 
+    bool obstacle_seen[TILESET_COUNT][256]{};
+    uint8_t obstacle_types[TILESET_COUNT]{};
     for(uint8_t field = 0; field < BATTLEFIELD_COUNT; ++field) {
         auto const& board = BATTLEFIELDS[field];
         CHECK(battlefields_for_tileset(board.tileset) & battlefields(field));
         uint8_t party_cells = 0, enemy_cells = 0;
+        uint8_t sparse = 0, dense = 0, flowers = 0;
         for(uint8_t cell = 0; cell < BATTLE_CELLS; ++cell) {
             uint8_t x = battle_column(cell), y = battle_row(cell);
             bool party = board.party_area.contains(x, y);
             bool enemy = board.enemy_area.contains(x, y);
             CHECK(!party || !enemy);
             CHECK(battle_blocked(field, cell) == oracle_blocked(field, x, y));
+            uint8_t tile = board.tiles[cell];
+            if(battle_blocked(field, cell)) {
+                if(!obstacle_seen[board.tileset][tile]) {
+                    obstacle_seen[board.tileset][tile] = true;
+                    ++obstacle_types[board.tileset];
+                }
+            } else if(board.tileset == TILESET_WORLD) {
+                sparse += tile == TILE_GRASS_08 || tile == TILE_GRASS_09 ||
+                          tile == TILE_GRASS_0A || tile == TILE_GRASS_59;
+                dense += tile == TILE_GRASS_06 || tile == TILE_GRASS_07 ||
+                         tile == TILE_GRASS_16 || tile == TILE_GRASS_17;
+                flowers += tile == TILE_FLOWERS_26 || tile == TILE_FLOWERS_27;
+            }
             party_cells += party && !battle_blocked(field, cell);
             enemy_cells += enemy && !battle_blocked(field, cell);
             for(uint8_t other = 0; other < BATTLE_CELLS; ++other) {
@@ -2318,7 +2322,11 @@ static void random_battle_deployment() {
             }
         }
         CHECK(party_cells >= BATTLE_SIDE_CAPACITY && enemy_cells >= BATTLE_SIDE_CAPACITY);
+        if(board.tileset == TILESET_WORLD)
+            CHECK(sparse && dense && flowers >= 3 && flowers <= 4);
     }
+    for(uint8_t count : obstacle_types)
+        CHECK(count >= 2);
 
     constexpr auto selection =
         battlefields(BATTLEFIELD_MEADOW, BATTLEFIELD_MINE_CROSSING, BATTLEFIELD_HOUSE_HALL);
