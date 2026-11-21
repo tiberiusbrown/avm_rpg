@@ -1084,7 +1084,10 @@ def export_world(root=ROOT):
                 + f"{name}_POINTS, {len(route['points'])}, ROUTE_{route['mode'].upper()}, {route['pause']}, {m.area}"
                 + "};",
             ]
-    route_header.append("}")
+    route_header += ["constexpr uint8_t area_for(uint8_t id) {", "    switch(id) {"]
+    for m in maps:
+        route_header += [f"        case {r['id']}: return {m.area};" for r in m.routes]
+    route_header += ["        default: return 0;", "    }", "}", "}"]
     route_source += ["NpcRoute const PROGMEM* npc_route(uint8_t id) {"]
     if any(m.routes for m in maps):
         route_source.append("    switch(id) {")

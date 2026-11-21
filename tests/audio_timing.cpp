@@ -191,15 +191,19 @@ struct TimingObserver {
 };
 
 int main(int argc, char** argv) try {
-    require(argc == 11, "audio_timing package listing game marker serial dialogue phase output seconds variant");
-    fs::path package = argv[1], listing = argv[2], out = argv[8];
+    require(argc == 14,
+            "audio_timing package listing game marker serial dialogue phase battle ready workspace output seconds variant");
+    fs::path package = argv[1], listing = argv[2], out = argv[11];
     fs::create_directories(out);
     unsigned g = std::stoul(argv[3]), m = std::stoul(argv[4]), s = std::stoul(argv[5]);
     unsigned q = std::stoul(argv[6]), phase = std::stoul(argv[7]);
-    unsigned seconds = std::stoul(argv[9]);
-    std::string variant = argv[10];
+    unsigned seconds = std::stoul(argv[12]);
+    std::string variant = argv[13];
     Device d(package, g, m, s, q);
     d.phase_addr = phase;
+    d.battle_pointer_addr = std::stoul(argv[8]);
+    d.battle_ready_addr = std::stoul(argv[9]);
+    d.workspace_addr = std::stoul(argv[10]);
     d.advance(0, 3200000);
     d.tap(BTN_A);
     require(d.music_enabled(), "RPG did not enable music");
@@ -213,14 +217,28 @@ int main(int argc, char** argv) try {
     d.advance(0, uint64_t(seconds) * 16000000);
     if(variant == "normal" && seconds >= 8) {
         monitor.scenario = "dialogue";
+        Game exploration = d.state();
+        Game world = exploration;
+        auto* silas = std::find_if(world.npcs.actors, world.npcs.actors + NPC_CAPACITY,
+                                  [](Npc const& npc) { return npc.id == NPC_WANDERER; });
+        require(silas != world.npcs.actors + NPC_CAPACITY, "Silas is not active");
+        silas->state = NPC_STATE_NONE;
+        silas->timer = 40;
+        world.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
+        world.player = {(uint16_t)(silas->actor.x + FOOT_WIDTH), silas->actor.y, WEST, 0};
+        d.set_state(world);
+        d.frame();
         d.tap(BTN_A);
         require(d.prompt() != DIALOGUE_CLOSED, "timing dialogue scenario did not open");
-        d.wait_for_prompt();
-        d.tap(BTN_A);
-        require(d.prompt() == DIALOGUE_CLOSED, "timing dialogue did not close");
-        // The welcome closes into the Grove battle, which the scenario plays through.
+        d.dismiss_dialogue();
         monitor.scenario = "battle";
+        start_grove_contact(d);
         play_grove_battle(d);
+        world = d.state();
+        world.player = exploration.player;
+        world.npcs = exploration.npcs;
+        d.set_state(world);
+        d.frame();
         monitor.scenario = "menu_status";
         d.tap(BTN_B);
         d.advance(0, 32000000);
@@ -233,6 +251,7 @@ int main(int argc, char** argv) try {
         d.advance(0, 8000000);
         auto paused_serial = d.serial();
         d.tap(BTN_B);
+        d.frame();
         require(d.serial() != paused_serial, "timing scenario did not leave the save menu");
         monitor.scenario = "walking";
         auto start = d.state().player;

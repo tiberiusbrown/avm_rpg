@@ -164,7 +164,7 @@ __attribute__((noinline)) static bool sidestep_corner(Actor* a, DIRECTION dir) {
             if(!strafe[side]) {
                 uint16_t sx, sy;
                 bool clear = next_pixel(a->x, a->y, sidestep, sx, sy) &&
-                             player_terrain_clear(sx, sy) && npc_player_clear(sx, sy, sidestep);
+                             player_terrain_clear(sx, sy) && npc_player_clear(sx, sy, sidestep, false);
                 strafe[side] = clear ? 1 : 2;
             }
             if(strafe[side] == 2)

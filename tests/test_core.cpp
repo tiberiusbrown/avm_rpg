@@ -1,3 +1,4 @@
+#include "encounter.h"
 #include "rpg.h"
 #include "equipment.h"
 #include "chunk.h"
@@ -5,6 +6,7 @@
 #include "map_positions.h"
 #include "npc.h"
 #include "story_stub.h"
+#include "logic/enemy_spawns.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,15 +22,9 @@ static unsigned checks;
         }                                                                                          \
     } while(0)
 
-static unsigned dialogues;
-static char const* last_dialogue;
-
 bool dialogue_show(char const PROGMEM* text) {
-    ++dialogues;
-    last_dialogue = text;
     story_stub_record_dialogue(text);
     CHECK(chunk_trace_count[STAGE_TILES] > 0);
-    CHECK(cached_tile(positions::GroveSign) == TILE_SIGN);
     return true;
 }
 
@@ -37,8 +33,11 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
-bool dialogue_ask(char const PROGMEM*) {
-    return true;
+static bool answer = true;
+
+bool dialogue_ask(char const PROGMEM* question) {
+    dialogue_show(question);
+    return answer;
 }
 
 bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
@@ -99,71 +98,198 @@ static void movement() {
     CHECK(!memcmp(&game, &expected, sizeof(Game)));
 }
 
-// Each valid interaction shows the welcome, runs one battle, and then shows an outcome line.
-static void sign() {
-    game_new();
-    CHECK(game.can_interact);
-    story_stub_reset(BATTLE_VICTORY);
-    unsigned before = dialogues;
-    game_update(BTN_A); // Held A is not a fresh interaction.
-    CHECK(dialogues == before && story_stub_count() == 0);
-    uint16_t x = game.player.x, y = game.player.y, ticks = game.ticks, rng = game.rng;
-    game_update(BTN_RIGHT, BTN_A);
-    CHECK(dialogues == before + 2 && story_stub_battles() == 1);
-    CHECK(strstr(story_stub_event(0).text, "Nocturne Grove"));
-    CHECK(game.player.x == x && game.player.y == y && game.ticks == ticks && game.rng == rng);
-    CHECK(!frame_pressed);
-    game_update(BTN_A);
-    CHECK(dialogues == before + 2 && story_stub_battles() == 1);
-    game.player.facing = EAST;
-    game_update(0, BTN_A);
-    CHECK(dialogues == before + 2 && story_stub_battles() == 1);
-    world_enter(AREA_OUTDOOR, (positions::GroveSign.x - 1) * TILE,
-                (positions::GroveSign.y + 1) * TILE, NORTH);
-    game_update(0, BTN_A);
-    CHECK(dialogues == before + 2 && story_stub_battles() == 1); // Diagonals do not read the sign.
-    world_enter(AREA_OUTDOOR, (positions::GroveSign.x + 1) * TILE, positions::GroveSign.y * TILE,
-                WEST);
-    game_update(0, BTN_A);
-    CHECK(dialogues == before + 4 && story_stub_battles() == 2);
+constexpr NPC_ID WOLF = (NPC_ID)NPC_ENEMY_FIRST;
+constexpr NPC_ID SCOUT = (NPC_ID)(NPC_ENEMY_FIRST + 1);
+constexpr NPC_ID GUARD = (NPC_ID)(NPC_ENEMY_FIRST + 2);
+
+using OrdinaryWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 16>;
+using ConfiguredWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 16, ENEMY_WANDER,
+                                 SPEED_FAST, 0, RESPAWN_NEVER, EnemyHooks,
+                                 EnemySettings{.facing = EAST, .priority = 7}>;
+static_assert(NPC_VILLAGER == 1 && NPC_WANDERER == 2 && NPC_ROWAN == 3);
+static_assert(NPC_ENEMY_END == NPC_ENEMY_FIRST + ENEMY_SPAWN_COUNT);
+static_assert(enemy_defeated_flag(WOLF) == FLAG_ENEMY_FIRST);
+static_assert(!unique_enemy_positions<OrdinaryWolf, ConfiguredWolf>());
+static_assert(unique_enemy_positions<OrdinaryWolf>());
+static_assert(OrdinaryWolf::definition.period == 2 && !OrdinaryWolf::definition.talkable);
+static_assert(OrdinaryWolf::definition.behavior == NPC_WANDER &&
+              OrdinaryWolf::definition.priority == 2 && OrdinaryWolf::respawn == RESPAWN_REMEMBER);
+static_assert(ConfiguredWolf::definition.period == 1 && ConfiguredWolf::definition.priority == 7 &&
+              ConfiguredWolf::definition.facing == EAST && ConfiguredWolf::respawn == RESPAWN_NEVER);
+static_assert(routes::area_for(routes::VaultPatrol) == positions::VaultGuard.area);
+
+struct ConditionalWolfHooks : EnemyHooks {
+    static bool available() {
+        return game.get_flag(FLAG_CAVE_GATE);
+    }
+
+    static BattleEncounter const* select_battle(BattleEncounter const* original) {
+        return game.get_flag(FLAG_CAVE_GATE) ? &BATTLE_MINE_SCOUTS : original;
+    }
+};
+
+using ConditionalWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
+                                  SPEED_NORMAL, 0, RESPAWN_REMEMBER, ConditionalWolfHooks>;
+using ConditionalCatalog = EnemyCatalog<std::index_sequence<0>, TypeList<ConditionalWolf>>;
+
+static void enter_enemy_site(TilePos site, uint8_t east) {
+    world_enter(site.area, site.x * TILE + east, site.y * TILE, WEST);
 }
 
-// The welcome, the battle, and the outcome line run in that order. The outcome picks the line,
-// and every valid interaction starts a fresh battle without changing overworld state.
-static void grove_battle() {
+static void enemy_encounters() {
     game_new();
     story_stub_reset(BATTLE_VICTORY);
-    uint8_t hp = game.party.members[0].hp;
-    uint16_t gold = game.gold, x = game.player.x, y = game.player.y;
+    CHECK(ConditionalCatalog::location(WOLF) == NO_LOCATION);
+    CHECK(ConditionalWolf::prepare_battle() == &BATTLE_GROVE_WOLVES);
+    game.set_flag(FLAG_CAVE_GATE);
+    CHECK(ConditionalCatalog::location(WOLF) == positions::GroveWolf);
+    CHECK(ConditionalWolf::prepare_battle() == &BATTLE_MINE_SCOUTS);
+    game.clear_flag(FLAG_CAVE_GATE);
+    CHECK(!party_add(party_new_member(WOLF, MOVEMENT_STEP, ATTACK_STRIKE)));
+    CHECK(!npc_definition(WOLF)->talkable && npc_definition(WOLF)->sprite_row == 17);
+    CHECK(npc_definition(SCOUT)->period == 1 && npc_definition(SCOUT)->behavior == NPC_CHASE);
+    CHECK(npc_definition(GUARD)->route == routes::VaultPatrol);
+    CHECK(battle_encounter_valid(&BATTLE_GROVE_WOLVES));
+    CHECK(battle_encounter_valid(&BATTLE_MINE_SCOUTS));
+    CHECK(battle_encounter_valid(&BATTLE_VAULT_GUARDS));
+    CHECK(!battle_encounter_valid(nullptr));
 
-    // Neither a held A nor a sign that is not faced starts a battle.
-    game_update(BTN_A);
-    game.player.facing = EAST;
-    game_update(0, BTN_A);
-    CHECK(story_stub_count() == 0 && story_stub_battles() == 0);
+    enter_enemy_site(positions::GroveWolf, 0);
+    CHECK(!npc_find(WOLF)); // Scene entry still excludes the player's feet.
+    enter_enemy_site(positions::GroveWolf, FOOT_WIDTH);
+    auto* wolf = npc_find(WOLF);
+    CHECK(wolf && npc_location(WOLF) == positions::GroveWolf);
+    wolf->timer = 10;
+    CHECK(!npc_player_clear(game.player.x - 1, game.player.y, WEST, false));
+    CHECK(encounter_run() && story_stub_battles() == 0);
+    CHECK(!actor_move(&game.player, WEST, 1));
+    CHECK(!wolf->push && !(wolf->state & NPC_YIELDING));
+    CHECK(story_stub_battles() == 0);
+    CHECK(encounter_run());
+    CHECK(story_stub_battles() == 1 && story_stub_event(0).encounter == &BATTLE_GROVE_WOLVES);
+    CHECK(game.get_flag(enemy_defeated_flag(WOLF)) && !npc_find(WOLF));
+    CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES && save_valid());
+    for(uint8_t i = 0; i < 20; ++i)
+        CHECK(!remember_tick());
+    CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES - 20);
 
-    game.player.facing = NORTH;
-    game_update(0, BTN_A);
-    CHECK(story_stub_count() == 3 && story_stub_battles() == 1);
-    StoryEvent const& welcome = story_stub_event(0);
-    StoryEvent const& battle = story_stub_event(1);
-    StoryEvent const& outcome = story_stub_event(2);
-    CHECK(welcome.kind == STORY_EVENT_DIALOGUE && strstr(welcome.text, "Nocturne Grove"));
-    CHECK(battle.kind == STORY_EVENT_BATTLE && battle.encounter == &BATTLE_GROVE);
-    CHECK(outcome.kind == STORY_EVENT_DIALOGUE && strstr(outcome.text, "withdraw"));
-    CHECK(game.player.x == x && game.player.y == y && game.area == AREA_OUTDOOR);
-    CHECK(game.party.members[0].hp == hp && game.gold == gold);
+    // Even ticks move a normal wanderer, odd ticks keep its position.
+    game.clear_flag(enemy_defeated_flag(WOLF));
+    enter_enemy_site(positions::GroveWolf, TILE);
+    wolf = npc_find(WOLF);
+    CHECK(wolf);
+    wolf->state = NPC_WALK_PHASE;
+    wolf->actor.facing = WEST;
+    wolf->timer = 20;
+    uint16_t wolf_x = wolf->actor.x;
+    game.ticks = 1;
+    npc_update();
+    CHECK(wolf->actor.x == wolf_x);
+    game.ticks = 2;
+    npc_update();
+    CHECK(wolf->actor.x == wolf_x - 1);
+    for(unsigned i = 0; i < 360; ++i) {
+        ++game.ticks;
+        npc_update();
+        CHECK(wolf->actor.x >= wolf_x - TILE && wolf->actor.x <= wolf_x + TILE);
+        CHECK(wolf->actor.y >= positions::GroveWolf.y * TILE - TILE &&
+              wolf->actor.y <= positions::GroveWolf.y * TILE + TILE);
+    }
+    game.set_flag(enemy_defeated_flag(WOLF));
 
+    // A fast scout moves every frame and changes direction when the player moves.
+    enter_enemy_site(positions::MineScout, 20);
+    auto* scout = npc_find(SCOUT);
+    CHECK(scout);
+    uint16_t x = scout->actor.x, y = scout->actor.y;
+    game.ticks = 1;
+    npc_update();
+    CHECK(scout->behavior == NPC_CHASE && scout->actor.x == x + 1);
+    game.player = {scout->actor.x, (uint16_t)(y + 16), NORTH, 0};
+    npc_update();
+    CHECK(scout->actor.y == y + 1);
+    game.player.x = x + 81;
+    npc_update();
+    CHECK(scout->behavior == NPC_RETURN);
+
+    // Enemy-initiated contact cannot overlap the player or enter battle inside npc_update.
+    enter_enemy_site(positions::MineScout, FOOT_WIDTH);
+    scout = npc_find(SCOUT);
+    CHECK(scout);
+    npc_update();
+    CHECK(!npc_overlap(game.player.x, game.player.y, scout->actor.x, scout->actor.y));
+    CHECK(story_stub_battles() == 1);
+    CHECK(encounter_run());
+    CHECK(story_stub_battles() == 2 && story_stub_event(1).encounter == &BATTLE_MINE_SCOUTS);
+    CHECK(game.get_flag(enemy_defeated_flag(SCOUT)) && !npc_find(SCOUT));
+    CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES);
+
+    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    auto* guard = npc_find(GUARD);
+    CHECK(guard);
+    game.player.y += TILE;
+    uint16_t guard_x = guard->actor.x;
+    for(unsigned i = 0; i < 160 && !(guard->state & NPC_BACKWARD); ++i) {
+        ++game.ticks;
+        npc_update();
+    }
+    CHECK(guard->actor.x > guard_x && (guard->state & NPC_BACKWARD));
+    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    guard = npc_find(GUARD);
+    CHECK(guard && guard->behavior == NPC_ROUTE);
+    uint16_t timer = game.remember_timer;
+    uint16_t gold = game.gold;
+    answer = false;
+    CHECK(!actor_move(&game.player, WEST, 1));
+    CHECK(encounter_run());
+    CHECK(story_stub_battles() == 2 && !npc_find(GUARD));
+    CHECK(!game.get_flag(enemy_defeated_flag(GUARD)) && game.gold == gold &&
+          game.remember_timer == timer);
+    game_update(0);
+    CHECK(!npc_find(GUARD) && encounter_run());
+
+    answer = true;
+    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    CHECK(npc_find(GUARD) && !actor_move(&game.player, WEST, 1));
     story_stub_set_result(BATTLE_DEFEAT);
-    game_update(0, BTN_A);
-    CHECK(story_stub_count() == 6 && story_stub_battles() == 2);
-    CHECK(story_stub_event(3).kind == STORY_EVENT_DIALOGUE &&
-          strstr(story_stub_event(3).text, "Nocturne Grove"));
-    CHECK(story_stub_event(4).kind == STORY_EVENT_BATTLE &&
-          story_stub_event(4).encounter == &BATTLE_GROVE);
-    CHECK(story_stub_event(5).kind == STORY_EVENT_DIALOGUE &&
-          strstr(story_stub_event(5).text, "drive you back"));
-    CHECK(game.player.x == x && game.player.y == y && game.party.members[0].hp == hp);
+    CHECK(!encounter_run());
+    CHECK(!game.get_flag(enemy_defeated_flag(GUARD)) && game.gold == gold &&
+          game.remember_timer == timer);
+    CHECK(story_stub_count() == 5 && story_stub_battles() == 3);
+    CHECK(encounter_run() && story_stub_battles() == 3);
+
+    story_stub_set_result(BATTLE_VICTORY);
+    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    CHECK(npc_find(GUARD) && !actor_move(&game.player, WEST, 1));
+    CHECK(encounter_run());
+    CHECK(story_stub_battles() == 4 && story_stub_count() == 8);
+    CHECK(strstr(story_stub_event(7).text, "falls still"));
+    CHECK(game.get_flag(enemy_defeated_flag(GUARD)) && !npc_find(GUARD));
+    CHECK(game.remember_timer == timer);
+
+    enter_enemy_site(positions::GroveWolf, FOOT_WIDTH);
+    CHECK(!npc_find(WOLF));
+    game.set_flag(FLAG_CAVE_GATE);
+    CHECK(save_restore() && game.remember_timer == timer);
+    update_visible_world(0, false);
+    CHECK(!npc_find(WOLF));
+    for(uint16_t i = 1; i < timer; ++i)
+        CHECK(!remember_tick());
+    CHECK(remember_tick() && game.remember_timer == 0);
+    CHECK(save_restore() && remember_tick()); // An event due at save remains due after load.
+    update_visible_world(0, false);
+    remember_reset();
+    CHECK(!remember_tick() && game.get_flag(FLAG_CAVE_GATE));
+    CHECK(!game.get_flag(enemy_defeated_flag(WOLF)) && !game.get_flag(enemy_defeated_flag(SCOUT)));
+    CHECK(game.get_flag(enemy_defeated_flag(GUARD)));
+    game_update(0);
+    CHECK(!npc_find(WOLF)); // A cleared flag cannot cast into the protected camera.
+    enter_enemy_site(positions::GroveWolf, FOOT_WIDTH);
+    CHECK(npc_find(WOLF));
+    game.remember_timer = REMEMBER_DELAY_FRAMES + 1;
+    CHECK(!save_valid());
+    game.remember_timer = 1;
+    CHECK(!save_valid()); // A positive countdown requires a defeated respawnable enemy.
 }
 
 static void saves() {
@@ -537,8 +663,7 @@ int main() {
     dialogue_camera_bounds();
     animate();
     movement();
-    sign();
-    grove_battle();
+    enemy_encounters();
     saves();
     party_statistics();
     party_progression();

@@ -293,7 +293,7 @@ static void unit_definitions() {
 
 static void initial_layout() {
     BattleState s = fresh();
-    CHECK(s.field == BATTLEFIELD_GROVE && BATTLE_GROVE.field == BATTLEFIELD_GROVE);
+    CHECK(s.field == BATTLEFIELD_GROVE && BATTLE_MINE_SCOUTS.field == BATTLEFIELD_GROVE);
     CHECK(s.unit_count == 4);
     CHECK(s.turn == BATTLE_PARTY && !s.ended && s.activations == 0);
 
@@ -2293,7 +2293,7 @@ static void saved_party_battles() {
     game.party.members[1] = {17, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ROWAN, 1, 0};
     Party saved = game.party;
     BattleState state;
-    battle_begin(state, &BATTLE_GROVE);
+    battle_begin(state, &BATTLE_MINE_SCOUTS);
     CHECK(state.unit_count == 4 && state.units[0].hp == 20 && state.units[1].hp == 17);
     CHECK(state.units[0].id == battle_party_id(0) && state.units[1].id == battle_party_id(1));
     CHECK(state.units[2].id == ENEMY_WOLF && state.units[2].hp == ENEMY_INFO[ENEMY_WOLF].max_hp);
@@ -2317,10 +2317,10 @@ static void saved_party_battles() {
     saved.members[0].hp = 11;
     saved.members[1].hp = 0;
     CHECK(!memcmp(&game.party, &saved, sizeof(Party)));
-    battle_begin(state, &BATTLE_GROVE);
+    battle_begin(state, &BATTLE_MINE_SCOUTS);
     CHECK(state.unit_count == 3 && battle_living(state, BATTLE_PARTY) == 1);
     game.party.members[0].hp = 0;
-    battle_begin(state, &BATTLE_GROVE);
+    battle_begin(state, &BATTLE_MINE_SCOUTS);
     CHECK(state.ended && state.result == BATTLE_DEFEAT);
 
     // Every independent class combination reaches the shared rule and AI tables.
@@ -2328,7 +2328,7 @@ static void saved_party_battles() {
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
         for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
             game.party.members[0] = {20, 4, m, a, NPC_NONE, 1, 0};
-            battle_begin(state, &BATTLE_GROVE);
+            battle_begin(state, &BATTLE_MINE_SCOUTS);
             auto const& rules = battle_rules(state.units[0].id);
             CHECK(rules.movement_type == MOVEMENT_INFO[m].movement_type);
             CHECK(rules.move_range == MOVEMENT_INFO[m].move_range);
@@ -2412,7 +2412,7 @@ static void victory_ap_recovery() {
     game.party.members[2] = {17, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ROWAN, 1, 0};
     Party saved = game.party;
     BattleState state;
-    battle_begin(state, &BATTLE_GROVE);
+    battle_begin(state, &BATTLE_MINE_SCOUTS);
     battle_pass(state);
     CHECK(!memcmp(&saved, &game.party, sizeof(Party)));
 

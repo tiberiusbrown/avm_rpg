@@ -17,6 +17,8 @@ void fade_world_out() {}
 
 void fade_world_in() {}
 
+void dialogue_close() {}
+
 static void record(StoryEvent event) {
     if(event_count == STORY_LOG_CAPACITY) {
         fprintf(stderr, "story log full\n");

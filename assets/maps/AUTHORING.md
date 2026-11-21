@@ -79,7 +79,7 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 | `0x35` | 53 | `ROCKS` | no | Two rocks. |
 | `0x36` | 54 | `BOULDER` | no | Round boulder. |
 | `0x37` | 55 | `BOULDER_CRACKED` | no | Split boulder. |
-| `0x41` | 65 | `SIGN` | no | Signpost. The `read_sign` handler belongs on it. |
+| `0x41` | 65 | `SIGN` | no | Signpost. An optional message handler goes on its cell. |
 | `0x42` | 66 | `CHEST_CLOSED` | partly | Closed chest with a lit lid and a lock. Collectible. Blocks its cell without the top corners. |
 | `0x43` | 67 | `CHEST_OPEN` | partly | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 | `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
@@ -855,7 +855,7 @@ Check a cell before you rely on it. A cell with no entry here is solid by defaul
   sentinel, which is not walkable. Paint every cell that should be playable.
 - **Interactive tiles block.** Pots, chests and levers take the shapes above, and
   `SIGN` blocks its whole cell. The player interacts by standing next to one and facing it,
-  so its handler point goes on the tile itself, as `read_sign` does on `SIGN`. The cave and
+  so its handler point goes on the tile itself, including for messages on `SIGN`. The cave and
   the dungeon use levers and chests: see their guides.
 - **Each area has its own tileset.** Collision comes from the tileset of the active area,
   so the masks here apply on maps that use `world.tsx`.
@@ -951,7 +951,7 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - **Rectangles** cover every tile they overlap. They generate `positions::Name_0`,
   `positions::Name_1` and so on, plus a `NameRegion` query.
 - **Handler points** name a native handler in the `handler` property. The handler's
-  tile should show what it does. `read_sign` belongs on a `SIGN` tile, and an
+  tile should show what it does. A sign message belongs on a `SIGN` tile, and an
   interactive or collectible tile takes its handler the same way. A handler point must
   not share a cell with the spawn.
 - **Routes** are polylines on the Routes layer, with `mode` set to `once`, `loop` or

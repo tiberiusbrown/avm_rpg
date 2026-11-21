@@ -40,7 +40,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 18;
+inline constexpr uint8_t SAVE_VERSION = 19;
 
 enum {
     BTN_B = 4,
@@ -261,6 +261,7 @@ struct Game {
     Actor player;
     uint16_t rng, gold, ticks;
     WorldFlags flags;
+    uint16_t remember_timer;
     uint8_t area, level;
     Party party;
     Supplies supplies;

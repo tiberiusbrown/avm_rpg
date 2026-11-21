@@ -1,3 +1,4 @@
+#include "encounter.h"
 #include "chunk.h"
 #include "logic/npc_logic.h"
 #include "quest.h"
@@ -543,6 +544,7 @@ bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
         return false;
     foot_cache.known = false;
     game.area = area;
+    encounter_restore();
     npc_reset();
     game.dimensions = {a->width, a->height};
     game.player = {x, y, facing, 0};

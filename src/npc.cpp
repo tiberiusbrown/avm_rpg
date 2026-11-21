@@ -1,5 +1,6 @@
 #include "npc.h"
 #include "chunk.h"
+#include "encounter.h"
 #include "logic/npc_logic.h"
 
 #include <string.h>
@@ -103,9 +104,20 @@ static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
 // Whether a one-pixel step of n to (x, y) is clear. Known-clear feet need only the tiles the step
 // enters; otherwise the whole footprint is checked.
 static bool step_clear(Npc const& n, uint16_t x, uint16_t y, DIRECTION dir) {
-    if(!(n.policy_pending & 4))
-        return position_clear(&n, x, y);
-    return terrain_step_clear(x, y, dir) && occupancy_clear(&n, x, y);
+    bool terrain = n.policy_pending & 4 ? terrain_step_clear(x, y, dir) : terrain_clear(x, y);
+    if(!terrain)
+        return false;
+    if(npc_is_enemy(n.id) && npc_overlap(x, y, game.player.x, game.player.y)) {
+        for(auto const& other : game.npcs.actors) {
+            if(!other.id)
+                break;
+            if(&other != &n && npc_overlap(x, y, other.actor.x, other.actor.y))
+                return false;
+        }
+        encounter_contact(n.id);
+        return false;
+    }
+    return occupancy_clear(&n, x, y);
 }
 
 static bool foot_cached_at(uint16_t x, uint16_t y) {
@@ -133,6 +145,9 @@ static bool candidate_clear(NPC_ID id, TilePos site) {
     return foot_cached_at(x, y) && (game.npcs.entering || !protected_view(x, y)) &&
            !tile_portal(cached_tile(site)) && position_clear(nullptr, x, y);
 }
+
+// This activation bit lets the normal NPC loop skip pursuit without a flash read.
+static constexpr uint8_t PURSUIT_ENABLED = 8;
 
 static bool cast_npc(NPC_ID id, TilePos home, bool revalidate) {
     auto& pool = game.npcs;
@@ -162,6 +177,10 @@ static bool cast_npc(NPC_ID id, TilePos home, bool revalidate) {
     slot->policy_pending = (npc_location_is_fixed(id) ? 2 : 0) | 4;
     slot->actor = {x, y, def->facing, 0};
     slot->behavior = def->behavior;
+    if(slot->behavior == NPC_CHASE) {
+        slot->behavior = NPC_WANDER;
+        slot->policy_pending |= PURSUIT_ENABLED;
+    }
     slot->route = def->route;
     npc_on_activate(*slot);
     if(slot->behavior == NPC_ROUTE)
@@ -201,9 +220,9 @@ __attribute__((noinline)) static bool escape_step(Npc& n) {
 }
 
 namespace {
-void retire_slot(uint8_t index) {
+void retire_slot(uint8_t index, NPC_RETIRE_REASON reason = NPC_RETIRED_UNLOADED) {
     auto& pool = game.npcs;
-    npc_on_retire(pool.actors[index], NPC_RETIRED_UNLOADED);
+    npc_on_retire(pool.actors[index], reason);
     while(index + 1 < NPC_CAPACITY && pool.actors[index + 1].id) {
         pool.actors[index] = pool.actors[index + 1];
         ++index;
@@ -211,6 +230,12 @@ void retire_slot(uint8_t index) {
     pool.actors[index] = {};
 }
 } // namespace
+
+void npc_retire_enemy(NPC_ID id) {
+    if(npc_is_enemy(id))
+        if(auto* actor = npc_find(id))
+            retire_slot((uint8_t)(actor - game.npcs.actors), NPC_RETIRED_ENCOUNTER);
+}
 
 RPG_NOINLINE void npc_stage_begin() {
 #ifndef RPG_AVM
@@ -222,8 +247,21 @@ RPG_NOINLINE void npc_stage_begin() {
     uint8_t i = 0;
     for(; i < NPC_CAPACITY && current->id;) {
         auto& n = *current;
-        // A one-site policy cannot change with saved state. Its initialized
-        // snapshot is reusable without an indirect resolver call each frame.
+        if(npc_is_enemy(n.id)) {
+            bool shown = protected_view(n.actor.x, n.actor.y);
+            bool pinned = n.behavior == NPC_ROUTE || n.behavior == NPC_TARGET;
+            if(!shown && (npc_location(n.id) != n.assigned_site ||
+                          (!pinned && !foot_cached(n) &&
+                           !foot_cached_at((uint16_t)n.assigned_site.x * TILE,
+                                           (uint16_t)n.assigned_site.y * TILE)))) {
+                retire_slot(i);
+                continue;
+            }
+            ++i;
+            ++current;
+            continue;
+        }
+        // A one-site essential policy can reuse its initialized snapshot.
         if(!(n.policy_pending & 2)) {
             TilePos site = npc_location(n.id);
             if(site != n.assigned_site) {
@@ -325,15 +363,27 @@ void npc_reset() {
     npc_logic_restore();
 }
 
+static uint16_t distance(uint16_t x, uint16_t y, PixelPos target) {
+    return (x > target.x ? x - target.x : target.x - x) +
+           (y > target.y ? y - target.y : target.y - y);
+}
+
+static PixelPos home_pixel(Npc const& n) {
+    return {(uint16_t)n.assigned_site.x * TILE, (uint16_t)n.assigned_site.y * TILE};
+}
+
 static bool leashed(Npc const& n, uint16_t x, uint16_t y) {
-    if(n.behavior != NPC_WANDER)
-        return true;
-    TilePos home = n.assigned_site;
-    auto def = npc_definition(n.id);
-    int16_t dx = (int16_t)x - (int16_t)((uint16_t)home.x * TILE);
-    int16_t dy = (int16_t)y - (int16_t)((uint16_t)home.y * TILE);
-    return dx >= -(int16_t)def->leash_x && dx <= def->leash_x && dy >= -(int16_t)def->leash_y &&
-           dy <= def->leash_y;
+    if(n.behavior == NPC_WANDER) {
+        PixelPos home = home_pixel(n);
+        auto def = npc_definition(n.id);
+        int16_t dx = (int16_t)x - (int16_t)home.x;
+        int16_t dy = (int16_t)y - (int16_t)home.y;
+        return dx >= -(int16_t)def->leash_x && dx <= def->leash_x &&
+               dy >= -(int16_t)def->leash_y && dy <= def->leash_y;
+    }
+    if(n.behavior == NPC_CHASE || n.behavior == NPC_RETURN)
+        return distance(x, y, home_pixel(n)) <= enemy_pursuit(n.id).leash;
+    return true;
 }
 
 static bool step(Npc& n, DIRECTION dir) {
@@ -466,8 +516,11 @@ static bool ahead_within_limits(Npc const& n, DIRECTION dir) {
 // A steering NPC walks straight at its target. Blocked for a brief pause, it detours around the
 // obstacle instead of standing until the target fails.
 __attribute__((noinline)) static bool steer_or_detour(Npc& n, PixelPos target, uint8_t period) {
-    if(detour_left(n))
-        return detour_continue(n);
+    if(detour_left(n)) {
+        if(n.behavior != NPC_CHASE || n.actor.facing == toward_ahead(n, target))
+            return detour_continue(n);
+        n.detour = 0;
+    }
     if(steer(n, target))
         return true;
     if(n.stuck + period < NPC_DETOUR_FRAMES)
@@ -554,6 +607,30 @@ static void waypoint_reached(Npc& n, NpcRoute const PROGMEM* path) {
     }
 }
 
+// Returning home must finish before detection resumes, including when the player
+// waits just beyond the leash.
+static RPG_NOINLINE void update_pursuit(Npc& n, uint8_t pause) {
+    EnemyPursuit rules = enemy_pursuit(n.id);
+    PixelPos home = home_pixel(n);
+    PixelPos player{game.player.x, game.player.y};
+    uint16_t range = distance(n.actor.x, n.actor.y, player);
+    uint16_t from_home = distance(n.actor.x, n.actor.y, home);
+    if(n.behavior == NPC_WANDER && range <= rules.detect &&
+       distance(player.x, player.y, home) <= rules.leash) {
+        n.behavior = NPC_CHASE;
+        n.timer = n.stuck = n.detour = 0;
+        n.state = NPC_STATE_NONE;
+    }
+    if(n.behavior == NPC_CHASE && (range > rules.disengage || from_home >= rules.leash)) {
+        n.behavior = NPC_RETURN;
+        n.stuck = n.detour = 0;
+    }
+    if(n.behavior == NPC_RETURN && !from_home) {
+        n.behavior = NPC_WANDER;
+        n.timer = pause;
+    }
+}
+
 void npc_update() {
     // Called once after the complete effective cache, never from a chunk handler.
     for(auto& n : game.npcs.actors) {
@@ -592,6 +669,8 @@ void npc_update() {
                 continue;
             }
         }
+        if((n.policy_pending & PURSUIT_ENABLED) && step_frame)
+            update_pursuit(n, def->pause);
         if(n.state & NPC_YIELDING) {
             if(!step_frame)
                 continue;
@@ -632,7 +711,8 @@ void npc_update() {
                 n.timer = def->pause;
                 n.stuck = 0;
             }
-        } else if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE || n.behavior == NPC_TRAVEL) {
+        } else if(n.behavior == NPC_TARGET || n.behavior == NPC_ROUTE || n.behavior == NPC_TRAVEL ||
+                  n.behavior == NPC_CHASE || n.behavior == NPC_RETURN) {
             PixelPos target;
             auto path = n.behavior == NPC_ROUTE ? npc_route(n.route) : nullptr;
             if(n.behavior == NPC_ROUTE) {
@@ -652,9 +732,10 @@ void npc_update() {
                 }
                 target = {(uint16_t)((uint16_t)path->points[n.waypoint].x * TILE),
                           (uint16_t)((uint16_t)path->points[n.waypoint].y * TILE)};
-            } else if(n.behavior == NPC_TRAVEL) {
-                TilePos home = n.assigned_site;
-                target = {(uint16_t)home.x * TILE, (uint16_t)home.y * TILE};
+            } else if(n.behavior == NPC_TRAVEL || n.behavior == NPC_RETURN) {
+                target = home_pixel(n);
+            } else if(n.behavior == NPC_CHASE) {
+                target = {game.player.x, game.player.y};
             } else {
                 target = n.target;
             }
@@ -674,7 +755,7 @@ void npc_update() {
                 n.detour = 0;
                 if(path)
                     n.timer = def->pause; // Bounded wait, retry this authored segment.
-                else if(n.behavior != NPC_TRAVEL) {
+                else if(n.behavior == NPC_TARGET) {
                     n.behavior = NPC_STAND;
                     n.state |= NPC_TARGET_FAILED;
                     npc_on_event(n, NPC_EVENT_TARGET_FAILED);
@@ -782,12 +863,20 @@ __attribute__((noinline)) static bool plan_yield(Npc& n, uint16_t px, uint16_t p
     return false;
 }
 
-bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir) {
+bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir, bool actual_step) {
     bool clear = true;
     for(auto& n : game.npcs.actors) {
         if(!n.id)
             break;
-        if((n.state & NPC_PASS_PLAYER) || !npc_overlap(x, y, n.actor.x, n.actor.y))
+        if(!npc_overlap(x, y, n.actor.x, n.actor.y))
+            continue;
+        if(npc_is_enemy(n.id)) {
+            if(actual_step)
+                encounter_contact(n.id);
+            clear = false;
+            continue;
+        }
+        if(n.state & NPC_PASS_PLAYER)
             continue;
         if(!(n.state & NPC_PUSHED)) {
             n.state |= NPC_PUSHED;

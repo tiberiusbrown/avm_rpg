@@ -10,6 +10,8 @@ void fade_world_out() {}
 
 void fade_world_in() {}
 
+void dialogue_close() {}
+
 void party_joined(NPC_ID) {}
 
 // The probes make no sound.

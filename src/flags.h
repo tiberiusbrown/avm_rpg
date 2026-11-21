@@ -2,6 +2,7 @@
 #define FLAGS_H
 
 #include "equipment_ids.h"
+#include "npc_ids.h"
 
 // Stable bit indices, not masks. Append new flags before FLAG_COUNT.
 // The cave and dungeon flags record a mechanism's state: set means that its lever is thrown, its
@@ -24,10 +25,11 @@ enum FLAG : uint16_t {
     // without the start bit.
     FLAG_QUEST_FIND_IONA_STARTED,
     FLAG_QUEST_FIND_IONA_DONE,
-    // Append future unrelated flags after the item ownership range.
+    // Expanding either saved range may require a save version bump.
     FLAG_ITEM_FIRST,
     FLAG_ITEM_END = FLAG_ITEM_FIRST + ITEM_DEFINED_COUNT,
-    FLAG_COUNT = FLAG_ITEM_END
+    FLAG_ENEMY_FIRST = FLAG_ITEM_END,
+    FLAG_COUNT = FLAG_ENEMY_FIRST + ENEMY_SPAWN_COUNT
 };
 
 static_assert(FLAG_ITEM_END - FLAG_ITEM_FIRST == ITEM_DEFINED_COUNT);

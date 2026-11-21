@@ -755,17 +755,16 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         avm_display(false);
         input_wait_press(BTN_A);
     }
-    music_play_area();
+    BATTLE_RESULT result = state.result;
     // Dialogue still open from the battle closes over the board, before the world takes its place.
     dialogue_close();
     fade_to_black();
     battle_running = false;
-    // Exploration reclaims the workspace while the screen is black, then the world fades back in.
-    world_reclaim_workspace();
-    fade_world_in();
+    if(result == BATTLE_VICTORY)
+        music_play_area();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
     input_sync();
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
     RPG_QA_MARK(battle_qa_state = nullptr);
-    return state.result;
+    return result;
 }

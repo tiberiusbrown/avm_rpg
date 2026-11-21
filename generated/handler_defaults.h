@@ -26,8 +26,6 @@ EmptyHandler open_shop(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler press_plate(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-EmptyHandler read_sign(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
 EmptyHandler rest_at_inn(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler show_message(Tag<POS, STAGE>) { return {}; }
@@ -96,14 +94,6 @@ constexpr bool implemented_press_plate() {
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_press_plate() {
     press_plate(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_read_sign() {
-    return authored_handler<decltype(read_sign(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_read_sign() {
-    read_sign(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_rest_at_inn() {
@@ -184,9 +174,6 @@ struct Handler {
     }
     void press_plate() {
         handler_impl::dispatch_press_plate<POS, STAGE>();
-    }
-    void read_sign() {
-        handler_impl::dispatch_read_sign<POS, STAGE>();
     }
     void rest_at_inn() {
         handler_impl::dispatch_rest_at_inn<POS, STAGE>();

@@ -1,10 +1,8 @@
 # Venlor
 
 C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
-alpha-masked characters. D-pad moves, A reads the sign immediately north of the
-starting position and then starts a test battle, enters a house when the player faces
-its door, and B opens the pause menu. Two sample villagers show
-standing and wandering characters using different rows of the actor atlas.
+alpha-masked characters. Use the D-pad to move, A to interact, and B to open the pause menu.
+Walking into a hostile creature or blocking its step starts a battle.
 
 Teleports, including entering and leaving buildings, use the same 320 ms dither fade through
 black as battles. The destination's camera, tile cache and actors are prepared while the screen
@@ -143,9 +141,6 @@ Audio settings take effect immediately and are stored alongside progress when **
 selected. Startup initializes defaults (both stream gains 128, shown as 100%), then loads valid
 saved settings. Starting or continuing from the title and later Load actions preserve the current settings;
 only the Audio menu changes them during play.
-
-The sign's battle is a synchronous prototype. Its controls and rules are described in
-[Battle prototype](#battle-prototype) below.
 
 The build automatically discovers every `assets/music/*.avms` score and adds it
 to the soundtrack. It uses `avm_music.py` through `tools/compile_music.py` to emit
@@ -337,11 +332,10 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 18.** Version 18 writes the live,
-pointer-free `Game` struct directly from AVM's `.saved` prefix, with no separate
-save buffer or checksum. It adds three equipment bytes per member and one byte for the
-expanded world flags. Validation checks slot categories, ownership, unique wearers, unused
-world-flag bits and equipment-adjusted HP/AP. Supply quantities are validated against the limit of 15.
+**This development build rejects saves older than version 19.** The live, pointer-free
+`Game` struct is saved directly from AVM's `.saved` prefix. Version 19 adds the shared
+two-byte respawn countdown and defeated-enemy bits. Validation checks the countdown,
+unused flag bits, equipment ownership, slot categories, unique wearers and adjusted HP/AP. Supply quantities are validated against the limit of 15.
 Each member stores both perk ranks in a single byte, with three bits
 per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down
 minus the two ranks. Save validation checks the implemented rank limit and the number of choices
@@ -378,7 +372,7 @@ reports are verified by the full-LTO guest link.
   `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
   chests), each with a mechanism kind that decides how it is worked and how it sounds, messages
   that only show words, and passages between areas. `area_village.h` has the
-  Grove sign and the houses, `area_cave.h` and `area_dungeon.h` have the mechanism, message and
+  outdoor messages and the houses, `area_cave.h` and `area_dungeon.h` have the mechanism, message and
   passage tables of their own areas and their own handlers.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, the Grove battlefield,
   encounter and unit types, and the one legal-action enumeration that the UI and the AI share.
@@ -405,13 +399,28 @@ reports are verified by the full-LTO guest link.
   device-QA frame markers. Device tests and QA scripts read these; the root packages
   carry no markers.
 
-## Battle prototype
+## Overworld encounters
 
-Reading the Nocturne Grove sign shows its welcome line, runs `battle_show()` on the
-Grove encounter, and then shows an outcome line. The battle blocks in the same way as
-dialogue, so story code can alternate dialogue and battles in ordinary sequence. Its
-8x4 battlefield is a PROGMEM tile array in the world tileset. It is separate from the
-overworld cache and from the current area.
+The Grove Wolf wanders in the woods north of town. The Mine Scout pursues the party at player
+speed in Hollow Mine. The Old Vault's guardian follows a patrol and challenges the party on
+contact. Victory pays the normal battle rewards and removes the defeated creature before
+exploration reappears.
+
+A victory over a respawnable enemy starts or restarts a shared five-minute exploration
+countdown. Menus, dialogue, battle and cutscenes pause it. When it expires, **The World
+Remembers** shows the magical impressions of defeated creatures returning. Permanent enemies
+stay defeated. Remembered creatures become eligible for ordinary offscreen admission. Both
+the countdown and defeat flags are saved. See the authoring examples in the
+[NPC architecture guide](docs/essential_npcs.md#enemy-encounters).
+
+Defeat and confirmed Resign show **Game Over**, then return to the title after acknowledgment.
+Press A again to load your last valid save or start a new game. The game saves only when you
+choose Save.
+
+## Battle
+
+Battles use an 8×4 battlefield distinct from the overworld. Both parties deploy into cells
+defined by the encounter.
 
 - Entering and leaving battle fades through black with a fixed 4x4 ordered dither. Each half
   takes eight frames at 50 Hz (160 ms), with the world and battle state paused. The cursor appears
@@ -502,7 +511,7 @@ overworld cache and from the current area.
   only that box and pushes the display without clearing it.
 - At the result overlay, final ally HP is copied back into the saved party, including move/pass
   costs and defeated members at zero HP. MHP, classes and membership are preserved. Resigning
-  preserves the party's remaining battle HP. A press of A confirms VICTORY or DEFEAT. Battles
+  ends the live run with its remaining battle HP. A press of A confirms VICTORY or DEFEAT. Battles
   provide no automatic healing; entering with no living party members immediately results in defeat.
   A victory also restores 1 AP to every saved member, including one that fell, up to its maximum. A
   defeat restores none. During a battle, AP changes only when a special is used, which spends it at

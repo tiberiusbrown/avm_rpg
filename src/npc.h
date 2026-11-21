@@ -12,7 +12,7 @@ enum NPC_EVENT : uint8_t {
 };
 
 // Recruitment removes a map actor immediately; scene exit retires the remaining actors.
-enum NPC_RETIRE_REASON : uint8_t { NPC_RETIRED_RESET, NPC_RETIRED_PARTY, NPC_RETIRED_UNLOADED };
+enum NPC_RETIRE_REASON : uint8_t { NPC_RETIRED_RESET, NPC_RETIRED_PARTY, NPC_RETIRED_UNLOADED, NPC_RETIRED_ENCOUNTER };
 
 struct NpcDefinition {
     NPC_BEHAVIOR behavior;
@@ -66,6 +66,7 @@ inline void npc_offer_candidate(NPC_ID id, TilePos site) {
 
 // Called after adding a party member. Retires its map actor, preserving the occupied prefix.
 void npc_recruit(NPC_ID id);
+void npc_retire_enemy(NPC_ID id);
 bool npc_visible(uint16_t x, uint16_t y);
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t other_x, uint16_t other_y);
 void npc_reset();
@@ -73,7 +74,7 @@ void npc_begin_frame();
 void npc_update();
 void npc_interact();
 void npc_player_begin(DIRECTION dir);
-bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir);
+bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir, bool actual_step = true);
 bool npc_move_to(NPC_ID id, uint16_t x, uint16_t y);
 
 template <TilePos POS> bool npc_move_to(NPC_ID id) {

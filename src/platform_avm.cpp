@@ -193,4 +193,6 @@ extern "C" void loop() {
     music_play_area();
 
     explore();
+    sfx_waiting = 0;
+    avm_audio_stop_sfx();
 }

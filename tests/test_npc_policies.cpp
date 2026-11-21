@@ -10,9 +10,6 @@
             std::exit(1);                                                                          \
         }                                                                                          \
     } while(0)
-static_assert(handler_impl::implemented_read_sign<positions::GroveSign, STAGE_DIALOGUE>());
-static_assert(!handler_impl::implemented_read_sign<positions::GroveSign, STAGE_TILES>());
-static_assert(!handler_impl::implemented_read_sign<positions::GroveSign, STAGE_NPCS>());
 static bool first, second;
 using Policy = AtOneOf<positions::VillagerHome, When<positions::VillagerEast, [] { return first; }>,
                        When<positions::VillagerWest, [] { return second; }>>;

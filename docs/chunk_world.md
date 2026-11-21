@@ -81,17 +81,17 @@ viewport touches at most nine chunks. Teleports stop outgoing gameplay/dialogue,
 clear the NPC pool and rebuild destination tiles and the full NPC stage; destination gameplay begins
 on the next update. Save/load uses the same cache-based terrain repair.
 
-## Content reset and save boundary
+## Encounter and save boundary
 
-The former gate/bridge/platform, interior, corridor, courier and relocation quests
-are removed. The sample has one clearing, one sign dialogue that starts a battle, and three
-NPC anchors for Iona, Silas and Rowan. The battle runs in the Dialogue stage like dialogue, and it uses its own
-PROGMEM battlefield rather than the chunk cache.
-The generic flags, staged handlers, movement, route and save mechanisms remain.
-Quest flags include Iona's moved/east state, used to derive her current logical site.
+Enemy catalog sites join essential NPC policy sites in the compile-time NPC stage. Active
+actors and the player's movement can report hostile contact. Exploration handles the lowest
+contacting identity after the full world update returns. The battle screen gives back the
+result while the display is black. Victory records defeat and retires the actor before
+the world cache is rebuilt and faded in. Defeat ends exploration and returns through the
+outer loop to the title.
 
-SAVE_VERSION is 13. Older records are deliberately rejected. The live pointer-free
-`Game` occupies `.saved`, with no duplicate serialization buffer or checksum. The tile window
+Save version 19 stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
+flags and a 16-bit countdown. Older records are rejected. The tile window
 and camera are not saved: they live in the runtime workspace (`src/runtime_workspace.h`) and
 are rebuilt from the world and flags. Loads validate version, stats, party, flags and bounds
 before placing the player. Ticks, active slots, assigned-site snapshots and candidate scratch

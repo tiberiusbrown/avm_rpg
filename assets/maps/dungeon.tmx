@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="44" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="16">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="44" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="18">
   <properties>
     <property name="area_id" type="int" value="4" />
     <property name="symbol" type="string" value="DUNGEON" />
@@ -125,6 +125,17 @@
         <property name="handler" value="open_chest" />
       </properties>
       <point />
+    </object>
+    <object id="16" name="VaultGuard" x="360" y="264">
+      <point/>
+    </object>
+  </objectgroup>
+  <objectgroup id="4" name="Routes">
+    <object id="17" name="VaultPatrol" x="360" y="264">
+      <properties>
+        <property name="mode" value="reverse"/>
+      </properties>
+      <polyline points="0,0 48,0"/>
     </object>
   </objectgroup>
 </map>

@@ -11,11 +11,12 @@ volatile uint16_t probe_checks, probe_failure;
 // LLDB enables the exhaustive geometry matrix before setup in full verification.
 volatile bool probe_exhaustive;
 volatile uint32_t probe_collision_hash;
-static unsigned dialogues;
 
 void fade_world_out() {}
 
 void fade_world_in() {}
+
+void dialogue_close() {}
 
 void party_joined(NPC_ID) {}
 
@@ -25,7 +26,6 @@ void sfx_play(SFX, SFX) {}
 void sfx_ambient(SFX) {}
 
 bool dialogue_show(char const PROGMEM*) {
-    ++dialogues;
     return true;
 }
 
@@ -122,9 +122,6 @@ RPG_NOINLINE static void run_edge_probe() {
 extern "C" void setup() {
     run_world_scenarios();
     game_new();
-    game_update(0, BTN_A);
-    // The sign shows its welcome, runs a battle (stubbed here), and then shows the outcome line.
-    CHECK(dialogues == 2 && !frame_pressed);
     game.gold = 19;
     CHECK(save_restore() && game.gold == 19 && game.player.x == positions::PlayerStart.x * TILE);
     game.save_version = 3;

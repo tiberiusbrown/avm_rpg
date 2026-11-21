@@ -76,7 +76,8 @@ def main():
         command = [args.device.resolve(), build / f"artifacts/rpg_qa{suffix}.arduboy",
                    firmware[variant] / "interp.lst",
                    *[refs[name]["address"] for name in
-                     ("game", "frame_marker", "frame_serial", "dialogue_prompt", "world_phase")],
+                     ("game", "frame_marker", "frame_serial", "dialogue_prompt", "world_phase",
+                      "battle_qa_state", "battle_qa_ready", "runtime_workspace")],
                    out, seconds, variant]
         result = subprocess.run([str(item) for item in command], stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, timeout=600)

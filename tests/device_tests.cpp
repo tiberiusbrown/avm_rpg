@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 static bool check_timing = true;
 static uint64_t worst_exploration_cycles;
 
-static_assert(sizeof(Game) == 21 + sizeof(Party) + sizeof(Supplies) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
+static_assert(sizeof(Game) == 23 + sizeof(Party) + sizeof(Supplies) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
               "update QA reader if the guest state layout changes");
 
 static void require(bool ok, char const* message) {
@@ -55,18 +55,6 @@ static unsigned workspace_address_arg;
 struct Snapshot : Game {
     ExplorationWorkspace view;
 };
-
-// Whether two snapshots hold the same simulation. Cached collision answers are derived state: a battle
-// exit invalidates the NPCs' known-clear feet and marks their terrain dirty, which advances nothing.
-static bool same_simulation(Snapshot const& a, Snapshot const& b) {
-    Snapshot x = a, y = b;
-    for(auto* g : {&x, &y}) {
-        for(auto& n : g->npcs.actors)
-            n.policy_pending &= (uint8_t)~4;
-        g->npcs.terrain_dirty = 0;
-    }
-    return !memcmp(&x, &y, sizeof(Game));
-}
 
 struct FrameTrace {
     static inline unsigned next_instance;
@@ -1161,6 +1149,8 @@ static void verify_perk_choice(Device& d, fs::path const& out) {
     d.advance(0, 8000000);
 }
 
+static void start_grove_contact(Device& d);
+
 static void verify_party_recruitment(Device& d, fs::path const& out) {
     Game original = d.state();
     require(original.party.count == 1, "new game did not start with one party member");
@@ -1268,16 +1258,11 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     combat.player = {(uint16_t)(positions::PlayerStart.x * TILE),
                      (uint16_t)(positions::PlayerStart.y * TILE), NORTH, 0};
     d.set_state(combat);
-    d.frame();
-    d.tap(BTN_A);
-    d.wait_for_prompt();
-    d.tap(BTN_A);
-    d.wait_for_battle();
+    start_grove_contact(d);
     auto deployed = d.battle_state();
-    require(deployed.unit_count == 4 && deployed.units[0].id == battle_party_id(0) &&
+    require(deployed.unit_count == 3 && deployed.units[0].id == battle_party_id(0) &&
                 deployed.units[1].id == battle_party_id(1) && deployed.units[0].hp == 20 &&
-                deployed.units[1].hp == 17 && deployed.units[2].id == ENEMY_WOLF &&
-                deployed.units[3].id == ENEMY_BRUTE,
+                deployed.units[1].hp == 17 && deployed.units[2].id == ENEMY_WOLF,
             "real battle did not deploy the recruited party with its saved HP");
     d.advance(0, 1600000);
     d.capture(out / "battle-saved-party.pgm");
@@ -1320,8 +1305,7 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
             "battle result did not persist HP and AP while preserving member classes");
     d.tap(BTN_A);
     d.advance(0, 4000000);
-    d.wait_for_prompt();
-    d.tap(BTN_A);
+    d.tap(BTN_A); // Enter the next run from the title.
     d.frame();
     d.set_state(original);
     d.frame();
@@ -1468,10 +1452,43 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
             "battle menu advanced exploration or changed saved options");
 }
 
+static void verify_game_over_title(Device& d, fs::path const& out, unsigned serial,
+                                   std::vector<uint8_t> const& save) {
+    d.advance(0, 1600000);
+    require(d.battle_address() != 0 && d.prompt() == DIALOGUE_CLOSED,
+            "the battle-ending input also dismissed the defeat screen");
+    d.advance(BTN_A, 4000000);
+    require(d.battle_address() == 0 && d.prompt() == DIALOGUE_CLOSED,
+            "Game Over did not close the battle and dialogue");
+    d.advance(BTN_A, 4000000);
+    require(d.serial() == serial, "defeat acknowledgment also dismissed the title");
+    d.capture(out / "battle-resigned-title.pgm");
+    d.advance(0, 1600000);
+    d.tap(BTN_A);
+    d.frame();
+    require(d.serial() != serial, "title did not resume after a fresh A press");
+    require(d.sector() == save, "Game Over changed the stored save");
+    Game next = d.state();
+    if((save[0] | (uint16_t)save[1] << 8) == sizeof(Game) && save[2] == SAVE_VERSION) {
+        Game expected_save;
+        memcpy(&expected_save, save.data() + 2, sizeof(Game));
+        require(next.gold == expected_save.gold && next.player.x == expected_save.player.x &&
+                    next.player.y == expected_save.player.y &&
+                    !memcmp(&next.party, &expected_save.party, sizeof(Party)),
+                "title did not load the saved party and location after Game Over");
+    } else {
+        require(next.player.x == positions::PlayerStart.x * TILE &&
+                    next.player.y == positions::PlayerStart.y * TILE &&
+                    next.party.count == 1 && next.party.members[0].hp == 20,
+                "title did not start a fresh party after Game Over");
+    }
+}
+
 static void verify_battle_resign(Device& d, fs::path const& out) {
     d.advance(0, 6400000);
     BattleState expected = d.battle_state();
     Game world = d.state();
+    auto save = d.sector();
     unsigned serial = d.serial();
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1489,21 +1506,7 @@ static void verify_battle_resign(Device& d, fs::path const& out) {
     require(d.serial() == serial && !memcmp(&world, &paused, sizeof(world)),
             "Resign advanced exploration before dismissing the result");
     d.capture(out / "battle-resigned.pgm");
-    d.advance(0, 1600000);
-    require(d.battle_address() != 0 && d.prompt() == DIALOGUE_CLOSED,
-            "accepting Resign also dismissed its defeat screen");
-    {
-        FadeTrace trace(d);
-        d.tap(BTN_A);
-        d.advance(0, 4000000);
-        trace.verify("battle_exit");
-    }
-    require(d.battle_address() == 0 && d.prompt() == DIALOGUE_TYPING,
-            "Resign did not return normally to the story's defeat outcome");
-    d.wait_for_prompt();
-    d.capture(out / "battle-resigned-dialogue.pgm");
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CLOSED, "Resign outcome did not return to exploration");
+    verify_game_over_title(d, out, serial, save);
 }
 
 static void verify_house_fades(Device& d) {
@@ -1597,9 +1600,37 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
     }
 }
 
-// Plays the sign's battle from its first board through the victory overlay, then closes the
-// outcome line. The battle starts after the welcome line closes, so the caller resumes with
-// exploration.
+constexpr NPC_ID GROVE_WOLF = (NPC_ID)NPC_ENEMY_FIRST;
+constexpr FLAG GROVE_WOLF_DEFEATED = FLAG_ENEMY_FIRST;
+
+static void place_grove_contact(Device& d) {
+    Game world = d.state();
+    require(world.area == positions::GroveWolf.area, "Grove contact fixture is in the wrong area");
+    world.flags.clear_flag(GROVE_WOLF_DEFEATED);
+    world.remember_timer = 0;
+    world.player = {(uint16_t)(positions::GroveWolf.x * TILE + FOOT_WIDTH + 2),
+                    (uint16_t)(positions::GroveWolf.y * TILE), WEST, 0};
+    world.npcs.entering = 1;
+    d.set_state(world);
+    d.frame();
+    auto ready = d.state();
+    auto* wolf = std::find_if(ready.npcs.actors, ready.npcs.actors + NPC_CAPACITY,
+                              [](Npc const& npc) { return npc.id == GROVE_WOLF; });
+    require(wolf != ready.npcs.actors + NPC_CAPACITY, "Grove Wolf did not spawn via its chunk");
+    // Keep a stable contact edge while the frame and fade observers attach.
+    wolf->state = NPC_STATE_NONE;
+    wolf->timer = 30;
+    ready.player.x = wolf->actor.x + FOOT_WIDTH;
+    ready.player.y = wolf->actor.y;
+    d.set_state(ready);
+}
+
+static void start_grove_contact(Device& d) {
+    place_grove_contact(d);
+    d.tap(BTN_LEFT);
+    d.wait_for_battle();
+}
+
 static void play_grove_battle(Device& d, bool verify_transition = false,
                               fs::path const* level_up_capture = nullptr,
                               fs::path const* ordinary_capture = nullptr) {
@@ -1609,7 +1640,6 @@ static void play_grove_battle(Device& d, bool verify_transition = false,
         near_level.party.members[0].experience = 8;
         d.set_state(near_level);
     }
-    // A caller may have just closed the welcome; let the entry transition finish before acting.
     d.wait_for_battle();
     BattleState fixture;
     battle_fixture_begin(fixture, &BATTLE_TEST_GROVE);
@@ -1657,17 +1687,40 @@ static void play_grove_battle(Device& d, bool verify_transition = false,
         d.tap(BTN_A);
         d.advance(0, 4000000);
         trace.verify("battle_exit");
-        auto paused = d.state();
-        require(same_simulation(frozen, paused), "battle exit advanced world simulation");
+        auto resumed = d.state();
+        require(resumed.player.x == frozen.player.x && resumed.player.y == frozen.player.y &&
+                    resumed.area == frozen.area, "battle exit moved the player");
     } else {
         d.tap(BTN_A);
         d.advance(0, 4000000);
     }
-    require(d.prompt() == DIALOGUE_TYPING && d.state().gold == gold_after,
-            "Grove battle did not return to its outcome line with the credited gold");
-    d.wait_for_prompt();
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CLOSED, "grove outcome line did not close");
+    Game resumed = d.state();
+    require(d.prompt() == DIALOGUE_CLOSED && resumed.gold == gold_after &&
+                resumed.flags.get_flag(GROVE_WOLF_DEFEATED) && resumed.remember_timer > 0,
+            "Grove Wolf victory did not persist before returning to exploration");
+    for(auto const& npc : resumed.npcs.actors)
+        require(npc.id != GROVE_WOLF, "defeated Grove Wolf remained active");
+}
+
+static void verify_remembers(Device& d, fs::path const& out) {
+    Game world = d.state();
+    world.remember_timer = 1;
+    world.flags.set_flag((FLAG)(FLAG_ENEMY_FIRST + 2));
+    d.set_state(world);
+    d.advance(0, 30000000);
+    unsigned serial = d.serial();
+    require(d.state().flags.get_flag(GROVE_WOLF_DEFEATED), "respawn cleared before the cutscene");
+    d.advance(0, 8000000);
+    require(d.serial() == serial, "The World Remembers advanced exploration");
+    d.capture(out / "world-remembers.pgm");
+    d.advance(0, 25000000);
+    Game resumed = d.state();
+    require(d.serial() != serial && !resumed.remember_timer &&
+                !resumed.flags.get_flag(GROVE_WOLF_DEFEATED) &&
+                resumed.flags.get_flag((FLAG)(FLAG_ENEMY_FIRST + 2)),
+            "The World Remembers did not selectively clear defeat flags");
+    for(auto const& npc : resumed.npcs.actors)
+        require(npc.id != GROVE_WOLF, "Grove Wolf respawned in view");
 }
 
 #ifndef RPG_DEVICE_TEST_LIBRARY
@@ -1940,12 +1993,11 @@ static void press_with_music_fade(Device& d) {
         }
         require(ram[0xa17] == 255 && ram[0xa72] == 128, "music fade changed master or SFX gain");
     };
-    d.tap(BTN_A);
-    // A battle entry also has a 320 ms visual transition; wait for its input loop while the
-    // longer music fade is still running, so the right/left pair reaches the same screen.
-    d.advance(0, 4000000);
-    require(d.ab->core_state.cpu.data[0xa73] != 0,
-            "fade did not return while the song was still fading");
+    d.advance(BTN_LEFT, 800000);
+    // Let the battle entry finish while the longer audio fade is still running.
+    d.advance(0, 4600000);
+    require(d.battle_address() && d.ab->core_state.cpu.data[0xa73],
+            "battle did not accept contact while music was fading");
     auto display = d.ab->peripherals.display.ram;
     d.tap(BTN_RIGHT);
     require(d.ab->peripherals.display.ram != display,
@@ -2339,6 +2391,13 @@ int main(int argc, char** argv) try {
         d.capture(out / "proof-visible.pgm");
         return 0;
     }
+    if(std::string(argv[6]) == "idle-long") {
+        d.advance(0, 3200000);
+        d.tap(BTN_A);
+        summary("idle_long", d, 550);
+        return 0;
+    }
+
     if(std::string(argv[6]) == "smoke") {
         verify_smoke(d, package, out);
         return 0;
@@ -2349,9 +2408,7 @@ int main(int argc, char** argv) try {
         d.tap(BTN_A);
         d.advance(0, 3200000);
         verify_shop(d, out);
-        d.tap(BTN_A);
-        d.wait_for_prompt();
-        d.tap(BTN_A);
+        start_grove_contact(d);
         auto victory_capture = out / "shop-grove-victory.pgm";
         play_grove_battle(d, true, nullptr, &victory_capture);
 
@@ -2414,6 +2471,62 @@ int main(int argc, char** argv) try {
         verify_journal_timing(d, out);
         return 0;
     }
+    if(std::string(argv[6]) == "enemy-chase") {
+        Game world = d.state();
+        world.player = {(uint16_t)(positions::CaveMouth.x * TILE),
+                        (uint16_t)((positions::CaveMouth.y + 1) * TILE), NORTH, 0};
+        d.set_state(world);
+        d.advance(0, 1600000);
+        walk_to_area(d, BTN_UP, AREA_CAVE, "chase fixture could not enter Hollow Mine");
+
+        world = d.state();
+        world.npcs.entering = 1;
+        world.player = {(uint16_t)(positions::MineScout.x * TILE + 40),
+                        (uint16_t)(positions::MineScout.y * TILE), WEST, 0};
+        d.set_state(world);
+        d.frame();
+
+        auto scout = [&] {
+            Game current = d.state();
+            for(auto const& npc : current.npcs.actors)
+                if(npc.id == (NPC_ID)(NPC_ENEMY_FIRST + 1))
+                    return npc;
+            require(false, "Mine Scout did not spawn via its chunk");
+            return Npc{};
+        };
+        Npc before = scout();
+        require(before.behavior == NPC_CHASE, "Mine Scout did not detect the player");
+        summary("hollow_mine_chase", d, 20);
+        Npc after = scout();
+        require(after.actor.x == before.actor.x + 20 && after.actor.y == before.actor.y,
+                "Mine Scout did not move one pixel per frame");
+        d.wait_for_battle();
+        require(d.battle_state().unit_count == d.state().party.count + 2,
+                "Scout contact did not start the mixed encounter");
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Mine Scout pursuit and contact\"}\n";
+        return 0;
+    }
+    if(std::string(argv[6]) == "game-over") {
+        Game injured = d.state();
+        injured.party.members[0].hp = 1;
+        d.set_state(injured);
+        start_grove_contact(d);
+        unsigned serial = d.serial();
+        auto save = d.sector();
+        d.tap(BTN_B);
+        d.advance(0, 1600000);
+        d.tap(BTN_UP); // Pass and lose the last HP.
+        d.tap(BTN_A);
+        d.advance(0, 4800000);
+        d.advance(BTN_A, 8000000);
+        d.wait_for_battle(0);
+        auto state = d.battle_state();
+        require(state.ended && state.result == BATTLE_DEFEAT && !d.state().party.members[0].hp,
+                "losing the last HP did not produce defeat");
+        verify_game_over_title(d, out, serial, save);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Game Over without a save\"}\n";
+        return 0;
+    }
     if(std::string(argv[6]) == "battle") {
         // Also check that the battle menu hides Load when a physical save is available.
         d.tap(BTN_B);
@@ -2422,9 +2535,7 @@ int main(int argc, char** argv) try {
         d.tap(BTN_A);
         d.tap(BTN_B);
         d.frame();
-        d.tap(BTN_A);
-        d.wait_for_prompt();
-        d.tap(BTN_A);
+        start_grove_contact(d);
         verify_battle_menu(d, out);
         verify_battle_resign(d, out);
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"battle pause, Audio, team passes and "
@@ -2451,38 +2562,17 @@ int main(int argc, char** argv) try {
     summary("idle_grove", d, 30);
     d.capture(out / "grove.pgm");
 
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_TYPING, "facing sign plus A did not open dialogue");
-    auto frozen = d.state();
-    unsigned dialogue_serial = d.serial();
-    d.advance(0, 3200000);
-    auto paused = d.state();
-    require(dialogue_serial == d.serial() && !memcmp(&frozen, &paused, sizeof(Game)),
-            "sign dialogue did not freeze simulation");
-    d.verify_music();
-    require(d.prompt() == DIALOGUE_TYPING, "sign dialogue finished without animating letters");
-    d.capture(out / "sign-dialogue-typing.pgm");
-    d.wait_for_typing();
-    require(d.prompt() == DIALOGUE_DONE, "sign dialogue did not reach its final prompt");
-    // A pressed inside the advance guard is ignored; a later fresh press closes the dialogue.
-    d.advance(BTN_A, 800000);
-    d.advance(0, 1600000);
-    require(d.prompt() == DIALOGUE_DONE, "advance guard did not ignore an early A press");
-    d.capture(out / "sign-dialogue.pgm");
-    d.advance(0, 8000000);
+    auto before_wolf = d.state();
+    place_grove_contact(d);
     {
         FadeTrace trace(d);
-        auto frozen = d.state();
         press_with_music_fade(d);
         trace.verify("battle_entry");
-        auto paused = d.state();
-        require(!memcmp(&frozen, &paused, sizeof(Game)), "battle entry advanced world simulation");
     }
-    // Closing the welcome starts the Grove battle, which returns only after its outcome line.
     {
         Game current = d.state();
         BattleState deployed = d.battle_state();
-        require(deployed.unit_count == current.party.count + 2,
+        require(deployed.unit_count == current.party.count + 1,
                 "encounter did not deploy the saved party plus its enemies");
         for(uint8_t i = 0; i < current.party.count; ++i)
             require(deployed.units[i].id == battle_party_id(i) &&
@@ -2493,11 +2583,14 @@ int main(int argc, char** argv) try {
     verify_battle_menu(d, out);
     auto level_up_capture = out / "victory-level-up.pgm";
     play_grove_battle(d, true, &level_up_capture);
-    require(d.prompt() == DIALOGUE_CLOSED, "sign dialogue did not return to exploration");
-    d.tap(BTN_A);
-    d.wait_for_prompt();
-    d.tap(BTN_A);
+    verify_remembers(d, out);
+    Game before_resign = d.state();
+    start_grove_contact(d);
     verify_battle_resign(d, out);
+    before_resign.player = before_wolf.player;
+    before_resign.npcs = before_wolf.npcs;
+    d.set_state(before_resign);
+    d.frame();
     verify_house_fades(d);
     verify_area_music(d);
 
@@ -2882,7 +2975,7 @@ int main(int argc, char** argv) try {
     require(invalid_continue.serial() != 0 && invalid_continue.state().gold == 0,
             "B on the title did not start a new game over a corrupt save");
     require(invalid_continue.music_enabled(), "new game after a corrupt save has no music");
-    std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, sign, menus, save/restart and "
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"16x16 world, encounters, menus, save/restart and "
                  "scrolling with the animated pause menu\"}\n";
     std::cout << "{\"worst_exploration_cycles\":" << worst_exploration_cycles
               << ",\"within_frame_budget\":"

@@ -1,11 +1,13 @@
 #include "map_handler_catalog.h"
 #include "runtime_workspace.h"
+#include "logic/enemy_spawns.h"
 #ifndef RPG_NPC_POLICY_HEADER
 #define RPG_NPC_POLICY_HEADER "logic/npc_policies.h"
 #endif
 #include RPG_NPC_POLICY_HEADER
 
-using AllNpcSites = typename PolicyCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>::sites;
+using EssentialSites = typename PolicyCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>::sites;
+using AllNpcSites = typename Join<EssentialSites, AuthoredEnemies::sites>::type;
 
 using ChunkFunction = void (*)();
 
@@ -178,7 +180,9 @@ template <std::size_t... I> struct Resolvers<std::index_sequence<I...>> {
 };
 } // namespace
 
-TilePos npc_location(NPC_ID id) {
+RPG_NOINLINE TilePos npc_location(NPC_ID id) {
+    if(npc_is_enemy(id))
+        return AuthoredEnemies::location(id);
     if(id <= NPC_NONE || id >= NPC_ID_LIMIT)
         return NO_LOCATION;
     return Resolvers<std::make_index_sequence<NPC_ID_LIMIT - 1>>::functions[id - 1]();

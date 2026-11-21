@@ -23,7 +23,6 @@ static inline TilePos scene_tile(unsigned dx, unsigned dy) {
 }
 
 __attribute__((noinline)) static void npc_test_draw_order() {
-    game_new();
     npc_reset();
     camera = {scene_x(0), scene_y(0)};
     game.player = {scene_x(48), scene_y(0), SOUTH, 0};
@@ -175,6 +174,7 @@ __attribute__((noinline)) static void npc_test_yield() {
 }
 
 static void run_npc_scenarios() {
+    game_new();
     npc_test_draw_order();
     npc_test_foot_geometry();
     game_new();
@@ -227,11 +227,6 @@ static void run_npc_scenarios() {
     CHECK(terrain_clear(villager->actor.x, villager->actor.y));
 
     game_new();
-    unsigned before = npc_test_dialogues;
-    // The sign shows its welcome, runs a battle (stubbed here), and then shows the outcome line.
-    game_update(BTN_RIGHT, BTN_A);
-    CHECK(npc_test_dialogues == before + 2 && !frame_pressed);
-    CHECK(game.player.x == positions::PlayerStart.x * TILE && game.ticks == 0);
     world_enter(AREA_OUTDOOR, positions::VillagerEast.x * TILE, positions::VillagerEast.y * TILE,
                 SOUTH);
     CHECK(!npc_find(NPC_VILLAGER)); // Its home lies outside the cache from here.

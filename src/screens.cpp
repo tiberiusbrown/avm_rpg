@@ -1,3 +1,4 @@
+#include "encounter.h"
 #include "rpg.h"
 #include "battle_cursor.h"
 #include "journal.h"
@@ -507,6 +508,36 @@ RPG_NOINLINE static void show_quest_level_ups(LevelUpNotice notice) {
     input_sync();
 }
 
+static RPG_NOINLINE void world_remembers() {
+    fade_world_out();
+    avm_audio_pause();
+    avm_audio_stop_sfx();
+    avm_set_sprite(ACTOR_SPRITES);
+    for(uint8_t frame = 0; frame < 126; ++frame) {
+        input_wait_frame();
+        avm_draw_filled_rect_black(0, 0, 128, 64);
+        for(uint8_t echo = 0; echo < 3; ++echo) {
+            if(frame >= 70 || ((frame + echo * 7) & 15) < (frame >> 3)) {
+                Actor impression{0, 0, SOUTH, 0};
+                uint8_t drift = frame < 70 ? ((frame + echo * 9) & 15) / 4 : 0;
+                avm_draw_plus_mask(24 + echo * 32, 20 - drift,
+                                   actor_frame(impression, echo == 1 ? 25 : 17, 0));
+            }
+        }
+        if(frame == 70)
+            sfx_play(SFX_ORB_LIGHT);
+        if(frame >= 70) {
+            auto message = F("The world remembers.");
+            avm_draw_text((128 - avm_text_width(message)) / 2, 50, message);
+        }
+        avm_display(false);
+    }
+    fade_to_black();
+    remember_reset();
+    avm_audio_resume();
+    fade_world_in();
+}
+
 __attribute__((noinline)) void explore() {
     input_sync();
 
@@ -518,7 +549,7 @@ __attribute__((noinline)) void explore() {
         uint8_t pressed = input_pressed();
 
         if(pressed & BTN_B) {
-            // Refresh after the menu's locals have left the stack: chunk dialogue can enter battle.
+            // Refresh after the menu's locals have left the stack: the world can run chunk dialogue.
             MENU_EXIT action = menu_screen();
             if(action == MENU_PARTY)
                 party_screen();
@@ -566,6 +597,11 @@ __attribute__((noinline)) void explore() {
         rpg_render_world();
         avm_display(true);
         RPG_QA_MARK(rpg_render_end());
+        bool remember = remember_tick();
         RPG_QA_MARK(rpg_frame_end());
+        if(!encounter_run())
+            return;
+        if(remember && !game.remember_timer)
+            world_remembers();
     }
 }

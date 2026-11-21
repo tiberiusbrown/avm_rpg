@@ -724,3 +724,27 @@ outside enemy decisions and ordinary battle frames.
 
 The shop device replay's 16-frame battle exit peaked at 320,669 cycles on both
 standard and FXC packages, within the existing 336,000-cycle transition check.
+
+## Overworld encounters
+
+RelWithDebInfo builds measured the following shipping-guest resources. Flash is the
+sum of the program sections `.flash`, `.text` and `.rodata`.
+
+| Resource | Before | With encounters |
+| --- | ---: | ---: |
+| Saved RAM | 256 B | 258 B |
+| Other static RAM | 317 B | 319 B |
+| Total static RAM | 573 B | 577 B |
+| Program flash | 420,529 B | 424,648 B |
+| Complete stack bound | 252 B | 251 B |
+
+The three defeat flags fit in the existing flag bytes. `Npc` is 22 bytes and
+`NpcPool` is 180 bytes. The normal and FX-C soundscape replays peaked at 308,179
+cycles per exploration frame, compared with 309,450 before the change. Over 550 idle
+frames at the starting spot, the average fell from 280,210 to 277,658 cycles and the
+peak changed from 317,400 to 317,439. A 20-frame Hollow Mine replay with the scout
+pursuing the player averaged 239,507 cycles and peaked at 244,854. The exploration
+budget is 320,000 cycles at 50 FPS.
+
+The full FX and FX-C gameplay replays peaked at 313,383 exploration cycles.
+The separate audio timing replay stopped on a 321,620-cycle exploration frame.

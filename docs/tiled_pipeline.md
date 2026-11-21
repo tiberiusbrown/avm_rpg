@@ -200,9 +200,9 @@ handler name. Add ordinary overloads in `handler_impl`, after including
 `handler_defaults.h`:
 
 ```cpp
-template <TilePos POS> void read_sign(Dialogue<POS>) {
+template <TilePos POS> void read_waystone(Dialogue<POS>) {
     if(player_just_interacted<POS>())
-        dialogue_show(F("Welcome to Nocturne Grove."));
+        dialogue_show(F("The lettering has weathered away."));
 }
 ```
 

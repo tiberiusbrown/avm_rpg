@@ -106,7 +106,6 @@ sign = names["GroveSign"]
 assert at(sign["tx"], sign["ty"]) == 0x41
 assert (sign["tx"], sign["ty"] + 1) == start
 assert {o["handler"] for o in m.objects if o["handler"]} == {
-    "read_sign",
     "update_wanderer",
     "enter_house",
     "take_passage",

@@ -59,6 +59,9 @@ class Pipeline(unittest.TestCase):
         shutil.copytree(ROOT / "assets", self.root / "assets")
         self.path = self.root / "assets/maps/outdoor.tmx"
         self.tree = ET.parse(self.path)
+        ET.SubElement(ET.SubElement(self.sign(), "properties"), "property",
+                      name="handler", value="fixture_sign")
+        self.write()
 
     def tearDown(self):
         self.temp.cleanup()
@@ -673,7 +676,7 @@ class Pipeline(unittest.TestCase):
         after = export_world(self.root)
         self.assertIn(f"GroveSign{{1, {tx}, {ty}}}", before["map_positions.h"])
         self.assertIn(f"GroveSign{{1, {nx}, {ty}}}", after["map_positions.h"])
-        self.assertIn("MapSite<positions::GroveSign, MapOperation_read_sign>",
+        self.assertIn("MapSite<positions::GroveSign, MapOperation_fixture_sign>",
                       after["map_handler_catalog.h"])
 
     def test_maximum_map_and_high_chunk_index(self):
@@ -729,7 +732,7 @@ class Pipeline(unittest.TestCase):
         result = export_world(self.root)
         self.assertIn(f"GroveSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
         for i, (dx, dy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
-            self.assertIn(f"MapSite<positions::GroveSign_{i}, MapOperation_read_sign>",
+            self.assertIn(f"MapSite<positions::GroveSign_{i}, MapOperation_fixture_sign>",
                           result["map_handler_catalog.h"])
             self.assertIn(f"GroveSign_{i}{{1, {rx + dx}, {ry + dy}}}", result["map_positions.h"])
 

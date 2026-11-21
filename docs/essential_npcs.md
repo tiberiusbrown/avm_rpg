@@ -36,9 +36,7 @@ remain silent; the announcement uses the ordinary close/dismiss prompt.
 The replacement sample defines NPC_VILLAGER (standing, actor row 9) and NPC_WANDERER
 (bounded wandering, row 2) in `src/logic/npc_logic.cpp`. The player's row is 0. The
 villager follows quest flags between the map markers `VillagerWest` and `VillagerEast`,
-starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded wandering. Each has one line of talk dialogue, shown by
-`npc_dialogue` after `npc_talk`; the sign is the only other dialogue. Its welcome is
-followed by a battle and an outcome line.
+starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded wandering. They speak through `npc_dialogue` after `npc_talk`.
 
 `NPC_ROWAN` stands at the generated `RowanHome` marker southeast of the player spawn,
 using archer row 3. Talking recruits him into the saved four-member party with 18/18 HP and
@@ -242,8 +240,68 @@ and target reached/failed. Retirement reports reset, recruitment or safe unloadi
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 18 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 19 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage
 reconstruct actors from policies. Older save versions are rejected without migration.
+
+## Enemy encounters
+
+In Tiled, add a named point at the center of a walkable tile in the Logic layer. Rebuild the
+generated assets. Append an entry to `src/logic/enemy_spawns.inc` with the generated position,
+a program-memory `BattleEncounter` and a row from `actors16.png`.
+
+```cpp
+ENEMY_SPAWN(positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17)
+```
+
+This entry wanders up to one tile on each axis, faces south initially, pauses and walks for
+48 frames plus jitter, moves every second frame, uses priority 2 and respawns at The World
+Remembers. Enemies are non-talkable and use the same eight slots, terrain checks and admission
+priority as friendly actors. Their identity is the explicit NPC range followed by their
+catalog index. Each entry owns the flag at `FLAG_ENEMY_FIRST + index`. Append entries only.
+Reordering or reusing a catalog index changes which creature a save considers defeated.
+
+Choose `ENEMY_CHASE` to wander until the player comes within three tiles, then pursue the
+player's current location. A five-tile separation or a six-tile home leash sends the enemy
+back toward its spawn. Chase distances use Manhattan distance in pixels. `SPEED_FAST` moves
+one pixel per frame, which matches the player. `SPEED_NORMAL` moves every second frame.
+Pass an `EnemySettings` value as the final template argument to configure facing, pause,
+walk, wander extents, detection, disengagement, leash or admission priority.
+
+A patrol uses `ENEMY_ROUTE` and a named polyline in the same map's Routes layer. Put its points
+inside walkable tiles. The first point can coincide with the spawn. The route supports
+`once`, `loop` or `reverse` and a pause in frames at each waypoint. An unfinished active
+patrol retains its slot off cache while its spawn remains available. A permanent guard with
+a question before battle and a message after victory can be authored as follows.
+
+```cpp
+struct VaultGuardHooks : EnemyHooks {
+    static bool before_battle() {
+        return dialogue_ask(F("The guardian challenges you. Fight?"));
+    }
+
+    static void after_victory() {
+        dialogue_show(F("The guardian falls still."));
+    }
+};
+
+ENEMY_SPAWN(positions::VaultGuard, &BATTLE_VAULT_GUARDS, 25, ENEMY_ROUTE, SPEED_NORMAL,
+            routes::VaultPatrol, RESPAWN_NEVER, VaultGuardHooks)
+```
+
+`available()` is a cheap, nonblocking predicate for quest or world conditions. Returning
+false prevents admission and lets an existing actor unload once offscreen.
+`before_battle()` may show dialogue or ask a question after the simulation has unwound.
+Returning false cancels battle, leaves rewards and flags alone, and releases the actor to
+normal offscreen admission. Override `select_battle(default_encounter)` to choose a different
+valid encounter once per contact. `victory()` can write flags while the display is black.
+It cannot open UI. `after_victory()` may show dialogue after exploration has reclaimed the
+workspace. Neither victory hook runs on defeat.
+
+The shared countdown starts at 15,000 exploration frames after each respawnable victory.
+At zero, the next safe exploration frame plays The World Remembers. The reset clears only
+defeats marked `RESPAWN_REMEMBER` and leaves re-admission to the normal chunk stage.
+`RESPAWN_NEVER` flags survive. The countdown adds two saved bytes, with defeated flags
+using one bit per spawn. The live actor remains 22 bytes and the pool remains 180 bytes.

@@ -52,13 +52,6 @@ struct MapOperation_press_plate {
         Handler<POS, STAGE>{}.press_plate();
     }
 };
-struct MapOperation_read_sign {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_sign<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_sign();
-    }
-};
 struct MapOperation_rest_at_inn {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
         handler_impl::implemented_rest_at_inn<POS, STAGE>();
@@ -117,7 +110,6 @@ using AllMapHandlers = TypeList<
     MapSite<positions::ElderDoor, MapOperation_enter_house>,
     MapSite<positions::FarmDoor, MapOperation_enter_house>,
     MapSite<positions::FisherDoor, MapOperation_enter_house>,
-    MapSite<positions::GroveSign, MapOperation_read_sign>,
     MapSite<positions::HutDoor, MapOperation_enter_house>,
     MapSite<positions::InnDoor, MapOperation_enter_house>,
     MapSite<positions::MineEntrance, MapOperation_take_passage>,

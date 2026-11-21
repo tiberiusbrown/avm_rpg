@@ -128,13 +128,41 @@ constexpr bool battle_classes_fit() {
 
 static_assert(battle_classes_fit());
 
-constexpr BattleEncounter PROGMEM BATTLE_GROVE{
-    BATTLEFIELD_GROVE,
-    2,
-    {ENEMY_WOLF, ENEMY_BRUTE},
+constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES{
+    BATTLEFIELD_GROVE, 1, {ENEMY_WOLF},
     {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
-    {battle_cell(6, 1), battle_cell(5, 2), battle_cell(7, 0), battle_cell(7, 3)},
+    {battle_cell(6, 1)},
 };
+constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS{
+    BATTLEFIELD_GROVE, 2, {ENEMY_WOLF, ENEMY_BRUTE},
+    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
+    {battle_cell(6, 1), battle_cell(5, 2)},
+};
+constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS{
+    BATTLEFIELD_GROVE, 3, {ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE},
+    {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
+    {battle_cell(6, 1), battle_cell(5, 2), battle_cell(7, 0)},
+};
+
+RPG_NOINLINE bool battle_encounter_valid(BattleEncounter const PROGMEM* encounter) {
+    if(!encounter || encounter->field >= BATTLEFIELD_COUNT || !encounter->enemy_count ||
+       encounter->enemy_count > BATTLE_SIDE_CAPACITY)
+        return false;
+
+    uint32_t occupied = 0;
+    for(uint8_t i = 0; i < BATTLE_SIDE_CAPACITY + encounter->enemy_count; ++i) {
+        bool party = i < BATTLE_SIDE_CAPACITY;
+        uint8_t index = party ? i : i - BATTLE_SIDE_CAPACITY;
+        uint8_t cell = party ? encounter->party_cells[index] : encounter->enemy_cells[index];
+        if(cell >= BATTLE_CELLS ||
+           battle_blocked(encounter->field, cell) ||
+           (occupied & (uint32_t(1) << cell)) ||
+           (!party && encounter->enemies[index] >= ENEMY_COUNT))
+            return false;
+        occupied |= uint32_t(1) << cell;
+    }
+    return true;
+}
 
 void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) {
     state = {};

@@ -2,7 +2,6 @@
 #define LOGIC_AREA_VILLAGE_H
 
 #include "mechanisms.h"
-#include "battle.h"
 #include "area_ids.h"
 
 // The village: the Grove's signs and the houses with their interiors.
@@ -16,18 +15,6 @@ template <> struct AreaMessages<AREA_OUTDOOR> {
         {positions::CaveSign, F("Hollow Mine. Closed since the bridge fell. Mind the steam.")},
     };
 };
-
-// The guardians fight once the welcome closes. Each interaction starts a fresh battle, and the
-// outcome decides the follow-up line.
-template <TilePos POS> void read_sign(Dialogue<POS>) {
-    if(player_just_interacted<POS>()) {
-        dialogue_show(F("Welcome to Nocturne Grove. Take a quiet walk among the trees."));
-        if(battle_show(&BATTLE_GROVE) == BATTLE_VICTORY)
-            dialogue_show(F("The guardians bow and withdraw into the trees."));
-        else
-            dialogue_show(F("The guardians drive you back. Rest, then try again."));
-    }
-}
 
 // A house pairs its outdoor door with the exit of its interior. Both are map markers.
 struct HouseLink {

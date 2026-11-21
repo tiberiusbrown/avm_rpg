@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "equipment.h"
+#include "encounter.h"
 #include "npc.h"
 #include "quest.h"
 #include <string.h>
@@ -31,7 +32,7 @@ bool save_valid() {
     if(FLAG_COUNT % 8 && (game.flags.bytes[WorldFlags::BYTE_COUNT - 1] >> (FLAG_COUNT % 8)))
         return false;
     // Malformed quest IDs and impossible quest-specific states are rejected, not repaired.
-    if(!quest_saved_state_valid())
+    if(!quest_saved_state_valid() || !remember_save_valid())
         return false;
     Area const PROGMEM* area = world_area(game.area);
     if(!area)

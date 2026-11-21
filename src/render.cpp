@@ -867,15 +867,17 @@ static void render_party_divider(int16_t x) {
 
 void render_battle_result(bool victory, uint8_t gold_gained) {
     constexpr int16_t X = 24, WIDTH = 80;
-    int16_t y = victory ? 10 : 18;
-    draw_menu_frame(X, y, WIDTH, victory ? 45 : 28);
+    int16_t y = victory ? 10 : 14;
+    draw_menu_frame(X, y, WIDTH, victory ? 45 : 36);
     draw_menu_title(X + 6, victory ? F("VICTORY") : F("DEFEAT"), WIDTH - 12, y + 10);
     draw_menu_rule(X, y + 13, WIDTH);
     if(victory) {
         avm_draw_textf(X + 6, y + 23, F("+%u Gold"), gold_gained);
         avm_draw_textf(X + 6, y + 31, F("+%u XP to party"), PARTY_VICTORY_EXPERIENCE);
+    } else {
+        avm_draw_text(X + 6, y + 23, F("Game Over"));
     }
-    draw_menu_button(X + 6, y + (victory ? 40 : 23), MENU_BUTTON_A, F("Continue"));
+    draw_menu_button(X + 6, y + (victory ? 40 : 31), MENU_BUTTON_A, F("Continue"));
 }
 
 void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom) {

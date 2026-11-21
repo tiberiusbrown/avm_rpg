@@ -1,5 +1,6 @@
 #include "npc_logic.h"
 #include "npc_definitions.h"
+#include "enemy_spawns.h"
 #include "map_positions.h"
 #include "quest.h"
 
@@ -25,7 +26,7 @@ NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
         case NPC_WANDERER:
             return &npc_definitions::WANDERER;
         default:
-            return nullptr;
+            return npc_is_enemy(id) ? AuthoredEnemies::definitions[id - NPC_ENEMY_FIRST] : nullptr;
     }
 }
 
