@@ -90,7 +90,7 @@ result while the display is black. Victory records defeat and retires the actor 
 the world cache is rebuilt and faded in. Defeat ends exploration and returns through the
 outer loop to the title.
 
-Save version 19 stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
+Save version 20 stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
 flags and a 16-bit countdown. Older records are rejected. The tile window
 and camera are not saved: they live in the runtime workspace (`src/runtime_workspace.h`) and
 are rebuilt from the world and flags. Loads validate version, stats, party, flags and bounds

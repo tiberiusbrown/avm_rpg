@@ -90,7 +90,7 @@ template <typename Spawn, std::size_t INDEX> struct EnemySite {
     template <HandlerStage> static constexpr bool implemented = true;
 
     static TilePos current() {
-        return !game.get_flag(enemy_defeated_flag(id)) && Spawn::hooks::available()
+        return !game.get_flag(enemy_defeated_flag_at(INDEX)) && Spawn::hooks::available()
                    ? position : NO_LOCATION;
     }
 
@@ -107,6 +107,7 @@ template <typename, typename> struct EnemyCatalog;
 
 template <std::size_t... I, typename... Entries>
 struct EnemyCatalog<std::index_sequence<I...>, TypeList<Entries...>> {
+    static constexpr unsigned count = sizeof...(Entries);
     static_assert(unique_enemy_positions<Entries...>(), "duplicate enemy spawn positions");
     using sites = TypeList<EnemySite<Entries, I>...>;
     static constexpr TilePos PROGMEM positions[] = {
@@ -114,7 +115,7 @@ struct EnemyCatalog<std::index_sequence<I...>, TypeList<Entries...>> {
     };
 
     static TilePos location(NPC_ID id) {
-        if(game.get_flag(enemy_defeated_flag(id)) ||
+        if(game.get_flag(enemy_defeated_flag_at(id - NPC_ENEMY_FIRST)) ||
            ((Entries::conditional && id == EnemySite<Entries, I>::id &&
              !Entries::hooks::available()) || ...))
             return NO_LOCATION;

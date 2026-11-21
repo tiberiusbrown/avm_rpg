@@ -27,6 +27,12 @@ struct VaultGuardHooks : EnemyHooks {
     }
 };
 
+using DungeonEnemies = TypeList<
+    EnemySpawn<positions::VaultGuard, &BATTLE_VAULT_GUARDS, 25,
+               ENEMY_ROUTE, SPEED_NORMAL, routes::VaultPatrol,
+               RESPAWN_NEVER, VaultGuardHooks>
+>;
+
 namespace handler_impl {
 
 template <> struct AreaMechanisms<AREA_DUNGEON> {

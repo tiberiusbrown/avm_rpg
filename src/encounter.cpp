@@ -8,7 +8,7 @@ bool remember_due;
 
 bool defeated_respawnable() {
     for(unsigned i = 0; i < ENEMY_SPAWN_COUNT; ++i)
-        if(AuthoredEnemies::remembers[i] && game.get_flag(enemy_defeated_flag((NPC_ID)(NPC_ENEMY_FIRST + i))))
+        if(AuthoredEnemies::remembers[i] && game.get_flag(enemy_defeated_flag_at(i)))
             return true;
     return false;
 }
@@ -50,7 +50,11 @@ void encounter_restore() {
     remember_due = !game.remember_timer && defeated_respawnable();
 }
 
-bool remember_save_valid() {
+bool encounter_save_valid() {
+    for(unsigned i = ENEMY_SPAWN_COUNT; i < ENEMY_DEFEAT_CAPACITY; ++i)
+        if(game.get_flag(enemy_defeated_flag_at(i)))
+            return false;
+
     return game.remember_timer <= REMEMBER_DELAY_FRAMES &&
            (!game.remember_timer || defeated_respawnable());
 }
@@ -65,7 +69,7 @@ void remember_reset() {
     game.remember_timer = 0;
     for(unsigned i = 0; i < ENEMY_SPAWN_COUNT; ++i)
         if(AuthoredEnemies::remembers[i])
-            game.clear_flag(enemy_defeated_flag((NPC_ID)(NPC_ENEMY_FIRST + i)));
+            game.clear_flag(enemy_defeated_flag_at(i));
     remember_due = false;
 }
 

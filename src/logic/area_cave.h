@@ -1,7 +1,7 @@
 #ifndef LOGIC_AREA_CAVE_H
 #define LOGIC_AREA_CAVE_H
 
-#include "battle.h"
+#include "enemy_spawn.h"
 #include "mechanisms.h"
 #include "container_rewards.h"
 #include "area_ids.h"
@@ -15,6 +15,10 @@ inline constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS{
     {battle_cell(2, 1), battle_cell(1, 2), battle_cell(0, 0), battle_cell(0, 3)},
     {battle_cell(6, 1), battle_cell(5, 2)},
 };
+
+using CaveEnemies = TypeList<
+    EnemySpawn<positions::MineScout, &BATTLE_MINE_SCOUTS, 17, ENEMY_CHASE, SPEED_FAST>
+>;
 
 namespace handler_impl {
 

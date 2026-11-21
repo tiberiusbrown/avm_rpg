@@ -332,9 +332,9 @@ gates that draw down into the floor, pressure plates, spikes, sinking blocks, a 
 chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
 the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 19.** The live, pointer-free
-`Game` struct is saved directly from AVM's `.saved` prefix. Version 19 adds the shared
-two-byte respawn countdown and defeated-enemy bits. Validation checks the countdown,
+**This development build rejects saves older than version 20.** The live, pointer-free
+`Game` struct is saved directly from AVM's `.saved` prefix. Version 20 reserves 16 defeated-enemy
+bits and stores the shared two-byte respawn countdown. Validation checks the countdown,
 unused flag bits, equipment ownership, slot categories, unique wearers and adjusted HP/AP. Supply quantities are validated against the limit of 15.
 Each member stores both perk ranks in a single byte, with three bits
 per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down

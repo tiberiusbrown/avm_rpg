@@ -1,1 +1,0 @@
-ENEMY_SPAWN(positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17)

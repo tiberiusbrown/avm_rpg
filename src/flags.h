@@ -2,7 +2,9 @@
 #define FLAGS_H
 
 #include "equipment_ids.h"
-#include "npc_ids.h"
+
+// Saved capacity stays fixed as the area catalogs grow.
+inline constexpr uint8_t ENEMY_DEFEAT_CAPACITY = 16;
 
 // Stable bit indices, not masks. Append new flags before FLAG_COUNT.
 // The cave and dungeon flags record a mechanism's state: set means that its lever is thrown, its
@@ -29,10 +31,14 @@ enum FLAG : uint16_t {
     FLAG_ITEM_FIRST,
     FLAG_ITEM_END = FLAG_ITEM_FIRST + ITEM_DEFINED_COUNT,
     FLAG_ENEMY_FIRST = FLAG_ITEM_END,
-    FLAG_COUNT = FLAG_ENEMY_FIRST + ENEMY_SPAWN_COUNT
+    FLAG_COUNT = FLAG_ENEMY_FIRST + ENEMY_DEFEAT_CAPACITY
 };
 
 static_assert(FLAG_ITEM_END - FLAG_ITEM_FIRST == ITEM_DEFINED_COUNT);
+
+constexpr FLAG enemy_defeated_flag_at(unsigned index) {
+    return index < ENEMY_DEFEAT_CAPACITY ? (FLAG)(FLAG_ENEMY_FIRST + index) : FLAG_COUNT;
+}
 
 constexpr FLAG equipment_flag(uint8_t item) {
     return item < ITEM_DEFINED_COUNT ? (FLAG)(FLAG_ITEM_FIRST + item) : FLAG_COUNT;

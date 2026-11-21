@@ -1,7 +1,7 @@
 #ifndef LOGIC_AREA_VILLAGE_H
 #define LOGIC_AREA_VILLAGE_H
 
-#include "battle.h"
+#include "enemy_spawn.h"
 #include "npc_content.h"
 #include "npc_policy.h"
 #include "quest.h"
@@ -91,6 +91,10 @@ template <> struct NpcContent<NPC_ROWAN> {
         party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT));
     }
 };
+
+using VillageEnemies = TypeList<
+    EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17>
+>;
 
 namespace handler_impl {
 

@@ -1,6 +1,7 @@
 #include "npc.h"
 #include "chunk.h"
 #include "encounter.h"
+#include "logic/enemy_catalog.h"
 #include "logic/npc_logic.h"
 
 #include <string.h>

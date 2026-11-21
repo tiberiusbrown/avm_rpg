@@ -240,7 +240,7 @@ and target reached/failed. Retirement reports reset, recruitment or safe unloadi
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 19 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 20 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage
@@ -250,21 +250,31 @@ reconstruct actors from policies. Older save versions are rejected without migra
 
 In Tiled, add a named point at the center of a walkable tile in the Logic layer. Rebuild the
 generated assets. Define the program-memory `BattleEncounter` in the area header and register
-it with the generated position and a row from `actors16.png` in an area-owned enemies list.
-`src/logic/enemy_spawns.inc` includes those lists in saved-ID order. Append new declarations
-after every existing declaration in the expanded order. For an earlier area, add another
-include at the end of the aggregator.
+it with the generated position and actor sprite row in the area's `TypeList`.
 
 ```cpp
-ENEMY_SPAWN(positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17)
+using VillageEnemies = TypeList<
+    EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17>
+>;
 ```
 
 This entry wanders up to one tile on each axis, faces south initially, pauses and walks for
 48 frames plus jitter, moves every second frame, uses priority 2 and respawns at The World
 Remembers. Enemies are non-talkable and use the same eight slots, terrain checks and admission
-priority as friendly actors. Their identity is the explicit NPC range followed by their
-catalog index. Each entry owns the flag at `FLAG_ENEMY_FIRST + index`. Append entries only.
-Reordering or reusing a catalog index changes which creature a save considers defeated.
+priority as friendly actors.
+
+`src/logic/enemy_catalog.h` joins the area lists and derives `ENEMY_SPAWN_COUNT` at compile
+time. A spawn's NPC ID and defeat flag are `NPC_ENEMY_FIRST + index` and
+`FLAG_ENEMY_FIRST + index`, where the index is its position in the joined list.
+The save format reserves 16 defeat bits, independent of how many spawns are authored.
+Unused defeat bits must be clear. Increasing that capacity or changing the saved layout
+requires a save-version bump.
+
+Edit or reorder area lists as needed during development. Insertions, removals, or
+reordering can assign an existing defeat bit to a different enemy. Bump `SAVE_VERSION`
+when a catalog edit removes a spawn or changes which enemy owns an existing index, so the
+game rejects older saves. Appending at the end of the joined list within capacity preserves
+existing indices and requires no version bump.
 
 Choose `ENEMY_CHASE` to wander until the player comes within three tiles, then pursue the
 player's current location. A five-tile separation or a six-tile home leash sends the enemy
@@ -292,8 +302,11 @@ struct VaultGuardHooks : EnemyHooks {
     }
 };
 
-ENEMY_SPAWN(positions::VaultGuard, &BATTLE_VAULT_GUARDS, 25, ENEMY_ROUTE, SPEED_NORMAL,
-            routes::VaultPatrol, RESPAWN_NEVER, VaultGuardHooks)
+using DungeonEnemies = TypeList<
+    EnemySpawn<positions::VaultGuard, &BATTLE_VAULT_GUARDS, 25,
+               ENEMY_ROUTE, SPEED_NORMAL, routes::VaultPatrol,
+               RESPAWN_NEVER, VaultGuardHooks>
+>;
 ```
 
 `available()` is a cheap, nonblocking predicate for quest or world conditions. Returning
@@ -309,4 +322,4 @@ The shared countdown starts at 15,000 exploration frames after each respawnable 
 At zero, the next safe exploration frame plays The World Remembers. The reset clears only
 defeats marked `RESPAWN_REMEMBER` and leaves re-admission to the normal chunk stage.
 `RESPAWN_NEVER` flags survive. The countdown adds two saved bytes, with defeated flags
-using one bit per spawn. The live actor remains 22 bytes and the pool remains 180 bytes.
+using one bit per authored spawn within the reserved range. The live actor remains 22 bytes and the pool remains 180 bytes.

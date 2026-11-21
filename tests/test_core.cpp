@@ -327,6 +327,15 @@ static void enemy_encounters() {
     CHECK(!save_valid());
     game.remember_timer = 1;
     CHECK(!save_valid()); // A positive countdown requires a defeated respawnable enemy.
+    game.remember_timer = 0;
+    CHECK(save_valid());
+    if constexpr(ENEMY_SPAWN_COUNT < ENEMY_DEFEAT_CAPACITY) {
+        FLAG unused = enemy_defeated_flag_at(ENEMY_SPAWN_COUNT);
+        game.set_flag(unused);
+        CHECK(!save_valid());
+        game.clear_flag(unused);
+        CHECK(save_valid());
+    }
 }
 
 static void saves() {
