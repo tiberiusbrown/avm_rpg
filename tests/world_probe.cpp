@@ -18,6 +18,8 @@ void fade_world_in() {}
 
 void dialogue_close() {}
 
+uint8_t dialogue_options_ex(char const PROGMEM* const PROGMEM*, uint8_t, bool) { return 0; }
+
 void party_joined(NPC_ID) {}
 
 // The probes make no sound.

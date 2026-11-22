@@ -84,8 +84,24 @@ template <> struct NpcContent<NPC_ROWAN> {
     static constexpr NpcDefinition PROGMEM definition{NPC_STAND, WEST, 0, 32, 32, 0, 0, 3, 0, 3, true};
 
     static void talk() {
-        dialogue_show(NPC_ROWAN, F("I'm Rowan. You could use a bow on the road. I'll join you!"));
-        party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT));
+        if(!dialogue_show(NPC_ROWAN, F("I'm Rowan. Need a bow on the road, or just directions?")))
+            return;
+
+        switch(dialogue_options<"Join my party", "Nocturne Grove", "Hollow Mine",
+                                "The fallen bridge">()) {
+            case 0:
+                party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT));
+                break;
+            case 1:
+                dialogue_show(NPC_ROWAN, F("You'll know the village by its lanterns. They stay lit all night."));
+                break;
+            case 2:
+                dialogue_show(NPC_ROWAN, F("The notice by Hollow Mine says to mind the steam. I'd take it seriously."));
+                break;
+            case 3:
+                dialogue_show(NPC_ROWAN, F("The bridge fell and the mine closed. Check the sign before heading in."));
+                break;
+        }
     }
 };
 

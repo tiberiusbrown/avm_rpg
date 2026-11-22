@@ -39,9 +39,11 @@ villager follows quest flags between the map markers `VillagerWest` and `Village
 starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded wandering. They speak through `npc_dialogue` after `npc_talk`.
 
 `NPC_ROWAN` stands at the generated `RowanHome` marker southeast of the player spawn,
-using archer row 3. Talking recruits him into the saved four-member party with 18/18 HP and
-4/4 AP, step movement and shoot attack. Further talks acknowledge his membership without
-adding another member or resetting his HP. Recruitment retires his map actor immediately; party membership prevents him from
+using archer row 3. His conversation uses `dialogue_options` with four choices in PROGMEM. The
+player can ask about Nocturne Grove, Hollow Mine, or the fallen bridge, or choose
+**Join my party** to recruit him into the saved four-member party with 18/18 HP,
+4/4 AP, step movement, and shoot attack. Recruitment retires his map actor
+immediately. Party membership prevents him from
 being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
 4/4 AP, and step movement/strike attack. Both start at full HP and AP through `party_new_member`.
 Party current HP and AP and both class identifiers are bytes. Maximum HP is derived by `party_max_hp`

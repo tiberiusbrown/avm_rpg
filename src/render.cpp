@@ -564,6 +564,34 @@ static void draw_menu_scroll(int16_t x, int16_t top, int16_t bottom, bool above,
         avm_draw_sprite_self_masked(x + width - 10, bottom - 3, MENU_ICONS, MENU_DOWN);
 }
 
+static void draw_dialogue_footer_button(int16_t x, int16_t y, MENU_BUTTON button,
+                                        char const PROGMEM* label, uint16_t label_width) {
+    avm_draw_filled_rect_black(x - 1, y, MENU_BUTTON_LABEL_OFFSET + label_width + 2, 1);
+    draw_menu_button(x, y, button, label);
+}
+
+void render_dialogue_options(char const PROGMEM* const* rows, uint8_t count, uint8_t selected,
+                             uint8_t baseline, bool above, bool below, bool allow_back) {
+    constexpr uint8_t ROW_HEIGHT = 7, BAR_WIDTH = 112;
+    for(uint8_t row = 0; row < count; ++row) {
+        int16_t y = baseline + row * ROW_HEIGHT;
+        begin_menu_row(0, y, row == selected, BAR_WIDTH);
+        text_draw_clipped(7, y, rows[row], BAR_WIDTH - 6);
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    }
+    draw_menu_scroll(0, baseline, baseline + (DIALOGUE_OPTION_ROWS - 1) * ROW_HEIGHT,
+                     above, below);
+    int16_t footer = baseline + DIALOGUE_OPTION_ROWS * ROW_HEIGHT + 1;
+    auto pick = F("Pick");
+    draw_dialogue_footer_button(MENU_LEFT_EDGE, footer, MENU_BUTTON_A, pick, avm_text_width(pick));
+    if(allow_back) {
+        auto back = F("Back");
+        uint16_t width = avm_text_width(back);
+        draw_dialogue_footer_button(MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - width,
+                                    footer, MENU_BUTTON_B, back, width);
+    }
+}
+
 RPG_NOINLINE static char const PROGMEM* menu_label(PAUSE_ITEM item) {
     static char const PROGMEM* const PROGMEM LABELS[] = {
         F("Resume"), F("Save"), F("Party"), F("Supplies"), F("Journal"), F("Map"),
@@ -730,10 +758,8 @@ __attribute__((noinline)) static int16_t
 text_draw_clipped(int16_t x, int16_t y, char const PROGMEM* text, uint16_t width) {
     if(avm_text_width(text) <= width)
         return avm_draw_text(x, y, text).x;
-    uint8_t length = 0, fit = 0;
-    while(text[length])
-        ++length;
-    while(fit < length && text_range_width(text, 0, (uint8_t)(fit + 1)) <= width)
+    uint8_t fit = 0;
+    while(fit < UINT8_MAX && text[fit] && text_range_width(text, 0, (uint8_t)(fit + 1)) <= width)
         ++fit;
     return text_draw_range(x, y, text, 0, fit);
 }

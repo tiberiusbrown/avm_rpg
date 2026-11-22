@@ -2,6 +2,8 @@
 #define RPG_H
 
 #include <stdint.h>
+#include <utility>
+
 #include "world_types.h"
 #include "supplies.h"
 #include "area_ids.h"
@@ -60,7 +62,8 @@ enum DIALOGUE_PROMPT : uint8_t {
     DIALOGUE_MORE,
     DIALOGUE_DONE,
     DIALOGUE_CHOICE,
-    DIALOGUE_TYPING
+    DIALOGUE_TYPING,
+    DIALOGUE_OPTIONS,
 };
 
 struct Actor {
@@ -395,6 +398,54 @@ void party_joined(NPC_ID id);
 // overlay, as dialogue_show does.
 bool dialogue_ask(char const PROGMEM* question);
 bool dialogue_ask(NPC_ID id, char const PROGMEM* question);
+// Show 2–255 single-line options. Return the zero-based choice, or 255 for B when allowed.
+uint8_t dialogue_options_ex(char const PROGMEM* const PROGMEM* options, uint8_t count,
+                            bool allow_back = true);
+
+namespace dialogue_detail {
+
+template<unsigned Size>
+struct DialogueLabel {
+    char text[Size];
+
+    constexpr DialogueLabel(char const (&label)[Size]) : text{} {
+        for(unsigned i = 0; i < Size; ++i)
+            text[i] = label[i];
+    }
+};
+
+template<DialogueLabel Label, typename Indices = std::make_index_sequence<sizeof(Label.text)>>
+struct DialogueLabelStorage;
+
+template<DialogueLabel Label, std::size_t... I>
+struct DialogueLabelStorage<Label, std::index_sequence<I...>> {
+    static constexpr char PROGMEM TEXT[] = {Label.text[I]...};
+};
+
+template<bool AllowBack, DialogueLabel... Labels>
+uint8_t choose() {
+    static_assert(sizeof...(Labels) >= 2 && sizeof...(Labels) <= 255);
+    static constexpr char const PROGMEM* const PROGMEM OPTIONS[] = {
+        DialogueLabelStorage<Labels>::TEXT...,
+    };
+    return dialogue_options_ex(OPTIONS, sizeof...(Labels), AllowBack);
+}
+
+} // namespace dialogue_detail
+
+template<dialogue_detail::DialogueLabel... Labels>
+uint8_t dialogue_options() {
+    return dialogue_detail::choose<true, Labels...>();
+}
+
+template<dialogue_detail::DialogueLabel... Labels>
+uint8_t dialogue_options_noback() {
+    return dialogue_detail::choose<false, Labels...>();
+}
+
+inline constexpr uint8_t DIALOGUE_OPTION_ROWS = 3;
+void render_dialogue_options(char const PROGMEM* const* rows, uint8_t count, uint8_t selected,
+                             uint8_t baseline, bool above, bool below, bool allow_back);
 // Validate the loaded live object before using saved world or quest state.
 bool save_valid();
 // Validate and place the loaded player, rebuilding transient state. The caller refreshes the world.

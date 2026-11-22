@@ -19,6 +19,8 @@ void fade_world_in() {}
 
 void dialogue_close() {}
 
+uint8_t dialogue_options_ex(char const* const*, uint8_t, bool) { return 0; }
+
 static void record(StoryEvent event) {
     if(event_count == STORY_LOG_CAPACITY) {
         fprintf(stderr, "story log full\n");

@@ -489,6 +489,53 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
     return wait_for_input(DIALOGUE_CHOICE);
 }
 
+uint8_t dialogue_options_ex(char const PROGMEM* const PROGMEM* options, uint8_t count,
+                            bool allow_back) {
+    open_overlay();
+    input_sync();
+    dialogue_prompt = DIALOGUE_OPTIONS;
+    uint8_t selected = 0, first = 0;
+    for(;;) {
+        char const PROGMEM* rows[DIALOGUE_OPTION_ROWS];
+        uint8_t visible = 0;
+        while(visible < DIALOGUE_OPTION_ROWS && first + visible < count) {
+            rows[visible] = options[first + visible];
+            ++visible;
+        }
+        draw_overlay(0);
+        render_dialogue_options(rows, visible, selected - first, FIRST_LINE + 1,
+                                first != 0, first + visible < count, allow_back);
+        avm_display(false);
+
+        for(;;) {
+            input_wait_frame();
+            uint8_t pressed = input_pressed();
+            if(allow_back && (pressed & BTN_B)) {
+                sfx_play(SFX_CANCEL);
+                dialogue_prompt = DIALOGUE_CLOSED;
+                return 255;
+            }
+            if(pressed & (BTN_UP | BTN_DOWN)) {
+                if(pressed & BTN_DOWN)
+                    selected = selected + 1 < count ? selected + 1 : 0;
+                else
+                    selected = selected ? selected - 1 : count - 1;
+                if(selected < first)
+                    first = selected;
+                else if(selected >= first + DIALOGUE_OPTION_ROWS)
+                    first = selected - (DIALOGUE_OPTION_ROWS - 1);
+                sfx_menu_tick();
+                break;
+            }
+            if(pressed & BTN_A) {
+                sfx_play(SFX_SELECT);
+                dialogue_prompt = DIALOGUE_CLOSED;
+                return selected;
+            }
+        }
+    }
+}
+
 void party_joined(NPC_ID id) {
     char const PROGMEM* name = npc_name(id);
     if(!name)

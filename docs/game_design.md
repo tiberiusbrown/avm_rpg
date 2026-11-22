@@ -180,6 +180,15 @@ Dialogue text and selectable option labels should generally be read-only, genera
 
 ### 7.2 Shared native APIs (conceptual, not AVM ABI)
 
+Use `dialogue_options<"First choice", "Second choice">()` for 2–255
+single-line choices. The dialogue panel shows up to three at a time, and Up and
+Down scroll through the list. A returns the zero-based choice. B returns 255.
+Use `dialogue_options_noback<"First choice", "Second choice">()` to require a
+selection. Both helpers store the option table and its strings in PROGMEM.
+To pass a PROGMEM table directly, use `dialogue_options_ex(options, count,
+allow_back)`. The `allow_back` parameter defaults to `true`.
+Use `dialogue_ask` for a yes/no prompt that displays the dialogue context.
+
 ```cpp
 // Illustrative interfaces; actual names/types to be established in Phase 0/1.
 struct GameState;

@@ -1161,13 +1161,36 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
                      (uint16_t)(positions::RowanHome.y * TILE), EAST, 0};
     d.set_state(nearby);
     d.frame();
+    auto open_choices = [&] {
+        d.tap(BTN_A);
+        require(d.prompt() != DIALOGUE_CLOSED, "talking to Rowan did not open dialogue");
+        d.wait_for_prompt();
+        d.tap(BTN_A);
+        require(d.prompt() == DIALOGUE_OPTIONS, "Rowan did not offer dialogue options");
+    };
+    open_choices();
+    d.tap(BTN_B);
+    d.advance(0, 4000000);
+    require(d.prompt() == DIALOGUE_CLOSED && d.state().party.count == 1,
+            "backing out of Rowan's options recruited Rowan");
+
+    open_choices();
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.capture(out / "rowan-dialogue-options.pgm");
     d.tap(BTN_A);
-    require(d.prompt() != DIALOGUE_CLOSED, "talking to Rowan did not open dialogue");
     d.wait_for_prompt();
+    require(d.prompt() == DIALOGUE_DONE && d.state().party.count == 1,
+            "selecting Rowan's fourth option did not show a topic");
+    d.tap(BTN_A);
+    d.advance(0, 4000000);
+
+    open_choices();
     Snapshot before = d.state();
     require(d.panel_addr && d.ab->core_state.cpu.data[d.panel_addr], "dialogue panel is not open");
 
-    // The speech and recruitment announcement must share a single open panel.
+    // The choices and recruitment announcement must share a single open panel.
     struct PanelTrace {
         Device& device;
         bool closed = false;
@@ -1190,7 +1213,7 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     d.wait_for_prompt();
     d.cycle_observer = nullptr;
     d.observer_context = nullptr;
-    require(!trace.closed, "panel closed between speech and recruitment announcement");
+    require(!trace.closed, "panel closed between choices and recruitment announcement");
     require(!trace.reloaded, "dialogue reloaded the tile cache");
     Snapshot announced = d.state();
     require(announced.ticks == before.ticks &&
