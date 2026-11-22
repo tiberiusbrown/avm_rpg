@@ -131,8 +131,8 @@ static void bounded_cycle() {
 
 static void conversations() {
     fresh();
-    quest_emit(NpcTalked<NPC_WANDERER>{});
-    quest_emit(NpcTalked<NPC_WANDERER>{});
+    quest_emit(NpcTalked<NPC_ORRIN>{});
+    quest_emit(NpcTalked<NPC_ORRIN>{});
     CHECK(test_talks[4] == 2 && test_talks[5] == 0);
     // An NPC with no subscribers reaches no handler.
     quest_emit(NpcTalked<NPC_ROWAN>{});
@@ -140,15 +140,15 @@ static void conversations() {
 
     test_status[5] = QUEST_ACTIVE;
     CHECK(quest_select(Q(5)) && quest_selected() == Q(5));
-    quest_emit(NpcTalked<NPC_VILLAGER>{});
+    quest_emit(NpcTalked<NPC_TESSA>{});
     CHECK(test_talks[5] == 1 && test_completions[5] == 1 && test_status[5] == QUEST_COMPLETED);
     // Completion clears tracking, and the selection is not given to another quest.
     CHECK(quest_selected() == QUEST_NONE);
     // A repeated conversation delivers again but completes nothing new.
-    quest_emit(NpcTalked<NPC_VILLAGER>{});
+    quest_emit(NpcTalked<NPC_TESSA>{});
     CHECK(test_talks[5] == 2 && test_completions[5] == 1);
-    // Find Iona shares the villager conversation, and it is not started, so it stays unstarted.
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
+    // Dry Roots shares the villager conversation, and it is not started, so it stays unstarted.
+    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_NOT_STARTED);
 }
 
 static void starts() {
@@ -161,8 +161,8 @@ static void starts() {
     // Starting again is idempotent, and it does not run start() again.
     CHECK(!quest_start(Q(8)) && test_starts[8] == 1);
     // A later start keeps the tracked quest.
-    CHECK(quest_start(QUEST_FIND_IONA) && quest_selected() == Q(8));
-    CHECK(quest_select(QUEST_FIND_IONA) && quest_selected() == QUEST_FIND_IONA);
+    CHECK(quest_start(QUEST_DRY_ROOTS) && quest_selected() == Q(8));
+    CHECK(quest_select(QUEST_DRY_ROOTS) && quest_selected() == QUEST_DRY_ROOTS);
 }
 
 static void long_journal() {
@@ -179,8 +179,8 @@ static void long_journal() {
     for(unsigned i = 0; i < listed; ++i)
         CHECK(quest_journal_entry((uint8_t)i) == expected[i]);
     CHECK(quest_journal_entry((uint8_t)listed) == QUEST_NONE);
-    // Find Iona is not started, so it is hidden from the Journal.
-    CHECK(!quest_listed(QUEST_FIND_IONA));
+    // Dry Roots is not started, so it is hidden from the Journal.
+    CHECK(!quest_listed(QUEST_DRY_ROOTS));
 
     // A tracked quest replaces the previous one, and only active quests can be tracked.
     CHECK(quest_select(Q(9)) && quest_selected() == Q(9));
@@ -193,11 +193,11 @@ static void markers() {
     TilePos marker;
     CHECK(!quest_marker(Q(6), AREA_OUTDOOR, marker));
     test_status[6] = QUEST_ACTIVE;
-    CHECK(quest_marker(Q(6), AREA_OUTDOOR, marker) && marker == positions::GroveSign);
+    CHECK(quest_marker(Q(6), AREA_OUTDOOR, marker) && marker == positions::WellSign);
     // The quest answers only for its own area, and the map shows only the tracked quest.
     CHECK(!quest_marker(Q(6), AREA_CAVE, marker));
     CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-    CHECK(quest_select(Q(6)) && quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::GroveSign);
+    CHECK(quest_select(Q(6)) && quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::WellSign);
     // A marker outside its map is refused, whatever the quest computed.
     test_status[9] = QUEST_ACTIVE;
     CHECK(!quest_marker(Q(9), AREA_OUTDOOR, marker));

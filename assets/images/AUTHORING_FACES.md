@@ -54,13 +54,13 @@ when `NPC_ID_LIMIT` grows, so the row count and the limit stay equal.
   stays hidden.
 - **Draw an original face. Never scale up the sprite's head.** The face is a complete redraw
   in the style below.
-- **When a sprite changes, change the description and the face with it.** Moving Iona to row 9
+- **When a sprite changes, change the description and the face with it.** Moving Tessa to row 9
   is an example: her face follows the new row.
 
 | NPC ID | Name | Sprite row | What the face shows |
 | --- | --- | --- | --- |
-| 1 `NPC_VILLAGER` | Iona | 9 | Female. Long black hair, bangs and a centre parting. No head covering. |
-| 2 `NPC_WANDERER` | Silas | 2 | Male. Short white hair and thick dark brows. No head covering. |
+| 1 `NPC_TESSA` | Tessa | 9 | Female. Long black hair, bangs and a centre parting. No head covering. |
+| 2 `NPC_ORRIN` | Orrin | 2 | Male. Short white hair and thick dark brows. No head covering. |
 | 3 `NPC_ROWAN` | Rowan | 3 | Male. A white hood hides his hair. A strap crosses his chest. |
 
 ## Art style
@@ -81,7 +81,7 @@ not stored in this repository. Emulate it:
 - **Features are small and plain.** Eyes are short dashes with a white catch-light, brows are
   strokes above them, the nose is a few pixels, and the mouth is a short line.
 - **Put a visible hairline between white hair and white skin.** When hair and face are the same
-  colour, a dark line has to separate them or they merge. Silas has an arc across his forehead.
+  colour, a dark line has to separate them or they merge. Orrin has an arc across his forehead.
 - **Judge the face on black.** The panel is black, so black at the edge of a figure is
   invisible. A feature has to show as a white shape, or as black inside a white shape.
 
@@ -93,13 +93,13 @@ brows, nose length, lashes and wrinkles. It does not belong to where the eyes an
 | Feature | Position |
 | --- | --- |
 | Eyes | Three pixels wide, two tall. Rows 15-16, at columns 11-13 and 18-20. The top-left pixel is white as a catch-light. |
-| Brows | Rows 12-13 over the eyes. Iona's are a thin arc and Silas's are thick. Rowan's are lost in the shadow under his hood. |
+| Brows | Rows 12-13 over the eyes. Tessa's are a thin arc and Orrin's are thick. Rowan's are lost in the shadow under his hood. |
 | Nose | Ends on row 18 for everyone. |
 | Closed mouth | A line on row 21, at columns 14-17. |
-| Face size | Iona's face and Rowan's hood opening are both 16 pixels wide and 14 rows tall, from the forehead shadow to the chin. Silas's broader head is 20 wide, with the same features inside it. |
+| Face size | Tessa's face and Rowan's hood opening are both 16 pixels wide and 14 rows tall, from the forehead shadow to the chin. Orrin's broader head is 20 wide, with the same features inside it. |
 
 The face does not shrink to fit its surroundings. Rowan's hood opening was enlarged to match
-Iona's face for this reason.
+Tessa's face for this reason.
 
 ## Closed and open mouths
 

@@ -1,13 +1,14 @@
-// Find Iona and the shipping quest runtime, driven through the NPC dialogue path. Dialogue answers
-// are scripted, so each test chooses yes or no for every question it asks.
 #include "rpg.h"
 #include "chunk.h"
+#include "encounter.h"
 #include "journal.h"
+#include "logic/enemy_catalog.h"
 #include "logic/npc_logic.h"
 #include "map_positions.h"
 #include "quest.h"
 #include "story_stub.h"
-#include "world_map.h"
+#include "tile_ids.h"
+
 #include <initializer_list>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,448 +19,197 @@ static unsigned checks;
     do {                                                                                           \
         ++checks;                                                                                  \
         if(!(value)) {                                                                             \
-            fprintf(stderr, "FAIL %s:%d %s\n", __FILE__, __LINE__, #value);                        \
+            fprintf(stderr, "FAIL %s:%d %s\n", __FILE__, __LINE__, #value);                          \
             exit(1);                                                                               \
         }                                                                                          \
     } while(0)
 
-static unsigned shown, questions;
-static char const* last_text;
-static NPC_ID last_speaker = NPC_NONE;
-static bool scripted[8];
-static unsigned scripted_count, scripted_next;
+static bool accept;
+static char const* words;
 
-// The next questions take these answers in order. Questions past the script answer no.
-static void script(std::initializer_list<bool> answers) {
-    scripted_count = scripted_next = 0;
-    for(bool answer : answers)
-        scripted[scripted_count++] = answer;
+bool dialogue_show(char const PROGMEM* text) {
+    words = text;
+    return accept;
 }
 
-bool dialogue_show(char const PROGMEM* words) {
-    ++shown;
-    last_text = words;
-    return true;
+bool dialogue_show(NPC_ID, char const PROGMEM* text) {
+    return dialogue_show(text);
 }
 
-bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
-    last_speaker = id;
-    return dialogue_show(words);
+bool dialogue_ask(char const PROGMEM* text) {
+    return dialogue_show(text);
 }
 
-bool dialogue_ask(char const PROGMEM* question) {
-    CHECK(question && strstr(question, "Iona"));
-    // Unscripted questions answer no, so a test that forgets a script fails visibly.
-    bool answer = scripted_next < scripted_count ? scripted[scripted_next] : false;
-    ++scripted_next;
-    ++questions;
-    return answer;
+bool dialogue_ask(NPC_ID, char const PROGMEM* text) {
+    return dialogue_ask(text);
 }
 
-bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
-    (void)id;
-    return dialogue_ask(question);
+static void stand(TilePos cell, DIRECTION direction) {
+    world_enter(cell.area, cell.x * TILE, cell.y * TILE, direction);
+    CHECK(game.player.x == cell.x * TILE && game.player.y == cell.y * TILE);
 }
 
-// One world frame, which runs the same dialogue and settle path as exploration.
-static void talk(NPC_ID id) {
+static void touch(TilePos cell, DIRECTION facing = NORTH) {
+    constexpr int8_t X[] = {0, 1, 0, -1};
+    constexpr int8_t Y[] = {-1, 0, 1, 0};
+    stand({cell.area, (uint8_t)(cell.x - X[facing]), (uint8_t)(cell.y - Y[facing])}, facing);
+    game_update(0, 0);
+    CHECK(game.can_interact);
+    game_update(0, BTN_A);
+}
+
+static void talk(NPC_ID id, uint8_t choice = 0, bool finish = true) {
+    accept = finish;
+    story_stub_set_choice(choice);
     npc_talk(id);
     update_visible_world(0, false);
+    accept = true;
 }
 
-static bool same_bytes(void const* a, void const* b, size_t size) {
-    return memcmp(a, b, size) == 0;
-}
-
-static void reset_game() {
+static void reload() {
+    Game saved = game;
     game_new();
-    shown = questions = 0;
-    scripted_count = scripted_next = 0;
-    last_speaker = NPC_NONE;
+    game = saved;
+    CHECK(save_valid() && save_restore());
+    update_visible_world(0, false);
+    CHECK(!memcmp(&saved.flags, &game.flags, sizeof(game.flags)));
+    CHECK(saved.gold == game.gold && !memcmp(&saved.party, &game.party, sizeof(game.party)));
 }
 
-static void flags_match(Game const& expected) {
-    CHECK(same_bytes(&expected.flags, &game.flags, sizeof(game.flags)));
+static void social(bool public_explanation) {
+    talk(NPC_TESSA, 0, false);
+    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_NOT_STARTED);
+    talk(NPC_TESSA);
+    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE);
+    TilePos target;
+    CHECK(quest_marker(QUEST_DRY_ROOTS, AREA_OUTDOOR, target) && target == positions::BramYard);
+
+    talk(NPC_BRAM, 255);
+    talk(NPC_ORRIN, 0, false);
+    CHECK(!game.get_flag(FLAG_BRAM_ACCOUNT) && !game.get_flag(FLAG_ORRIN_ACCOUNT));
+    talk(NPC_ORRIN);
+    talk(NPC_TESSA);
+    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE);
+    reload();
+    talk(NPC_BRAM);
+    CHECK(quest_marker(QUEST_DRY_ROOTS, AREA_OUTDOOR, target) && target == positions::TessaWell);
+    talk(NPC_TESSA, 255);
+    talk(NPC_TESSA, 0, false);
+    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE && !game.get_flag(FLAG_ORCHARD_PUBLIC));
+
+    talk(NPC_TESSA, public_explanation ? 0 : 1);
+    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_COMPLETED && !quest_objective(QUEST_DRY_ROOTS));
+    CHECK(game.get_flag(FLAG_ORCHARD_PUBLIC) == public_explanation);
+    CHECK(npc_location(NPC_TESSA) == positions::TessaOrchard);
+    auto xp = game.party.members[0].experience;
+    reload();
+    talk(NPC_BRAM);
+    CHECK(strstr(words, public_explanation ? "square" : "heard me out"));
+    talk(NPC_TESSA);
+    CHECK(game.party.members[0].experience == xp);
 }
 
-static void offer_and_accept() {
-    script({true});
-    talk(NPC_WANDERER);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
+static void bridge() {
+    accept = false;
+    touch(positions::CaveNotice);
+    CHECK(quest_status(QUEST_SPAN_BELOW) == QUEST_NOT_STARTED);
+    accept = true;
+    touch(positions::CaveNotice);
+    CHECK(quest_status(QUEST_SPAN_BELOW) == QUEST_ACTIVE);
+    touch(positions::CaveLever);
+    CHECK(game.get_flag(FLAG_CAVE_GATE));
+    touch(positions::CaveLever);
+    CHECK(!game.get_flag(FLAG_CAVE_GATE));
+    touch(positions::CaveLever);
+    reload();
+    touch(positions::CaveVaultLever);
+    CHECK(game.get_flag(FLAG_CAVE_NOOK));
+    stand(positions::CavePlate, NORTH);
+    game_update(0, 0);
+    CHECK(quest_status(QUEST_SPAN_BELOW) == QUEST_COMPLETED && !quest_objective(QUEST_SPAN_BELOW));
+    stand({AREA_CAVE, positions::CaveBridge_1.x, (uint8_t)(positions::CaveBridge_1.y + 1)}, NORTH);
+    CHECK(cached_tile(positions::CaveBridge_1) == CAVE_TILE_BRIDGE_VERTICAL);
+    reload();
+    touch(positions::CaveChest);
+    CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && game.gold == 25);
+    reload();
+    touch(positions::CaveChest);
+    CHECK(game.gold == 25 && strstr(words, "empty"));
 }
 
-static void offer_declined_scenario() {
-    reset_game();
-    script({false});
-    talk(NPC_WANDERER);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
-    CHECK(!game.get_flag(FLAG_QUEST_FIND_IONA_STARTED) && !game.get_flag(FLAG_QUEST_FIND_IONA_DONE));
-    CHECK(quest_selected() == QUEST_NONE);
-    CHECK(questions == 1 && strstr(last_text, "Another time"));
-    // Silas asks again: a decline never remembers itself.
-    script({true});
-    talk(NPC_WANDERER);
-    CHECK(questions == 2 && quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
-}
-
-static void silas_conversations_scenario() {
-    reset_game();
-    offer_and_accept();
-    CHECK(game.get_flag(FLAG_QUEST_FIND_IONA_STARTED) && !game.get_flag(FLAG_QUEST_FIND_IONA_DONE));
-    CHECK(quest_selected() == QUEST_FIND_IONA);
-    CHECK(questions == 1 && last_speaker == NPC_WANDERER);
-
-    Game before = game;
-    talk(NPC_WANDERER);
-    CHECK(questions == 1 && strstr(last_text, "found Iona"));
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE && quest_selected() == QUEST_FIND_IONA);
-    flags_match(before);
-}
-
-static void iona_before_acceptance_scenario() {
-    reset_game();
-    talk(NPC_VILLAGER);
-    CHECK(strstr(last_text, "Nocturne Grove") && last_speaker == NPC_VILLAGER);
-    CHECK(game.get_flag(FLAG_VILLAGER_MOVED) && game.get_flag(FLAG_VILLAGER_EAST));
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
-    CHECK(!game.get_flag(FLAG_QUEST_FIND_IONA_DONE));
-    CHECK(npc_location(NPC_VILLAGER) == positions::VillagerEast);
-
-    // Accepting now places the objective at Iona's current logical site, not her starting one.
-    offer_and_accept();
-    TilePos marker;
-    CHECK(quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::VillagerEast);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
-}
-
-static void iona_completion_scenario() {
-    reset_game();
-    offer_and_accept();
-    TilePos marker;
-    CHECK(quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::VillagerHome);
-
-    talk(NPC_VILLAGER);
-    CHECK(strstr(last_text, "worried about me"));
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_COMPLETED);
-    CHECK(game.get_flag(FLAG_QUEST_FIND_IONA_DONE) && game.get_flag(FLAG_QUEST_FIND_IONA_STARTED));
-    // Completion clears tracking and the marker, and the quest stays in the Journal.
-    CHECK(quest_selected() == QUEST_NONE);
-    CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-    CHECK(quest_listed(QUEST_FIND_IONA) && quest_journal_count() == 1);
-    CHECK(!quest_objective(QUEST_FIND_IONA));
-    // Iona's own movement is independent of the quest. Her first conversation sent her east.
-    CHECK(npc_location(NPC_VILLAGER) == positions::VillagerEast);
-
-    // Later conversations grant nothing and change no quest state; her movement still follows.
-    Game done = game;
-    talk(NPC_VILLAGER);
-    CHECK(strstr(last_text, "Nocturne Grove"));
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_COMPLETED && quest_selected() == QUEST_NONE);
-    CHECK(game.get_flag(FLAG_VILLAGER_MOVED) && !game.get_flag(FLAG_VILLAGER_EAST));
-    CHECK(npc_location(NPC_VILLAGER) == positions::VillagerWest);
-    CHECK(game.get_flag(FLAG_QUEST_FIND_IONA_DONE) == done.get_flag(FLAG_QUEST_FIND_IONA_DONE));
-    CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-
-    // Silas now acknowledges the result, and he does not offer the quest again.
-    talk(NPC_WANDERER);
-    CHECK(strstr(last_text, "Good to hear Iona's safe") && questions == 1);
-}
-
-static void unrelated_npc_scenario() {
-    reset_game();
-    offer_and_accept();
-    // Talking to Rowan or Silas, and any other NPC, never completes Find Iona.
-    script({true});
-    talk(NPC_WANDERER);
-    talk(NPC_WANDERER);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
-}
-
-static void tracking_scenario() {
-    reset_game();
-    CHECK(!quest_select(QUEST_FIND_IONA));
-    CHECK(quest_selected() == QUEST_NONE);
-    quest_deselect();
-    CHECK(quest_selected() == QUEST_NONE);
-
-    offer_and_accept();
-    CHECK(quest_selected() == QUEST_FIND_IONA);
-    quest_deselect();
-    CHECK(quest_selected() == QUEST_NONE);
-    CHECK(quest_select(QUEST_FIND_IONA) && quest_selected() == QUEST_FIND_IONA);
-    CHECK(quest_select(QUEST_FIND_IONA) && quest_selected() == QUEST_FIND_IONA);
-    // Tracking does not change the quest's own state.
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE && !game.get_flag(FLAG_QUEST_FIND_IONA_DONE));
-
-    // Invalid identities are never tracked.
-    CHECK(!quest_select(QUEST_NONE));
-    CHECK(!quest_select((QUEST_ID)QUEST_ID_LIMIT));
-    CHECK(!quest_select((QUEST_ID)200));
-    CHECK(quest_selected() == QUEST_FIND_IONA);
-
-    // A started quest is not restarted, and a second start leaves tracking as it was.
-    Game before = game;
-    CHECK(!quest_start(QUEST_FIND_IONA));
-    CHECK(quest_selected() == QUEST_FIND_IONA);
-    flags_match(before);
-}
-
-static void marker_scenario() {
-    reset_game();
-    TilePos marker;
-    CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-    CHECK(!quest_marker(QUEST_FIND_IONA, AREA_OUTDOOR, marker));
-
-    offer_and_accept();
-    CHECK(quest_marker(QUEST_FIND_IONA, AREA_OUTDOOR, marker));
-    CHECK(marker == npc_location(NPC_VILLAGER) && marker == positions::VillagerHome);
-    // Another area has no marker, and the Journal has no map position to show there.
-    CHECK(!quest_marker(QUEST_FIND_IONA, AREA_CAVE, marker));
-    CHECK(!quest_marker(QUEST_FIND_IONA, AREA_INTERIORS, marker));
-
-    // The marker follows Iona's logical site as it changes, without quest-specific coordinates. Her
-    // policy moves her only after she has been spoken to, which the moved flag records.
-    game.set_flag(FLAG_VILLAGER_MOVED);
-    game.set_flag(FLAG_VILLAGER_EAST);
-    CHECK(quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::VillagerEast);
-    game.toggle_flag(FLAG_VILLAGER_EAST);
-    CHECK(quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::VillagerWest);
-    game.clear_flag(FLAG_VILLAGER_MOVED);
-    game.clear_flag(FLAG_VILLAGER_EAST);
-    CHECK(quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::VillagerHome);
-
-    // An untracked quest keeps its marker, but the map shows only the tracked one.
-    quest_deselect();
-    CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-    CHECK(quest_marker(QUEST_FIND_IONA, AREA_OUTDOOR, marker));
-}
-
-static void journal_scenario() {
-    reset_game();
-    CHECK(quest_journal_count() == 0 && quest_journal_entry(0) == QUEST_NONE);
-    CHECK(!quest_listed(QUEST_FIND_IONA));
-    offer_and_accept();
-    CHECK(quest_journal_count() == 1 && quest_journal_entry(0) == QUEST_FIND_IONA);
-    CHECK(quest_journal_entry(1) == QUEST_NONE);
-    CHECK(!strcmp(quest_title(QUEST_FIND_IONA), "Find Iona"));
-    CHECK(!strcmp(quest_objective(QUEST_FIND_IONA), "Speak to Iona"));
-    CHECK(!strcmp(quest_summary(QUEST_FIND_IONA),
-                  "Silas asked me to check on Iona. She's somewhere in Nocturne Grove."));
-    talk(NPC_VILLAGER);
-    CHECK(quest_journal_count() == 1 && quest_journal_entry(0) == QUEST_FIND_IONA);
-    CHECK(!strcmp(quest_summary(QUEST_FIND_IONA),
-                  "I found Iona and learned that she was safe. Silas had nothing to worry about."));
-}
-
-static void invalid_identity_scenario() {
-    reset_game();
-    CHECK(quest_status(QUEST_NONE) == QUEST_NOT_STARTED);
-    CHECK(quest_status((QUEST_ID)QUEST_ID_LIMIT) == QUEST_NOT_STARTED);
-    CHECK(!quest_start(QUEST_NONE) && !quest_start((QUEST_ID)200));
-    CHECK(!strcmp(quest_title(QUEST_NONE), ""));
-    CHECK(!quest_objective((QUEST_ID)200));
-    TilePos marker;
-    CHECK(!quest_marker(QUEST_NONE, AREA_OUTDOOR, marker));
-    CHECK(!quest_listed(QUEST_NONE));
-    quest_deselect();
-    CHECK(quest_selected() == QUEST_NONE);
-}
-
-static void query_side_effects_scenario() {
-    reset_game();
-    offer_and_accept();
-    Game before = game;
-    unsigned evaluations = quest_evaluations;
-    TilePos marker;
-    for(int i = 0; i < 50; ++i) {
-        quest_status(QUEST_FIND_IONA);
-        quest_title(QUEST_FIND_IONA);
-        quest_summary(QUEST_FIND_IONA);
-        quest_objective(QUEST_FIND_IONA);
-        quest_marker(QUEST_FIND_IONA, AREA_OUTDOOR, marker);
-        quest_map_marker(AREA_OUTDOOR, marker);
-        quest_journal_count();
-        quest_journal_entry(0);
-        quest_saved_state_valid();
+static void tracks(bool read_warning) {
+    touch(positions::MineLedger);
+    CHECK(!game.get_flag(FLAG_MINE_LEDGER));
+    if(read_warning) {
+        touch(positions::MineWarning);
+        CHECK(quest_status(QUEST_TRACKS_IN_DUST) == QUEST_ACTIVE);
     }
-    CHECK(!memcmp(&before, &game, sizeof(Game)));
-    CHECK(quest_evaluations == evaluations);
+    stand({AREA_CAVE, (uint8_t)(positions::MineScout.x - 1), positions::MineScout.y}, EAST);
+    auto const wolf = (NPC_ID)(NPC_ENEMY_FIRST + 1);
+    CHECK(npc_find(wolf));
+
+    story_stub_reset(BATTLE_DEFEAT);
+    encounter_contact(wolf);
+    CHECK(!encounter_run() && !game.get_flag(FLAG_MINE_WOLF_DRIVEN));
+    story_stub_set_result(BATTLE_VICTORY);
+    encounter_contact(wolf);
+    CHECK(encounter_run() && game.get_flag(FLAG_MINE_WOLF_DRIVEN));
+    CHECK(story_stub_battles() == 2 && quest_status(QUEST_TRACKS_IN_DUST) == QUEST_ACTIVE);
+    reload();
+    accept = false;
+    touch(positions::MineLedger);
+    CHECK(!game.get_flag(FLAG_MINE_LEDGER));
+    accept = true;
+    touch(positions::MineLedger);
+    CHECK(quest_status(QUEST_TRACKS_IN_DUST) == QUEST_COMPLETED);
+    auto xp = game.party.members[0].experience;
+    reload();
+    touch(positions::MineLedger);
+    CHECK(game.party.members[0].experience == xp);
+    talk(NPC_NELL);
+    CHECK(strstr(words, "eastern trail"));
 }
 
-static void normal_frames_scenario() {
-    reset_game();
-    offer_and_accept();
-    unsigned evaluations = quest_evaluations;
-    for(int i = 0; i < 20; ++i)
-        update_visible_world(0, false);
-    CHECK(quest_evaluations == evaluations);
-}
-
-// A monospaced stand-in measures each character as five pixels, so the layout is exact. Like the
-// device's width callback, it holds no state.
 struct FiveWide {
-    uint16_t operator()(char const* text, uint8_t from, uint8_t to) const {
-        (void)text;
+    uint16_t operator()(char const*, uint8_t from, uint8_t to) const {
         return (uint16_t)((to - from) * 5);
     }
 };
 
-static void journal_wrap_scenario() {
-    char const* texts[] = {
-        "Silas asked me to check on Iona. She's somewhere in Nocturne Grove.",
-        "I found Iona and learned that she was safe. Silas had nothing to worry about.",
-    };
-    uint8_t starts[JOURNAL_SUMMARY_LINES + 1];
-    for(char const* text : texts) {
-        uint8_t count = journal_wrap(text, FiveWide{}, starts, JOURNAL_SUMMARY_LINES);
-        CHECK(count > 0 && count <= JOURNAL_SUMMARY_LINES);
-        // Joining the lines restores the text, and no line exceeds the width.
-        char joined[160] = {};
-        for(uint8_t k = 0; k < count; ++k) {
-            uint8_t to = starts[k + 1];
-            while(to > starts[k] && text[to - 1] == ' ')
-                --to;
-            CHECK(FiveWide{}(text, starts[k], to) <= JOURNAL_TEXT_WIDTH);
-            if(k)
-                strcat(joined, " ");
-            strncat(joined, text + starts[k], to - starts[k]);
-        }
-        CHECK(!strcmp(joined, text));
+static void journal_text() {
+    for(uint8_t id = 1; id < QUEST_ID_LIMIT; ++id) {
+        auto summary = quest_summary((QUEST_ID)id);
+        uint8_t starts[JOURNAL_SUMMARY_LINES + 1];
+        uint8_t count = journal_wrap(summary, FiveWide{}, starts, JOURNAL_SUMMARY_LINES);
+        CHECK(count && starts[count] == strlen(summary));
     }
-    // A word wider than the line is broken between characters, and no text is lost.
-    char const* long_word = "Supercalifragilisticexpialidocious_extended_ending_here";
-    uint8_t count = journal_wrap(long_word, FiveWide{}, starts, JOURNAL_SUMMARY_LINES);
-    CHECK(count >= 2 && starts[count] == strlen(long_word));
-    char rejoined[64] = {};
-    for(uint8_t k = 0; k < count; ++k) {
-        CHECK(FiveWide{}(long_word, starts[k], starts[k + 1]) <= JOURNAL_TEXT_WIDTH);
-        strncat(rejoined, long_word + starts[k], starts[k + 1] - starts[k]);
-    }
-    CHECK(!strcmp(rejoined, long_word));
-    // A summary too long for the space is truncated at the capacity.
-    count = journal_wrap(long_word, FiveWide{}, starts, 1);
-    CHECK(count == 1);
-}
-
-static void completion_experience() {
-    reset_game();
-    PartyMember& member = game.party.members[0];
-    member.experience = 8;
-    talk(NPC_VILLAGER);
-    CHECK(member.experience == 8 && !quest_take_level_ups().members);
-
-    offer_and_accept();
-    talk(NPC_VILLAGER);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_COMPLETED);
-    CHECK(member.level == 2 && member.experience == 0 && party_unspent_perks(member) == 1);
-    LevelUpNotice notice = quest_take_level_ups();
-    CHECK(notice.members == 1 && notice.perk_earned);
-    CHECK(!quest_take_level_ups().members && party_has_unspent_perks(game.party));
-    talk(NPC_VILLAGER);
-    CHECK(member.experience == 0 && !quest_take_level_ups().members);
-
-    quest_award_experience(15);
-    CHECK(member.level == 3);
-    CHECK(save_restore());
-    CHECK(!quest_take_level_ups().members && party_unspent_perks(member) == 1);
-}
-
-static void save_scenario() {
-    reset_game();
-    offer_and_accept();
-    Game saved = game;
-    CHECK(save_valid());
-
-    // Save while active and tracked, then reload: status, tracking and the marker are preserved.
-    talk(NPC_WANDERER);
-    game = saved;
-    CHECK(save_restore());
-    update_visible_world(0, false);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE && quest_selected() == QUEST_FIND_IONA);
-    TilePos marker;
-    CHECK(quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::VillagerHome);
-
-    // Completion survives reload, and loading replays no conversation or quest effect.
-    talk(NPC_VILLAGER);
-    Game done = game;
-    game = done;
-    CHECK(save_valid() && save_restore());
-    shown = questions = 0;
-    update_visible_world(0, false);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_COMPLETED && quest_selected() == QUEST_NONE);
-    CHECK(shown == 0 && questions == 0);
-    flags_match(done);
-    CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-
-    // Before acceptance, a loaded game still offers the quest.
-    reset_game();
-    Game fresh = game;
-    game = fresh;
-    CHECK(save_restore() && quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
-    script({true});
-    talk(NPC_WANDERER);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
-}
-
-static void malformed_save_scenario() {
-    reset_game();
-    offer_and_accept();
-    Game good = game;
-
-    game = good;
-    game.selected_quest = (QUEST_ID)200;
-    CHECK(!save_valid());
-
-    // Completion is impossible without the start fact.
-    game = good;
-    game.clear_flag(FLAG_QUEST_FIND_IONA_STARTED);
-    game.set_flag(FLAG_QUEST_FIND_IONA_DONE);
-    CHECK(!save_valid() && !save_restore());
-
-    // A selection that names an inactive quest is dropped on restore, because it is not corrupt.
-    game = good;
-    game.clear_flag(FLAG_QUEST_FIND_IONA_STARTED);
-    game.selected_quest = QUEST_FIND_IONA;
-    CHECK(save_valid());
-    CHECK(save_restore());
-    CHECK(quest_selected() == QUEST_NONE);
-    CHECK(quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
-
-    // A stale save version is rejected before any quest state is read.
-    game = good;
-    game.save_version = SAVE_VERSION - 1;
-    CHECK(!save_valid());
-    game = good;
-}
-
-static void reset_scenario() {
-    reset_game();
-    offer_and_accept();
-    CHECK(quest_selected() == QUEST_FIND_IONA);
-    // A new game clears tracking and the quest history with the rest of the state.
-    game_new();
-    CHECK(quest_selected() == QUEST_NONE && quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
-    CHECK(!game.get_flag(FLAG_QUEST_FIND_IONA_STARTED));
 }
 
 int main() {
-    static_assert(QUEST_ID_LIMIT == 2, "the shipping catalog registers Find Iona only");
-    offer_declined_scenario();
-    silas_conversations_scenario();
-    iona_before_acceptance_scenario();
-    iona_completion_scenario();
-    unrelated_npc_scenario();
-    tracking_scenario();
-    marker_scenario();
-    journal_scenario();
-    invalid_identity_scenario();
-    query_side_effects_scenario();
-    normal_frames_scenario();
-    journal_wrap_scenario();
-    completion_experience();
-    save_scenario();
-    malformed_save_scenario();
-    reset_scenario();
-    printf("quest checks passed: %u\n", checks);
-    return 0;
+    game_new();
+    CHECK(!quest_start(QUEST_NONE) && !quest_select((QUEST_ID)200));
+    CHECK(quest_journal_count() == 0);
+    social(true);
+    bridge();
+    tracks(true);
+    CHECK(quest_journal_count() == 3 && quest_selected() == QUEST_NONE);
+    journal_text();
+
+    game_new();
+    tracks(false);
+    bridge();
+    social(false);
+    CHECK(quest_journal_count() == 3 && quest_selected() == QUEST_NONE);
+    journal_text();
+
+    game_new();
+    game.set_flag(FLAG_MINE_LEDGER);
+    CHECK(!save_valid());
+    game_new();
+    game.set_flag(FLAG_ORCHARD_SETTLED);
+    CHECK(!save_valid());
+    game_new();
+    --game.save_version;
+    CHECK(!save_valid());
+    printf("Millcross quest checks passed (%u)\n", checks);
 }

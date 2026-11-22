@@ -21,12 +21,15 @@ enum FLAG : uint16_t {
     FLAG_DUNGEON_BLOCKS,
     FLAG_DUNGEON_ORB,
     FLAG_DUNGEON_CHEST,
-    FLAG_VILLAGER_MOVED,
-    FLAG_VILLAGER_EAST,
-    // Find Iona's history. Its status is derived from these two bits, and completion is never set
-    // without the start bit.
-    FLAG_QUEST_FIND_IONA_STARTED,
-    FLAG_QUEST_FIND_IONA_DONE,
+    FLAG_ORCHARD_DISPUTE,
+    FLAG_BRAM_ACCOUNT,
+    FLAG_ORRIN_ACCOUNT,
+    FLAG_ORCHARD_SETTLED,
+    FLAG_ORCHARD_PUBLIC,
+    FLAG_BRIDGE_SURVEY,
+    FLAG_MINE_WARNING,
+    FLAG_MINE_WOLF_DRIVEN,
+    FLAG_MINE_LEDGER,
     // Expanding either saved range may require a save version bump.
     FLAG_ITEM_FIRST,
     FLAG_ITEM_END = FLAG_ITEM_FIRST + ITEM_DEFINED_COUNT,

@@ -4,6 +4,12 @@ C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. Use the D-pad to move, A to interact, and B to open the pause menu.
 Walking into a hostile creature or blocking its step starts a battle.
 
+Millcross opens at Well Square. Talk to Tessa about the dry orchard, recruit
+Rowan near the square, or follow the north road to Hollow Mine. The Lantern Inn
+offers free rest, and Ada stocks supplies across the square. Save from the
+pause menu before entering the mine. The first authored village, its residents,
+and its quests are described in the [world bible](docs/world_bible.md).
+
 Teleports, including entering and leaving buildings, use the same 320 ms dither fade through
 black as battles. The destination's camera, tile cache and actors are prepared while the screen
 is black. The shared fade adds no static RAM.
@@ -36,8 +42,7 @@ is not drawn while the panel covers the screen.
   **From Equipment** lists the selected member’s active item effects and their sources.
   A `!` beside Party in the pause menu and a star beside the member's name mark pending choices.
   Victory shows the names and new levels of members who leveled up, with `Perk available!`
-  when the reward earned a choice. Find Iona awards 2 XP to each member on completion and uses
-  the same level-up notice after dialogue closes.
+  when the reward earned a choice. Quest experience uses the same level-up notice after dialogue closes.
 - **Equipment** shows the selected member’s weapon, armor and relic. Use left and right to switch
   members. Press A on a slot to see compatible owned items, who wears them, and the **Unequip**
   action. Press A on an item to inspect it, then A again to equip or transfer it. B returns to
@@ -72,7 +77,7 @@ of the first member. Learning a perk leaves current HP and AP as they were.
 Attack perks apply to both normal and special attacks. See [the progression design](docs/ideas_for_items_perks_abilities.md#4-character-levels-and-two-track-perk-progression).
 
 A new game starts with the traveler (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
-of the starting point; talking to him recruits him once (18/18 HP, 4/4 AP, step movement, shoot attack).
+of the starting point. Choose **Join my party** to recruit him (18/18 HP, 4/4 AP, step movement, shoot attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
 Party membership, current HP and AP, level, experience and both perk ranks are saved. The world stays frozen while the menu is open; music continues.
 Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
@@ -320,21 +325,21 @@ dialogue. Animated tiles cost nothing per tile: each of the four phases has its 
 sheet. The tile and map rules are in `assets/maps/AUTHORING.md`. The same tiles decide what the
 player hears: see the environment sounds under the music section above.
 
-The overworld is one 240x248-tile map with a village in its north-west corner, beside
+The overworld is one 240x248-tile map with Millcross in its northwest corner beside
 a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
 ten houses has its own interior: face a door and press A to enter, and walk out through
 the exit at the bottom of the room to leave.
 
-Two more places lie under the cliff north of the village. A cave mouth north of the green
-leads into Hollow Mine, and a mine door at the end of the path from the north street leads
+Two more places lie under the cliff north of the village. A cave mouth at the end of the north road
+leads into Hollow Mine. A separate door farther east leads
 into the Old Vault. Walk into either to enter. Both are built around mechanisms: levers,
 gates that draw down into the floor, pressure plates, spikes, sinking blocks, a bridge over a
-chasm and a steam vent that blows by the clock. The mine's far ladder climbs out to a hole in
-the west meadow. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
+chasm and a steam vent that blows by the clock. Repairing the mine's bridge opens a two-way maintenance hatch on the west ridge. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build rejects saves older than version 20.** The live, pointer-free
-`Game` struct is saved directly from AVM's `.saved` prefix. Version 20 reserves 16 defeated-enemy
-bits and stores the shared two-byte respawn countdown. Validation checks the countdown,
+**This development build requires save version 21.** The map, NPC identity, and
+world flag changes make older saves incompatible. The live, pointer-free
+`Game` struct is saved directly from AVM's `.saved` prefix, including 16 defeated-enemy
+bits and the shared two-byte respawn countdown. Validation checks the countdown,
 unused flag bits, equipment ownership, slot categories, unique wearers and adjusted HP/AP. Supply quantities are validated against the limit of 15.
 Each member stores both perk ranks in a single byte, with three bits
 per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down
@@ -347,7 +352,7 @@ saved world. NPC casts, the tile cache and the animation
 tick are rebuilt from quest-derived policies when a save is loaded. Resource and stack
 reports are verified by the full-LTO guest link.
 
-- `assets/maps/outdoor.tmx`: authoritative sample map, collision and native handler anchors.
+- `assets/maps/outdoor.tmx`: overworld terrain and native handler anchors.
 - `assets/tilesets/world.tsx`: row-major tile IDs, symbols and solidity.
 - `assets/images/tiles16.png`: opaque 256x256 atlas; IDs 0x00–0xFE are usable.
 - `assets/images/tiles16_phase1.png` to `_phase3.png`, `tiles16_wind.png` and the matching
@@ -367,7 +372,7 @@ reports are verified by the full-LTO guest link.
 - `assets/images/battle_damage16.png`: the damage indicators, nine 16x16 frames for damage
   values 1 through 9. Each is the same spiky burst with its own 3x5 digit in the black middle.
   The battle screen draws two-digit values over the burst.
-- `src/logic/`: the handlers that the maps name, split by environment, and the sample NPC
+- `src/logic/`: the handlers that the maps name, split by environment, and authored NPC
   definitions, separate from generic mechanics. `handlers.h` only includes the others.
   `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
   chests), each with a mechanism kind that decides how it is worked and how it sounds, messages
@@ -383,7 +388,7 @@ reports are verified by the full-LTO guest link.
   in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
   `tests/story_stub.*` records story calls and sound requests on the host.
 - `src/quest.h`, `src/quest_dispatch.h`, `src/quest_runtime.cpp` and `src/quests/`: the quest interface,
-  compile-time event dispatch and the Find Iona quest. `src/journal.h` and the Journal screen show them.
+  compile-time event dispatch and the three Millcross quests. `src/journal.h` and the Journal screen show them.
   `docs/quests.md` describes the architecture. `tests/test_quests.cpp`, `tests/test_quest_catalog.cpp`
   and `tests/test_quest_validation.py` cover them.
 - `assets/music/*.avms`: all editable soundtrack scores.
@@ -402,8 +407,8 @@ reports are verified by the full-LTO guest link.
 
 ## Overworld encounters
 
-The Grove Wolf wanders in the woods north of town. The Mine Scout pursues the party at player
-speed in Hollow Mine. The Old Vault's guardian follows a patrol and challenges the party on
+A wolf wanders west of Millcross’s north road. A lone wolf pursues the party at
+player speed on the rails of Hollow Mine. The Old Vault's guardian follows a patrol and challenges the party on
 contact. Victory pays the normal battle rewards and removes the defeated creature before
 exploration reappears.
 
@@ -531,6 +536,9 @@ RAM bytes than the previous 17x9 cache.
 The installed SDK must include `bin/avm/interp.fxc.hex`, independent music/SFX
 attenuation, and the `avm_audio_get_music` / volume getters. Update an older SDK
 with the AVM checkout's `avm_sdk_install` CMake target before building.
+
+For map and story changes, follow the [content authoring guide](docs/content_authoring.md).
+The advisory review can run with `python tools/review_content_density.py`.
 
 From this repository root:
 

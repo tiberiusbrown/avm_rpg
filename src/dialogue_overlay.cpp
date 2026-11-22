@@ -172,7 +172,8 @@ static inline __attribute__((always_inline)) void draw_background(uint8_t covere
         rpg_render_world(covered);
 }
 
-static void open_overlay(NPC_ID id = NPC_NONE) {
+// Opening can draw the world from inside a tile handler. Share its caller’s stack frame.
+static inline __attribute__((always_inline)) void open_overlay(NPC_ID id = NPC_NONE) {
     // The press that opened the dialogue must not finish or advance its first page.
     input_wait_release(BTN_A | BTN_B);
     avm_set_text_font(AVM_FONT_BR5D);

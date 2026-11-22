@@ -339,11 +339,19 @@ __attribute__((noinline)) uint8_t player_leading_edge(uint16_t x, uint16_t y, DI
 bool player_terrain_clear(uint16_t x, uint16_t y) {
     if(!game.dimensions.pixel_bounds(x, y))
         return false;
+#ifdef RPG_AVM
+    auto const* masks = &TILE_COLLISION[(uint16_t)area_tileset(game.area) << 8];
+#endif
     uint16_t left = x + FOOT_LEFT, right = x + FOOT_RIGHT;
     uint16_t top = y + FOOT_TOP, bottom = y + FOOT_BOTTOM;
     for(uint16_t ty = top >> TILE_SHIFT; ty <= (bottom >> TILE_SHIFT); ++ty) {
         for(uint16_t tx = left >> TILE_SHIFT; tx <= (right >> TILE_SHIFT); ++tx) {
-            uint16_t mask = tile_collision(cached_tile({game.area, (uint8_t)tx, (uint8_t)ty}));
+            uint8_t tile = cached_tile({game.area, (uint8_t)tx, (uint8_t)ty});
+#ifdef RPG_AVM
+            uint16_t mask = masks[tile];
+#else
+            uint16_t mask = tile_collision(tile);
+#endif
             if(!mask)
                 continue;
             if(mask == 0xFFFF)

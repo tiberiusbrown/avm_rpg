@@ -33,3 +33,10 @@
 - Highlight the selected row with a filled, seven-pixel-high white bar and draw the row text in black inside it. Keep one clear black pixel between the bar and any adjacent horizontal divider or panel border when the first or last row is selected. Adjust the row positions or panel height to provide that gap.
 - Use the shared arrow sprites for scrolling or directional adjustments. Show them where movement in that direction is available.
 - Use the shared A and B button sprites with adjacent action labels in prompts and footers, including battle confirmations.
+
+## World content
+
+Before authoring maps, NPCs, quests, encounters, or environmental content,
+read [the content authoring guide](docs/content_authoring.md) and
+[the world bible](docs/world_bible.md). Keep established setting facts current
+with the shipped content and use the linked map guides for technical rules.

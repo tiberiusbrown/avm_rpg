@@ -448,9 +448,7 @@ static void tile_edits_reset_each_frame() {
 
 // Activating a door enters its house, and walking onto the exit returns to the door. Each
 // area collides with its own tileset, so one tile ID means different tiles in each.
-static void house_doors() {
-    game_new();
-    TilePos door = positions::ElderDoor, way_out = positions::ElderExit;
+static void house_door(TilePos door, TilePos way_out) {
     CHECK(area_tileset(AREA_OUTDOOR) == TILESET_WORLD && area_tileset(AREA_INTERIORS) == TILESET_HOUSE);
     static_assert(TILE_BOULDER_TALL == HOUSE_TILE_EDGE_TOP_EXIT, "one ID, two tiles");
 
@@ -490,6 +488,12 @@ static void house_doors() {
     CHECK(game.area == AREA_OUTDOOR);
 }
 
+static void house_doors() {
+    game_new();
+    for(auto const& link : handler_impl::HOUSE_LINKS)
+        house_door(link.door, link.exit);
+}
+
 static void stand(TilePos cell, DIRECTION facing) {
     world_enter(cell.area, (uint16_t)(cell.x * TILE), (uint16_t)(cell.y * TILE), facing);
 }
@@ -520,6 +524,14 @@ static void walk_passage(handler_impl::Passage const& passage) {
     bool wall_row = passage.inside_step > 0;
     TilePos floor{passage.inside.area, passage.inside.x,
                   (uint8_t)(passage.inside.y + passage.inside_step)};
+    if(passage.outside == positions::CaveHole) {
+        stand(below(passage.outside), NORTH);
+        CHECK(cached_tile(passage.outside) == TILE_BOULDER_CRACKED);
+        for(unsigned i = 0; i < TILE; ++i)
+            CHECK(!game_update(BTN_UP, 0));
+        CHECK(game.area == AREA_OUTDOOR);
+        game.set_flag(FLAG_CAVE_BRIDGE);
+    }
     // Both ends are walkable, and so is the floor on each side.
     stand(below(passage.outside), NORTH);
     CHECK(!tile_solid(cached_tile(passage.outside)) && !tile_portal(cached_tile(passage.outside)));

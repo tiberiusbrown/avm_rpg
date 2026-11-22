@@ -32,7 +32,7 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
-// Questions are declined by these binaries, which do not script Silas's offer.
+// The test overlay declines questions.
 bool dialogue_ask(char const PROGMEM*) {
     return false;
 }
@@ -195,21 +195,11 @@ static void run(uint32_t seed, unsigned frames) {
         // Player input and world events are chosen before the frame, as in real play.
         if(rng() % 8 == 0)
             held = moves_for[rng() % (sizeof(moves_for) / sizeof(moves_for[0]))];
-        if(rng() % 120 == 0) {
-            unsigned destination = rng() % 3;
-            if(destination == 2)
-                game.clear_flag(FLAG_VILLAGER_MOVED);
-            else {
-                game.set_flag(FLAG_VILLAGER_MOVED);
-                if(destination == 1)
-                    game.set_flag(FLAG_VILLAGER_EAST);
-                else
-                    game.clear_flag(FLAG_VILLAGER_EAST);
-            }
-        }
+        if(rng() % 120 == 0)
+            game.toggle_flag(FLAG_ORCHARD_SETTLED);
         if(rng() % 160 == 0)
-            npc_move_to(NPC_WANDERER, (uint16_t)(positions::WandererHome.x * TILE - 16 + rng() % 33),
-                      (uint16_t)(positions::WandererHome.y * TILE - 12 + rng() % 25));
+            npc_move_to(NPC_ORRIN, (uint16_t)(positions::OrrinLane.x * TILE - 16 + rng() % 33),
+                      (uint16_t)(positions::OrrinLane.y * TILE - 12 + rng() % 25));
         Snapshot before = take();
         Camera camera_before = game_camera();
         if(rng() % 25 == 0)
@@ -227,23 +217,23 @@ static void run(uint32_t seed, unsigned frames) {
 // is twelve pixels west, so it must walk out over many steps, and no step may jump.
 static void test_tile_change_under_npc_walks_out() {
     game_new();
-    Npc* villager = npc_find(NPC_VILLAGER);
-    CHECK(villager && villager->actor.x == positions::VillagerHome.x * TILE &&
-          villager->actor.y == positions::VillagerHome.y * TILE);
+    Npc* villager = npc_find(NPC_TESSA);
+    CHECK(villager && villager->actor.x == positions::TessaWell.x * TILE &&
+          villager->actor.y == positions::TessaWell.y * TILE);
     uint16_t start_x = villager->actor.x, start_y = villager->actor.y;
     for(unsigned frame = 0; frame < 120; ++frame) {
         Snapshot before = take();
         Camera camera_before = game_camera();
         update_visible_world(0, false);
-        for(uint8_t ty = positions::VillagerHome.y; ty <= positions::VillagerHome.y + 1; ++ty)
-            for(uint8_t tx = positions::VillagerHome.x; tx <= positions::VillagerHome.x + 1; ++tx)
+        for(uint8_t ty = positions::TessaWell.y; ty <= positions::TessaWell.y + 1; ++ty)
+            for(uint8_t tx = positions::TessaWell.x; tx <= positions::TessaWell.x + 1; ++tx)
                 cache_tile(tx, ty, TILE_TREE);
         npc_update();
         ++game.ticks;
         ++frames_run;
         Snapshot after = take();
         check_frame(before, after, camera_before, game_camera(), frame);
-        CHECK(npc_find(NPC_VILLAGER) == villager);
+        CHECK(npc_find(NPC_TESSA) == villager);
     }
     CHECK(terrain_clear(villager->actor.x, villager->actor.y));
     CHECK(start_x - villager->actor.x >= 8 && start_x - villager->actor.x <= 16 &&

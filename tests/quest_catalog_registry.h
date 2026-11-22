@@ -2,10 +2,10 @@
 #define QUEST_CATALOG_REGISTRY_H
 
 // Registry for the catalog test build, which sets RPG_QUEST_ID_LIMIT to 40. Quest 1 is the
-// shipping Find Iona. Quests 2 to 39 are synthetic probes whose state lives in test arrays, because
+// shipping Dry Roots. Quests 2 to 39 are synthetic probes whose state lives in test arrays, because
 // 40 quests cannot each own flags. They cover flag subscriptions, cascades, an evaluation cycle,
 // conversation delivery, starts, markers, consistency and a long Journal.
-#include "quests/find_iona.h"
+#include "quests/dry_roots.h"
 #include "map_positions.h"
 
 inline QUEST_STATUS test_status[QUEST_ID_LIMIT];
@@ -42,20 +42,20 @@ template <> struct Quest<(QUEST_ID)3> {
 
 // Listens to the wanderer and counts each conversation without merging them.
 template <> struct Quest<(QUEST_ID)4> {
-    using Watches = Watch<NpcTalked<NPC_WANDERER>>;
+    using Watches = Watch<NpcTalked<NPC_ORRIN>>;
     static QUEST_STATUS status() { return test_status[4]; }
     static char const PROGMEM* title() { return F("Wanderer Listener"); }
-    static char const PROGMEM* summary() { return F("Talks with Silas."); }
-    static void on(NpcTalked<NPC_WANDERER>) { ++test_talks[4]; }
+    static char const PROGMEM* summary() { return F("Talks with Orrin."); }
+    static void on(NpcTalked<NPC_ORRIN>) { ++test_talks[4]; }
 };
 
 // Completes on the villager's conversation, once, and only while active.
 template <> struct Quest<(QUEST_ID)5> {
-    using Watches = Watch<NpcTalked<NPC_VILLAGER>>;
+    using Watches = Watch<NpcTalked<NPC_TESSA>>;
     static QUEST_STATUS status() { return test_status[5]; }
     static char const PROGMEM* title() { return F("Villager Listener"); }
-    static char const PROGMEM* summary() { return F("Talks with Iona."); }
-    static void on(NpcTalked<NPC_VILLAGER>) {
+    static char const PROGMEM* summary() { return F("Talks with Tessa."); }
+    static void on(NpcTalked<NPC_TESSA>) {
         ++test_talks[5];
         if(test_status[5] == QUEST_ACTIVE) {
             test_status[5] = QUEST_COMPLETED;
@@ -75,7 +75,7 @@ template <> struct Quest<(QUEST_ID)6> {
     static bool marker(uint8_t area, TilePos& out) {
         if(area != AREA_OUTDOOR)
             return false;
-        out = positions::GroveSign;
+        out = positions::WellSign;
         return true;
     }
 };

@@ -301,17 +301,16 @@ A cave joins the outdoor map through passages.
 
 `cave.tmx` is a worked example. Its chambers and its chain of mechanisms:
 
-- The **entrance chamber** in the south holds a campfire and a notice. Its exit leads to the
-  cave mouth north of the village green.
-- The **gallery** runs west to east, with rails, two mine carts, timber frames and torches.
-  `CaveLever` on its north wall opens `CaveGate`.
-- The **vault** in the north-east lies behind `CaveGate`. It holds `CaveChest` and
-  `CaveVaultLever`, which opens `CaveNookGate`.
-- The **nook** west of the gallery lies behind `CaveNookGate`. `CavePlate` on its floor runs
-  the bridge `CaveBridge` out over the chasm.
-- The **grotto** in the north-west holds the pool under a waterfall.
-- A passage one cell wide, with `CaveVent` in it, leads north from the gallery to the
-  **chasm**. Across the bridge, `CaveLadder` climbs to `CaveHole` in the west meadow.
+- The **entrance chamber** holds a campfire, the bridge crew’s directions,
+  and Nell’s warning about the wolf. The exit leads to Millcross’s north road.
+- The **rail gallery** contains a wolf encounter and a tally board. `CaveLever`
+  opens the east gate to the winch room.
+- The **winch room** holds `CaveVaultLever`, which opens `CaveNookGate` to the west.
+  `CavePlate` in the west inspection nook extends the bridge and opens the
+  surface hatch.
+- The **grotto** in the northwest holds a pool and an optional inscription.
+- A steam vent bars the north passage intermittently. The restored bridge
+  leads to the supply chest and the ladder back to the west ridge.
 
 ## Before committing a cave map
 

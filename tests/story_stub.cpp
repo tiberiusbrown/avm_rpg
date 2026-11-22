@@ -9,6 +9,7 @@ static unsigned battle_count;
 static unsigned join_count;
 static NPC_ID last_join = NPC_NONE;
 static BATTLE_RESULT next_result = BATTLE_VICTORY;
+static uint8_t next_choice;
 
 static SfxRecord sounds[SFX_LOG_CAPACITY];
 static unsigned sound_count;
@@ -19,7 +20,15 @@ void fade_world_in() {}
 
 void dialogue_close() {}
 
-uint8_t dialogue_options_ex(char const* const*, uint8_t, bool) { return 0; }
+uint8_t dialogue_options_ex(char const* const*, uint8_t count, bool allow_back) {
+    if(next_choice >= count && !(allow_back && next_choice == 255))
+        abort();
+    return next_choice;
+}
+
+void story_stub_set_choice(uint8_t choice) {
+    next_choice = choice;
+}
 
 static void record(StoryEvent event) {
     if(event_count == STORY_LOG_CAPACITY) {
@@ -35,6 +44,7 @@ void story_stub_reset(BATTLE_RESULT result) {
     join_count = 0;
     last_join = NPC_NONE;
     next_result = result;
+    next_choice = 0;
 }
 
 void story_stub_set_result(BATTLE_RESULT result) {

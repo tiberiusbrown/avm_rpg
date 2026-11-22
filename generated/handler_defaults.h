@@ -18,6 +18,8 @@ EmptyHandler leave_house(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler light_orb(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
+EmptyHandler maintenance_hatch(Tag<POS, STAGE>) { return {}; }
+template <TilePos POS, HandlerStage STAGE>
 EmptyHandler open_chest(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler open_door(Tag<POS, STAGE>) { return {}; }
@@ -25,6 +27,12 @@ template <TilePos POS, HandlerStage STAGE>
 EmptyHandler open_shop(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler press_plate(Tag<POS, STAGE>) { return {}; }
+template <TilePos POS, HandlerStage STAGE>
+EmptyHandler read_bridge_notice(Tag<POS, STAGE>) { return {}; }
+template <TilePos POS, HandlerStage STAGE>
+EmptyHandler read_mine_ledger(Tag<POS, STAGE>) { return {}; }
+template <TilePos POS, HandlerStage STAGE>
+EmptyHandler read_wolf_warning(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler rest_at_inn(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
@@ -35,8 +43,6 @@ template <TilePos POS, HandlerStage STAGE>
 EmptyHandler steam_vent(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler take_passage(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler update_wanderer(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler use_lever(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
@@ -62,6 +68,14 @@ constexpr bool implemented_light_orb() {
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_light_orb() {
     light_orb(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_maintenance_hatch() {
+    return authored_handler<decltype(maintenance_hatch(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_maintenance_hatch() {
+    maintenance_hatch(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_open_chest() {
@@ -94,6 +108,30 @@ constexpr bool implemented_press_plate() {
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_press_plate() {
     press_plate(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_read_bridge_notice() {
+    return authored_handler<decltype(read_bridge_notice(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_read_bridge_notice() {
+    read_bridge_notice(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_read_mine_ledger() {
+    return authored_handler<decltype(read_mine_ledger(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_read_mine_ledger() {
+    read_mine_ledger(Tag<POS, STAGE>{});
+}
+template <TilePos POS, HandlerStage STAGE>
+constexpr bool implemented_read_wolf_warning() {
+    return authored_handler<decltype(read_wolf_warning(Tag<POS, STAGE>{}))>;
+}
+template <TilePos POS, HandlerStage STAGE>
+void dispatch_read_wolf_warning() {
+    read_wolf_warning(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_rest_at_inn() {
@@ -136,14 +174,6 @@ void dispatch_take_passage() {
     take_passage(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_update_wanderer() {
-    return authored_handler<decltype(update_wanderer(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_update_wanderer() {
-    update_wanderer(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_use_lever() {
     return authored_handler<decltype(use_lever(Tag<POS, STAGE>{}))>;
 }
@@ -163,6 +193,9 @@ struct Handler {
     void light_orb() {
         handler_impl::dispatch_light_orb<POS, STAGE>();
     }
+    void maintenance_hatch() {
+        handler_impl::dispatch_maintenance_hatch<POS, STAGE>();
+    }
     void open_chest() {
         handler_impl::dispatch_open_chest<POS, STAGE>();
     }
@@ -174,6 +207,15 @@ struct Handler {
     }
     void press_plate() {
         handler_impl::dispatch_press_plate<POS, STAGE>();
+    }
+    void read_bridge_notice() {
+        handler_impl::dispatch_read_bridge_notice<POS, STAGE>();
+    }
+    void read_mine_ledger() {
+        handler_impl::dispatch_read_mine_ledger<POS, STAGE>();
+    }
+    void read_wolf_warning() {
+        handler_impl::dispatch_read_wolf_warning<POS, STAGE>();
     }
     void rest_at_inn() {
         handler_impl::dispatch_rest_at_inn<POS, STAGE>();
@@ -189,9 +231,6 @@ struct Handler {
     }
     void take_passage() {
         handler_impl::dispatch_take_passage<POS, STAGE>();
-    }
-    void update_wanderer() {
-        handler_impl::dispatch_update_wanderer<POS, STAGE>();
     }
     void use_lever() {
         handler_impl::dispatch_use_lever<POS, STAGE>();

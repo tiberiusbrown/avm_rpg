@@ -4,8 +4,8 @@ Quests are compile-time definitions in their own headers. Each quest owns its st
 objective, map marker and event handlers. The engine reaches them only through `src/quest.h`, so
 adding a quest does not change the Journal, the map or the dialogue code.
 
-The shipping catalog has one quest, Find Iona. The quest runtime is compiled once, in
-`src/quest_runtime.cpp`, which includes the registry.
+The shipping catalog contains Dry Roots, The Span Below, and Tracks in the Dust.
+`src/quest_runtime.cpp` compiles the registry.
 
 ## Files
 
@@ -15,10 +15,10 @@ The shipping catalog has one quest, Find Iona. The quest runtime is compiled onc
 | `src/quest.h` | Public API, `QUEST_STATUS`, event subscriptions and the `Quest<ID>` contract. |
 | `src/quest_dispatch.h` | Compile-time validation, subscription traits and the per-ID operation tables. |
 | `src/quest_registry.h` | The shipping catalog: includes each quest header. |
-| `src/quests/find_iona.h` | The Find Iona definition. |
+| `src/quests/` | Authored quest definitions. |
 | `src/quest_runtime.cpp` | Generated dispatch, pending evaluation, selection and the public API. |
 | `src/journal.h` | Journal layout constants, the view struct and the summary word wrap. |
-| `src/logic/npc_logic.cpp` | Silas's offer and Iona's conversation, which use the quest API. |
+| `src/logic/area_village.h`, `src/logic/area_cave.h` | Resident conversations, inscriptions, and battle hooks that update saved facts or emit events. |
 | `src/screens.cpp`, `src/render.cpp` | The Journal screen and the tracked-quest map marker. |
 
 ## Identity and registration
@@ -29,7 +29,7 @@ past the largest ID, and it can be overridden with `RPG_QUEST_ID_LIMIT` for a te
 Each quest specializes `Quest<ID>` in its own header:
 
 ```cpp
-template <> struct Quest<QUEST_FIND_IONA> { /* members below */ };
+template <> struct Quest<QUEST_DRY_ROOTS> { /* members below */ };
 ```
 
 To register a quest, add its ID to `quest_ids.h`, add its header to `quest_registry.h`, and
@@ -53,23 +53,19 @@ Optional members are checked for their exact signature when they are declared. A
 wrong signature is a compile error, not an ignored member. Quests declare subscriptions with
 `using Watches = Watch<...>;`, and a quest without one receives no events.
 
-Status, text and marker queries must not change game state. Only `start`, `evaluate` and the
-event handlers may set flags.
+Status, text and marker queries must not change game state. `start`, `evaluate`, event handlers, and explicit content interactions may set flags.
 
 ## Derived status and persistence
 
-No status is stored for a quest. `status()` reads the quest's own flags, so Find Iona is derived as:
+Status derives from saved facts. For example, The Span Below is completed
+when the bridge flag is set and active once the maintenance notice is read.
 
-- completed when `FLAG_QUEST_FIND_IONA_DONE` is set,
-- active when `FLAG_QUEST_FIND_IONA_STARTED` is set,
-- otherwise not started.
-
-The only quest-specific saved field is `Game::selected_quest`, the tracked quest or `QUEST_NONE`.
-The save layout is version 20, and older saves are rejected.
-
-On load, `save_valid()` rejects an out-of-range `selected_quest`, and `quest_saved_state_valid()`
-calls each quest's `consistent()`. For Find Iona, completion without the start flag is rejected.
-A selection that names a quest which is not active is not corrupt, so `save_restore()` clears it.
+`Game::selected_quest` stores the tracked quest or `QUEST_NONE`. Save version 21
+rejects earlier development saves because map positions, identities, and flag
+indices changed. The save checks the tracked ID and calls each quest’s
+`consistent()`. Dry Roots requires the offer and both accounts for a settlement.
+Tracks in the Dust requires a victory before the tally can be recorded.
+`save_restore()` clears a selection that names an inactive quest.
 
 Computed statuses, summaries, markers, the Journal cursor and pending evaluations are not saved.
 
@@ -87,7 +83,7 @@ The quest is evaluated later, at the settle described below.
 occurrence is delivered once, immediately, to the quests that name that NPC. Delivery is a
 per-NPC sequence of direct calls, generated at compile time, so it never scans the catalog.
 
-Handlers should check status themselves when progress depends on it. Find Iona's handler does.
+Handlers should check status themselves when progress depends on it. Dry Roots checks that the inquiry is active and both accounts are recorded.
 
 ## Settling
 
@@ -133,7 +129,7 @@ The summary is wrapped once, when the quest opens. The wrap records line offsets
 in program memory, and it keeps at most `JOURNAL_SUMMARY_LINES` lines. Nothing is copied, so the
 Journal has no text buffer. Measurement and drawing use small chunks on the stack.
 The native tests check the wrap with a fixed-width stand-in font, which
-confirms that lines fit their width and that no text is lost. The device suite starts Find Iona for one
+confirms that lines fit their width and that no text is lost. The device suite starts Dry Roots for one
 pause menu, opens its detail view, captures it for review, and checks that the view leaves the game
 state unchanged. It does not assert the rendered pixels. The world does not simulate while the Journal is open.
 
@@ -147,8 +143,9 @@ is outside that area, whatever the quest computed.
 The marker is a black-edged white diamond that blinks opposite the player's marker. It needs no
 asset. Its position uses the same tile-to-map mapping as the player.
 
-Find Iona computes its marker from `npc_location(NPC_VILLAGER)`, the NPC system's current logical
-site. It stores no coordinates, so the marker follows Iona whenever her policy changes.
+Dry Roots uses `npc_location()` to guide the player to the next witness or back
+to Tessa. The mine quests mark the entrance on the outdoor map. Tracks in the
+Dust also supplies the rail chamber and tally locations to cave-area queries.
 
 ## Compile-time and runtime checks
 
@@ -185,56 +182,21 @@ place is caught only by a behavioral test.
 Keep a quest's progress in game flags, so that it is saved and restored with the rest of the game.
 A quest that reacts to a flag change should subscribe with `FlagChanged`, not poll each frame.
 
-## Find Iona
+## Millcross examples
 
-Find Iona is the only quest in the shipping catalog. It is a complete example of each part.
+- **Dry Roots** starts with Tessa’s offer. Confirming either resolution emits
+  `NpcTalked<NPC_TESSA>` after both witnesses’ accounts have been heard. Its
+  completion changes Tessa’s location and the dialogue of affected residents.
+- **The Span Below** starts when the player reads the maintenance notice.
+  The bridge plate completes the quest, extends the span, and opens the
+  maintenance hatch even if the notice was skipped.
+- **Tracks in the Dust** becomes active at Nell’s warning or on beating the
+  mine wolf. Finding and reading the tally after victory completes it.
+  The tally stays recorded if the wolf returns under The World Remembers.
 
-```cpp
-template <> struct Quest<QUEST_FIND_IONA> {
-    using Watches = Watch<NpcTalked<NPC_VILLAGER>>;
-
-    static QUEST_STATUS status() {
-        if(game.get_flag(FLAG_QUEST_FIND_IONA_DONE))
-            return QUEST_COMPLETED;
-        if(game.get_flag(FLAG_QUEST_FIND_IONA_STARTED))
-            return QUEST_ACTIVE;
-        return QUEST_NOT_STARTED;
-    }
-    static char const PROGMEM* title() { return F("Find Iona"); }
-    static char const PROGMEM* summary() { /* completed or active text */ }
-    static char const PROGMEM* objective() {
-        return status() == QUEST_ACTIVE ? F("Speak to Iona") : nullptr;
-    }
-    static bool marker(uint8_t area, TilePos& out) {
-        out = npc_location(NPC_VILLAGER);
-        return out.area == area;
-    }
-    static void start() { game.set_flag(FLAG_QUEST_FIND_IONA_STARTED); }
-    static bool consistent() {
-        return !game.get_flag(FLAG_QUEST_FIND_IONA_DONE) || game.get_flag(FLAG_QUEST_FIND_IONA_STARTED);
-    }
-    static void on(NpcTalked<NPC_VILLAGER>) {
-        if(status() == QUEST_ACTIVE) {
-            game.set_flag(FLAG_QUEST_FIND_IONA_DONE);
-            quest_award_experience(2);
-        }
-    }
-};
-```
-
-The conversations are in `src/logic/npc_logic.cpp`:
-
-- Silas, when Find Iona is not started, says his usual line and then asks the question. A yes
-  calls `quest_start(QUEST_FIND_IONA)`. A no leaves the quest unstarted, and he asks again next
-  time. When it is active he gives a reminder, and when it is completed he acknowledges the result.
-- Iona's conversation, when the quest is active, is her Silas line. Her movement flags are updated
-  for every conversation, whatever the quest says. Then `quest_emit(NpcTalked<NPC_VILLAGER>{})`
-  delivers the event. Her ordinary line is unchanged.
-
-Find Iona awards 2 XP to every party member once, when Iona's conversation completes the
-quest. A reward that raises a member's level queues the same notice used for battle victories.
-Exploration presents it after the dialogue and world update finish. Any earned perk choices
-stay pending in Party after the notice is dismissed.
+Dry Roots and Tracks in the Dust award experience once. When someone levels
+up, exploration presents the level-up notice after the dialogue closes.
+Earned perk choices stay pending in Party after the notice is dismissed.
 
 ## Limitations
 
@@ -244,6 +206,5 @@ stay pending in Party after the notice is dismissed.
 - `FlagChanged` is exercised only by the 40-ID test catalog. The shipping catalog has no flag
   subscriptions, so no shipping evaluation runs.
 - `QUEST_FAILED` is part of the derived model and the Journal, but no quest produces it yet.
-- The completion acknowledgement is not shown. Iona's changed line and the Journal show the result.
 - Only `NpcTalked` has an emitter. Battles, items, party changes, area entry and map positions have
   no events yet, because the spec asks for only the sources needed now.

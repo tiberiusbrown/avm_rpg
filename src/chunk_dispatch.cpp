@@ -82,20 +82,28 @@ template <unsigned A, HandlerStage STAGE> static CHUNK_INLINE void process_area(
     if constexpr(!AreaTable<A, STAGE>::occupied)
         return;
 #endif
-    Camera shown = STAGE == STAGE_GAMEPLAY ? game_camera() : camera;
-    uint8_t left = (uint8_t)(shown.x >> TILE_SHIFT), top = (uint8_t)(shown.y >> TILE_SHIFT);
-    left = left >= CACHE_MARGIN ? (uint8_t)(left - CACHE_MARGIN) : 0;
-    top = top >= CACHE_MARGIN ? (uint8_t)(top - CACHE_MARGIN) : 0;
+    // Gameplay precedes the reload. The later stages already have the exact cache window.
+    uint8_t left, top;
+    if constexpr(STAGE == STAGE_GAMEPLAY) {
+        Camera shown = game_camera();
+        uint8_t view_x = (uint8_t)(shown.x >> TILE_SHIFT);
+        uint8_t view_y = (uint8_t)(shown.y >> TILE_SHIFT);
+        left = view_x >= CACHE_MARGIN ? (uint8_t)(view_x - CACHE_MARGIN) : 0;
+        top = view_y >= CACHE_MARGIN ? (uint8_t)(view_y - CACHE_MARGIN) : 0;
+    } else {
+        left = cache.origin_tx;
+        top = cache.origin_ty;
+    }
     uint16_t right = (uint16_t)left + CACHE_WIDTH - 1;
     uint16_t bottom = (uint16_t)top + CACHE_HEIGHT - 1;
     if(right >= area.width)
         right = area.width - 1;
     if(bottom >= area.height)
         bottom = area.height - 1;
+    uint8_t left_chunk = left / CHUNK_WIDTH, end_chunk = (uint8_t)(right / CHUNK_WIDTH + 1);
     for(uint8_t cy = (uint8_t)(top / CHUNK_HEIGHT); cy <= bottom / CHUNK_HEIGHT; ++cy) {
         uint16_t row = (uint16_t)cy * area.columns;
-        uint8_t first = (uint8_t)(left / CHUNK_WIDTH);
-        uint8_t end = (uint8_t)(right / CHUNK_WIDTH + 1);
+        uint8_t first = left_chunk, end = end_chunk;
 #ifndef RPG_AVM
         // Native instrumentation describes the requested cache window, including
         // empty chunks, independently of the immutable empty-entry optimization.

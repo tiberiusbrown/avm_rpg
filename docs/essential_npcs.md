@@ -7,7 +7,7 @@ form a compact prefix; retirement moves full records without resetting other act
 character sprites, resolver functions and chunk tables remain in PROGMEM. Stage scratch
 holds at most eight candidates, regardless of the identity count.
 
-The sample names NPC_VILLAGER Iona, NPC_WANDERER Silas, and NPC_ROWAN Rowan.
+Millcross’s seven identities are listed in the [world bible](world_bible.md).
 `npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
 `dialogue_show(id, F("..."))` shows that name in a fitted panel above the main
 dialogue panel, aligned with its left edge. The name remains visible across pages.
@@ -33,15 +33,12 @@ Successful `party_add` calls for NPCs then show "<name> has joined the party!"
 and play the `party_join` jingle. Failed additions and the initial traveler setup
 remain silent; the announcement uses the ordinary close/dismiss prompt.
 
-The replacement sample defines NPC_VILLAGER (standing, actor row 9) and NPC_WANDERER
-(bounded wandering, row 2) in `src/logic/area_village.h`. The player's row is 0. The
-villager follows quest flags between the map markers `VillagerWest` and `VillagerEast`,
-starting at `VillagerHome`. Silas has a fixed logical `WandererHome` and bounded wandering. They speak through `npc_dialogue` after `npc_talk`.
+Tessa stands by the well until Dry Roots is settled, then moves to the orchard.
+Orrin and Nell wander within their respective lanes. Every resident’s dialogue
+is delivered through `npc_dialogue` after `npc_talk`.
 
-`NPC_ROWAN` stands at the generated `RowanHome` marker southeast of the player spawn,
-using archer row 3. His conversation uses `dialogue_options` with four choices in PROGMEM. The
-player can ask about Nocturne Grove, Hollow Mine, or the fallen bridge, or choose
-**Join my party** to recruit him into the saved four-member party with 18/18 HP,
+`NPC_ROWAN` stands at `RowanHome` southeast of the player spawn. His conversation
+offers local advice and a recruitment choice. He joins the four-member party with 18/18 HP,
 4/4 AP, step movement, and shoot attack. Recruitment retires his map actor
 immediately. Party membership prevents him from
 being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
@@ -53,7 +50,7 @@ right, and freezes world simulation while it eases in and out.
 
 `NpcDefinition` is an 11-byte ROM record: behavior/facing, period, pause/walk, leash,
 priority, route, sprite_row and talkable. `period` is the number of frames per movement
-step; the sample NPCs use 2, so they walk at half the player's speed. Pause and walk are
+step; Orrin and Nell use 2, so they walk at half the player's speed. Pause and walk are
 frame counts. Rows are 0..15; `talkable=false` excludes a character from A targeting,
 leaving nearby tile interactions available. Both NPCs and player select directional
 frames through `actor_frame`: north/east/south/west groups of three, idle 0, gait 0,1,0,2.
@@ -66,13 +63,9 @@ NPCs. The stable identities in `npc_ids.h` run from 1 through `NPC_ID_LIMIT - 1`
 For example:
 
 ```cpp
-template <> struct NpcPolicy<NPC_VILLAGER> : AtOneOf<positions::VillagerHome,
-    When<positions::VillagerEast, [] {
-        return game.get_flag(FLAG_VILLAGER_MOVED) && game.get_flag(FLAG_VILLAGER_EAST);
-    }>,
-    When<positions::VillagerWest, [] {
-        return game.get_flag(FLAG_VILLAGER_MOVED) && !game.get_flag(FLAG_VILLAGER_EAST);
-    }>> {};
+template <> struct NpcPolicy<NPC_TESSA>
+    : AtOneOf<positions::TessaWell,
+              When<positions::TessaOrchard, [] { return game.get_flag(FLAG_ORCHARD_SETTLED); }>> {};
 ```
 
 The first matching `When` wins; otherwise `current()` returns the default. Predicates
@@ -237,12 +230,12 @@ deepest paths.
 ## Hooks
 
 The generic engine calls activation, movement-event, retirement and restore hooks declared in
-`logic/npc_logic.h`. The sample hooks are empty. Events cover route start/completion/invalidity
+`logic/npc_logic.h`. The default essential NPC hooks are empty. Events cover route start/completion/invalidity
 and target reached/failed. Retirement reports reset, recruitment or safe unloading. Independent native policy
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 20 writes the complete pointer-free live `Game` directly from `.saved`,
+Save version 21 writes the complete pointer-free live `Game` directly from `.saved`,
 without a separate buffer or checksum. Quest flags are the authoritative location state.
 Restoration validates the version, player, party, flags and area bounds, then resets actors,
 scratch and movement state. The normal cache repair and complete scene-entry NPC stage

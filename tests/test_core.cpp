@@ -108,7 +108,7 @@ using OrdinaryWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 16>;
 using ConfiguredWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 16, ENEMY_WANDER,
                                  SPEED_FAST, 0, RESPAWN_NEVER, EnemyHooks,
                                  EnemySettings{.facing = EAST, .priority = 7}>;
-static_assert(NPC_VILLAGER == 1 && NPC_WANDERER == 2 && NPC_ROWAN == 3);
+static_assert(NPC_TESSA == 1 && NPC_ORRIN == 2 && NPC_ROWAN == 3);
 static_assert(NPC_ENEMY_END == NPC_ENEMY_FIRST + ENEMY_SPAWN_COUNT);
 static_assert(enemy_defeated_flag(WOLF) == FLAG_ENEMY_FIRST);
 static_assert(!unique_enemy_positions<OrdinaryWolf, ConfiguredWolf>());
@@ -394,7 +394,7 @@ static void saves() {
     game.party.members[0].attack_class = ATTACK_CLASS_COUNT;
     reject();
     game = saved;
-    game.party.members[0].id = NPC_VILLAGER;
+    game.party.members[0].id = NPC_TESSA;
     reject();
     game = saved;
     game.party.count = 2;
@@ -426,18 +426,18 @@ static void saves() {
     CHECK(game.gold == 37 && game.get_flag(FLAG_RESERVED));
     CHECK(!memcmp(&game.supplies, &saved.supplies, sizeof(Supplies)));
     CHECK(!game.ticks && !game.player.walking);
-    CHECK(game.flags.get_flag(FLAG_VILLAGER_EAST) == saved.flags.get_flag(FLAG_VILLAGER_EAST));
+    CHECK(game.flags.get_flag(FLAG_ORRIN_ACCOUNT) == saved.flags.get_flag(FLAG_ORRIN_ACCOUNT));
     update_visible_world(0, false);
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
-    CHECK(cached_tile(positions::GroveSign) == TILE_SIGN);
+    CHECK(cached_tile(positions::WellSign) == TILE_SIGN);
 
-    game.player.x = positions::GroveSign.x * TILE;
-    game.player.y = positions::GroveSign.y * TILE;
+    game.player.x = positions::WellSign.x * TILE;
+    game.player.y = positions::WellSign.y * TILE;
     CHECK(save_restore()); // Structurally valid, but inside the sign.
     update_visible_world(0, false);
     CHECK(player_terrain_clear(game.player.x, game.player.y));
-    CHECK(game.player.x != positions::GroveSign.x * TILE ||
-          game.player.y != positions::GroveSign.y * TILE);
+    CHECK(game.player.x != positions::WellSign.x * TILE ||
+          game.player.y != positions::WellSign.y * TILE);
 }
 
 // Every uncovered view must fit the original cache, including pixel phases and map edges.
@@ -485,12 +485,12 @@ static void party_statistics() {
     CHECK(rowan.hp == 18 && party_max_hp(rowan) == 18);
     CHECK(rowan.ap == 4 && party_max_ap(rowan) == 4);
     CHECK(rowan.movement_class == MOVEMENT_STEP && rowan.attack_class == ATTACK_SHOOT);
-    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_VILLAGER, 1, 0}) == 20);
+    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_TESSA, 1, 0}) == 20);
 
     // HP or AP above the member's maximum is rejected, and the party does not change.
     Party before = game.party;
-    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
-    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_TESSA, 1, 0}));
+    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_TESSA, 1, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(save_valid());
 }
@@ -540,7 +540,7 @@ static void party_progression() {
 
     // Recruits join at level 1, and a malformed level leaves the party unchanged.
     Party before = game.party;
-    CHECK(!party_add({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 0, 0}));
+    CHECK(!party_add({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_TESSA, 0, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(save_valid());
 }

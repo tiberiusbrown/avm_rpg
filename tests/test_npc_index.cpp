@@ -22,7 +22,7 @@ static unsigned checks;
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition PROGMEM ONE{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
     static constexpr NpcDefinition PROGMEM TWO{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 2, 0};
-    return id == NPC_VILLAGER ? &ONE : id == NPC_WANDERER ? &TWO : nullptr;
+    return id == NPC_TESSA ? &ONE : id == NPC_ORRIN ? &TWO : nullptr;
 }
 
 static unsigned activations;
@@ -52,7 +52,7 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
-// Questions are declined by these binaries, which do not script Silas's offer.
+// The test overlay declines questions.
 bool dialogue_ask(char const PROGMEM*) {
     return false;
 }
@@ -72,11 +72,11 @@ static void place_player(uint8_t tx, uint8_t ty) {
 // the start cache, so it is not cast until the cache covers it.
 static void test_entry_casts_residents() {
     game_new();
-    Npc* wanderer = npc_find(NPC_WANDERER);
+    Npc* wanderer = npc_find(NPC_ORRIN);
     CHECK(wanderer);
-    CHECK(wanderer->actor.x == positions::WandererHome.x * TILE &&
-          wanderer->actor.y == positions::WandererHome.y * TILE);
-    CHECK(!npc_find(NPC_VILLAGER));
+    CHECK(wanderer->actor.x == positions::OrrinLane.x * TILE &&
+          wanderer->actor.y == positions::OrrinLane.y * TILE);
+    CHECK(!npc_find(NPC_TESSA));
 }
 
 // After entry, a spot in view is never cast into, and a home beyond the cache stays empty. A cached
@@ -85,8 +85,8 @@ static void test_entry_casts_residents() {
 // left to the corner-free scenarios.
 static void test_casts_wait_for_spots_out_of_view() {
     game_new();
-    game.set_flag(FLAG_VILLAGER_MOVED);
-    place_player(positions::VillagerHome.x - 1, positions::VillagerHome.y);
+    game.set_flag(FLAG_BRAM_ACCOUNT);
+    place_player(positions::TessaWell.x - 1, positions::TessaWell.y);
     update_visible_world(0, false); // Refreshes the cache for this view before the edits below.
     npc_reset();
     memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
@@ -94,13 +94,13 @@ static void test_casts_wait_for_spots_out_of_view() {
     npc_stage_begin();
     process_all_chunks<STAGE_NPCS>();
     npc_stage_end(); // Entry finds no clear spot.
-    CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
+    CHECK(!npc_find(NPC_TESSA) && !npc_find(NPC_ORRIN));
     memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     note_tile_edit();
     npc_stage_begin();
     process_all_chunks<STAGE_NPCS>();
     npc_stage_end(); // The villager's home is in view, so it waits. The wanderer's is not cached.
-    CHECK(!npc_find(NPC_VILLAGER) && !npc_find(NPC_WANDERER));
+    CHECK(!npc_find(NPC_TESSA) && !npc_find(NPC_ORRIN));
 }
 
 // Real world refresh, NPC simulation, then player movement: admission must happen
@@ -113,8 +113,8 @@ static void test_four_direction_approaches() {
                 tile_collision_override((uint8_t)tile, 0);
             npc_reset();
             game.npcs.entering = 0;
-            int x = positions::WandererHome.x * TILE;
-            int y = positions::WandererHome.y * TILE;
+            int x = positions::OrrinLane.x * TILE;
+            int y = positions::OrrinLane.y * TILE;
             int dx = dir == EAST ? -1 : dir == WEST ? 1 : 0;
             int dy = dir == SOUTH ? -1 : dir == NORTH ? 1 : 0;
             int distance = (dx ? 160 : 112) + phase;
@@ -122,9 +122,9 @@ static void test_four_direction_approaches() {
             game.player.y = (uint16_t)(y + dy * distance + (dy ? 0 : 8));
             bool activated = false, seen = false;
             for(int frame = 0; frame < distance - 32; ++frame) {
-                bool before = npc_find(NPC_WANDERER) != nullptr;
+                bool before = npc_find(NPC_ORRIN) != nullptr;
                 update_visible_world(0, false);
-                Npc* n = npc_find(NPC_WANDERER);
+                Npc* n = npc_find(NPC_ORRIN);
                 if(n && !before) {
                     CHECK(!activated);
                     activated = true;
@@ -157,7 +157,7 @@ static void test_exact_clearance_and_clipped_retirement() {
             game_new();
             npc_reset();
             game.npcs.entering = 0;
-            TilePos site = positions::WandererHome;
+            TilePos site = positions::OrrinLane;
             int x = site.x * TILE, y = site.y * TILE;
             int cx = x - 56, cy = y - 24;
             if(edge == 0)
@@ -175,14 +175,14 @@ static void test_exact_clearance_and_clipped_retirement() {
             memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
             note_tile_edit();
             npc_stage_begin();
-            npc_offer_candidate(NPC_WANDERER, site);
+            npc_offer_candidate(NPC_ORRIN, site);
             npc_stage_end();
             bool guarded = x < cx + 129 && x + TILE > cx - 1 &&
                            y < cy + 65 && y + TILE > cy - 1;
-            CHECK((npc_find(NPC_WANDERER) != nullptr) == !guarded);
+            CHECK((npc_find(NPC_ORRIN) != nullptr) == !guarded);
         }
     game_new();
-    Npc* n = npc_find(NPC_WANDERER);
+    Npc* n = npc_find(NPC_ORRIN);
     CHECK(n);
     Camera c = game_camera();
     n->actor.x = c.x + 127;
@@ -191,7 +191,7 @@ static void test_exact_clearance_and_clipped_retirement() {
     // Only the leftmost sprite column remains onscreen; its feet are uncached.
     cache.origin_tx = (n->actor.x + FOOT_RIGHT) / TILE + 1;
     npc_stage_begin();
-    CHECK(npc_find(NPC_WANDERER));
+    CHECK(npc_find(NPC_ORRIN));
     npc_stage_end();
     // Clamping must not wrap the protected rectangle at the top/left map edge.
     npc_reset();
@@ -212,11 +212,11 @@ static void test_exact_clearance_and_clipped_retirement() {
 // logical home remains fully cached and offscreen. No retirement/recasting.
 static void test_uncached_wanderer_retains_local_home() {
     game_new();
-    TilePos home = positions::WandererHome;
+    TilePos home = positions::OrrinLane;
     game.player.x = home.x * TILE + 4 * TILE;
     game.player.y = home.y * TILE + 3 * TILE;
     update_visible_world(0, false);
-    Npc* n = npc_find(NPC_WANDERER);
+    Npc* n = npc_find(NPC_ORRIN);
     CHECK(n);
     n->actor.x = home.x * TILE - TILE;
     n->actor.y = home.y * TILE - 12;
@@ -228,7 +228,7 @@ static void test_uncached_wanderer_retains_local_home() {
     unsigned before = activations;
     for(unsigned frame = 0; frame < 4; ++frame) {
         update_visible_world(0, false);
-        CHECK(npc_find(NPC_WANDERER) == n);
+        CHECK(npc_find(NPC_ORRIN) == n);
         npc_update();
         CHECK(memcmp(n, &saved, sizeof(saved)) == 0);
         CHECK(activations == before);
@@ -238,7 +238,7 @@ static void test_uncached_wanderer_retains_local_home() {
     n->behavior = NPC_TRAVEL;
     unsigned events_before = target_events;
     npc_stage_begin();
-    CHECK(!npc_find(NPC_WANDERER));
+    CHECK(!npc_find(NPC_ORRIN));
     CHECK(target_events == events_before + 1);
     npc_stage_end();
     // Reenter, then move far enough that actor and home both leave the cache.
@@ -246,7 +246,7 @@ static void test_uncached_wanderer_retains_local_home() {
     game.player.x = home.x * TILE + 4 * TILE;
     game.player.y = home.y * TILE + 3 * TILE;
     update_visible_world(0, false);
-    n = npc_find(NPC_WANDERER);
+    n = npc_find(NPC_ORRIN);
     CHECK(n);
     n->actor.x = home.x * TILE - TILE;
     n->actor.y = home.y * TILE - 12;
@@ -254,7 +254,7 @@ static void test_uncached_wanderer_retains_local_home() {
     game.player.x += CACHE_WIDTH * TILE;
     game.player.y += CACHE_HEIGHT * TILE;
     update_visible_world(0, false);
-    CHECK(!npc_find(NPC_WANDERER));
+    CHECK(!npc_find(NPC_ORRIN));
 }
 
 int main() {

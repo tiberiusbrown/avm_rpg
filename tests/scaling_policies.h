@@ -8,4 +8,4 @@ struct NpcPolicy
                   (uint8_t)(40 + (ID / 16) * 8)},
           When<TilePos{positions::TestField.area, (uint8_t)(positions::TestField.x - 1 + ID % 6),
                        (uint8_t)(positions::TestField.y - 1 + (ID / 6) % 4)},
-               [] { return game.get_flag(FLAG_VILLAGER_EAST); }>> {};
+               [] { return game.get_flag(FLAG_ORRIN_ACCOUNT); }>> {};

@@ -65,7 +65,7 @@ static void interaction_geometry() {
                         uint16_t nearest = 65535;
                         for(uint8_t slot = 0; slot < 2; ++slot) {
                             Npc& n = game.npcs.actors[slot];
-                            n.id = (slot ^ swap) ? NPC_WANDERER : NPC_VILLAGER;
+                            n.id = (slot ^ swap) ? NPC_ORRIN : NPC_TESSA;
                             int16_t x = slot && !tie ? -dx : dx;
                             int16_t y = slot && !tie ? -dy : dy;
                             n.actor = {(uint16_t)(px + x), (uint16_t)(py + y), STILL, 0};
@@ -108,34 +108,27 @@ int main() {
     npc_dialogue();
     CHECK(shown == 0);
 
-    // Talking only records the request; nothing is shown until the Dialogue phase.
-    npc_talk(NPC_VILLAGER);
-    CHECK(shown == 0);
+    // Requests are consumed once, and the offer uses the identity of its speaker.
+    npc_talk(NPC_TESSA);
+    CHECK(shown == 0 && questions == 0);
     npc_dialogue();
-    CHECK(shown == 1 && strstr(last_text, "Nocturne Grove"));
-    CHECK(last_speaker == NPC_VILLAGER);
-
-    // The request is consumed by the phase that shows it.
+    CHECK(questions == 1 && quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE);
     npc_dialogue();
-    CHECK(shown == 1);
+    CHECK(questions == 1);
 
-    npc_talk(NPC_WANDERER);
+    npc_talk(NPC_ORRIN);
     npc_dialogue();
-    CHECK(shown == 2 && strstr(last_text, "old oak"));
-    CHECK(last_speaker == NPC_WANDERER);
-    // The first conversation with Silas asks him to find Iona, and an answer of yes starts it.
-    CHECK(questions == 1 && quest_status(QUEST_FIND_IONA) == QUEST_ACTIVE);
+    CHECK(shown == 1 && strstr(last_text, "climbed the race"));
+    CHECK(last_speaker == NPC_ORRIN && game.get_flag(FLAG_ORRIN_ACCOUNT));
 
-    // NPCs without a line stay silent, and the request still clears.
     npc_talk(NPC_NONE);
     npc_dialogue();
-    CHECK(shown == 2);
-    // Declining leaves the quest unstarted, and Silas asks again on the next conversation.
+    CHECK(shown == 1);
     game_new();
     answer_yes = false;
-    npc_talk(NPC_WANDERER);
+    npc_talk(NPC_TESSA);
     npc_dialogue();
-    CHECK(questions == 2 && quest_status(QUEST_FIND_IONA) == QUEST_NOT_STARTED);
+    CHECK(questions == 2 && quest_status(QUEST_DRY_ROOTS) == QUEST_NOT_STARTED);
     answer_yes = true;
 
     story_stub_reset(BATTLE_VICTORY);
@@ -158,7 +151,7 @@ int main() {
     CHECK(last_speaker == NPC_ROWAN);
     CHECK(story_stub_joins() == 1 && story_stub_last_join() == NPC_ROWAN);
     CHECK(!npc_find(NPC_ROWAN));
-    CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
+    CHECK(npc_find(NPC_TESSA) && npc_location(NPC_ORRIN) == positions::OrrinLane);
     // Compact removal must leave no holes before another occupied slot.
     bool empty = false;
     for(auto const& actor : game.npcs.actors) {
@@ -192,25 +185,25 @@ int main() {
                 (positions::ElderExit.y - 1) * TILE, SOUTH);
     world_enter(AREA_OUTDOOR, positions::PlayerStart.x * TILE, positions::PlayerStart.y * TILE, NORTH);
     CHECK(!npc_find(NPC_ROWAN));
-    CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
+    CHECK(npc_find(NPC_TESSA) && npc_find(NPC_ORRIN));
 
     CHECK(story_stub_joins() == 1);
 
     // Capacity, identity and statistic failures leave the entire party untouched.
-    CHECK(party_add({20, 4, MOVEMENT_LEAP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
-    CHECK(party_add({0, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_WANDERER, 1, 0}));
+    CHECK(party_add({20, 4, MOVEMENT_LEAP, ATTACK_STRIKE, NPC_TESSA, 1, 0}));
+    CHECK(party_add({0, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ORRIN, 1, 0}));
     CHECK(game.party.count == PARTY_CAPACITY && save_valid());
-    CHECK(story_stub_joins() == 3 && story_stub_last_join() == NPC_WANDERER);
+    CHECK(story_stub_joins() == 3 && story_stub_last_join() == NPC_ORRIN);
     Party full = game.party;
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0}));
     CHECK(!memcmp(&full, &game.party, sizeof(Party)));
     game = recruited;
     Party before = game.party;
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0}));
-    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 1, 0}));
-    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 1, 0}));
-    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOOT, NPC_VILLAGER, 1, 0}));
-    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_CLASS_COUNT, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
+    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_CLASS_COUNT, NPC_TESSA, 1, 0}));
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, (NPC_ID)NPC_ID_LIMIT, 1, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(story_stub_joins() == 3);

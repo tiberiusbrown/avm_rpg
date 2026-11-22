@@ -113,6 +113,9 @@ Where ambiguous, display a small contextual prompt when near a person or interac
 
 ## 5. World model and content structure
 
+The [content authoring guide](content_authoring.md) governs region additions.
+The [world bible](world_bible.md) records Millcross and established local facts.
+
 ### 5.1 Proposed initial scale and later expansion
 
 **Vertical slice:** 1 town, adjacent wilderness, 1 dungeon, 8–12 locally active/named NPCs, 1 main-story hook, and 3–5 meaningful side quests. This is the first human-playtested build.

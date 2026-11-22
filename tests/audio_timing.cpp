@@ -219,17 +219,19 @@ int main(int argc, char** argv) try {
         monitor.scenario = "dialogue";
         Game exploration = d.state();
         Game world = exploration;
-        auto* silas = std::find_if(world.npcs.actors, world.npcs.actors + NPC_CAPACITY,
-                                  [](Npc const& npc) { return npc.id == NPC_WANDERER; });
-        require(silas != world.npcs.actors + NPC_CAPACITY, "Silas is not active");
-        silas->state = NPC_STATE_NONE;
-        silas->timer = 40;
-        world.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
-        world.player = {(uint16_t)(silas->actor.x + FOOT_WIDTH), silas->actor.y, WEST, 0};
+        auto* orrin = std::find_if(world.npcs.actors, world.npcs.actors + NPC_CAPACITY,
+                                  [](Npc const& npc) { return npc.id == NPC_ORRIN; });
+        require(orrin != world.npcs.actors + NPC_CAPACITY, "Orrin is not active");
+        orrin->state = NPC_STATE_NONE;
+        orrin->timer = 40;
+        world.flags.set_flag(FLAG_ORCHARD_DISPUTE);
+        world.player = {(uint16_t)(orrin->actor.x + FOOT_WIDTH), orrin->actor.y, WEST, 0};
         d.set_state(world);
         d.frame();
         d.tap(BTN_A);
         require(d.prompt() != DIALOGUE_CLOSED, "timing dialogue scenario did not open");
+        require(d.prompt() == DIALOGUE_OPTIONS, "Orrin did not open his topics");
+        d.tap(BTN_A);
         d.dismiss_dialogue();
         monitor.scenario = "battle";
         start_grove_contact(d);

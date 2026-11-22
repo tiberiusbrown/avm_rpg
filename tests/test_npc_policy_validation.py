@@ -8,11 +8,11 @@ root = Path(source)
 work = Path(build) / 'policy-validation'
 work.mkdir(exist_ok=True)
 cases = {
-    'duplicate': ('using Bad = AtOneOf<positions::VillagerHome, When<positions::VillagerHome, [] { return true; }>>;', 'duplicate NPC policy location'),
+    'duplicate': ('using Bad = AtOneOf<positions::TessaWell, When<positions::TessaWell, [] { return true; }>>;', 'duplicate NPC policy location'),
     'invalid': ('using Bad = AtOneOf<TilePos{255, 0, 0}>;', 'invalid or duplicate'),
-    'unsupported': ('struct Case { static constexpr TilePos position = positions::VillagerEast; static bool applies() { return true; } }; using Bad = AtOneOf<positions::VillagerHome, Case>;', 'unsupported NPC policy case'),
+    'unsupported': ('struct Case { static constexpr TilePos position = positions::TessaOrchard; static bool applies() { return true; } }; using Bad = AtOneOf<positions::TessaWell, Case>;', 'unsupported NPC policy case'),
     'missing': ('using Bad = PolicyCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>;', 'missing NpcPolicy'),
-    'override': ('template <> struct NpcPolicy<NPC_VILLAGER> : AtOneOf<positions::VillagerHome> { static TilePos current() { return positions::VillagerEast; } }; using Bad = CheckedNpcPolicy<NPC_VILLAGER>;', 'do not override the derived location resolver'),
+    'override': ('template <> struct NpcPolicy<NPC_TESSA> : AtOneOf<positions::TessaWell> { static TilePos current() { return positions::TessaOrchard; } }; using Bad = CheckedNpcPolicy<NPC_TESSA>;', 'do not override the derived location resolver'),
     'identity': ('auto bad() { return npc_location<NPC_NONE>(); } using Bad = AtOneOf<NO_LOCATION>;', 'invalid NPC identity'),
 }
 enemy_cases = {

@@ -19,6 +19,7 @@ inline constexpr unsigned STORY_LOG_CAPACITY = 32;
 // Clears the log and sets the result that the next battle_show calls return.
 void story_stub_reset(BATTLE_RESULT result);
 void story_stub_set_result(BATTLE_RESULT result);
+void story_stub_set_choice(uint8_t choice);
 void story_stub_record_dialogue(char const* text);
 
 // Host records of sound requests, in order. `ambient` marks a sfx_ambient request, which the

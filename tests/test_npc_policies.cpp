@@ -11,22 +11,22 @@
         }                                                                                          \
     } while(0)
 static bool first, second;
-using Policy = AtOneOf<positions::VillagerHome, When<positions::VillagerEast, [] { return first; }>,
-                       When<positions::VillagerWest, [] { return second; }>>;
+using Policy = AtOneOf<positions::TessaWell, When<positions::TessaOrchard, [] { return first; }>,
+                       When<positions::RowanHome, [] { return second; }>>;
 using Absent = AtOneOf<NO_LOCATION, When<positions::RowanHome, [] { return first; }>>;
 static_assert(sizeof(Policy::locations) / sizeof(TilePos) == 3);
-static_assert(Policy::locations[1] == positions::VillagerEast);
+static_assert(Policy::locations[1] == positions::TessaOrchard);
 static_assert(Absent::locations[0] == NO_LOCATION);
 
 int main() {
-    CHECK(Policy::current() == positions::VillagerHome);
+    CHECK(Policy::current() == positions::TessaWell);
     second = true;
-    CHECK(Policy::current() == positions::VillagerWest);
+    CHECK(Policy::current() == positions::RowanHome);
     first = true;
-    CHECK(Policy::current() == positions::VillagerEast);
+    CHECK(Policy::current() == positions::TessaOrchard);
     CHECK(Absent::current() == positions::RowanHome);
     first = second = false;
     CHECK(Absent::current() == NO_LOCATION);
-    CHECK(AtOneOf<positions::WandererHome>::current() == positions::WandererHome);
+    CHECK(AtOneOf<positions::OrrinLane>::current() == positions::OrrinLane);
     std::puts("policy precedence, absence and derived site checks passed");
 }

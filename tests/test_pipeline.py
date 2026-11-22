@@ -59,8 +59,7 @@ class Pipeline(unittest.TestCase):
         shutil.copytree(ROOT / "assets", self.root / "assets")
         self.path = self.root / "assets/maps/outdoor.tmx"
         self.tree = ET.parse(self.path)
-        ET.SubElement(ET.SubElement(self.sign(), "properties"), "property",
-                      name="handler", value="fixture_sign")
+        self.sign().find("properties/property[@name='handler']").set("value", "fixture_sign")
         self.write()
 
     def tearDown(self):
@@ -70,7 +69,7 @@ class Pipeline(unittest.TestCase):
         self.tree.write(self.path, encoding="utf-8", xml_declaration=True)
 
     def sign(self):
-        return self.object("GroveSign")
+        return self.object("WellSign")
 
     def object(self, name):
         return self.tree.find(f".//object[@name='{name}']")
@@ -668,15 +667,15 @@ class Pipeline(unittest.TestCase):
                         self.assertEqual(bits, (int(bool(r and a)), int(bool(a))))
 
     def test_sign_relocation_crosses_chunk(self):
-        tx, ty = self.tile_of("GroveSign")
+        tx, ty = self.tile_of("WellSign")
         before = export_world(self.root)
         nx = (tx // 8 + 1) * 8  # The first tile of the next chunk column.
         self.move_to(self.sign(), nx, ty)
         self.write()
         after = export_world(self.root)
-        self.assertIn(f"GroveSign{{1, {tx}, {ty}}}", before["map_positions.h"])
-        self.assertIn(f"GroveSign{{1, {nx}, {ty}}}", after["map_positions.h"])
-        self.assertIn("MapSite<positions::GroveSign, MapOperation_fixture_sign>",
+        self.assertIn(f"WellSign{{1, {tx}, {ty}}}", before["map_positions.h"])
+        self.assertIn(f"WellSign{{1, {nx}, {ty}}}", after["map_positions.h"])
+        self.assertIn("MapSite<positions::WellSign, MapOperation_fixture_sign>",
                       after["map_handler_catalog.h"])
 
     def test_maximum_map_and_high_chunk_index(self):
@@ -686,7 +685,7 @@ class Pipeline(unittest.TestCase):
         self.write()
         result = export_world(self.root)
         columns, rows = -(-width // 8), -(-height // 4)
-        self.assertIn(f"GroveSign{{1, {width - 1}, {height - 1}}}", result["map_positions.h"])
+        self.assertIn(f"WellSign{{1, {width - 1}, {height - 1}}}", result["map_positions.h"])
         self.assertIn(f"OUTDOOR_CHUNK_COLUMNS = {columns}", result["world_assets.h"])
         self.assertIn(f"OUTDOOR_CHUNK_ROWS = {rows}", result["world_assets.h"])
         last = (rows - 1) * columns + columns - 1
@@ -720,7 +719,7 @@ class Pipeline(unittest.TestCase):
 
     def test_rectangle_expansion_at_four_chunks(self):
         # A two-by-two rectangle whose top-left tile sits just before a chunk corner.
-        tx, ty = self.tile_of("GroveSign")
+        tx, ty = self.tile_of("WellSign")
         bx, by = (tx // 8 + 1) * 8, (ty // 4 + 1) * 4
         rx, ry = bx - 1, by - 1
         sign = self.sign()
@@ -730,14 +729,14 @@ class Pipeline(unittest.TestCase):
         sign.set("height", "32")
         self.write()
         result = export_world(self.root)
-        self.assertIn(f"GroveSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
+        self.assertIn(f"WellSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
         for i, (dx, dy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
-            self.assertIn(f"MapSite<positions::GroveSign_{i}, MapOperation_fixture_sign>",
+            self.assertIn(f"MapSite<positions::WellSign_{i}, MapOperation_fixture_sign>",
                           result["map_handler_catalog.h"])
-            self.assertIn(f"GroveSign_{i}{{1, {rx + dx}, {ry + dy}}}", result["map_positions.h"])
+            self.assertIn(f"WellSign_{i}{{1, {rx + dx}, {ry + dy}}}", result["map_positions.h"])
 
     def test_fractional_rectangle_edges(self):
-        tx, ty = self.tile_of("GroveSign")
+        tx, ty = self.tile_of("WellSign")
         bx, by = (tx // 8 + 1) * 8, (ty // 4 + 1) * 4
         rx, ry = bx - 1, by - 1
         self.sign().set("x", str(16 * rx + 15.9))
@@ -746,12 +745,12 @@ class Pipeline(unittest.TestCase):
         self.sign().set("height", "0.2")
         self.write()
         self.assertIn(
-            f"GroveSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}",
+            f"WellSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}",
             export_world(self.root)["map_positions.h"],
         )
 
     def test_safe_spawn_and_duplicate_names(self):
-        self.tree.find("properties/property[@name='spawn']").set("value", "GroveSign")
+        self.tree.find("properties/property[@name='spawn']").set("value", "WellSign")
         self.fails("tiles without collision")
         self.tree.find("properties/property[@name='spawn']").set("value", "PlayerStart")
         self.sign().set("name", "PlayerStart")

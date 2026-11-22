@@ -32,7 +32,7 @@ def at(x, y):
 passages = {
     (point["tx"], point["ty"])
     for o in m.objects
-    if o["handler"] == "take_passage"
+    if o["handler"] in {"take_passage", "maintenance_hatch"}
     for point in o["points"]
 }
 assert len(passages) == 3
@@ -102,16 +102,16 @@ ring_symbols = {tiles[index]["symbol"] for index in ring}
 for prefix in ("WATER", "CLIFF_", "TREE_", "BOULDER"):
     assert any(name.startswith(prefix) for name in ring_symbols), f"no {prefix} barrier on the border"
 
-sign = names["GroveSign"]
+sign = names["WellSign"]
 assert at(sign["tx"], sign["ty"]) == 0x41
 assert (sign["tx"], sign["ty"] + 1) == start
 assert {o["handler"] for o in m.objects if o["handler"]} == {
-    "update_wanderer",
     "enter_house",
     "take_passage",
+    "maintenance_hatch",
     "show_message",
 }
-assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house", "rest_at_inn", "open_shop"}
+assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house", "rest_at_inn", "open_shop", "show_message"}
 # Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
 assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["collision"] == 0xFFFF
 assert 0 not in m.data, "0x00 is EMPTY and must not be painted outdoors"
@@ -292,8 +292,29 @@ for y in range(m.height):
             )
 assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
 assert {0x08, 0x09, 0x0A, 0x59} <= set(m.data), "outdoor floors use sparse grass too"
-for name in ("VillagerHome", "WandererHome", "VillagerWest", "VillagerEast", "TestField"):
-    assert (names[name]["tx"], names[name]["ty"]) in seen
+outdoor_residents = ("TessaWell", "TessaOrchard", "OrrinLane", "RowanHome", "BramYard", "NellLookout")
+
+
+def position(name):
+    return names[name]["tx"], names[name]["ty"]
+
+
+def adjacent(cell):
+    x, y = cell
+    return ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
+
+
+for name in (*outdoor_residents, "TestField"):
+    assert position(name) in seen, f"{name} needs an accessible walkable center"
+for tessa in ("TessaWell", "TessaOrchard"):
+    residents = {position(name) for name in outdoor_residents
+                 if not name.startswith("Tessa") or name == tessa}
+    routes = flood(lambda x, y: clear(x, y) and (x, y) not in residents)
+    for resident in residents:
+        assert any(cell in routes for cell in adjacent(resident)), resident
+    for name, o in names.items():
+        if o["area"] == m.area and o["handler"] in {"enter_house", "take_passage", "maintenance_hatch"}:
+            assert (o["tx"], o["ty"] + 1) in routes, f"resident blocks {name}"
 
 # Houses. Each outdoor door pairs with an interior exit of the same name. The player enters
 # by activating the door and leaves by walking onto the exit.
@@ -366,6 +387,11 @@ assert counter["handler"] == "open_shop" and counter["area"] == interiors.area
 assert owner[counter_x, counter_y] == "Shop"
 assert inside(counter_x, counter_y) == house_symbol["COUNTER_MIDDLE"]
 assert (counter_x, counter_y + 1) in room_cells["Shop"]
+for person, room in (("MaraInn", "Inn"), ("AdaShop", "Shop")):
+    site = position(person)
+    assert site in room_cells[room] and house[inside(*site)]["collision"] == 0
+    assert any(cell in room_cells[room] and house[inside(*cell)]["collision"] == 0
+               for cell in adjacent(site)), f"{person} has no clear approach"
 spawn = names[interiors.spawn]
 assert house[inside(spawn["tx"], spawn["ty"])]["collision"] == 0
 
@@ -589,6 +615,9 @@ EDGE_OF = {
 HANDLER_TILES = {
     "take_passage": {"EDGE_TOP_EXIT", "LADDER_UP"},
     "show_message": {"SIGN", "PLAQUE"},
+    "read_bridge_notice": {"SIGN"},
+    "read_wolf_warning": {"SIGN"},
+    "read_mine_ledger": {"SIGN"},
     "use_lever": {"SWITCH_LEFT"},
     "press_plate": {"PRESSURE_PLATE"},
     "open_chest": {"CHEST_CLOSED"},
@@ -674,7 +703,7 @@ for map_symbol in ("CAVE", "DUNGEON"):
             if o["handler"] in OPENS:
                 opening.add((point["tx"], point["ty"]))
         marker = o["name"] + ("Region" if o["rectangle"] else "")
-        if o["handler"] != "steam_vent":
+        if o["handler"] not in {"steam_vent", "read_bridge_notice", "read_wolf_warning", "read_mine_ledger"}:
             assert f"positions::{marker}" in logic, f"{o['name']} is missing from the tables in src/logic/area_{kind}.h"
     # Every walkable cell can be reached once the mechanisms are open. A barred cell that no
     # handler opens is scenery, and the flood passes its door.
@@ -717,11 +746,55 @@ for map_symbol in ("CAVE", "DUNGEON"):
                 f"{map_symbol}: no animated tile near {(x, y)}"
             )
     assert lights & set(area.data)
+# Hollow Mine has a one-way progression in world state and a two-way walking route.
+# Check each mechanism from the side on which it is operated, including with the vent blocking.
+mine = by_symbol["CAVE"]
+
+
+def mine_route(start_name, opened=(), vent_active=False):
+    opened = set(opened)
+    start = position(start_name)
+    seen, queue = {start}, deque([start])
+    while queue:
+        for x, y in adjacent(queue.popleft()):
+            cell = (x, y)
+            if cell in seen or not (0 <= x < mine.width and 0 <= y < mine.height):
+                continue
+            if vent_active and cell == position("CaveVent"):
+                continue
+            tile = mine.data[y * mine.width + x]
+            if cell in opened or mine.tiles[tile]["collision"] == 0:
+                seen.add(cell)
+                queue.append(cell)
+    return seen
+
+
+def approachable(routes, name):
+    return any(cell in routes for cell in adjacent(position(name)))
+
+
+gate, grille = position("CaveGate"), position("CaveNookGate")
+bridge_region = next(o for o in mine.objects if o["name"] == "CaveBridge")
+span = {(point["tx"], point["ty"]) for point in bridge_region["points"]}
+for steam in (False, True):
+    camp = mine_route("CaveSpawn", vent_active=steam)
+    assert all(approachable(camp, name) for name in
+               ("CaveExit", "MineWarning", "CaveNotice", "MineLedger", "CaveLever"))
+    assert not approachable(camp, "CaveVaultLever") and position("CavePlate") not in camp
+    east = mine_route("CaveSpawn", (gate,), steam)
+    assert approachable(east, "CaveVaultLever") and position("CavePlate") not in east
+    west = mine_route("CaveSpawn", (gate, grille), steam)
+    assert position("CavePlate") in west and not approachable(west, "CaveChest")
+# The bridge stays open after either lever is reset. The vent always clears with time.
+restored = mine_route("CaveSpawn", span)
+assert all(approachable(restored, name) for name in ("CaveChest", "CaveLadder", "PoolEcho"))
+
 # Both ends of every passage are in the table, and the outdoor ends are the right entrances.
 logic = "\n".join((LOGIC / f"area_{name}.h").read_text() for name in ("cave", "dungeon"))
-for name, tile_name in (("CaveMouth", "CLIFF_CAVE"), ("MineEntrance", "CLIFF_MINE"), ("CaveHole", "HOLE_LADDER")):
+for name, tile_name in (("CaveMouth", "CLIFF_CAVE"), ("MineEntrance", "CLIFF_MINE"), ("CaveHole", "BOULDER_CRACKED")):
     o = names[name]
-    assert o["handler"] == "take_passage" and at(o["tx"], o["ty"]) == symbol_index[tile_name]
+    handler = "maintenance_hatch" if name == "CaveHole" else "take_passage"
+    assert o["handler"] == handler and at(o["tx"], o["ty"]) == symbol_index[tile_name]
     assert (o["tx"], o["ty"] + 1) in seen, f"the ground below {name} is not reachable"
     assert f"positions::{name}" in logic
 assert "positions::CaveExit" in logic and "positions::CaveLadder" in logic and "positions::DungeonExit" in logic

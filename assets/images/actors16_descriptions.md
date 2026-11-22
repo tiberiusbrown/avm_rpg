@@ -55,19 +55,19 @@ south-facing idle frame (column 6).
 | --- | --- | --- | --- | --- | --- |
 | 0 | male | medium brown, short, fringe | none | none | player; Archer enemy |
 | 1 | male | black, short, heavy fringe | none | none | Rogue enemy |
-| 2 | male | white, short | none | thick dark brows | Silas (`NPC_WANDERER`); Fighter enemy |
+| 2 | male | white, short | none | thick dark brows | Orrin (`NPC_ORRIN`); Fighter enemy |
 | 3 | male | hidden by the hood | white pointed hood | strap or lacing marks | Rowan (`NPC_ROWAN`); Spearman enemy |
 | 4 | male | black, short, heavy fringe | none | black eyepatch with strap; pin at the collar | unused |
 | 5 | male | medium brown, short | white headband | none | unused |
 | 6 | male | dark brown, short, ruffled | none | strap or lacing marks | unused |
-| 7 | male | bald; black hair ring at the back | none | black moustache; wide dark sash | unused |
+| 7 | male | bald; black hair ring at the back | none | black moustache; wide dark sash | Bram |
 | 8 | female | medium brown, long, centre parting | none | none | unused |
-| 9 | female | black, long, centre parting | none | none | Iona (`NPC_VILLAGER`) |
+| 9 | female | black, long, centre parting | none | none | Tessa (`NPC_TESSA`) |
 | 10 | female | pale blond, long (assigned) | none | thick dark brows | unused |
-| 11 | female | medium brown, long, straight strands | none | smile; collar and hip marks | unused |
-| 12 | female | black, long | wide-brimmed hat | none | unused |
+| 11 | female | medium brown, long, straight strands | none | smile; collar and hip marks | Mara |
+| 12 | female | black, long | wide-brimmed hat | none | Nell |
 | 13 | female | dark brown, long, ruffled | none | collar and hip marks | unused |
-| 14 | female | medium brown, long | polka-dot kerchief | dark waist sash | unused |
+| 14 | female | medium brown, long | polka-dot kerchief | dark waist sash | Ada |
 | 15 | female | silver-gray, long, centre parting | none | no brows | unused |
 
 ## Rows
@@ -86,7 +86,7 @@ Used by the player and the `NPC_NONE` party slot, and shared with the Archer ene
 
 ### Row 1: black short hair
 
-Used by the Rogue enemy. No NPC uses it now; Iona moved to row 9.
+Used by the Rogue enemy. No NPC uses it now; Tessa moved to row 9.
 
 - **Sex:** male.
 - **Hair:** black, short, falling over the forehead in a heavy fringe, with a small
@@ -97,7 +97,7 @@ Used by the Rogue enemy. No NPC uses it now; Iona moved to row 9.
 
 ### Row 2: white short hair
 
-Used by Silas (`NPC_WANDERER`) and shared with the Fighter enemy.
+Used by Orrin (`NPC_ORRIN`) and shared with the Fighter enemy.
 
 - **Sex:** male.
 - **Hair:** white (reads as white or silver), short and smooth with two dark specks.
@@ -179,7 +179,7 @@ Used by Rowan (`NPC_ROWAN`, the archer) and shared with the Spearman enemy.
 
 ### Row 9: black, long, plain dress
 
-Used by Iona (`NPC_VILLAGER`).
+Used by Tessa (`NPC_TESSA`).
 
 - **Sex:** female.
 - **Hair:** black, long to mid-back, with bangs and a centre parting.

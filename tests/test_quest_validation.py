@@ -50,11 +50,11 @@ cases = {
         extra='    using Watches = Watch<int>;\n') + CHECK,
         'unsupported event subscription'),
     'subscription_duplicate': (HEADER.format(limit=2) + VALID_QUEST.format(
-        extra='    using Watches = Watch<NpcTalked<NPC_VILLAGER>, NpcTalked<NPC_VILLAGER>>;\n'
-              '    static void on(NpcTalked<NPC_VILLAGER>) {}\n') + CHECK,
+        extra='    using Watches = Watch<NpcTalked<NPC_TESSA>, NpcTalked<NPC_TESSA>>;\n'
+              '    static void on(NpcTalked<NPC_TESSA>) {}\n') + CHECK,
         'duplicate event subscription'),
     'handler_missing': (HEADER.format(limit=2) + VALID_QUEST.format(
-        extra='    using Watches = Watch<NpcTalked<NPC_VILLAGER>>;\n') + CHECK,
+        extra='    using Watches = Watch<NpcTalked<NPC_TESSA>>;\n') + CHECK,
         'a subscribed event needs its handler'),
     'flag_handler_missing': (HEADER.format(limit=2) + VALID_QUEST.format(
         extra='    using Watches = Watch<FlagChanged<FLAG_CAVE_GATE>>;\n') + CHECK,
@@ -62,8 +62,8 @@ cases = {
     'valid_minimal': (HEADER.format(limit=2) + VALID_QUEST.format(extra='') + CHECK, None),
     'valid_shipping_catalog': ('#include "quest_dispatch.h"\n#include "quest_registry.h"\n' + CHECK, None),
     'valid_subscriptions': (HEADER.format(limit=2) + VALID_QUEST.format(
-        extra='    using Watches = Watch<FlagChanged<FLAG_CAVE_GATE>, NpcTalked<NPC_VILLAGER>>;\n'
-              '    static void evaluate() {}\n    static void on(NpcTalked<NPC_VILLAGER>) {}\n') + CHECK, None),
+        extra='    using Watches = Watch<FlagChanged<FLAG_CAVE_GATE>, NpcTalked<NPC_TESSA>>;\n'
+              '    static void evaluate() {}\n    static void on(NpcTalked<NPC_TESSA>) {}\n') + CHECK, None),
 }
 
 failures = []

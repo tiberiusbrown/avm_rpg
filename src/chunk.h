@@ -34,7 +34,11 @@ template <TilePos POS> bool player_is_walking_onto() {
 }
 
 template <TilePos POS> bool player_just_interacted() {
-    if(POS.area != game.area || !game.dimensions.pixel_bounds(game.player.x, game.player.y))
+    // Most sites share the cache window but are several tiles from the player. Compare the
+    // foot's pixel range to the constant site first, before resolving a facing and map bounds.
+    if((uint16_t)(game.player.y + FOOT_CENTER_Y + TILE - POS.y * TILE) >= 3 * TILE ||
+       (uint16_t)(game.player.x + FOOT_CENTER_X + TILE - POS.x * TILE) >= 3 * TILE ||
+       POS.area != game.area || !game.dimensions.pixel_bounds(game.player.x, game.player.y))
         return false;
     int16_t x = (int16_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
             y = (int16_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT);

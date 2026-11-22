@@ -74,7 +74,8 @@ void npc_begin_frame() {
             n.state &= ~NPC_CAN_DETOUR;
         }
         n.state &= ~NPC_PUSHED;
-        if(!npc_overlap(n.actor.x, n.actor.y, game.player.x, game.player.y))
+        if((n.state & NPC_PASS_PLAYER) &&
+           !npc_overlap(n.actor.x, n.actor.y, game.player.x, game.player.y))
             n.state &= ~NPC_PASS_PLAYER;
     }
 }
@@ -646,6 +647,11 @@ void npc_update() {
             }
             game.npcs.terrain_dirty = 0;
         }
+        // A settled actor with known-clear feet has no movement or timer work this frame.
+        if(n.behavior == NPC_STAND && (n.policy_pending & 4) &&
+           !(n.policy_pending & PURSUIT_ENABLED) && !(n.state & NPC_YIELDING) &&
+           !n.actor.walking && !n.timer)
+            continue;
         // A clipped sprite may still be visible after its feet leave the cache.
         // Freeze that sliver until cached again or fully offscreen; never eject it
         // against the outside sentinel or simulate uncached terrain.

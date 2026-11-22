@@ -115,7 +115,8 @@ void validate_selection() {
 
 } // namespace
 
-QUEST_STATUS quest_status(QUEST_ID id) {
+// Keep table loads at these entry points so the guest linker can resolve their call targets.
+RPG_NOINLINE QUEST_STATUS quest_status(QUEST_ID id) {
     return valid_quest(id) ? Tables::status[id]() : QUEST_NOT_STARTED;
 }
 
@@ -130,15 +131,15 @@ bool quest_start(QUEST_ID id) {
     return true;
 }
 
-char const PROGMEM* quest_title(QUEST_ID id) {
+RPG_NOINLINE char const PROGMEM* quest_title(QUEST_ID id) {
     return valid_quest(id) ? Tables::title[id]() : F("");
 }
 
-char const PROGMEM* quest_summary(QUEST_ID id) {
+RPG_NOINLINE char const PROGMEM* quest_summary(QUEST_ID id) {
     return valid_quest(id) ? Tables::summary[id]() : F("");
 }
 
-char const PROGMEM* quest_objective(QUEST_ID id) {
+RPG_NOINLINE char const PROGMEM* quest_objective(QUEST_ID id) {
     return valid_quest(id) ? Tables::objective[id]() : nullptr;
 }
 

@@ -6,15 +6,22 @@
 #include "container_rewards.h"
 #include "area_ids.h"
 #include "tile_ids.h"
+#include "quest.h"
 
-// The cave: a lever opens the vault gate, the vault's lever opens the nook, and the nook's plate
-// runs the bridge out over the chasm. Steam vents blow across the way, and a message explains it.
+// Hollow Mine. The east winch releases the west inspection nook and its bridge plate.
 
 inline constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS =
-    battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF, ENEMY_BRUTE);
+    battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF);
+
+struct MineWolfHooks : EnemyHooks {
+    static void victory() {
+        game.set_flag(FLAG_MINE_WOLF_DRIVEN);
+    }
+};
 
 using CaveEnemies = TypeList<
-    EnemySpawn<positions::MineScout, &BATTLE_MINE_SCOUTS, 17, ENEMY_CHASE, SPEED_FAST>
+    EnemySpawn<positions::MineScout, &BATTLE_MINE_SCOUTS, 17, ENEMY_CHASE, SPEED_FAST, 0,
+               RESPAWN_REMEMBER, MineWolfHooks>
 >;
 
 namespace handler_impl {
@@ -66,10 +73,38 @@ template <TilePos POS> void steam_vent(Tiles<POS>) {
     }
 }
 
+template <TilePos POS> void read_bridge_notice(Dialogue<POS>) {
+    if(player_just_interacted<POS>() &&
+       dialogue_show(F("Bridge crew: first throw the east gate lever. Open the west inspection nook from the winch room.")))
+        quest_start(QUEST_SPAN_BELOW);
+}
+
+template <TilePos POS> void read_wolf_warning(Dialogue<POS>) {
+    if(player_just_interacted<POS>() &&
+       dialogue_show(F("Nell's chalk: Wolf on the rails ahead. Its tracks go past the old tally board.")))
+        quest_start(QUEST_TRACKS_IN_DUST);
+}
+
+template <TilePos POS> void read_mine_ledger(Dialogue<POS>) {
+    if(!player_just_interacted<POS>())
+        return;
+    if(!game.get_flag(FLAG_MINE_WOLF_DRIVEN)) {
+        dialogue_show(F("Fresh claw marks score the dust. Something is still guarding this chamber."));
+        return;
+    }
+    if(dialogue_show(F("Two loads came up. Same weight, same ore, same cut in every stone. Both marks are identical.")) &&
+       !game.get_flag(FLAG_MINE_LEDGER)) {
+        game.set_flag(FLAG_MINE_LEDGER);
+        quest_award_experience(3);
+    }
+}
+
 template <> struct AreaMessages<AREA_CAVE> {
     static constexpr Message TABLE[] = {
-        {positions::CaveNotice,
-         F("Levers work the gates. The old plate in the west nook runs the bridge.")},
+        {positions::WinchChalk, F("Chalk over the winch: release the west grille. Step on the plate behind it to run the bridge out.")},
+        {positions::VentChalk, F("Wait for the hiss to die. Cross on the dark grate. Same rule on the way back.")},
+        {positions::PoolEcho, F("Two tide lines on the same stone. The lower one is wet, but the pool has never reached it today.")},
+        {positions::LadderChalk, F("Ladder to the west ridge. Leave a pair of dry boots for the next shift.")},
     };
 };
 

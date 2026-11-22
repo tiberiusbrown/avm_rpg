@@ -37,7 +37,7 @@ width and destination stride equal to CACHE_WIDTH. All consumers read through
 6. Finish STAGE_DIALOGUE after the complete cache exists. Blocking dialogue
    uses local screen loops. Flag changes affect the next tile pass unless a
    handler explicitly refreshes the cache.
-7. Move the player two pixels per update, checking every intermediate pixel
+7. Move the player one pixel per update, checking every intermediate pixel
    against terrain and NPCs. Fresh A or a teleport pauses movement/time.
 8. Advance the tick and render opaque terrain from the sheet of the current animation phase,
    then the wind gust and the ambient effects that lie on the terrain, then all alpha-masked actors
@@ -77,7 +77,8 @@ teleport short-circuiting are preserved. Tile and NPC stages always finish desti
 
 Named rectangles additionally export query-only TileRegion metadata. `set_tile`
 validates logical area/bounds and clips against the resident cache. A scrolling
-viewport touches at most nine chunks. Teleports stop outgoing gameplay/dialogue,
+viewport touches at most nine chunks. Gameplay derives its window from the current
+player camera. Tile, NPC, and dialogue stages use the loaded cache origin. Teleports stop outgoing gameplay/dialogue,
 clear the NPC pool and rebuild destination tiles and the full NPC stage; destination gameplay begins
 on the next update. Save/load uses the same cache-based terrain repair.
 
@@ -90,7 +91,7 @@ result while the display is black. Victory records defeat and retires the actor 
 the world cache is rebuilt and faded in. Defeat ends exploration and returns through the
 outer loop to the title.
 
-Save version 20 stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
+Save version 21 stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
 flags and a 16-bit countdown. Older records are rejected. The tile window
 and camera are not saved: they live in the runtime workspace (`src/runtime_workspace.h`) and
 are rebuilt from the world and flags. Loads validate version, stats, party, flags and bounds

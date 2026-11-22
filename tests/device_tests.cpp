@@ -578,11 +578,11 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
     fixture.player = {(uint16_t)(spawn_x - 8), (uint16_t)(spawn_y + 8), SOUTH, 0};
     fixture.npcs = {};
     // Deliberately reverse the NPC slots relative to depth, with the player between.
-    fixture.npcs.actors[0].id = NPC_VILLAGER;
-    fixture.npcs.actors[0].assigned_site = positions::VillagerHome;
+    fixture.npcs.actors[0].id = NPC_TESSA;
+    fixture.npcs.actors[0].assigned_site = positions::TessaWell;
     fixture.npcs.actors[0].actor = {(uint16_t)(spawn_x + 4), (uint16_t)(spawn_y + 12), SOUTH, 0};
-    fixture.npcs.actors[1].id = NPC_WANDERER;
-    fixture.npcs.actors[1].assigned_site = positions::WandererHome;
+    fixture.npcs.actors[1].id = NPC_ORRIN;
+    fixture.npcs.actors[1].assigned_site = positions::OrrinLane;
     fixture.npcs.actors[1].actor = {spawn_x, spawn_y, SOUTH, 0};
     d.set_state(fixture);
     d.frame();
@@ -615,11 +615,11 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
             }
         }
     };
-    compose(expected, rendered.npcs.actors[1].actor, NpcContent<NPC_WANDERER>::definition.sprite_row);
+    compose(expected, rendered.npcs.actors[1].actor, NpcContent<NPC_ORRIN>::definition.sprite_row);
     compose(expected, rendered.player, 0);
-    compose(expected, rendered.npcs.actors[0].actor, NpcContent<NPC_VILLAGER>::definition.sprite_row);
-    compose(old_order, rendered.npcs.actors[0].actor, NpcContent<NPC_VILLAGER>::definition.sprite_row);
-    compose(old_order, rendered.npcs.actors[1].actor, NpcContent<NPC_WANDERER>::definition.sprite_row);
+    compose(expected, rendered.npcs.actors[0].actor, NpcContent<NPC_TESSA>::definition.sprite_row);
+    compose(old_order, rendered.npcs.actors[0].actor, NpcContent<NPC_TESSA>::definition.sprite_row);
+    compose(old_order, rendered.npcs.actors[1].actor, NpcContent<NPC_ORRIN>::definition.sprite_row);
     compose(old_order, rendered.player, 0);
     require(expected != old_order, "depth fixture does not distinguish the previous draw order");
     d.capture(out / "actor-depth.pgm");
@@ -1640,6 +1640,8 @@ constexpr NPC_ID GROVE_WOLF = (NPC_ID)NPC_ENEMY_FIRST;
 constexpr FLAG GROVE_WOLF_DEFEATED = FLAG_ENEMY_FIRST;
 
 static void place_grove_contact(Device& d) {
+    // Inject a new scene between exploration frames, including after The World Remembers.
+    d.frame();
     Game world = d.state();
     require(world.area == positions::GroveWolf.area, "Grove contact fixture is in the wrong area");
     world.flags.clear_flag(GROVE_WOLF_DEFEATED);
@@ -2049,26 +2051,62 @@ static void press_with_music_fade(Device& d) {
         require(trace.levels[i] < trace.levels[i - 1], "music fade did not ramp down");
 }
 
+static void advance_to_dialogue_options(Device& d) {
+    for(unsigned page = 0; page < 16; ++page) {
+        d.wait_for_prompt();
+        auto prompt = d.prompt();
+        if(prompt == DIALOGUE_OPTIONS)
+            return;
+        require(prompt == DIALOGUE_MORE || prompt == DIALOGUE_DONE,
+                "expected a text page before the options");
+        d.tap(BTN_A);
+    }
+    throw std::runtime_error("dialogue options did not appear");
+}
+
 static void verify_quest_level_up(Device& d, fs::path const& out) {
     Snapshot fixture = d.state();
-    auto villager = std::find_if(fixture.npcs.actors, fixture.npcs.actors + NPC_CAPACITY,
-                                 [](Npc const& n) { return n.id == NPC_VILLAGER; });
-    require(villager != fixture.npcs.actors + NPC_CAPACITY, "Iona is not active");
-    fixture.player = {villager->actor.x, (uint16_t)(villager->actor.y - TILE), SOUTH, 0};
-    fixture.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
-    fixture.party.members[0].experience = 8;
+    fixture.player = {(uint16_t)(positions::TessaWell.x * TILE),
+                      (uint16_t)((positions::TessaWell.y + 1) * TILE), NORTH, 0};
+    fixture.npcs.entering = 1;
+    fixture.flags.set_flag(FLAG_ORCHARD_DISPUTE);
+    fixture.flags.set_flag(FLAG_BRAM_ACCOUNT);
+    fixture.flags.set_flag(FLAG_ORRIN_ACCOUNT);
+    fixture.party.members[0].level = 1;
+    fixture.party.members[0].experience = 6;
+    fixture.party.members[0].perk_ranks = 0;
     d.set_state(fixture);
     d.frame();
+
     d.tap(BTN_A);
-    d.wait_for_prompt();
-    require(d.state().party.members[0].level == 1, "quest awarded XP before dialogue finished");
+    advance_to_dialogue_options(d);
+    d.capture(out / "dry-roots-options.pgm");
+    d.tap(BTN_B);
+    d.frame();
+    require(!d.state().get_flag(FLAG_ORCHARD_SETTLED) &&
+                !d.state().get_flag(FLAG_ORCHARD_PUBLIC) &&
+                d.state().party.members[0].experience == 6,
+            "canceling the settlement changed quest state");
+
     d.tap(BTN_A);
+    advance_to_dialogue_options(d);
+    d.tap(BTN_A);
+    // Advance the final text without waiting for exploration, which the notice pauses.
+    auto prompt = DIALOGUE_MORE;
+    for(unsigned page = 0; page < 16 && prompt == DIALOGUE_MORE; ++page) {
+        d.wait_for_prompt();
+        prompt = d.prompt();
+        require(prompt == DIALOGUE_MORE || prompt == DIALOGUE_DONE,
+                "expected Tessa's resolution text");
+        d.tap(BTN_A);
+    }
+    require(prompt == DIALOGUE_DONE, "Tessa's resolution text did not finish");
     d.advance(0, 3200000);
     Snapshot rewarded = d.state();
-    require(d.prompt() == DIALOGUE_CLOSED && rewarded.get_flag(FLAG_QUEST_FIND_IONA_DONE) &&
+    require(rewarded.get_flag(FLAG_ORCHARD_SETTLED) && rewarded.get_flag(FLAG_ORCHARD_PUBLIC) &&
                 rewarded.party.members[0].level == 2 &&
                 party_unspent_perks(rewarded.party.members[0]) == 1,
-            "Iona's completed quest did not earn a level and a perk choice");
+            "Dry Roots did not earn a level and a perk choice");
     unsigned serial = d.serial();
     d.advance(0, 3200000);
     require(d.serial() == serial, "quest level-up notice did not wait for dismissal");
@@ -2077,6 +2115,37 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
     d.frame();
     require(d.serial() != serial && party_unspent_perks(d.state().party.members[0]) == 1,
             "dismissing the quest notice did not resume exploration with a pending perk");
+}
+
+static void verify_millcross_views(Device& d, fs::path const& out) {
+    Game origin = d.state();
+    auto place = [&](TilePos site, int8_t dx, int8_t dy, DIRECTION facing) {
+        Game fixture = d.state();
+        fixture.player = {(uint16_t)((site.x + dx) * TILE), (uint16_t)((site.y + dy) * TILE),
+                          facing, 0};
+        fixture.npcs.entering = 1;
+        d.set_state(fixture);
+        d.frame();
+    };
+    d.capture(out / "millcross-arrival.pgm");
+    place(positions::WellSign, -1, -1, NORTH);
+    summary("millcross_well", d, 30);
+    d.capture(out / "millcross-well.pgm");
+    place(positions::OrchardSign, 0, -1, WEST);
+    summary("millcross_orchard", d, 30);
+    d.capture(out / "millcross-orchard.pgm");
+    place(positions::BramYard, 0, 1, NORTH);
+    summary("millcross_smithy", d, 30);
+    d.capture(out / "millcross-smithy.pgm");
+    place(positions::CaveMouth, 0, 1, NORTH);
+    summary("hollow_mine_mouth", d, 12);
+    d.capture(out / "hollow-mine-mouth.pgm");
+    walk_to_area(d, BTN_UP, AREA_CAVE, "Millcross trail did not lead into the mine");
+    summary("hollow_mine_camp", d, 30);
+    d.capture(out / "hollow-mine-camp.pgm");
+    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "Hollow Mine camp could not return to the trail");
+    d.set_state(origin);
+    d.frame();
 }
 
 static void verify_equipment(Device& d, fs::path const& out) {
@@ -2348,7 +2417,7 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
     (void)out;
     Snapshot before = d.state();
     Game started = before;
-    started.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
+    started.flags.set_flag(FLAG_ORCHARD_DISPUTE);
     d.set_state(started);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -2398,7 +2467,7 @@ int main(int argc, char** argv) try {
     require(
         argc >= 9 && argc <= 13,
         "device_tests package game_address marker_address serial_address "
-        "output_directory normal|fxc|proof|smoke|pause|battle|shop|sounds|functional|sounds-functional "
+        "output_directory normal|fxc|proof|smoke|millcross|pause|battle|shop|sounds|functional|sounds-functional "
         "dialogue_address phase_address "
         "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
     // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
@@ -2494,6 +2563,12 @@ int main(int argc, char** argv) try {
                   << (worst_exploration_cycles <= 320000 ? "true" : "false") << "}\n";
         return 0;
     }
+    if(std::string(argv[6]) == "millcross") {
+        verify_millcross_views(d, out);
+        verify_quest_level_up(d, out);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Millcross views and settlement choice\"}\n";
+        return 0;
+    }
     verify_options(d, out);
     verify_pause_party(d, out);
     Game before_perk = d.state();
@@ -2539,8 +2614,8 @@ int main(int argc, char** argv) try {
         d.wait_for_battle();
         auto battle = d.battle_state();
         require((BATTLEFIELDS_CAVE & battlefield_bit(battle.field)) &&
-                    battle.unit_count == d.state().party.count + 2,
-                "Scout contact did not deploy the mixed encounter on a cave board");
+                    battle.unit_count == d.state().party.count + 1,
+                "Scout contact did not deploy the lone wolf on a cave board");
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"Mine Scout pursuit and contact\"}\n";
         return 0;
     }
@@ -2588,12 +2663,13 @@ int main(int argc, char** argv) try {
     require(d.state().dimensions.width_tiles == OUTDOOR_WIDTH &&
                 d.state().dimensions.height_tiles == OUTDOOR_HEIGHT,
             "wrong map dimensions");
-    require(d.cached_tile(positions::GroveSign.x, positions::GroveSign.y) == TILE_SIGN,
+    require(d.cached_tile(positions::WellSign.x, positions::WellSign.y) == TILE_SIGN,
             "sign atlas index changed");
     unsigned actors = 0;
     for(auto const& n : d.state().npcs.actors)
         actors += n.id != NPC_NONE;
-    require(actors == 3, "sample NPCs and recruit did not activate");
+    require(actors == 3, "the well residents and recruit did not activate");
+    verify_millcross_views(d, out);
     verify_shop(d, out);
     verify_party_recruitment(d, out);
     verify_actor_layers(d, out);
@@ -2632,158 +2708,11 @@ int main(int argc, char** argv) try {
     verify_house_fades(d);
     verify_area_music(d);
 
-    // Stand one tile north of the villager, facing it, and talk with A.
-    auto npc_state = d.state();
-    auto villager = std::find_if(npc_state.npcs.actors, npc_state.npcs.actors + NPC_CAPACITY,
-                                 [](Npc const& n) { return n.id == NPC_VILLAGER; });
-    require(villager != npc_state.npcs.actors + NPC_CAPACITY, "villager is not active");
-    npc_state.player.x = villager->actor.x;
-    npc_state.player.y = villager->actor.y - TILE;
-    npc_state.player.facing = SOUTH;
-    npc_state.player.walking = 0;
-    d.set_state(npc_state);
-    d.advance(0, 800000);
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_TYPING, "villager talk did not open dialogue");
-    d.wait_for_typing();
-    require(d.prompt() == DIALOGUE_MORE || d.prompt() == DIALOGUE_DONE,
-            "villager dialogue did not reach a text prompt");
-    d.capture(out / "npc-dialogue.pgm");
-    d.dismiss_dialogue();
-
-    // Each conversation sends the villager to the other end of the clearing. It walks while
-    // visible; off-cache travel can then release its slot and finish at the policy site.
-    auto villager_in = [](Game const& g) -> Npc const* {
-        for(auto const& n : g.npcs.actors)
-            if(n.id == NPC_VILLAGER)
-                return &n;
-        return nullptr;
-    };
-    auto place_player = [&](uint8_t tx, uint8_t ty, DIRECTION facing) {
-        // Move the player between frames: a position that changes inside a frame's update
-        // leaves that frame with half of each, which costs far more than a real frame.
-        d.frame();
-        Game g = d.state();
-        g.player.x = (uint16_t)tx * TILE;
-        g.player.y = (uint16_t)ty * TILE;
-        g.player.facing = facing;
-        g.player.walking = 0;
-        d.set_state(g);
-        d.advance(0, 800000);
-    };
-    auto close_villager_dialogue = [&]() { d.dismiss_dialogue(); };
-    TilePos const west = positions::VillagerWest, east = positions::VillagerEast;
-
-    // A device slice must keep the villager in its slot and move it at most a couple of
-    // pixels. A teleport jumps by a tile or more, and a pop-in creates a new slot.
-    uint16_t vx = 0, vy = 0;
-    auto track_villager = [&]() {
-        Snapshot g = d.state();
-        auto const* v = villager_in(g);
-        require(v, "villager missing before its walk");
-        vx = v->actor.x;
-        vy = v->actor.y;
-    };
-    auto step_villager = [&]() {
-        d.advance(0, 533334);
-        Snapshot g = d.state();
-        auto const* v = villager_in(g);
-        if(!v) {
-            require(!(vx < g.view.camera.x + 128 && vx + TILE > g.view.camera.x && vy < g.view.camera.y + 64 &&
-                      vy + TILE > g.view.camera.y),
-                    "villager retired while visible");
-            return;
-        }
-        int dx = (int)v->actor.x - (int)vx, dy = (int)v->actor.y - (int)vy;
-        dx = dx < 0 ? -dx : dx;
-        dy = dy < 0 ? -dy : dy;
-        require(dx + dy <= 2, "villager jumped instead of walking");
-        vx = v->actor.x;
-        vy = v->actor.y;
-    };
-    auto villager_visible = [&](Snapshot const& g) {
-        auto const* v = villager_in(g);
-        return v && v->actor.x < g.view.camera.x + 128 && v->actor.x + TILE > g.view.camera.x &&
-               v->actor.y < g.view.camera.y + 64 && v->actor.y + TILE > g.view.camera.y;
-    };
-
-    // Pixel placement for talks, which need the player directly beside the villager.
-    auto place_at = [&](uint16_t x, uint16_t y, DIRECTION facing) {
-        Game g = d.state();
-        g.player.x = x;
-        g.player.y = y;
-        g.player.facing = facing;
-        g.player.walking = 0;
-        d.set_state(g);
-        d.advance(0, 800000);
-    };
-
-    // Leg one: the first talk sent it east. With the player standing still, the villager walks
-    // out of view and stays in its slot, where it can walk no farther. It never teleports home.
-    {
-        Game g = d.state();
-        require(g.get_flag(FLAG_VILLAGER_MOVED) && g.get_flag(FLAG_VILLAGER_EAST),
-                "talk did not send the villager east");
-        auto const* v = villager_in(g);
-        if(v && v->behavior != NPC_TRAVEL)
-            std::cerr << "Iona after talk: behavior=" << unsigned(v->behavior)
-                      << " derived=" << unsigned(v->policy_pending)
-                      << " site=" << unsigned(v->assigned_site.area) << ','
-                      << unsigned(v->assigned_site.x) << ',' << unsigned(v->assigned_site.y)
-                      << " pos=" << v->actor.x << ',' << v->actor.y << " ticks=" << g.ticks << '\n';
-        require(v && v->behavior == NPC_TRAVEL, "villager did not walk toward the east corner");
-    }
-    track_villager();
-    unsigned walked = 0;
-    while(villager_visible(d.state()) && walked < 900) {
-        step_villager();
-        ++walked;
-    }
-    require(walked > 30, "villager left view without walking");
-    for(unsigned i = 0; i < 60; ++i)
-        step_villager();
-    // Safe off-cache retirement is allowed; quest state remains authoritative.
-    require(d.state().get_flag(FLAG_VILLAGER_MOVED) && d.state().get_flag(FLAG_VILLAGER_EAST),
-            "villager lost its east residence");
-
-    // Approach the east site through the cache margin before bringing it into view.
-    place_at((east.x - 6) * TILE + 8, east.y * TILE, EAST);
-    place_player(east.x - 1, east.y, EAST);
-    track_villager();
-    require(vx == east.x * TILE && vy == east.y * TILE,
-            "villager did not complete its off-cache east journey");
-    for(unsigned i = 0; i < 120; ++i)
-        step_villager();
-    d.capture(out / "npc-east.pgm");
-
-    // Leg two: another talk sends it west; its visible movement remains continuous.
-    {
-        Game g = d.state();
-        require(villager_in(g), "villager missing before the second talk");
-    }
-    place_at(vx, vy - TILE, SOUTH);
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_TYPING, "talking to the villager did not open dialogue");
-    close_villager_dialogue();
-    require(d.state().get_flag(FLAG_VILLAGER_MOVED) && !d.state().get_flag(FLAG_VILLAGER_EAST),
-            "second talk did not send the villager west");
-    track_villager();
-    walked = 0;
-    while(villager_visible(d.state()) && walked < 900) {
-        step_villager();
-        ++walked;
-    }
-    require(walked > 30, "villager left view without walking west");
-    for(unsigned i = 0; i < 60; ++i)
-        step_villager();
-    place_at((west.x - 6) * TILE + 8, west.y * TILE, EAST);
-    place_player(west.x + 2, west.y, EAST);
-    track_villager();
-    require(vx == west.x * TILE && vy == west.y * TILE,
-            "villager did not complete its off-cache west journey");
-    for(unsigned i = 0; i < 120; ++i)
-        step_villager();
-    d.capture(out / "npc-west.pgm");
+    // A ready settlement opens real dialogue, and B can leave the choice without committing it.
+    Game before_social = d.state();
+    verify_quest_level_up(d, out);
+    d.set_state(before_social);
+    d.frame();
     set_test_options(d);
 
     {
@@ -2818,10 +2747,10 @@ int main(int argc, char** argv) try {
     require(d.serial() != menu_serial, "Map did not resume exploration");
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    // Start Find Iona for this menu, so the Journal lists it and its detail view has text to draw.
+    // Start Dry Roots for this menu, so the Journal lists it and its detail view has text to draw.
     Game before_quest = d.state();
     Game quest = before_quest;
-    quest.flags.set_flag(FLAG_QUEST_FIND_IONA_STARTED);
+    quest.flags.set_flag(FLAG_ORCHARD_DISPUTE);
     d.set_state(quest);
     menu_state = d.state();
     menu_serial = d.serial();
