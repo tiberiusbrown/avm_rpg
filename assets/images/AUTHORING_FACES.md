@@ -17,8 +17,8 @@ match in its NPC's sprite.
 ## Status
 
 The generator reads the sheet into `FACE_SPRITES` and `FACE_PRESENT` in `generated/sprites.cpp`,
-and `src/dialogue_overlay.cpp` draws the face of the NPC that speaks. Pair 0 holds the original
-dialogue portraits beside their variants in pairs 1–3. To assign a portrait to a speaker,
+and `src/dialogue_overlay.cpp` draws the face of the NPC that speaks. Each sprite row has four
+portraits. The current dialogue assignments use pair 0. To assign a portrait to a speaker,
 put its zero-based `[row, pair]` in `faces32.json` at the speaker's NPC ID. A `null` entry,
 an all-black pair, or an ID beyond the assignment list uses the plain name panel.
 
@@ -61,38 +61,38 @@ Fill any unused slots on the sheet with opaque black.
 | --- | --- | --- | --- |
 | 1 `NPC_TESSA` | Tessa | 9 | Female. Long black hair, bangs and a centre parting. No head covering. |
 | 2 `NPC_ORRIN` | Orrin | 2 | Male. Short white hair and thick dark brows. No head covering. |
-| 3 `NPC_ROWAN` | Rowan | 3 | Male. A white hood hides his hair. A strap crosses his chest. |
+| 3 `NPC_ROWAN` | Rowan | 3 | Male. A curved white hood and cowl hide his hair and ears. A diagonal strap crosses his chest. |
 | 4 `NPC_MARA` | Mara | 11 | Long medium-brown hair with a straight fringe and a collar pin. |
 | 5 `NPC_BRAM` | Bram | 7 | Bald crown, black hair at the sides, and a black moustache. |
-| 6 `NPC_NELL` | Nell | 12 | Long black hair under a wide-brimmed white hat with a dark band. |
-| 7 `NPC_ADA` | Ada | 14 | Long medium-brown hair beneath a white polka-dot kerchief. |
-| 8 `NPC_SURVEYOR` | Surveyor | 10 | Long pale-blond hair, thick dark eyebrows, and no head covering. |
+| 6 `NPC_NELL` | Nell | 12 | Long straight black hair under a white hat with a dark band and raised brim tips. |
+| 7 `NPC_ADA` | Ada | 14 | Long medium-brown hair beneath a white polka-dot kerchief with a diagonal fold and short side ties. |
+| 8 `NPC_SURVEYOR` | Surveyor | 10 | Swept pale-blond hair tucked behind one ear, thick dark eyebrows, and a standing collar. |
 
 ## Portrait library
 
 Coordinates start at zero. Each row below identifies a row in both
-[`faces32.png`](faces32.png) and [`actors16.png`](actors16.png). Pair 1 uses
-frame columns 2–3, pair 2 uses columns 4–5, and pair 3 uses columns 6–7.
+[`faces32.png`](faces32.png) and [`actors16.png`](actors16.png). Pairs 0–3
+use frame columns 0–1, 2–3, 4–5, and 6–7 respectively.
 The [actor descriptions](actors16_descriptions.md) record the shared sprite traits.
 
-| Actor and portrait row | Pair 1 | Pair 2 | Pair 3 |
-| --- | --- | --- | --- |
-| 0 | Hatched side sweep, round cheeks | Cropped fringe, angular face, tied collar | Blunt fringe, square face, large ears |
-| 1 | Straight black fringe, raised collar | Swept black fringe, cheek crease | Shaggy black fringe, oval face |
-| 2 | White hair, heavy brows, deep cheek folds | Swept white hair, narrow jaw | Peaked white hair, long face |
-| 3 | Curled white hood, crossed laces | Left-drooping white hood, diagonal shoulder strap | Tall white hood, broad face |
-| 4 | Eyepatch and square jaw | Eyepatch and round cheeks | Eyepatch and lined cheeks |
-| 5 | Broad headband, sleeveless collar | Narrow headband tied on the right, long face | Headband tied on the left, pointed chin |
-| 6 | Short scalloped curls, long face, shoulder strap | Dense short curls, wide brow, top laces | Cropped curls, prominent ears, cheek creases |
-| 7 | Bald with a wide handlebar moustache and curved collar | Bald with a compact straight moustache and broad sash | Bald with a drooping moustache and broad chin |
-| 8 | Long center-parted hatched hair, narrow face | Long hatched hair tucked behind an ear, rounded face | Long center-parted waves, square neckline |
-| 9 | Black curtain bangs, angular cheeks | Symmetric black bangs, pointed collar | Asymmetric black bangs, narrow chin |
-| 10 | Long pale-blond waves, wide jaw | Long pale-blond curls, narrow chin | Long pale-blond side sweep, folded neckline |
-| 11 | Long striped fringe, round cheeks | Long straight fringe, square collar pin, cheek creases | Short fringe over long straight hair, full cheeks |
-| 12 | Wide floppy hat, long face | Round high-crowned hat, small face | Tilted wide-brimmed hat, angular face |
-| 13 | Long tight waves, square face | Long corkscrew curls, tapered chin | Broad uneven waves, lined cheeks |
-| 14 | Polka-dot kerchief tied on the right, round chin | Snug polka-dot kerchief, cheek creases | Left-tied polka-dot kerchief, long face |
-| 15 | Long silver waves, long cheeks, folded collar | Long symmetric silver waves, round neckline | Long center-parted silver hair, angular jaw |
+| Actor and portrait row | Pair 0 | Pair 1 | Pair 2 | Pair 3 |
+| --- | --- | --- | --- | --- |
+| 0 | Short hatched crop, round cheeks, V-neck collar | Hatched side sweep, round cheeks | Cropped fringe, angular face, tied collar | Blunt fringe, square face, large ears |
+| 1 | Swept black fringe, angled brows, overlapping collar | Straight black fringe, raised collar | Swept black fringe, cheek crease | Shaggy black fringe, oval face |
+| 2 | Orrin | White hair, heavy brows, deep cheek folds | Swept white hair, narrow jaw | Peaked white hair, long face |
+| 3 | Rowan | Curled white hood, crossed laces | Left-drooping white hood, diagonal shoulder strap | Rounded white hood with a slanted seam, square jaw, heavy brows, cheek creases |
+| 4 | Short black fringe, eyepatch with a diagonal strap, collar pin | Eyepatch and square jaw | Eyepatch and round cheeks | Eyepatch and lined cheeks |
+| 5 | White headband, short hatched hair, oval jaw, folded collar | Broad headband, sleeveless collar | Narrow headband tied on the right, long face | Headband tied on the left, pointed chin |
+| 6 | Short ruffled curls, broad jaw, laced tunic | Short scalloped curls, long face, shoulder strap | Dense short curls, wide brow, top laces | Cropped curls, defined ear folds, cheek creases |
+| 7 | Bram | Bald with a wide handlebar moustache and curved collar | Bald with a compact straight moustache and broad sash | Bald with a drooping moustache and broad chin |
+| 8 | Long center-parted hatched hair, round cheeks and neckline | Long center-parted hatched hair, narrow face | Long hatched hair tucked behind an ear, rounded face | Long center-parted waves, square neckline |
+| 9 | Tessa | Black curtain bangs, angular cheeks | Symmetric black bangs, pointed collar | Asymmetric black bangs, narrow chin |
+| 10 | Surveyor | Long pale-blond waves, wide jaw | Long pale-blond curls, narrow chin | Long pale-blond side sweep, folded neckline |
+| 11 | Mara | Long striped fringe, round cheeks | Long straight fringe, square collar pin, cheek creases | Short fringe over long straight hair, full cheeks |
+| 12 | Nell | Wide floppy hat, long face | Round high-crowned hat, small face | Tilted wide-brimmed hat, angular face |
+| 13 | Long uneven dark curls, angular chin, dress pin | Long tight waves, square face | Long corkscrew curls, tapered chin | Broad uneven waves, lined cheeks |
+| 14 | Ada | Polka-dot kerchief tied on the right, round chin | Snug polka-dot kerchief, cheek creases | Left-tied polka-dot kerchief, long face |
+| 15 | Long center-parted silver hair, no brows, cheek creases, folded collar | Long silver waves, long cheeks, folded collar | Long symmetric silver waves, round neckline | Long center-parted silver hair, angular jaw |
 
 ## Art style
 
@@ -117,6 +117,8 @@ not stored in this repository. Emulate it:
   curve into the temples. Give tall hair and hood tips a black margin above them.
 - **Show where short hair ends.** Keep it above or behind the ears and expose the cheeks
   below. A cheek contour that turns inward under the ear separates the head from the shoulders.
+- **Keep ears compact at eye level.** Draw a short white lobe around a dark inner crease.
+  Use Orrin and Bram in pair 0 as references.
 - **Features are small and plain.** Eyes are short dashes with a white catch-light, brows are
   strokes above them, and the nose is a few pixels. Keep the mouth corners level for a neutral
   expression.

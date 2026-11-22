@@ -448,12 +448,11 @@ class Pipeline(unittest.TestCase):
     def test_face_rows_are_independent_of_npc_ids(self):
         path = self.root / "assets/images/faces32.png"
         path.with_suffix(".json").unlink()
-        image = Image.open(path).convert("RGBA")
-        # A two-column sheet can have unassigned rows beyond the current identity range.
-        image = image.crop((0, 0, 64, image.height))
+        # A legacy two-column sheet can have rows beyond the current identity range.
+        rows = 16
+        image = Image.new("RGBA", (64, rows * 32), (0, 0, 0, 255))
         image.putpixel((0, 32), (255, 255, 255, 255))
         image.save(path)
-        rows = image.height // 32
         source = generate(self.root)["sprites.cpp"]
         self.assertIn(f"FACE_ROW_COUNT = {rows};", source)
         self.assertNotIn("static_assert(NPC_ID_LIMIT", source)

@@ -151,7 +151,7 @@ transparent pixels preserve it. Each frame has its own mask. No standalone
 
 `faces32.png` is a 256x512 sheet of opaque black and white 32x32 portraits arranged
 in closed/open column pairs. Each row lines up with the same row in `actors16.png`.
-The first pair holds the original dialogue portraits alongside three variants.
+Each row offers four portraits. The current dialogue assignments use pair 0.
 `faces32.json` assigns a zero-based `[row, pair]` to each NPC ID and uses `null` for
 `NPC_NONE` and other IDs without a portrait. The open mouth keeps
 the closed mouth's width and is three rows tall. The jaw drops two rows with it.
