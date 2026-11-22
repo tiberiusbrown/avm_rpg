@@ -607,14 +607,21 @@ a second line runs inside its east rim and its back edge.
   lower than its west side, on a line that runs parallel to the rake. On a flat roof its foot
   is level.
 
-- The bottom roof tiles `0xb0`, `0xb1` and `0xb2` sit directly above the base wall.
-- `0xa1` sits above `0xb1`.
-- The top edge is `0x90`, `0x81` and `0x92`: `0x90` above `0xb0`, `0x81` above `0xa1`,
-  and `0x92` above `0xb2`.
-- To extend the roof deeper, add the middle roof tiles `0xa0`, `0x91` and `0xa2` between
-  the bottom roof and the top edge: `0xa0` above `0xb0`, `0x91` above `0xa1`, and `0xa2`
-  above `0xb2`. Then place the top edge above them: `0x90` above `0xa0`, `0x81` above
-  `0x91`, and `0x92` above `0xa2`.
+The short and deep layouts use these rows, from the back peak down to the wall.
+Dashes mark terrain around the roof.
+
+```text
+Short gable   Deep gable
+-- 81 --      -- 81 --
+90 A1 92      90 91 92
+B0 B1 B2      A0 A1 A2
+C0 DD C2      B0 B1 B2
+              C0 DD C2
+```
+
+`DD` is the door. Tile `0xa1` joins the front rake to the center ridge.
+The deeper roof inserts `0x91` between that junction and the back peak.
+
 - Three pieces have a decorative alternative that fits the same place. `0x80` replaces
   `0xb1` and adds a window to the gable. `0x82` replaces `0xa0`, and `0x83` replaces
   `0xa2`; each adds a window to that side of the roof. Use them on some houses for variety.
@@ -1023,6 +1030,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   every `REEDS` cell touches water.
 
 - The generator, `test_pipeline.py` and `test_content.py` all pass.
+- Run `python tests/test_content.py` to check gable layouts and flat roof joins.
+  Review the generated preview to check the finished roof silhouette.
 - Roads touch a building only at its door front. Every road cell uses the piece that its
   four neighbors select in [Roads](#roads), and roads wind gently.
 - Every east-to-west bridge has its row of `WATER_PILES` cells directly below it.

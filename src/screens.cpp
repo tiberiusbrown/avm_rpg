@@ -579,6 +579,7 @@ __attribute__((noinline)) void explore() {
                 music_play_area();
             if(shop_requested) {
                 shop_requested = false;
+                dialogue_close();
                 shop_screen();
             }
             input_sync();

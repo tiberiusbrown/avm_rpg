@@ -326,6 +326,66 @@ def inside(x, y):
     return interiors.data[y * interiors.width + x]
 
 
+def roof_at(x, y):
+    return at(x, y) if 0 <= x < m.width and 0 <= y < m.height else None
+
+
+def check_gable(name, x, y):
+    # Use any surviving front edge or ridge junction to recognize a gable.
+    front = ((0xB0,), (0xB1, 0x80), (0xB2,))
+    if roof_at(x, y - 2) != 0xA1 and not any(
+        roof_at(x + dx, y - 1) in variants for dx, variants in enumerate(front, -1)
+    ):
+        return
+
+    left_slope, right_slope = (0xA0, 0x82), (0xA2, 0x83)
+    deep = (
+        roof_at(x - 1, y - 2) in left_slope
+        or roof_at(x + 1, y - 2) in right_slope
+        or roof_at(x, y - 3) == 0x91
+    )
+    peak = ((), (0x81,), ())
+    if deep:
+        rows = (front, (left_slope, (0xA1,), right_slope), ((0x90,), (0x91,), (0x92, 0x4F)), peak)
+    else:
+        rows = (front, ((0x90,), (0xA1,), (0x92, 0x4F)), peak)
+
+    for dy, row in enumerate(rows, 1):
+        for dx, variants in enumerate(row, -1):
+            if variants:
+                cell = (x + dx, y - dy)
+                expected = "/".join(f"0x{tile:02X}" for tile in variants)
+                assert roof_at(*cell) in variants, f"{name} gable at {cell} needs {expected}"
+
+
+# Flat roof pieces have an open seam on each side that continues over the next tile.
+# Horizontal joins share a row profile, and vertical joins share a column profile.
+flat_seams = {
+    0xA4 + 16 * row + col: (
+        row if col > 0 else None,
+        row if col < 2 else None,
+        col if row > 0 else None,
+        col if row < 2 else None,
+    )
+    for row in range(3)
+    for col in range(3)
+}
+flat_seams[0x4E] = flat_seams[0xB5]
+for index, tile in enumerate(m.data):
+    if tile not in flat_seams:
+        continue
+    y, x = divmod(index, m.width)
+    for side, profile in enumerate(flat_seams[tile]):
+        if profile is None:
+            continue
+        dx, dy = SIDES[side]
+        neighbor = x + dx, y + dy
+        other = flat_seams.get(roof_at(*neighbor))
+        assert other is not None and other[OPPOSITE[side]] == profile, (
+            f"Flat roof at {(x, y)} has a broken join toward {neighbor}"
+        )
+
+
 assert 255 not in interiors.data, "interior void is painted with EMPTY (0x00), never left unpainted"
 doors = sorted(name[:-4] for name, o in names.items() if name.endswith("Door") and o["area"] == m.area)
 exits = sorted(name[:-4] for name, o in names.items() if name.endswith("Exit") and o["area"] == interiors.area)
@@ -335,8 +395,10 @@ room_cells = {}
 for name in doors:
     door, way_out = names[name + "Door"], names[name + "Exit"]
     assert door["handler"] == "enter_house" and way_out["handler"] == "leave_house"
-    assert at(door["tx"], door["ty"]) in (0x84, 0x85), f"{name}Door is not on a door tile"
-    assert (door["tx"], door["ty"] + 1) in seen, f"the ground in front of {name}Door is not reachable"
+    x, y = door["tx"], door["ty"]
+    assert at(x, y) in (0x84, 0x85), f"{name}Door is not on a door tile"
+    assert (x, y + 1) in seen, f"the ground in front of {name}Door is not reachable"
+    check_gable(name, x, y)
     assert inside(way_out["tx"], way_out["ty"]) == house_symbol["EDGE_TOP_EXIT"]
     assert house[inside(way_out["tx"], way_out["ty"] - 1)]["collision"] == 0
     assert f"positions::{name}Door, positions::{name}Exit" in logic, f"{name} is missing from HOUSE_LINKS"
@@ -827,6 +889,6 @@ for path in scores:
     symbol = "SFX_" + re.sub(r"[^A-Za-z0-9_]", "_", path.stem).upper()
     assert re.search(rf"\b{symbol}\b", code), f"{symbol} is never played"
 print(
-    "PASS connected village, sealed border, linked houses, tile semantics, no guest allocations "
+    "PASS connected village, sealed border, linked houses, roof joins, tile semantics, no guest allocations "
     "and only played sound effects"
 )

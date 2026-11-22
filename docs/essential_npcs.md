@@ -25,7 +25,8 @@ Dialogue panels slide up from the bottom with the name panel attached, and the r
 camera centers the player in the remaining view. The gameplay camera, tile cache and
 simulation remain unchanged throughout the animation. Successive dialogue, questions
 and recruitment announcements reuse the open panel; exploration closes it with the
-same easing curve and frame count in reverse before accepting gameplay input. Battle/area fade-out also closes it first.
+same easing curve and frame count in reverse before accepting gameplay input. The shop
+closes the dialogue before opening. Battle and area transitions close it before fading out.
 Only the open flag and flash pointers for the visible page persist outside `Game`; no
 framebuffer copy or tile reload is needed for the motion.
 The text-only overloads use the unnamed panel. `dialogue_show(id, ...)` and `dialogue_ask(id, ...)` name the speaker, and NPC_NONE uses the unnamed panel.

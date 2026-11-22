@@ -2261,16 +2261,23 @@ static void verify_shop(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     d.advance(0, 4800000);
     require(d.state().area == positions::ShopExit.area, "Shop door did not enter the shop");
-    for(unsigned frames = 0; !d.state().can_interact; ++frames) {
-        require(frames < 2 * TILE, "Shop counter did not become interactive");
-        d.frame(BTN_UP);
-    }
-    d.advance(0);
-    d.advance(BTN_A, 3200000);
+    d.frame();
+    Game beside_ada = d.state();
+    beside_ada.player = {(uint16_t)((positions::AdaShop.x - 1) * TILE),
+                         (uint16_t)(positions::AdaShop.y * TILE), EAST, 0};
+    d.set_state(beside_ada);
+    d.frame();
+    d.tap(BTN_A);
+    d.wait_for_typing();
+    require(d.prompt() == DIALOGUE_OPTIONS, "Ada did not offer dialogue options");
+
     unsigned serial = d.serial();
-    d.advance(BTN_A, 1600000);
-    require(d.serial() == serial && d.state().gold == street.gold,
-            "Shop opening did not pause exploration or changed gold");
+    d.advance(0);
+    d.advance(BTN_A, 4800000); // Browse supplies and keep A held through the handoff.
+    require(d.panel_addr, "missing dialogue panel QA address");
+    require(d.serial() == serial && !d.ab->core_state.cpu.data[d.panel_addr] &&
+                d.state().gold == street.gold,
+            "Ada's dialogue stayed open behind the shop or opening the shop changed gameplay");
     d.capture(out / "shop-list.pgm");
     d.advance(0);
     d.tap(BTN_A);
@@ -2306,7 +2313,9 @@ static void verify_shop(Device& d, fs::path const& out) {
     d.tap(BTN_B);
     d.tap(BTN_B);
     d.frame();
-    require(d.serial() != serial, "Closing the shop did not resume exploration");
+    require(d.serial() != serial && d.prompt() == DIALOGUE_CLOSED &&
+                !d.ab->core_state.cpu.data[d.panel_addr],
+            "Closing Ada's shop did not return directly to exploration");
     for(unsigned frames = 0; d.state().area == positions::ShopExit.area; ++frames) {
         require(frames < 3 * TILE, "Walking onto the Shop exit did not return to the village");
         d.frame(BTN_DOWN);
