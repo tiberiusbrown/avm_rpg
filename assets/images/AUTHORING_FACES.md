@@ -62,7 +62,7 @@ Fill any unused slots on the sheet with opaque black.
 | 1 `NPC_TESSA` | Tessa | 9 | Female. Long black hair, bangs and a centre parting. No head covering. |
 | 2 `NPC_ORRIN` | Orrin | 2 | Male. Short white hair and thick dark brows. No head covering. |
 | 3 `NPC_ROWAN` | Rowan | 3 | Male. A white hood hides his hair. A strap crosses his chest. |
-| 4 `NPC_MARA` | Mara | 11 | Long medium-brown hair with a straight fringe, a small smile, and a collar pin. |
+| 4 `NPC_MARA` | Mara | 11 | Long medium-brown hair with a straight fringe and a collar pin. |
 | 5 `NPC_BRAM` | Bram | 7 | Bald crown, black hair at the sides, and a black moustache. |
 | 6 `NPC_NELL` | Nell | 12 | Long black hair under a wide-brimmed white hat with a dark band. |
 | 7 `NPC_ADA` | Ada | 14 | Long medium-brown hair beneath a white polka-dot kerchief. |
@@ -88,10 +88,10 @@ The [actor descriptions](actors16_descriptions.md) record the shared sprite trai
 | 8 | Long center-parted hatched hair, narrow face | Long hatched hair tucked behind an ear, rounded face | Long center-parted waves, square neckline |
 | 9 | Black curtain bangs, angular cheeks | Symmetric black bangs, pointed collar | Asymmetric black bangs, narrow chin |
 | 10 | Long pale-blond waves, wide jaw | Long pale-blond curls, narrow chin | Long pale-blond side sweep, folded neckline |
-| 11 | Long striped fringe, round cheeks, small smile | Long straight fringe, square collar pin, smile lines | Short fringe over long straight hair, full cheeks |
+| 11 | Long striped fringe, round cheeks | Long straight fringe, square collar pin, cheek creases | Short fringe over long straight hair, full cheeks |
 | 12 | Wide floppy hat, long face | Round high-crowned hat, small face | Tilted wide-brimmed hat, angular face |
 | 13 | Long tight waves, square face | Long corkscrew curls, tapered chin | Broad uneven waves, lined cheeks |
-| 14 | Polka-dot kerchief tied on the right, round chin | Snug polka-dot kerchief, laugh lines | Left-tied polka-dot kerchief, long face |
+| 14 | Polka-dot kerchief tied on the right, round chin | Snug polka-dot kerchief, cheek creases | Left-tied polka-dot kerchief, long face |
 | 15 | Long silver waves, long cheeks, folded collar | Long symmetric silver waves, round neckline | Long center-parted silver hair, angular jaw |
 
 ## Art style
@@ -115,8 +115,11 @@ not stored in this repository. Emulate it:
   triangle looks like a tin man and is wrong. Hair falls and flares the same way.
 - **Shape the crown and temples together.** Round the skull above the ears, with a gradual
   curve into the temples. Give tall hair and hood tips a black margin above them.
+- **Show where short hair ends.** Keep it above or behind the ears and expose the cheeks
+  below. A cheek contour that turns inward under the ear separates the head from the shoulders.
 - **Features are small and plain.** Eyes are short dashes with a white catch-light, brows are
-  strokes above them, the nose is a few pixels, and the mouth is a short line.
+  strokes above them, and the nose is a few pixels. Keep the mouth corners level for a neutral
+  expression.
 - **Put a visible hairline between white hair and white skin.** When hair and face are the same
   colour, a dark line has to separate them or they merge. Orrin has an arc across his forehead.
 - **Draw the chin above the neck.** Carry the black jawline from cheek to cheek and keep the
@@ -134,7 +137,7 @@ brows, nose length, lashes and wrinkles. It does not belong to where the eyes an
 | Eyes | Three pixels wide, two tall. Rows 15-16, at columns 11-13 and 18-20. The top-left pixel is white as a catch-light. |
 | Brows | Rows 12-13 over the eyes. Tessa's are a thin arc and Orrin's are thick. Rowan's are lost in the shadow under his hood. |
 | Nose | Ends on row 18 for everyone. |
-| Closed mouth | A line on row 21, at columns 14-17. |
+| Closed mouth | A straight line on row 21, at columns 14-17. |
 | Face size | Tessa's face and Rowan's hood opening are both 16 pixels wide and 14 rows tall, from the forehead shadow to the chin. Orrin's broader head is 20 wide, with the same features inside it. |
 
 The face does not shrink to fit its surroundings. Rowan's hood opening was enlarged to match
