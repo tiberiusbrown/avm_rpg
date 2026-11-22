@@ -277,6 +277,33 @@ extern "C" void setup() {
     battle_apply(scenario, BattleAction{ARCHER, cell(5, 2)});
     run_kernels(scenario);
 
+    // A mixed four-on-four with new classes on both teams, including a Blast firing lane.
+    battle_fixture_begin(scenario, &FOUR_A_SIDE);
+    scenario.turn = BATTLE_ENEMY;
+    game.party.members[0].movement_class = MOVEMENT_GLIDE;
+    game.party.members[0].attack_class = ATTACK_ARC;
+    game.party.members[1].movement_class = MOVEMENT_VAULT;
+    game.party.members[1].attack_class = ATTACK_RECOIL;
+    game.party.members[2].movement_class = MOVEMENT_GLIDE;
+    game.party.members[2].attack_class = ATTACK_BLAST;
+    game.party.members[3].movement_class = MOVEMENT_VAULT;
+    game.party.members[3].attack_class = ATTACK_FLANK;
+    scenario.units[1].id = battle_party_id(0);
+    for(uint8_t i = 4; i < 8; ++i) {
+        scenario.units[i].cell -= 2;
+        scenario.units[i].id = battle_party_id((uint8_t)(i - 4));
+    }
+    measure_decision(62, scenario);
+
+    // Wounded Drain can recover HP while Recoil changes the next line of attack.
+    grove(BATTLE_ENEMY, 4);
+    game.party.members[3].attack_class = ATTACK_DRAIN;
+    scenario.units[ROGUE].id = battle_party_id(1);
+    scenario.units[BRUTE].id = battle_party_id(3);
+    scenario.units[BRUTE].hp = 5;
+    scenario.units[ROGUE].cell = cell(4, 2);
+    measure_decision(64, scenario);
+
     probe_phase = 34;
     probe_mark();
 }

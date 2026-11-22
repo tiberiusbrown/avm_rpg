@@ -431,6 +431,25 @@ static void saves() {
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
     CHECK(cached_tile(positions::WellSign) == TILE_SIGN);
 
+    static_assert(SAVE_VERSION == 22 && sizeof(PartyMember) == 11);
+    static_assert(MOVEMENT_STEP == 0 && MOVEMENT_LEAP == 1 && MOVEMENT_CHARGE == 2);
+    static_assert(ATTACK_STRIKE == 0 && ATTACK_SHOOT == 1 && ATTACK_REACH == 2 &&
+                  ATTACK_IMPACT == 3 && ATTACK_REND == 4);
+    for(uint8_t movement = MOVEMENT_VAULT; movement < MOVEMENT_CLASS_COUNT; ++movement) {
+        for(uint8_t attack = ATTACK_ARC; attack < ATTACK_CLASS_COUNT; ++attack) {
+            game = saved;
+            PartyMember& member = game.party.members[0];
+            member.movement_class = movement;
+            member.attack_class = attack;
+            member.level = 4;
+            CHECK(party_learn_perk(member, PERK_MOVEMENT));
+            CHECK(party_learn_perk(member, PERK_ATTACK));
+            CHECK(save_valid() && save_restore());
+            CHECK(member.movement_class == movement && member.attack_class == attack);
+            CHECK(member.perk_ranks == 0x09);
+        }
+    }
+    game = saved;
     game.player.x = positions::WellSign.x * TILE;
     game.player.y = positions::WellSign.y * TILE;
     CHECK(save_restore()); // Structurally valid, but inside the sign.

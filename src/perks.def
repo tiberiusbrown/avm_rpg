@@ -5,6 +5,10 @@ MOVEMENT_PERK(MOVEMENT_LEAP, RENEWAL, 1, 0, "Renewal",
               "Recover 1 additional AP after each victory, up to maximum AP.")
 MOVEMENT_PERK(MOVEMENT_CHARGE, MOMENTUM, 1, 2, "Momentum",
               "A two-cell move deals 1 extra engagement damage to each adjacent enemy.")
+MOVEMENT_PERK(MOVEMENT_VAULT, VAULT_FORCE, 1, 0, "Vault Force",
+              "Every Vault landing deals 1 extra engagement damage to each adjacent enemy.")
+MOVEMENT_PERK(MOVEMENT_GLIDE, SLIPSTREAM, 1, 2, "Slipstream",
+              "A two-cell diagonal move deals 1 extra engagement damage to each adjacent enemy.")
 ATTACK_PERK(ATTACK_STRIKE, KEEN_EDGE, 1, 0, "Keen Edge",
             "Normal and special attacks deal 1 extra damage against enemies at full HP.")
 ATTACK_PERK(ATTACK_SHOOT, LONGSHOT, 1, 4, "Longshot",
@@ -15,3 +19,13 @@ ATTACK_PERK(ATTACK_IMPACT, HEAVY_BLOW, 1, 0, "Heavy Blow",
             "Normal and special attacks deal 1 extra damage.")
 ATTACK_PERK(ATTACK_REND, BLOOD_SENSE, 1, 0, "Blood Sense",
             "Normal and special attacks deal 1 extra damage against enemies below full HP.")
+ATTACK_PERK(ATTACK_ARC, CROSSCUT, 1, 0, "Crosscut",
+            "Normal and special Arc attacks deal 1 extra damage.")
+ATTACK_PERK(ATTACK_DRAIN, LIFE_TAP, 1, 0, "Life Tap",
+            "Drain can heal 2 HP. On a surviving target, healing is capped at 1 less than HP lost.")
+ATTACK_PERK(ATTACK_RECOIL, COUNTERFORCE, 1, 0, "Counterforce",
+            "Normal and special Recoil attacks deal 1 extra damage.")
+ATTACK_PERK(ATTACK_FLANK, ENCIRCLE, 1, 0, "Encircle",
+            "Flank deals 1 extra damage when another ally is orthogonally adjacent to the target.")
+ATTACK_PERK(ATTACK_BLAST, SHRAPNEL, 1, 0, "Shrapnel",
+            "Normal and special Blast attacks deal 2 damage to each secondary enemy.")

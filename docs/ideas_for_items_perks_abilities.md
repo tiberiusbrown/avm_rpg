@@ -31,20 +31,9 @@ This document assumes the following existing or planned rules:
 
 Keep the existing **movement class × attack class** architecture. Do **not** add a unified character class such as Fighter, Guardian, Scout, or Mage. The same attack style can pair with any movement style; equipment and perks distinguish characters further.
 
-The code uses these identifiers. Each name describes the rule rather than a species, named character, or story profession. No movement-class name duplicates an attack-class name.
-
-| Axis | Identifier | Display name | Geometry / rule |
-|---|---|---|---|
-| Movement | `MOVEMENT_STEP` | **Step** | Orthogonal move, up to 1 tile |
-| Movement | `MOVEMENT_LEAP` | **Leap** | Chess-knight leap to an empty tile |
-| Movement | `MOVEMENT_CHARGE` | **Charge** | Orthogonal move, up to 2 tiles |
-| Attack | `ATTACK_STRIKE` | **Strike** | Range 1, damage 3 |
-| Attack | `ATTACK_SHOOT` | **Shoot** | Straight-line range 2–4, damage 3 |
-| Attack | `ATTACK_REACH` | **Reach** | Straight-line range 1–2, damage 3 |
-| Attack | `ATTACK_IMPACT` | **Impact** | Range 1, damage 2, knockback |
-| Attack | `ATTACK_REND` | **Rend** | Range 1; **2 damage** against a target at half its maximum HP or more, **4 damage** against a target strictly below half |
-
-**Strike/Rend distinction:** Strike always deals **3 normal-attack damage**. Rend deals **2 normal-attack damage**, increasing to **4 only when the target has strictly less than half its maximum HP before the hit**. For example, a 10-HP enemy qualifies at 4 HP, but not at 5 HP. The rule is `2 * target.hp < target.max_hp`, using sufficiently wide arithmetic. The bonus applies to the attack, **not** to automatic movement engagement damage. This gives Strike reliable damage and Rend a finisher role; Rend’s special abilities and perk track deepen that identity. Likewise, **Charge** is a long-range *orthogonal movement pattern*, not an automatic attack or a move through occupied tiles. **Leap** is a fixed knight-shaped jump, not arbitrary flying.
+The [class catalog](game_logic.md#52-battle-movement-classes) lists the shipped identifiers.
+The original proposals below use Step, Leap, Charge, Strike, Shoot, Reach, Impact, and Rend
+as examples for future work.
 
 For readable UI, label them explicitly as `Move: Step` and `Attack: Shoot`, rather than referring ambiguously to a character's single "class". Keep these axes **fixed for a character after recruitment** in the initial version; class-changing and perk respec can be considered later. Base classes are not automatically restricted to particular weapons or relics.
 
@@ -594,27 +583,16 @@ A newly discovered item should make players **reconsider at least one existing c
 
 **Action economy:** One action uses the entire party turn. A special must provide worthwhile immediate damage or a concrete attack-plus-effect, not a weak guard that does nothing before enemies respond. Specials spend AP once; AP does not regenerate midbattle, and baseline after-victory recovery is +1 per active member. Normal attacks remain free.
 
-### A. Initial special abilities — implement these first
+### A. Starting special baseline
 
-These five specials are recommended for **the existing five attack classes** and use exactly the same **primary enemy target and attack range/line-of-sight legality as the class's normal attack**. They add no area-target UI, status counters, alternate movement targeting, or special range previews. Damage values are **illustrative**, using the current base attack values shown in section 1.
-
-| Attack class | Initial special | AP | First-stage effect | Why it fits |
-|---|---|---:|---|---|
-| **Strike** | **Power Strike** | 2 | Normal damage **+3** (base 3 → 6) | Simple, reliable burst for close attacks |
-| **Shoot** | **Opening Shot** | 2 | Normal **+4** versus a full-HP target, otherwise **+1** | Makes the opening target matter at range 2–4 |
-| **Reach** | **Driving Thrust** | 2 | Normal **+2**, then attempt a one-tile **knockback** | Adds an immediate positional effect using an existing battle rule |
-| **Impact** | **Crushing Bash** | 2 | Normal **+3** and retain its existing **knockback** | Converts lower-damage pushing attacks into a significant burst |
-| **Rend** | **Wound Hunter** | 2 | Normal **+3** versus an already-injured target, otherwise **+1**; uses Rend’s conditional **2/4** normal damage | Rewards target selection and finishing attacks |
-
-**Initial AP suggestion:** Start party members at **4 maximum AP** for testing, enough to use two 2-AP specials from full before needing post-battle recovery or Ether. Adjust by playtesting and later attack-track/relic bonuses.
-
-All five have a useful outcome even if their condition is not met. **Driving Thrust** uses the existing knockback semantics: if the push destination is occupied, blocked, or off-board, still deal the special's damage, with no push. **Crushing Bash** keeps the normal Impact knockback; it does not push twice. **Rend** differs from Strike even on normal attacks (2 damage, or 4 against targets strictly below half HP). **Wound Hunter** retains its separate *injured at all* condition, giving 3 damage against a full-HP enemy, 5 against an injured enemy at or above half HP, and 7 below half HP before perks/equipment. Playtest its high-end burst rather than silently changing the approved special at this stage.
-
-**Smallest implementation slice:** Implement the shared AP expenditure, attack-variant legality, damage/effect resolution, and popup with **Power Strike** first; then populate the remaining four definitions and host tests. You can expose Strike and Shoot in the starting playable party while validating Reach, Impact, and Rend through test encounters. These are **five shared class definitions**, not twenty character-specific spells.
+The [starting special catalog](game_logic.md#54-starting-special-abilities) records the
+shipped specials and their rules. For future specials, the baseline is one enemy selected
+through the normal attack's geometry. A special can then apply a secondary effect without
+another targeting prompt.
 
 ### B. Target-first UI and rule compatibility
 
-Enemy-targeted flow: **select acting unit → select an enemy legal for a normal attack → choose `Attack` or the available special(s) → resolve once**. In the first stage, all five starting specials inherit normal targeting, so every enemy shown for a normal attack is also valid for that unit's starting special.
+Enemy-targeted flow: **select acting unit → select an enemy legal for a normal attack → choose `Attack` or the available special(s) → resolve once**. Starting specials inherit normal targeting.
 
 ```text
  TARGET: BRUTE
@@ -878,7 +856,7 @@ level or class restrictions are deferred.
 
 ### Implementation tiers
 
-**Tier 1 — Minimal three-slot proof of concept:** Persist current AP and restore **1 AP per active member after victory**; four supplies; out-of-battle use; **three equipped slots per character** with about **4 weapons, 4 armor, 4 relics**. Implement a simple normal-attack weapon, a first-hit defensive armor, boots that reduce movement HP once per battle, and an AP-recovery relic. Provide one **enemy-targeted special per attack class** (the five first-stage recommendations from section 7) with an AP cost, using the target-first attack-choice menu. Test save/load, clamping when equipment changes, unique-item transfers between characters, AP caps, incapacitation, and movement-damage resolution order.
+**Tier 1 — Minimal three-slot proof of concept.** Persist current AP and restore **1 AP per active member after victory**. Offer four supplies for out-of-battle use and three equipment slots per character, with about four weapons, four armors, and four relics. Implement a simple normal-attack weapon, a first-hit defensive armor, boots that reduce movement HP once per battle, and an AP-recovery relic. Provide one **enemy-targeted special per attack class** (the starting specials in the game logic canon) with an AP cost, using the target-first attack-choice menu. Test save/load, clamping when equipment changes, unique-item transfers between characters, AP caps, incapacitation, and movement-damage resolution order.
 
 **Tier 2 — Full baseline content:** Level cap 10, five **movement-or-attack track choices** per character, **~8 equipment items in each category**, quest/discovery XP, shops, optional dungeons, and a **second special unlocked by attack-track rank 3**. Add healing/defense weapons and armor tradeoffs, stronger AP-recovery relics, and clear loadout UI. Ensure viable movement-focused, attack-focused, and mixed-rank builds for the same class combination.
 
@@ -908,7 +886,7 @@ level or class restrictions are deferred.
 - **Movement armor:** Heavy gear can reduce enemy damage but lower movement range or raise movement HP cost; light gear can grant occasional range or one-time HP-cost relief. Movement attacks always happen **before** the movement HP payment.
 - **Leveling:** Ten levels, small automatic stat growth, and one decision at every even level: advance the **next movement-class perk or next attack-class perk**. Five ranks per track, five choices total; earned ranks persist. Attack rank 3 unlocks the second class special.
 - **AP economy:** Persist AP between fights; restore **1 after each victory** per active member by default. Reserve +1/+2 extra AP recovery for meaningful perks and (mostly) relics. No AP recovery during combat.
-- **Special abilities:** One starting special per **attack class**: Strike/Power Strike, Shoot/Opening Shot, Reach/Driving Thrust, Impact/Crushing Bash, Rend/Wound Hunter. Rend’s normal attack uses **2 damage, or 4 when the enemy is strictly below half HP** (Strike stays at 3), and its special modifies that conditional normal damage. All specials use an already-legal normal-attack enemy target; second special arrives at **attack rank 3**. No special-only targeting initially. Avoid pure guarding and non-immediate effects that consume the party turn.
+- Give each **attack class** the starting special listed in the game logic canon. Use an enemy eligible for a normal attack as the target. Reserve the second special for **attack rank 3**. No special-only targeting initially. Avoid pure guarding and non-immediate effects that consume the party turn.
 - **XP:** Full award to active members even if incapacitated; significant quests, discovery, bosses, and one-time encounters drive progression more than repeatable grinding.
 - **Gold:** Funds supplies, recovery, and straightforward shop equipment, but unique dungeon treasures should remain special.
 - **Exploration:** Hand-place weapons, armor, and relics as different dungeon headlines, occasionally reward a special upgrade or extra technique (without replacing the normal attack-class progression), and tie one-off discovery XP to flags.
@@ -917,11 +895,11 @@ level or class restrictions are deferred.
 
 Built:
 
-- The movement and attack classes use the names in section 1. Rend deals 2 damage, or 4 against a target strictly below half HP, in the battle rules and AI. The Wolf enemy also uses Rend, so the shipping Grove battle has changed.
+- The game logic canon lists the shipped movement and attack classes and starting specials.
 - Party members store current HP and AP. Maximum HP uses the traveler's base of 20 or Rowan's base of 18, plus level bonuses and Steadfast when earned. Maximum AP is 4.
 - A victory restores 1 AP to every saved member, or 2 with Renewal, up to maximum AP. Recovery also applies to incapacitated members.
 - The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning at rank 1. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
-- The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and deals the damage and effect in section 7A. A unit short of AP attacks normally at once.
+- The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and inherits its class geometry and resolves the special’s effects. A unit short of AP attacks normally at once.
 
 Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk ranks 2–5; and maximum HP based on class instead of identity.
 

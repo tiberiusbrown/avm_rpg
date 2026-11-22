@@ -1063,8 +1063,9 @@ static void render_party_special_details(int16_t x, PartyUi const& ui) {
     avm_draw_textf((int16_t)(x + PARTY_EDGE - 24), 9, F("%u AP"),
                    SPECIAL_INFO[attack].ap);
     avm_draw_text(left, PARTY_ROW_SUBTITLE, party_attack_name(attack));
-    // The range is the normal attack's, along a row or column.
-    if(normal.attack_min == normal.attack_max)
+    if(normal.geometry == BATTLE_ATTACK_DIAGONAL)
+        avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Diagonal 1"));
+    else if(normal.attack_min == normal.attack_max)
         avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range %u"), normal.attack_min);
     else
         avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range %u-%u"), normal.attack_min,

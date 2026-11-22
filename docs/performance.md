@@ -426,30 +426,46 @@ capacity for those additions.
 
 ## Battle search
 
+### Combat class measurements
+
+RelWithDebInfo with full LTO. Both builds use the same 82-byte action scratch and
+226-byte battle search workspace. The shipping guest has a complete stack bound.
+
+| Shipping guest resource | Before | After |
+|---|---:|---:|
+| Saved bytes | 261 | 261 |
+| Static RAM, including saved data | 580 | 580 |
+| Maximum provable stack bytes | 251 | 251 |
+| Code bytes | 94,688 | 96,844 |
+| Flash bytes (`.text` + `.rodata` + `.flash`) | 460,568 | 464,594 |
+
+The AVM battle probe measured 15 existing search fixtures. Their decision costs
+rose by 0.8–4.5%. The slowest increased from 35.22 to 36.72 million cycles
+(2.20 to 2.30 seconds at 16 MHz). Two additional probe fixtures took 0.60
+seconds for mixed four-on-four combat and 0.78 seconds for two-on-two combat
+with Drain and Recoil. The search continues to use a deterministic node budget.
+
+The standard and FX-C device tests exercised all seven classes through the normal
+battle input loop. Each action averaged 319,032–320,000 cycles between display
+presentations. The longest observed interval was 355,404 cycles (22.2 ms) at the
+transition from Recoil to the enemy turn.
+
+### Earlier battle measurements
+
 The search and simulation figures below predate Rend's victim-dependent damage (2, or 4 below half HP),
 which changes the wolf's attacks. Re-measure them with the probes and `tests/battle_simulation.cpp` before
 comparing with them.
 
-The battle uses three movement classes and five attack classes, combined independently for either
-side. Six program-memory enemy definitions provide fighter, rogue, archer, spearman, wolf and brute
-presets. The shipping Grove encounter deploys the saved player party against a wolf (9 HP) and a
-brute (12). The measurements below use the fixed `BATTLE_TEST_GROVE` rule fixture: a rogue (10 HP)
-and archer (9) against those two enemies. Normal attacks deal 3, the wolf's Rend deals 2 (4 against a victim
-below half HP), and the brute's 2 plus knockback. Every
-voluntary move costs its mover 1 HP (the blood price), paid after it deals 1 engagement damage to each
-enemy orthogonally adjacent to its destination; a move whose engagement defeats the last opponent wins
-before the price is due. Every pass costs each living unit on the passing team 1 HP, including voluntary player passes. There is no
-exhaustion threshold: every activation lowers the total living HP, so a battle lasts at most as many
-activations as its units' starting HP (40 in the Grove). The Grove battlefield has four blocking
-tiles, a pine at (4,0), a round tree at (6,0), rocks at (1,3), and a boulder at (4,3): no unit stands
-on them or moves through them, they stop shots, thrusts, and knockback, and a rogue's leap passes over
-them but cannot land on them.
+The original benchmark used three movement classes and five attack classes. The fixed
+`BATTLE_TEST_GROVE` fixture fields a rogue and an archer against a wolf and a brute. Each activation
+in that fixture reduces total living HP, which caps the run at 40 activations. The
+[class catalog](game_logic.md#52-battle-movement-classes) describes the current rules.
 
 The enemy chooses with a non-recursive negamax search with alpha-beta pruning (`src/battle_ai.cpp`),
 deepened one ply at a time under a deterministic node budget: 480 positions with up to four living
 units, scaled by four over the living units beyond that (320 with six, 240 with eight). Only a completed
 iteration's choice is used; with none, the greedy choice is. Every guest link reports a complete stack
-bound. The budget allows up to two seconds per enemy move: a position costs about 3.7 ms with four
+bound. In the earlier measurements, the budget allowed up to two seconds per enemy move: a position costs about 3.7 ms with four
 living units, 5.4 ms with six, and 7.9 ms with eight, so a spent budget takes 1.75 to 1.9 s. It was
 240 (160, 120), which kept every decision under a second.
 
@@ -604,8 +620,8 @@ classes or MHP. `BattleState` holds eight slots in 31 bytes, including a uint16 
 The separate movement/attack tables, derived rule combinations, gap table and action limits stay
 in program memory. Search workspace is 226 bytes: four four-byte plies, four killers, the 82-byte
 shared action scratch and four 31-byte child positions. The blocking battle screen reuses a fixed
-static workspace to keep the complete guest stack bound below 256 bytes. Current shipping static
-RAM is 585 bytes (289 saved, 296 ordinary); the provable stack bound is 220 bytes. Battle results
+static workspace to keep the complete guest stack bound below 256 bytes. The shipping build measured at that point used 585 bytes of static
+RAM (289 saved, 296 ordinary) with a 220-byte stack bound. Battle results
 write only ally HP back to the saved party. Work counters remain limited to host/probe builds.
 
 The deepest shipping path is explore → update_visible_world → run_chunk (14 bytes)

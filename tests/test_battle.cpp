@@ -189,6 +189,7 @@ struct OracleType {
     bool knight;
     int move_range, attack_min, attack_max, damage, injured_damage;
     bool knockback;
+    bool diagonal = false;
 };
 
 static OracleType oracle_type(uint8_t type) {
@@ -228,7 +229,7 @@ static bool oracle_blocked(uint8_t field, unsigned x, unsigned y) {
 // Whether every cell strictly between (x, y) and (x + dx, y + dy) on a straight line is empty: no
 // living unit and no blocking terrain.
 static bool oracle_clear(BattleState const& s, int x, int y, int dx, int dy) {
-    int distance = abs(dx) + abs(dy);
+    int distance = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
     int sx = dx > 0 ? 1 : dx < 0 ? -1 : 0, sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
     for(int k = 1; k < distance; ++k)
         if(oracle_occupant(s, x + k * sx, y + k * sy) >= 0 ||
@@ -245,7 +246,18 @@ static bool oracle_legal(BattleState const& s, uint8_t unit, uint8_t destination
         return false;
     int x = actor.cell % 8, y = actor.cell / 8;
     int dx = destination % 8 - x, dy = destination / 8 - y;
-    OracleType rules = oracle_type(actor.id);
+    PartyMember const* member = actor.id & BATTLE_PARTY_SOURCE
+                                    ? &game.party.members[actor.id & ~BATTLE_PARTY_SOURCE]
+                                    : nullptr;
+    static constexpr OracleType ATTACKS[] = {
+        {false, 0, 1, 1, 3, 3, false}, {false, 0, 2, 4, 3, 3, false},
+        {false, 0, 1, 2, 3, 3, false}, {false, 0, 1, 1, 2, 2, true},
+        {false, 0, 1, 1, 2, 4, false}, {false, 0, 1, 1, 3, 3, false, true},
+        {false, 0, 1, 1, 2, 2, false}, {false, 0, 1, 1, 3, 3, false},
+        {false, 0, 1, 1, 2, 2, false}, {false, 0, 2, 3, 2, 2, false},
+    };
+    static_assert(sizeof(ATTACKS) / sizeof(*ATTACKS) == ATTACK_CLASS_COUNT);
+    OracleType rules = member ? ATTACKS[member->attack_class] : oracle_type(actor.id);
     int occupant = oracle_occupant(s, destination % 8, destination / 8);
     bool straight = (dx == 0) != (dy == 0);
     int distance = abs(dx) + abs(dy);
@@ -253,12 +265,23 @@ static bool oracle_legal(BattleState const& s, uint8_t unit, uint8_t destination
         // No unit stands on blocking terrain, and no move ends there; a leap passes over it.
         if(oracle_blocked(s.field, (unsigned)(destination % 8), (unsigned)(destination / 8)))
             return false;
+        if(member) {
+            if(member->movement_class == MOVEMENT_GLIDE)
+                return abs(dx) == abs(dy) && distance > 0 && distance <= 4 &&
+                       oracle_clear(s, x, y, dx, dy);
+            if(member->movement_class == MOVEMENT_VAULT)
+                return straight && distance == 2;
+            rules.knight = member->movement_class == MOVEMENT_LEAP;
+            rules.move_range = member->movement_class == MOVEMENT_CHARGE ? 2 : 1;
+        }
         if(rules.knight)
             return (abs(dx) == 1 && abs(dy) == 2) || (abs(dx) == 2 && abs(dy) == 1);
         return straight && distance <= rules.move_range && oracle_clear(s, x, y, dx, dy);
     }
     if(s.units[occupant].team == actor.team)
         return false;
+    if(rules.diagonal)
+        return abs(dx) == 1 && abs(dy) == 1;
     return straight && distance >= rules.attack_min && distance <= rules.attack_max &&
            oracle_clear(s, x, y, dx, dy);
 }
@@ -1092,8 +1115,7 @@ static BattleAction policy_action(BattleState const& s, uint8_t policy) {
 }
 
 static void termination() {
-    // Every completed activation lowers the total living HP: an attack hurts its victim, a move
-    // costs its mover, a forced pass costs its payer, and nothing heals.
+    // The original enemy presets cannot heal, so every action reduces the total living HP.
     for(unsigned seed = 0; seed < 2000; ++seed) {
         BattleState s = seed & 1 ? random_board() : random_play(seed % 13, 0);
         if(s.ended)
@@ -1203,10 +1225,14 @@ static void check_enumeration(BattleState const& s) {
         uint8_t own_attacks = 0;
         uint8_t own_count = battle_unit_actions(s, u, own, own_attacks);
         CHECK(own_count <= BATTLE_UNIT_ACTION_CAPACITY && own[BATTLE_UNIT_ACTION_CAPACITY] == 0xEE);
-        for(uint8_t i = 0; i < own_count; ++i) {
-            CHECK(battle_unpack(own[i]).unit_index == u);
-            CHECK(seen[u][battle_unpack(own[i]).destination] == 1);
+        uint8_t listed = 0, listed_attacks = 0;
+        for(uint8_t i = 0; i < count; ++i) {
+            if(battle_unpack(packed[i]).unit_index != u)
+                continue;
+            CHECK(listed < own_count && own[listed++] == packed[i]);
+            listed_attacks += i < attacks;
         }
+        CHECK(listed == own_count && listed_attacks == own_attacks);
         per_unit += own_count;
     }
     CHECK(per_unit == count);
@@ -1273,8 +1299,8 @@ static void legal_action_enumeration() {
 
     // The capacity is the largest total over every split of the eight slots, and each per-unit
     // bound holds for every archetype.
-    static_assert(BATTLE_ACTION_CAPACITY == 64, "eight units of eight moves");
-    static_assert(BATTLE_UNIT_ACTION_CAPACITY == 15, "eight moves and seven attacks");
+    static_assert(BATTLE_ACTION_CAPACITY == 56, "eight units of seven moves");
+    static_assert(BATTLE_UNIT_ACTION_CAPACITY == 14, "seven moves and seven attacks");
     for(uint8_t actors = 0; actors <= BATTLE_UNIT_CAPACITY; ++actors)
         CHECK(battle_action_bound(actors) <= BATTLE_ACTION_CAPACITY);
 
@@ -1361,8 +1387,7 @@ static void search_ordering() {
             uint8_t victim = battle_unit_at(s, action.destination);
             unsigned defeated =
                 victim != BATTLE_NO_UNIT
-                    ? (s.units[victim].hp <=
-                               battle_attack_damage(s.units[action.unit_index], s.units[victim])
+                    ? (s.units[victim].hp <= battle_attack_damage(s, action.unit_index, victim)
                            ? 1u
                            : 0u)
                     : battle_engagement(s, action.unit_index, action.destination).kills;
@@ -2440,7 +2465,8 @@ static void saved_party_battles() {
             CHECK(rules.attack_max == ATTACK_INFO[a].attack_max);
             CHECK(rules.damage == ATTACK_INFO[a].damage &&
                   rules.injured_damage == ATTACK_INFO[a].injured_damage &&
-                  rules.effect == ATTACK_INFO[a].effect);
+                  rules.effect == ATTACK_INFO[a].effect &&
+                  rules.geometry == ATTACK_INFO[a].geometry);
             uint64_t nodes = 0;
             BattleSearchResult reference = reference_search(state, 1, nodes);
             choice = battle_search(state, 1);
@@ -2458,6 +2484,15 @@ static void saved_party_battles() {
     CHECK(state.units[0].hp == 0 && state.units[1].hp == 1);
 }
 
+// Test primary damage in isolation when the fixture has no supporting units.
+static uint8_t damage_in_duel(BattleUnit attacker, BattleUnit victim, bool special = false) {
+    BattleState state{};
+    state.units[0] = attacker;
+    state.units[1] = victim;
+    state.unit_count = 2;
+    return battle_attack_damage(state, 0, 1, special);
+}
+
 // Rend deals 2 to a victim at half its maximum HP or more and 4 to one below half. Every other
 // attack deals the same damage whatever its victim's HP.
 static void rend_damage() {
@@ -2465,8 +2500,8 @@ static void rend_damage() {
     BattleUnit fighter{cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
     for(uint8_t hp = 1; hp <= 10; ++hp) {
         fighter.hp = hp;
-        CHECK(battle_attack_damage(wolf, fighter) == (2 * hp >= 10 ? 2 : 4));
-        CHECK(battle_attack_damage(fighter, wolf) == 3);
+        CHECK(damage_in_duel(wolf, fighter) == (2 * hp >= 10 ? 2 : 4));
+        CHECK(damage_in_duel(fighter, wolf) == 3);
     }
     // A party victim's maximum comes from the saved member: the traveler's is 20.
     game = {};
@@ -2475,7 +2510,7 @@ static void rend_damage() {
     BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
     for(uint8_t hp = 1; hp <= 20; ++hp) {
         traveler.hp = hp;
-        CHECK(battle_attack_damage(wolf, traveler) == (2 * hp >= 20 ? 2 : 4));
+        CHECK(damage_in_duel(wolf, traveler) == (2 * hp >= 20 ? 2 : 4));
     }
 }
 
@@ -2491,19 +2526,19 @@ static void level_attack_damage() {
     uint8_t bonus[PARTY_MAX_LEVEL] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
     for(uint8_t level = 1; level <= PARTY_MAX_LEVEL; ++level) {
         game.party.members[0].level = level;
-        CHECK(battle_attack_damage(traveler, fighter) == 3 + bonus[level - 1]);
+        CHECK(damage_in_duel(traveler, fighter) == 3 + bonus[level - 1]);
         // Strike's special adds 3 more to a victim at full HP.
-        CHECK(battle_special_damage(traveler, fighter) == 6 + bonus[level - 1]);
+        CHECK(damage_in_duel(traveler, fighter, true) == 6 + bonus[level - 1]);
     }
     // Rend deals 2 to a healthy victim and 4 to an injured one, and the level-9 bonus adds 2 to both.
     game.party.members[0].level = 9;
     game.party.members[0].attack_class = ATTACK_REND;
-    CHECK(battle_attack_damage(traveler, fighter) == 2 + 2);
+    CHECK(damage_in_duel(traveler, fighter) == 2 + 2);
     fighter.hp = 1;
-    CHECK(battle_attack_damage(traveler, fighter) == 4 + 2);
+    CHECK(damage_in_duel(traveler, fighter) == 4 + 2);
     fighter.hp = ENEMY_INFO[ENEMY_FIGHTER].max_hp;
     // The bonus is the attacker's: an enemy attacking the same party member gets none.
-    CHECK(battle_attack_damage(fighter, traveler) == 3);
+    CHECK(damage_in_duel(fighter, traveler) == 3);
 }
 
 // A victory restores one AP to every saved member, including one that fell, up to its maximum. A
@@ -2625,17 +2660,22 @@ static void special_attacks() {
         {5, 5, 5}, // Reach: Driving Thrust
         {5, 5, 5}, // Impact: Crushing Bash
         {3, 5, 7}, // Rend: Wound Hunter
+        {5, 5, 5}, // Arc: Crescent Cut
+        {5, 5, 5}, // Drain: Siphon
+        {6, 6, 6}, // Recoil: Spring Blow
+        {4, 4, 4}, // Flank: Pincer Strike without support
+        {4, 4, 4}, // Blast: Detonation
     };
     BattleUnit attacker{cell(3, 1), 20, battle_party_id(0), BATTLE_PARTY};
     BattleUnit victim{cell(4, 1), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
     for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
         game.party.members[0].attack_class = a;
         victim.hp = 10;
-        CHECK(battle_special_damage(attacker, victim) == EXPECTED[a].full);
+        CHECK(damage_in_duel(attacker, victim, true) == EXPECTED[a].full);
         victim.hp = 6;
-        CHECK(battle_special_damage(attacker, victim) == EXPECTED[a].injured);
+        CHECK(damage_in_duel(attacker, victim, true) == EXPECTED[a].injured);
         victim.hp = 4;
-        CHECK(battle_special_damage(attacker, victim) == EXPECTED[a].low);
+        CHECK(damage_in_duel(attacker, victim, true) == EXPECTED[a].low);
     }
 
     // Driving Thrust pushes a surviving victim, as the Reach normal attack never does. Both spend
@@ -2677,22 +2717,22 @@ static void attack_perks() {
         member.level = 2;
         victim.cell = cell(1 + test.range, 1);
         victim.hp = test.hp;
-        CHECK(battle_attack_damage(attacker, victim) == test.normal);
-        uint8_t special = battle_special_damage(attacker, victim);
+        CHECK(damage_in_duel(attacker, victim) == test.normal);
+        uint8_t special = damage_in_duel(attacker, victim, true);
         CHECK(party_learn_perk(member, PERK_ATTACK));
-        CHECK(battle_attack_damage(attacker, victim) == test.normal + test.bonus);
-        CHECK(battle_special_damage(attacker, victim) == special + test.bonus);
+        CHECK(damage_in_duel(attacker, victim) == test.normal + test.bonus);
+        CHECK(damage_in_duel(attacker, victim, true) == special + test.bonus);
         member.level = 5;
-        CHECK(battle_attack_damage(attacker, victim) == test.normal + test.bonus + 1);
+        CHECK(damage_in_duel(attacker, victim) == test.normal + test.bonus + 1);
         member.level = 9;
-        CHECK(battle_special_damage(attacker, victim) == special + test.bonus + 2);
-        CHECK(battle_attack_damage(victim, attacker) == 3);
+        CHECK(damage_in_duel(attacker, victim, true) == special + test.bonus + 2);
+        CHECK(damage_in_duel(victim, attacker) == 3);
         uint8_t engagement = battle_engagement_damage(attacker, cell(2, 1));
         member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
-        CHECK(battle_attack_damage(attacker, victim) == test.normal + test.bonus + 3);
-        CHECK(battle_special_damage(attacker, victim) == special + test.bonus + 3);
+        CHECK(damage_in_duel(attacker, victim) == test.normal + test.bonus + 3);
+        CHECK(damage_in_duel(attacker, victim, true) == special + test.bonus + 3);
         CHECK(battle_engagement_damage(attacker, cell(2, 1)) == engagement);
-        CHECK(battle_attack_damage(victim, attacker) == 3);
+        CHECK(damage_in_duel(victim, attacker) == 3);
     }
 
     member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_IMPACT);
@@ -2800,6 +2840,420 @@ static void momentum_and_perk_ordering() {
     expect_same_as_reference(strike, 2);
 }
 
+static void new_combat_geometry() {
+    game = {};
+    game.party.count = 1;
+    PartyMember& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_VAULT, ATTACK_ARC);
+    for(uint8_t field = 0; field < BATTLEFIELD_COUNT; ++field) {
+        BattleState s{};
+        s.field = field;
+        s.turn = BATTLE_PARTY;
+        s.units[0] = BattleUnit{0, 20, battle_party_id(0), BATTLE_PARTY};
+        for(uint8_t from = 0; from < BATTLE_CELLS; ++from) {
+            if(battle_blocked(field, from))
+                continue;
+            s.units[0].cell = from;
+            for(MOVEMENT_CLASS movement : {MOVEMENT_VAULT, MOVEMENT_GLIDE}) {
+                member.movement_class = movement;
+                s.unit_count = 1;
+                check_enumeration(s);
+                for(uint8_t to = 0; to < BATTLE_CELLS; ++to) {
+                    bool reaches = oracle_legal(s, 0, to);
+                    CHECK(battle_can_move_to(s, 0, to) == reaches);
+                    if(!reaches)
+                        continue;
+                    s.unit_count = 2;
+                    s.units[1] = BattleUnit{to, 10, ENEMY_FIGHTER, BATTLE_PARTY};
+                    CHECK(!battle_can_move_to(s, 0, to));
+                    CHECK(!battle_legal(s, {0, to}));
+                    uint8_t middle = (uint8_t)((from + to) / 2);
+                    if((movement == MOVEMENT_VAULT ||
+                        abs((int)battle_column(from) - battle_column(to)) == 2) &&
+                       !battle_blocked(field, middle)) {
+                        s.units[1].cell = middle;
+                        CHECK(battle_can_move_to(s, 0, to) == (movement == MOVEMENT_VAULT));
+                        check_enumeration(s);
+                    }
+                    s.unit_count = 1;
+                }
+            }
+            for(uint8_t attack = ATTACK_ARC; attack < ATTACK_CLASS_COUNT; ++attack) {
+                member.attack_class = attack;
+                s.unit_count = 2;
+                for(uint8_t to = 0; to < BATTLE_CELLS; ++to) {
+                    if(to == from || battle_blocked(field, to))
+                        continue;
+                    s.units[1] = BattleUnit{to, 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+                    bool legal = oracle_legal(s, 0, to);
+                    CHECK(battle_can_attack(s, 0, 1) == legal);
+                    CHECK(battle_legal(s, {0, to}) == legal);
+                    CHECK(battle_special_legal(s, {0, to}) == legal);
+                    uint8_t packed[BATTLE_UNIT_ACTION_CAPACITY], attacks;
+                    battle_unit_actions(s, 0, packed, attacks);
+                    CHECK(attacks == legal);
+                    if(legal)
+                        CHECK(packed[0] == to);
+
+                    if(attack != ATTACK_BLAST || !legal)
+                        continue;
+                    uint8_t step = battle_row(from) == battle_row(to) ? 1 : BATTLE_COLUMNS;
+                    uint8_t between = (uint8_t)(from + (to > from ? step : -step));
+                    s.units[2] = BattleUnit{between, 10, ENEMY_FIGHTER, BATTLE_PARTY};
+                    s.unit_count = 3;
+                    CHECK(!battle_can_attack(s, 0, 1));
+                    CHECK(!battle_special_legal(s, {0, to}));
+                    s.units[2].hp = 0;
+                    CHECK(battle_can_attack(s, 0, 1));
+                    s.unit_count = 2;
+                }
+            }
+        }
+    }
+
+    // The actual diagonal path matters even between two occupied corner cells.
+    member.movement_class = MOVEMENT_GLIDE;
+    auto id = (ENEMY_ID)battle_party_id(0);
+    BattleState corners = board(BATTLE_PARTY, {{2, 0, id, BATTLE_PARTY, 20},
+                                               {3, 0, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                               {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    CHECK(battle_can_move_to(corners, 0, cell(3, 1)));
+    CHECK(battle_can_move_to(corners, 0, cell(4, 2)));
+}
+
+static void new_movement_effects() {
+    game = {};
+    game.party.count = 1;
+    PartyMember& member = game.party.members[0];
+    auto id = (ENEMY_ID)battle_party_id(0);
+    for(MOVEMENT_CLASS movement : {MOVEMENT_VAULT, MOVEMENT_GLIDE}) {
+        member = party_new_member(NPC_NONE, movement, ATTACK_STRIKE);
+        member.level = 2;
+        uint8_t row = movement == MOVEMENT_VAULT ? 2 : 0;
+        BattleState original = board(BATTLE_PARTY, {{1, row, id, BATTLE_PARTY, 1},
+                                                    {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 2},
+                                                    {4, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 2},
+                                                    {7, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+        BattleAction move = act(0, 3, 2);
+        for(uint8_t rank = 0; rank <= 1; ++rank) {
+            if(rank)
+                CHECK(party_learn_perk(member, PERK_MOVEMENT));
+            BattleState s = original;
+            CHECK(battle_legal(s, move));
+            CHECK(battle_engagement(s, 0, move.destination).damage == 2 * (1 + rank));
+            battle_apply(s, move);
+            CHECK(s.units[0].cell == move.destination && !s.units[0].hp && s.activations == 1);
+            CHECK(s.units[1].hp == 1 - rank && s.units[2].hp == 1 - rank && s.units[3].hp == 10);
+            CHECK(s.ended && s.result == BATTLE_DEFEAT);
+        }
+        original.units[3].hp = 0;
+        perk_winning_action(original, move, true);
+        battle_apply(original, move);
+        CHECK(original.ended && original.result == BATTLE_VICTORY && original.units[0].hp == 1);
+        if(movement == MOVEMENT_VAULT) {
+            // A unit between takeoff and landing is damaged only for being adjacent to the landing.
+            original = board(BATTLE_PARTY, {{1, 2, id, BATTLE_PARTY, 5},
+                                            {2, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {0, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+            CHECK(battle_legal(original, move));
+            battle_apply(original, move);
+            CHECK(original.units[0].hp == 4 && original.units[1].hp == 8 &&
+                  original.units[2].hp == 10);
+        } else {
+            original = board(BATTLE_PARTY, {{1, 0, id, BATTLE_PARTY, 5},
+                                            {2, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+            battle_apply(original, act(0, 2, 1));
+            CHECK(original.units[0].hp == 4 && original.units[1].hp == 9);
+        }
+    }
+}
+
+static void new_direct_attacks() {
+    game = {};
+    game.party.count = 1;
+    auto id = (ENEMY_ID)battle_party_id(0);
+    PartyMember& member = game.party.members[0];
+
+    struct AttackCase {
+        ATTACK_CLASS attack;
+        uint8_t x, y, base, bonus, perk;
+    };
+
+    static constexpr AttackCase CASES[] = {
+        {ATTACK_ARC, 4, 2, 3, 2, 1},    {ATTACK_DRAIN, 4, 1, 2, 3, 0},
+        {ATTACK_RECOIL, 4, 1, 3, 3, 1}, {ATTACK_FLANK, 4, 1, 2, 2, 0},
+        {ATTACK_BLAST, 5, 1, 2, 2, 0},
+    };
+    for(auto const& test : CASES) {
+        for(uint8_t upgraded = 0; upgraded <= 1; ++upgraded) {
+            member = party_new_member(NPC_NONE, MOVEMENT_VAULT, test.attack);
+            if(upgraded) {
+                member.level = 9;
+                member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+                CHECK(party_learn_perk(member, PERK_ATTACK));
+            }
+            for(bool special : {false, true}) {
+                member.ap = 4;
+                BattleState s =
+                    board(BATTLE_PARTY, {{3, 1, id, BATTLE_PARTY, 15},
+                                         {test.x, test.y, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
+                BattleAction action = act(0, test.x, test.y);
+                CHECK(battle_legal(s, action) && battle_special_legal(s, action));
+                if(special)
+                    battle_apply_special(s, action);
+                else
+                    battle_apply(s, action);
+                CHECK(s.units[1].hp ==
+                      12 - test.base - (special ? test.bonus : 0) - (upgraded ? 3 + test.perk : 0));
+                CHECK(s.units[1].cell == action.destination);
+                CHECK(s.units[0].cell == (test.attack == ATTACK_RECOIL ? cell(2, 1) : cell(3, 1)));
+                CHECK(s.units[0].hp == 15 + (test.attack == ATTACK_DRAIN ? 1 + upgraded : 0));
+                CHECK(s.activations == 1 && s.turn == BATTLE_ENEMY && !s.ended);
+                CHECK(member.ap == (special ? 2 : 4));
+            }
+        }
+    }
+}
+
+static void drain_and_recoil() {
+    game = {};
+    game.party.count = 1;
+    auto id = (ENEMY_ID)battle_party_id(0);
+    PartyMember& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_GLIDE, ATTACK_DRAIN);
+    auto drain = [&](uint8_t hp, uint8_t victim_hp) {
+        return board(BATTLE_ENEMY, {{2, 1, id, BATTLE_ENEMY, hp},
+                                    {3, 1, ENEMY_FIGHTER, BATTLE_PARTY, victim_hp}});
+    };
+    BattleState s = drain(20, 10);
+    battle_apply(s, act(0, 3, 1));
+    CHECK(s.units[0].hp == 20 && s.units[1].hp == 8);
+    s = drain(17, 1);
+    battle_apply(s, act(0, 3, 1));
+    CHECK(s.ended && s.result == BATTLE_DEFEAT && s.units[0].hp == 18);
+    member.level = 2;
+    CHECK(party_learn_perk(member, PERK_ATTACK));
+    s = drain(17, 1);
+    battle_apply(s, act(0, 3, 1));
+    CHECK(s.ended && s.units[0].hp == 19);
+    s = drain(17, 10);
+    battle_apply(s, act(0, 3, 1));
+    CHECK(s.units[0].hp == 18 && s.units[1].hp == 8);
+    s = drain(17, 2);
+    battle_apply_special(s, act(0, 3, 1));
+    CHECK(s.ended && s.units[0].hp == 19 && member.ap == 2);
+    s = drain(19, 3);
+    battle_apply_special(s, act(0, 3, 1));
+    CHECK(s.ended && s.units[0].hp == 20 && member.ap == 0);
+
+    member = party_new_member(NPC_NONE, MOVEMENT_LEAP, ATTACK_RECOIL);
+    static constexpr int offsets[][2] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+    for(auto const& offset : offsets) {
+        unsigned tx = 3 + offset[0], ty = 1 + offset[1];
+        unsigned rx = 3 - offset[0], ry = 1 - offset[1];
+        s = board(BATTLE_PARTY,
+                  {{3, 1, id, BATTLE_PARTY, 1}, {tx, ty, ENEMY_FIGHTER, BATTLE_ENEMY, 3}});
+        CHECK(!battle_can_move_to(s, 0, cell(rx, ry)));
+        battle_apply(s, act(0, tx, ty));
+        CHECK(s.ended && s.result == BATTLE_VICTORY && s.units[0].hp == 1);
+        CHECK(s.units[0].cell == cell(rx, ry) && s.units[1].cell == cell(tx, ty));
+    }
+    for(uint8_t block = 0; block < 3; ++block) {
+        static constexpr uint8_t origins[][2] = {{0, 1}, {3, 0}, {2, 1}};
+        unsigned x = origins[block][0], y = origins[block][1];
+        unsigned target_x = block == 1 ? x - 1 : x + 1; // The pine is east of (3,0).
+        s = board(BATTLE_PARTY,
+                  {{x, y, id, BATTLE_PARTY, 1}, {target_x, y, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+        if(block == 2) {
+            s.units[2] = BattleUnit{cell(1, 1), 10, ENEMY_FIGHTER, BATTLE_PARTY};
+            s.unit_count = 3;
+        }
+        uint8_t original = s.units[0].cell;
+        battle_apply(s, {0, s.units[1].cell});
+        CHECK(s.units[0].cell == original && s.units[0].hp == 1 && s.units[1].hp == 7);
+    }
+    s = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 1},
+                             {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                             {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    battle_apply_special(s, act(0, 3, 1));
+    CHECK(s.units[0].cell == cell(1, 1) && s.units[0].hp == 1);
+    CHECK(s.units[1].hp == 4 && s.units[2].hp == 10);
+    CHECK(s.activations == 1 && s.turn == BATTLE_ENEMY && member.ap == 2);
+}
+
+static void flank_formation() {
+    game = {};
+    game.party.count = 1;
+    auto id = (ENEMY_ID)battle_party_id(0);
+    PartyMember& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_FLANK);
+    member.level = 9;
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    CHECK(party_learn_perk(member, PERK_ATTACK));
+    BattleState original = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 20},
+                                                {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {3, 0, ENEMY_FIGHTER, BATTLE_PARTY, 10},
+                                                {4, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10}});
+    for(unsigned formation = 0; formation < 6; ++formation) {
+        BattleState s = original;
+        if(formation == 0)
+            s.unit_count = 2;
+        if(formation == 1)
+            s.unit_count = 3;
+        if(formation >= 3) {
+            s.unit_count = 3;
+            if(formation == 3)
+                s.units[2].cell = cell(2, 0);
+            else if(formation == 4)
+                s.units[2].hp = 0;
+            else
+                s.units[2].team = BATTLE_ENEMY;
+        }
+        bool supported = formation == 1 || formation == 2;
+        CHECK(battle_attack_damage(s, 0, 1) == (supported ? 8 : 5));
+        CHECK(battle_attack_damage(s, 0, 1, true) == (supported ? 10 : 7));
+        perk_winning_action(s, act(0, 3, 1), false);
+        BattleState normal = s;
+        battle_apply(normal, act(0, 3, 1));
+        CHECK(normal.units[1].hp == (supported ? 2 : 5));
+        member.ap = 4;
+        battle_apply_special(s, act(0, 3, 1));
+        CHECK(s.units[1].hp == (supported ? 0 : 3) && member.ap == 2);
+    }
+    member.perk_ranks = 0;
+    member.level = 1;
+    member.equipment[SLOT_WEAPON] = 0;
+    CHECK(battle_attack_damage(original, 0, 1) == 4);
+    original.units[2].hp = 0;
+    original.units[3].hp = 0;
+    CHECK(battle_attack_damage(original, 0, 1) == 2);
+}
+
+static void blast_splash_and_search() {
+    game = {};
+    game.party.count = 1;
+    auto id = (ENEMY_ID)battle_party_id(0);
+    PartyMember& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_BLAST);
+    BattleState original = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 20},
+                                                {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {5, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {5, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {6, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    BattleAction blast = act(0, 5, 1);
+    BattleState s = original;
+    battle_apply(s, blast);
+    CHECK(s.units[0].hp == 20 && s.units[1].hp == 8);
+    CHECK(s.units[2].hp == 9 && s.units[3].hp == 9 && s.units[4].hp == 9);
+
+    s = original;
+    s.units[1].hp = 2;
+    s.units[2].team = BATTLE_PARTY; // Adjacent friendly.
+    s.units[4].cell = cell(6, 2);   // Adjacent to a splash victim only.
+    battle_apply_special(s, blast);
+    CHECK(!s.units[1].hp && s.units[2].hp == 10 && s.units[3].hp == 9 && s.units[4].hp == 10);
+    CHECK(member.ap == 2 && s.turn == BATTLE_ENEMY && s.activations == 1);
+
+    member.level = 9;
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    CHECK(party_learn_perk(member, PERK_ATTACK));
+    for(bool special : {false, true}) {
+        s = original;
+        member.ap = 4;
+        if(special)
+            battle_apply_special(s, blast);
+        else
+            battle_apply(s, blast);
+        CHECK(s.units[1].hp == (special ? 3 : 5));
+        CHECK(s.units[2].hp == 8 && s.units[3].hp == 8 && s.units[4].hp == 8);
+        CHECK(member.ap == (special ? 2 : 4));
+    }
+
+    s = original;
+    s.units[1].hp = 6; // The three splash victims fall but the primary survives.
+    for(uint8_t i = 2; i < s.unit_count; ++i)
+        s.units[i].hp = 2;
+    CHECK(battle_attack_impact(s, 0, 1).kills == 3);
+    CHECK(battle_search_priority(s, blast) == BATTLE_PRIORITY_KILL);
+    BattleState partial = s;
+    battle_apply(partial, blast);
+    CHECK(!partial.ended && partial.units[1].hp == 1 && battle_living(partial, BATTLE_ENEMY) == 1);
+    s.units[1].hp = 5;
+    perk_winning_action(s, blast, true);
+    CHECK(same_action(battle_search(s, 2).action, blast));
+    CHECK(same_action(battle_greedy_action(s), blast));
+    expect_same_as_reference(s, 2);
+    battle_apply(s, blast);
+    CHECK(s.ended && s.result == BATTLE_VICTORY && battle_living(s, BATTLE_ENEMY) == 0);
+    CHECK(s.units[0].hp == 20 && s.activations == 1);
+}
+
+static void new_classes_in_search() {
+    game = {};
+    game.party.count = PARTY_CAPACITY;
+    for(uint8_t slot = 0; slot < PARTY_CAPACITY; ++slot) {
+        game.party.members[slot] = party_new_member(NPC_NONE, MOVEMENT_GLIDE, ATTACK_ARC);
+        game.party.members[slot].level = 4;
+        CHECK(party_learn_perk(game.party.members[slot], PERK_MOVEMENT));
+        CHECK(party_learn_perk(game.party.members[slot], PERK_ATTACK));
+    }
+
+    auto id = (ENEMY_ID)battle_party_id(0);
+    BattleState diagonal =
+        board(BATTLE_ENEMY, {{2, 1, id, BATTLE_ENEMY, 20}, {3, 2, ENEMY_FIGHTER, BATTLE_PARTY, 3}});
+    CHECK(battle_attack_gap(id, 1, 1) == 0 && battle_attack_gap(id, 1, 0) == 1);
+    CHECK(same_action(battle_enemy_action(diagonal), act(0, 3, 2)));
+    expect_same_as_reference(diagonal, 3);
+
+    BattleState glide = board(
+        BATTLE_ENEMY, {{0, 0, id, BATTLE_ENEMY, 20}, {3, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10}});
+    BattleAction glide_approach = act(0, 2, 2);
+    CHECK(battle_search_priority(glide, glide_approach) == BATTLE_PRIORITY_APPROACH);
+    CHECK(same_action(battle_greedy_action(glide), glide_approach));
+    battle_apply(glide, glide_approach);
+    CHECK(battle_can_attack(glide, 0, 1));
+
+    game.party.members[0].movement_class = MOVEMENT_VAULT;
+    game.party.members[0].attack_class = ATTACK_STRIKE;
+    BattleState vault = board(
+        BATTLE_ENEMY, {{0, 1, id, BATTLE_ENEMY, 20}, {6, 1, ENEMY_FIGHTER, BATTLE_PARTY, 10}});
+    BattleAction vault_approach = act(0, 2, 1);
+    CHECK(battle_search_priority(vault, vault_approach) == BATTLE_PRIORITY_APPROACH);
+    CHECK(same_action(battle_greedy_action(vault), vault_approach));
+
+    for(unsigned seed = 0; seed < 250; ++seed) {
+        BattleState s = random_board();
+        for(uint8_t i = 0; i < PARTY_CAPACITY; ++i) {
+            auto& member = game.party.members[i];
+            member.movement_class = (uint8_t)((seed + i) % MOVEMENT_CLASS_COUNT);
+            member.attack_class = (uint8_t)((seed / MOVEMENT_CLASS_COUNT + i) % ATTACK_CLASS_COUNT);
+            if(i < s.unit_count)
+                s.units[i].id = battle_party_id(i);
+        }
+        check_enumeration(s);
+        uint8_t actions[BATTLE_ACTION_CAPACITY], attacks;
+        uint8_t count = battle_actions(s, actions, attacks);
+        battle_order_actions(s, actions, count, attacks, true);
+        auto enemy = s.turn == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY;
+        for(uint8_t i = 0; i < count; ++i) {
+            BattleAction action = battle_unpack(actions[i]);
+            BattleState successor = s;
+            battle_apply(successor, action);
+            auto kind = battle_action_kind(s, action);
+            uint8_t kills = battle_living(s, enemy) - battle_living(successor, enemy);
+            CHECK(total_hp(successor) < total_hp(s) || kills);
+            CHECK((kind == BATTLE_ACTION_WIN) == (battle_living(successor, enemy) == 0));
+            CHECK((kind == BATTLE_ACTION_KILL) == (kills && battle_living(successor, enemy)));
+            if(i)
+                CHECK(battle_search_priority(s, battle_unpack(actions[i - 1])) <=
+                      battle_search_priority(s, action));
+        }
+        uint8_t depth = battle_search_depth_limit(s);
+        CHECK(depth >= 1 && depth <= BATTLE_AI_DEPTH);
+        expect_same_as_reference(s, depth < 2 ? depth : 2);
+    }
+}
+
 int main() {
     attack_perks();
     renewal_recovery();
@@ -2856,6 +3310,13 @@ int main() {
     leap_arc();
     thinking_indicator();
     target_frames();
+    new_combat_geometry();
+    new_movement_effects();
+    new_direct_attacks();
+    drain_and_recoil();
+    flank_formation();
+    blast_splash_and_search();
+    new_classes_in_search();
     printf("PASS battle rules: %u checks\n", checks);
     return 0;
 }

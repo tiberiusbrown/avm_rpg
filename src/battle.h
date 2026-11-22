@@ -46,7 +46,8 @@ struct BattleRect {
 // no shot or thrust passes it, and no knockback pushes a unit onto it. A rogue's leap still passes
 // over it, as it passes over units, but cannot land on it. `blocked` holds the same information as
 // the tiles' collision, one bit per cell (bit x of blocked[y]), so the rules read four bytes
-// instead of the collision table; the tests check that the two agree. `screened` says, for every
+// instead of the collision table; the tests check that the two agree. Vault also jumps over
+// intervening terrain and units. `screened` says, for every
 // pair of cells, whether blocking terrain stands strictly between them on one row or column: for
 // cells a and b, bit b % 8 of screened[a][b / 8]. Terrain never moves, so it is computed once at
 // compile time, and a shot checks it with one load.
@@ -123,15 +124,23 @@ extern Battlefield const PROGMEM BATTLEFIELDS[BATTLEFIELD_COUNT];
 // Whether a battlefield's cell is blocked by its terrain.
 bool battle_blocked(uint8_t field, uint8_t cell);
 
-// How a unit reaches empty cells. An orthogonal unit moves straight north, east, south, or west for
-// one cell up to its move range, and every cell it passes and lands on must be empty. A leap unit
-// jumps two cells along one axis and one along the other, over anything between, onto an empty
-// cell.
-enum BATTLE_MOVEMENT_TYPE : uint8_t { BATTLE_MOVEMENT_ORTHOGONAL, BATTLE_MOVEMENT_LEAP };
+enum BATTLE_MOVEMENT_TYPE : uint8_t {
+    BATTLE_MOVEMENT_ORTHOGONAL,
+    BATTLE_MOVEMENT_LEAP,
+    BATTLE_MOVEMENT_VAULT,
+    BATTLE_MOVEMENT_GLIDE,
+};
 
-// What an attack does after its damage. A knockback pushes a surviving victim one cell directly
-// away from the attacker when that cell is on the board and empty.
-enum BATTLE_ATTACK_EFFECT : uint8_t { BATTLE_EFFECT_NONE, BATTLE_EFFECT_KNOCKBACK };
+enum BATTLE_ATTACK_GEOMETRY : uint8_t { BATTLE_ATTACK_LINE, BATTLE_ATTACK_DIAGONAL };
+
+enum BATTLE_ATTACK_EFFECT : uint8_t {
+    BATTLE_EFFECT_NONE,
+    BATTLE_EFFECT_KNOCKBACK,
+    BATTLE_EFFECT_DRAIN,
+    BATTLE_EFFECT_RECOIL,
+    BATTLE_EFFECT_FLANK,
+    BATTLE_EFFECT_SPLASH,
+};
 
 // Movement and attack classes are independent. Their definitions stay in program memory.
 struct MovementInfo {
@@ -143,19 +152,36 @@ struct MovementInfo {
 // HP or more, and `injured_damage` against a victim below half. Only Rend differs between the two.
 struct AttackInfo {
     uint8_t attack_min, attack_max, damage, injured_damage;
-    BATTLE_ATTACK_EFFECT effect;
+    BATTLE_ATTACK_EFFECT effect : 3;
+    BATTLE_ATTACK_GEOMETRY geometry : 1 = BATTLE_ATTACK_LINE;
 };
 
 inline constexpr MovementInfo MOVEMENT_INFO[MOVEMENT_CLASS_COUNT] = {
-    {BATTLE_MOVEMENT_ORTHOGONAL, 1},
-    {BATTLE_MOVEMENT_LEAP, 0},
-    {BATTLE_MOVEMENT_ORTHOGONAL, 2},
+    {BATTLE_MOVEMENT_ORTHOGONAL, 1}, {BATTLE_MOVEMENT_LEAP, 0},  {BATTLE_MOVEMENT_ORTHOGONAL, 2},
+    {BATTLE_MOVEMENT_VAULT, 2},      {BATTLE_MOVEMENT_GLIDE, 2},
 };
 inline constexpr AttackInfo ATTACK_INFO[ATTACK_CLASS_COUNT] = {
-    {1, 1, 3, 3, BATTLE_EFFECT_NONE}, {2, 4, 3, 3, BATTLE_EFFECT_NONE},
-    {1, 2, 3, 3, BATTLE_EFFECT_NONE}, {1, 1, 2, 2, BATTLE_EFFECT_KNOCKBACK},
-    {1, 1, 2, 4, BATTLE_EFFECT_NONE},
+    {1, 1, 3, 3, BATTLE_EFFECT_NONE},  {2, 4, 3, 3, BATTLE_EFFECT_NONE},
+    {1, 2, 3, 3, BATTLE_EFFECT_NONE},  {1, 1, 2, 2, BATTLE_EFFECT_KNOCKBACK},
+    {1, 1, 2, 4, BATTLE_EFFECT_NONE},  {1, 1, 3, 3, BATTLE_EFFECT_NONE, BATTLE_ATTACK_DIAGONAL},
+    {1, 1, 2, 2, BATTLE_EFFECT_DRAIN}, {1, 1, 3, 3, BATTLE_EFFECT_RECOIL},
+    {1, 1, 2, 2, BATTLE_EFFECT_FLANK}, {2, 3, 2, 2, BATTLE_EFFECT_SPLASH},
 };
+
+// Absolute coordinate differences are enough to test movement on an empty board.
+constexpr bool battle_move_reaches(BATTLE_MOVEMENT_TYPE type, uint8_t range, int dx, int dy) {
+    switch(type) {
+        case BATTLE_MOVEMENT_ORTHOGONAL:
+            return !(dx && dy) && dx + dy > 0 && dx + dy <= range;
+        case BATTLE_MOVEMENT_LEAP:
+            return (dx == 2 && dy == 1) || (dx == 1 && dy == 2);
+        case BATTLE_MOVEMENT_VAULT:
+            return !(dx && dy) && dx + dy == range;
+        case BATTLE_MOVEMENT_GLIDE:
+            return dx == dy && dx > 0 && dx <= range;
+    }
+    return false;
+}
 
 // Each attack class's starting special. A special is an attack on the victim its class's normal
 // attack reaches, and it costs its unit AP. Its damage is the normal damage plus `bonus_full` when
@@ -172,11 +198,17 @@ inline constexpr SpecialInfo SPECIAL_INFO[ATTACK_CLASS_COUNT] = {
     {2, 2, 2, BATTLE_EFFECT_KNOCKBACK}, // Reach: Driving Thrust
     {2, 3, 3, BATTLE_EFFECT_KNOCKBACK}, // Impact: Crushing Bash
     {2, 1, 3, BATTLE_EFFECT_NONE},      // Rend: Wound Hunter
+    {2, 2, 2, BATTLE_EFFECT_NONE},      // Arc: Crescent Cut
+    {2, 3, 3, BATTLE_EFFECT_NONE},      // Drain: Siphon
+    {2, 3, 3, BATTLE_EFFECT_NONE},      // Recoil: Spring Blow
+    {2, 2, 2, BATTLE_EFFECT_NONE},      // Flank: Pincer Strike
+    {2, 2, 2, BATTLE_EFFECT_NONE},      // Blast: Detonation
 };
 
 // The display names of the starting specials, indexed by attack class.
 inline constexpr char PROGMEM BATTLE_SPECIAL_NAMES[ATTACK_CLASS_COUNT][15] = {
     "Power Strike", "Opening Shot", "Driving Thrust", "Crushing Bash", "Wound Hunter",
+    "Crescent Cut", "Siphon",       "Spring Blow",    "Pincer Strike", "Detonation",
 };
 
 // Enemy IDs index immutable definitions, independently of the unit's team or artwork.
@@ -221,7 +253,8 @@ struct BattleUnitRules {
     BATTLE_MOVEMENT_TYPE movement_type;
     uint8_t move_range;
     uint8_t attack_min, attack_max, damage, injured_damage;
-    BATTLE_ATTACK_EFFECT effect;
+    BATTLE_ATTACK_EFFECT effect : 3;
+    BATTLE_ATTACK_GEOMETRY geometry : 1;
 };
 
 inline constexpr uint8_t BATTLE_RULE_COUNT = (uint8_t)MOVEMENT_CLASS_COUNT * ATTACK_CLASS_COUNT;
@@ -238,7 +271,7 @@ inline constexpr BattleRuleTable BATTLE_RULES = [] {
             auto const& attack = ATTACK_INFO[a];
             table.classes[m * ATTACK_CLASS_COUNT + a] = {
                 move.movement_type, move.move_range,       attack.attack_min, attack.attack_max,
-                attack.damage,      attack.injured_damage, attack.effect};
+                attack.damage,      attack.injured_damage, attack.effect,     attack.geometry};
         }
     return table;
 }();
@@ -251,8 +284,7 @@ inline BattleUnitRules const& battle_rules(uint8_t id) {
     return BATTLE_RULES.classes[battle_rule_index(id)];
 }
 
-// Whether a straight-line distance is within an attack range. Attacks are always along one row or
-// column, so callers pass the distance only for a pair that shares one.
+// A distance of zero denotes a pair outside the attack's geometry.
 constexpr bool battle_in_attack_range(BattleUnitRules const& rules, uint8_t distance) {
     return distance >= rules.attack_min && distance <= rules.attack_max;
 }
@@ -336,11 +368,27 @@ constexpr uint8_t battle_pass_marker(BattleState const& state) {
     return state.units[0].cell;
 }
 
-// Bounds on legal actions. A unit has at most eight moves: four directions of two cells for the
-// longest orthogonal range, or eight knight leaps. An attack pairs an acting unit with an opponent,
-// so a side of a units facing BATTLE_UNIT_CAPACITY - a opponents has at most a * (capacity - a)
-// attacks. The bound below is the largest total over every split of the slots.
-inline constexpr uint8_t BATTLE_MOVE_LIMIT = 8;
+// Count each movement pattern on the empty board. Occupancy can only reduce this bound.
+constexpr uint8_t battle_moves_on_empty_board(MovementInfo const& move, int x, int y) {
+    uint8_t count = 0;
+    for(int ty = 0; ty < BATTLE_ROWS; ++ty)
+        for(int tx = 0; tx < BATTLE_COLUMNS; ++tx)
+            count += battle_move_reaches(move.movement_type, move.move_range,
+                                         tx > x ? tx - x : x - tx, ty > y ? ty - y : y - ty);
+    return count;
+}
+
+inline constexpr uint8_t BATTLE_MOVE_LIMIT = [] {
+    uint8_t most = 0;
+    for(auto const& move : MOVEMENT_INFO)
+        for(int y = 0; y < BATTLE_ROWS; ++y)
+            for(int x = 0; x < BATTLE_COLUMNS; ++x) {
+                uint8_t count = battle_moves_on_empty_board(move, x, y);
+                if(count > most)
+                    most = count;
+            }
+    return most;
+}();
 
 constexpr uint8_t battle_action_bound(uint8_t actors) {
     return (uint8_t)(actors * BATTLE_MOVE_LIMIT + actors * (BATTLE_UNIT_CAPACITY - actors));
@@ -385,17 +433,23 @@ bool battle_neighbor(uint8_t cell, DIRECTION dir, uint8_t& neighbor);
 // columns on a tie. For cells on one row or column it is the exact direction.
 DIRECTION battle_direction(uint8_t from, uint8_t to);
 
-// The HP one attack by `attacker` removes from `victim`. A victim below half its maximum HP takes
-// the attacker's injured damage.
-uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim);
-// The HP a starting special by `attacker` removes from `victim`: the normal damage plus the
-// special's bonus for the victim's state.
-uint8_t battle_special_damage(BattleUnit const& attacker, BattleUnit const& victim);
+// Primary damage before HP clamping. Positional bonuses use the current formation.
+uint8_t battle_attack_damage(BattleState const& state, uint8_t attacker, uint8_t victim,
+                             bool special = false);
+
+struct BattleAttackImpact {
+    uint8_t kills, damage;
+};
+
+// Damage and eliminations across all victims of a legal normal attack.
+BattleAttackImpact battle_attack_impact(BattleState const& state, uint8_t attacker, uint8_t victim);
+bool battle_flank_supported(BattleState const& state, uint8_t attacker, uint8_t victim);
+uint8_t battle_splash_targets(BattleState const& state, uint8_t victim);
 // The sprite row a unit is drawn with.
 uint8_t battle_sprite_row(BattleUnit const& unit);
 
-// True when the unit is alive and its movement pattern reaches the cell, which must be empty and
-// open, along with every cell an orthogonal move passes; a knight's leap passes over anything.
+// True when the living unit's movement pattern reaches an open destination. Ground moves also
+// require every cell on the path to be open.
 // Ignores whose turn it is.
 bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t destination);
 
@@ -404,9 +458,8 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
 // attacks.
 bool battle_line_blocked(BattleState const& state, uint8_t a, uint8_t b);
 
-// True when both units are alive and on opposing teams, they share a row or column at a distance
-// within the attacker's range, and no living unit or blocking terrain stands between them. Ignores
-// whose turn it is, so the evaluation can ask about either side.
+// True when opposing living units satisfy the attack geometry and range, with clear line of sight
+// for ranged attacks. Ignores whose turn it is, so the evaluation can ask about either side.
 bool battle_can_attack(BattleState const& state, uint8_t attacker, uint8_t victim);
 
 // An action is legal when the battle is running, the unit is alive and belongs to the side to act,
@@ -417,7 +470,8 @@ bool battle_legal(BattleState const& state, BattleAction action);
 // The canonical legal-action enumeration, which player input, rendering, and the search all use. It
 // writes packed actions to `out`: first every attack, by acting unit and then victim, in ascending
 // index order; then every move, by unit in ascending index order, then north, east, south, and west
-// (nearest cell first) or the knight offsets clockwise from north-north-east. It returns the count
+// (nearest cell first), the knight offsets clockwise from north-north-east, or the diagonal
+// directions clockwise from northeast (nearest first). It returns the count
 // and stores the number of leading attacks in `attacks`. Each legal action appears exactly once.
 // `out` must hold BATTLE_ACTION_CAPACITY actions.
 uint8_t battle_actions(BattleState const& state, uint8_t* out, uint8_t& attacks);
@@ -478,10 +532,8 @@ constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
 // survives it. Engagement damage ignores the mover's attack pattern and never triggers an attack
 // effect.
 //
-// An attack (an enemy destination) takes the attacker's damage, and the attacker stays where it is.
-// A knockback then pushes a surviving victim one cell directly away when that cell is on the board
-// and empty; a push is not a move, so it costs nothing and engages no one. Attacks cost the
-// attacker nothing.
+// An attack applies primary and splash damage, then any healing and displacement, before checking
+// for a winner. Forced displacement costs no HP and deals no engagement damage.
 //
 // Then the battle ends once a side has no living unit. The acting side wins when no opponent is
 // left; it wins before its mover pays, so the two sides never fall together. When an action removes
@@ -504,7 +556,7 @@ void battle_apply_special(BattleState& state, BattleAction action);
 void battle_pass(BattleState& state);
 
 // Passes while the side to act has no legal action. Returns the number of passes. Every pass costs
-// HP and no action restores any, so it always returns.
+// HP, so settling without actions always returns.
 uint16_t battle_settle(BattleState& state);
 
 uint8_t battle_living(BattleState const& state, BATTLE_TEAM team);

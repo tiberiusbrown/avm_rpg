@@ -1671,6 +1671,114 @@ static void start_grove_contact(Device& d) {
     d.wait_for_battle();
 }
 
+static void verify_battle_classes(Device& d, fs::path const& out) {
+    start_grove_contact(d);
+
+    struct Case {
+        char const* name;
+        MOVEMENT_CLASS movement;
+        ATTACK_CLASS attack;
+        uint8_t actor, target, victim, final_cell, actor_hp, victim_hp;
+        bool special;
+    };
+
+    static constexpr Case CASES[] = {
+        {"battle_vault", MOVEMENT_VAULT, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
+         battle_cell(2, 1), battle_cell(3, 1), 14, 8, false},
+        {"battle_glide", MOVEMENT_GLIDE, ATTACK_STRIKE, battle_cell(1, 0), battle_cell(3, 2),
+         battle_cell(3, 1), battle_cell(3, 2), 14, 8, false},
+        {"battle_arc", MOVEMENT_STEP, ATTACK_ARC, battle_cell(3, 1), battle_cell(4, 2),
+         battle_cell(4, 2), battle_cell(3, 1), 15, 4, true},
+        {"battle_drain", MOVEMENT_STEP, ATTACK_DRAIN, battle_cell(2, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(2, 1), 17, 5, true},
+        {"battle_recoil", MOVEMENT_LEAP, ATTACK_RECOIL, battle_cell(2, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(1, 1), 15, 3, true},
+        {"battle_flank", MOVEMENT_STEP, ATTACK_FLANK, battle_cell(2, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(2, 1), 15, 5, false},
+        {"battle_blast", MOVEMENT_STEP, ATTACK_BLAST, battle_cell(2, 1), battle_cell(5, 1),
+         battle_cell(5, 1), battle_cell(2, 1), 15, 6, true},
+    };
+    for(auto const& test : CASES) {
+        Game world = d.state();
+        PartyMember& member = world.party.members[0];
+        member.movement_class = test.movement;
+        member.attack_class = test.attack;
+        member.level = 4;
+        member.ap = 4;
+        member.perk_ranks = 0x09;
+        d.set_state(world);
+
+        BattleState state{};
+        state.field = BATTLEFIELD_GROVE;
+        state.turn = BATTLE_PARTY;
+        state.units[0] = BattleUnit{test.actor, 15, battle_party_id(0), BATTLE_PARTY};
+        state.units[1] = BattleUnit{test.victim, 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+        state.units[2] = BattleUnit{battle_cell(7, 3), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+        state.unit_count = 3;
+        if(test.attack == ATTACK_FLANK) {
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY};
+        }
+        if(test.attack == ATTACK_BLAST) {
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(5, 2), 1, ENEMY_FIGHTER, BATTLE_ENEMY};
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(6, 1), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+        }
+        d.set_battle(state);
+        for(unsigned i = 1; i < BATTLE_COLUMNS; ++i)
+            d.tap(BTN_LEFT);
+        for(unsigned i = 1; i < BATTLE_ROWS; ++i)
+            d.tap(BTN_UP);
+        GroveCell cursor{0, 0};
+        grove_move_cursor(d, cursor, {battle_column(test.actor), battle_row(test.actor)});
+        d.tap(BTN_A);
+        grove_move_cursor(d, cursor, {battle_column(test.target), battle_row(test.target)});
+        if(test.target == test.victim) {
+            d.tap(BTN_A);
+            require(!d.battle_state().activations && d.state().party.members[0].ap == 4,
+                    "opening the attack offer consumed the action");
+            if(test.special)
+                d.tap(BTN_DOWN);
+        }
+
+        {
+            // Observe the player's animation through the final presentation before the AI thinks.
+            PauseTiming timing(d);
+            d.advance(BTN_A, 320000);
+            uint64_t capture_after = test.target == test.victim ? 4800000 : 1200000;
+            d.advance(0, capture_after);
+            d.capture(out / (std::string(test.name) + ".pgm"));
+            d.advance(0, 20680000 - capture_after);
+            uint64_t worst = 0;
+            for(size_t i = 1; i < timing.presentations.size(); ++i) {
+                uint64_t interval =
+                    timing.presentations[i].cycle - timing.presentations[i - 1].cycle;
+                worst = std::max(worst, interval);
+            }
+            require(worst != 0, "battle action did not present consecutive frames");
+            uint64_t span = timing.presentations.back().cycle - timing.presentations.front().cycle;
+            std::cout << "{\"workload\":\"" << test.name
+                      << "\",\"display_presentations\":" << timing.presentations.size()
+                      << ",\"average_frame_cycles\":" << span / (timing.presentations.size() - 1)
+                      << ",\"worst_frame_cycles\":" << worst << ",\"budget_cycles\":320000}"
+                      << std::endl;
+        }
+        auto resolved = d.battle_state();
+        require(resolved.activations == 1 && resolved.turn == BATTLE_ENEMY &&
+                    resolved.units[0].cell == test.final_cell &&
+                    resolved.units[0].hp == test.actor_hp &&
+                    resolved.units[1].hp == test.victim_hp &&
+                    d.state().party.members[0].ap == (test.special ? 2 : 4),
+                (std::string(test.name) + " did not resolve from player input").c_str());
+        if(test.attack == ATTACK_BLAST)
+            require(!resolved.units[3].hp && resolved.units[4].hp == 8,
+                    "Detonation did not resolve Shrapnel damage for both victims");
+        d.wait_for_battle(1);
+    }
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"new combat classes through battle input\"}\n";
+}
+
 static void play_grove_battle(Device& d, bool verify_transition = false,
                               fs::path const* level_up_capture = nullptr,
                               fs::path const* ordinary_capture = nullptr) {
@@ -2602,12 +2710,13 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
 }
 
 int main(int argc, char** argv) try {
-    require(
-        argc >= 9 && argc <= 13,
-        "device_tests package game_address marker_address serial_address "
-        "output_directory normal|fxc|proof|smoke|millcross|pause|battle|shop|sounds|functional|sounds-functional "
-        "dialogue_address phase_address "
-        "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
+    require(argc >= 9 && argc <= 13,
+            "device_tests package game_address marker_address serial_address "
+            "output_directory "
+            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|shop|sounds|functional|"
+            "sounds-functional "
+            "dialogue_address phase_address "
+            "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
     // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
     check_timing = std::string(argv[6]) != "functional" &&
                    std::string(argv[6]) != "sounds-functional" && std::string(argv[6]) != "journal";
@@ -2643,6 +2752,13 @@ int main(int argc, char** argv) try {
 
     if(std::string(argv[6]) == "smoke") {
         verify_smoke(d, package, out);
+        return 0;
+    }
+    if(std::string(argv[6]) == "battle-classes") {
+        d.advance(0, 3200000);
+        d.tap(BTN_A);
+        d.advance(0, 3200000);
+        verify_battle_classes(d, out);
         return 0;
     }
 

@@ -221,6 +221,7 @@ static void test_list_bounds_and_wrap() {
 static void test_specials_for_each_attack_class() {
     static char const* const NAMES[ATTACK_CLASS_COUNT] = {
         "Power Strike", "Opening Shot", "Driving Thrust", "Crushing Bash", "Wound Hunter",
+        "Crescent Cut", "Siphon",       "Spring Blow",    "Pincer Strike", "Detonation",
     };
     for(uint8_t attack = 0; attack < ATTACK_CLASS_COUNT; ++attack) {
         Party party = make_party(1);
@@ -254,6 +255,17 @@ static void test_specials_for_each_attack_class() {
                      ATTACK_INFO[ATTACK_REND].injured_damage);
             CHECK(strstr(text, number) != nullptr);
         }
+
+        if(attack == ATTACK_ARC)
+            CHECK(strstr(text, "diagonally adjacent") && !strstr(text, "straight line"));
+        if(attack == ATTACK_DRAIN)
+            CHECK(strstr(text, "Restores 1 HP on a kill"));
+        if(attack == ATTACK_RECOIL)
+            CHECK(strstr(text, "attacker retreats"));
+        if(attack == ATTACK_FLANK)
+            CHECK(strstr(text, "another living ally"));
+        if(attack == ATTACK_BLAST)
+            CHECK(strstr(text, "2-3 cells") && strstr(text, "1 splash damage"));
 
         // A detail page has no action for A, and B climbs back to the list, then to the overview.
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE && ui.page == PARTY_PAGE_SPECIAL_DETAILS);
@@ -479,13 +491,26 @@ static void check_wrap(char const* text) {
 
 static void test_perk_descriptions() {
     static constexpr char const* NAMES[] = {
-        "Steadfast", "Renewal", "Momentum", "Keen Edge", "Longshot", "Lunge", "Heavy Blow",
-        "Blood Sense",
+        "Steadfast", "Renewal",  "Momentum",     "Vault Force", "Slipstream",
+        "Keen Edge", "Longshot", "Lunge",        "Heavy Blow",  "Blood Sense",
+        "Crosscut",  "Life Tap", "Counterforce", "Encircle",    "Shrapnel",
     };
     static constexpr char const* EFFECTS[] = {
-        "Maximum HP increases by 3", "1 additional AP after each victory",
-        "two-cell move deals 1 extra engagement damage", "at full HP", "at range 4",
-        "at range 2", "deal 1 extra damage", "below full HP",
+        "Maximum HP increases by 3",
+        "1 additional AP after each victory",
+        "two-cell move deals 1 extra engagement damage",
+        "Every Vault landing",
+        "two-cell diagonal move",
+        "at full HP",
+        "at range 4",
+        "at range 2",
+        "deal 1 extra damage",
+        "below full HP",
+        "Arc attacks deal 1 extra damage",
+        "can heal 2 HP",
+        "Recoil attacks deal 1 extra damage",
+        "another ally",
+        "2 damage to each secondary enemy",
     };
     for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track) {
         uint8_t code = party_perk_code(track, 0);

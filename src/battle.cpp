@@ -31,8 +31,8 @@ static_assert([] {
 // Check every independent class combination, including those not used by an enemy preset.
 constexpr bool battle_classes_fit() {
     for(auto const& rules : BATTLE_RULES.classes) {
-        uint8_t moves = rules.movement_type == BATTLE_MOVEMENT_LEAP ? 8 : 4 * rules.move_range;
-        if(moves > BATTLE_MOVE_LIMIT || !rules.attack_min || rules.attack_min > rules.attack_max ||
+        if(!rules.attack_min || rules.attack_min > rules.attack_max ||
+           (rules.geometry == BATTLE_ATTACK_DIAGONAL && rules.attack_max != 1) ||
            rules.damage > 15 || rules.injured_damage > 15)
             return false;
     }
@@ -203,7 +203,18 @@ static bool at_range(uint8_t from, uint8_t to, uint8_t distance) {
            delta == distance * BATTLE_COLUMNS;
 }
 
-static uint8_t attack_perk_bonus(uint8_t attack, BattleUnit const& attacker, BattleUnit const& victim) {
+static uint8_t difference(uint8_t a, uint8_t b) {
+    return a > b ? (uint8_t)(a - b) : (uint8_t)(b - a);
+}
+
+static uint8_t diagonal_distance(uint8_t a, uint8_t b) {
+    uint8_t dx = difference(battle_column(a), battle_column(b));
+    uint8_t dy = difference(battle_row(a), battle_row(b));
+    return dx == dy ? dx : 0;
+}
+
+static uint8_t attack_perk_bonus(uint8_t attack, BattleUnit const& attacker,
+                                 BattleUnit const& victim, bool supported) {
     switch(attack) {
         case KEEN_EDGE_CLASS:
             return victim.hp == battle_max_hp(victim) ? KEEN_EDGE_BONUS : 0;
@@ -215,17 +226,46 @@ static uint8_t attack_perk_bonus(uint8_t attack, BattleUnit const& attacker, Bat
             return HEAVY_BLOW_BONUS;
         case BLOOD_SENSE_CLASS:
             return victim.hp < battle_max_hp(victim) ? BLOOD_SENSE_BONUS : 0;
+        case CROSSCUT_CLASS:
+            return CROSSCUT_BONUS;
+        case COUNTERFORCE_CLASS:
+            return COUNTERFORCE_BONUS;
+        case ENCIRCLE_CLASS:
+            return supported ? ENCIRCLE_BONUS : 0;
         default:
             return 0;
     }
 }
 
-uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victim) {
-    BattleUnitRules const& rules = battle_rules(attacker.id);
+BATTLE_ALWAYS_INLINE static inline bool flank_supported(BattleState const& state, uint8_t attacker,
+                                                        uint8_t victim) {
+    BATTLE_TEAM team = state.units[attacker].team;
+    uint8_t cell = state.units[victim].cell;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& ally = state.units[i];
+        if(i != attacker && ally.hp && ally.team == team && battle_cells_adjacent(ally.cell, cell))
+            return true;
+    }
+    return false;
+}
+
+RPG_NOINLINE bool battle_flank_supported(BattleState const& state, uint8_t attacker,
+                                         uint8_t victim) {
+    return flank_supported(state, attacker, victim);
+}
+
+RPG_NOINLINE static uint8_t primary_damage(BattleState const& state, uint8_t attacker_index,
+                                           uint8_t victim_index, uint8_t attack, bool special) {
+    bool supported = attack == ATTACK_FLANK && flank_supported(state, attacker_index, victim_index);
+    BattleUnit const& attacker = state.units[attacker_index];
+    BattleUnit const& victim = state.units[victim_index];
+    AttackInfo const& rules = ATTACK_INFO[attack];
     uint8_t damage = rules.damage;
     // A victim is healthy at half its maximum HP or more, which 2 * hp >= maximum tests exactly.
     if(rules.injured_damage != rules.damage && 2 * (uint16_t)victim.hp < battle_max_hp(victim))
         damage = rules.injured_damage;
+    if(supported)
+        damage += 2;
     // A party member's level adds to its normal damage; enemies have no levels.
     if(attacker.id & BATTLE_PARTY_SOURCE) {
         PartyMember const& member = game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE];
@@ -233,9 +273,63 @@ uint8_t battle_attack_damage(BattleUnit const& attacker, BattleUnit const& victi
         if(equipment_get(member, SLOT_WEAPON) == ITEM_IRON_FANG)
             damage += IRON_FANG_DAMAGE;
         if(party_attack_perk_rank(member))
-            damage += attack_perk_bonus(member.attack_class, attacker, victim);
+            damage += attack_perk_bonus(attack, attacker, victim, supported);
+    }
+    if(special) {
+        SpecialInfo const& info = SPECIAL_INFO[attack];
+        damage += info.bonus_full == info.bonus_injured || victim.hp == battle_max_hp(victim)
+                      ? info.bonus_full
+                      : info.bonus_injured;
     }
     return damage;
+}
+
+uint8_t battle_attack_damage(BattleState const& state, uint8_t attacker, uint8_t victim,
+                             bool special) {
+    return primary_damage(state, attacker, victim, battle_attack_class(state.units[attacker].id),
+                          special);
+}
+
+RPG_NOINLINE uint8_t battle_splash_targets(BattleState const& state, uint8_t victim) {
+    BattleUnit const& primary = state.units[victim];
+    uint8_t targets = 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        BattleUnit const& unit = state.units[i];
+        if(unit.hp && unit.team == primary.team && battle_cells_adjacent(unit.cell, primary.cell))
+            targets |= (uint8_t)(1 << i);
+    }
+    return targets;
+}
+
+static uint8_t attack_perk_rank(BattleUnit const& actor) {
+    return actor.id & BATTLE_PARTY_SOURCE
+               ? party_attack_perk_rank(game.party.members[actor.id & ~BATTLE_PARTY_SOURCE])
+               : 0;
+}
+
+static uint8_t splash_damage(BattleUnit const& actor) {
+    return attack_perk_rank(actor) ? 1 + SHRAPNEL_BONUS : 1;
+}
+
+RPG_NOINLINE BattleAttackImpact battle_attack_impact(BattleState const& state, uint8_t attacker,
+                                                     uint8_t victim) {
+    BattleUnit const& actor = state.units[attacker];
+    uint8_t attack = battle_attack_class(actor.id);
+    uint8_t damage = primary_damage(state, attacker, victim, attack, false);
+    uint8_t hp = state.units[victim].hp;
+    BattleAttackImpact impact{(uint8_t)(hp <= damage), hp < damage ? hp : damage};
+    if(attack == ATTACK_BLAST) {
+        damage = splash_damage(actor);
+        uint8_t targets = battle_splash_targets(state, victim);
+        for(uint8_t i = 0; targets; ++i, targets >>= 1) {
+            if(targets & 1) {
+                hp = state.units[i].hp;
+                impact.kills += hp <= damage;
+                impact.damage += hp < damage ? hp : damage;
+            }
+        }
+    }
+    return impact;
 }
 
 uint8_t battle_sprite_row(BattleUnit const& unit) {
@@ -256,6 +350,11 @@ static uint8_t battle_line_distance(uint8_t a, uint8_t b) {
     if(ax == bx)
         return (uint8_t)(ay > by ? ay - by : by - ay);
     return 0;
+}
+
+static uint8_t attack_distance(BattleUnitRules const& rules, uint8_t a, uint8_t b) {
+    return rules.geometry == BATTLE_ATTACK_DIAGONAL ? diagonal_distance(a, b)
+                                                    : battle_line_distance(a, b);
 }
 
 // Whether blocking terrain lies strictly between two cells on one row or column: one lookup in the
@@ -293,11 +392,16 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
        battle_unit_at(state, destination) != BATTLE_NO_UNIT)
         return false;
     BattleUnitRules const& rules = battle_rules(actor.id);
-    if(rules.movement_type == BATTLE_MOVEMENT_LEAP) {
-        int8_t dx = (int8_t)(battle_column(destination) - battle_column(actor.cell));
-        int8_t dy = (int8_t)(battle_row(destination) - battle_row(actor.cell));
-        uint8_t product = (uint8_t)((dx < 0 ? -dx : dx) * (dy < 0 ? -dy : dy));
-        return product == 2;
+    if(rules.movement_type != BATTLE_MOVEMENT_ORTHOGONAL) {
+        uint8_t dx = difference(battle_column(actor.cell), battle_column(destination));
+        uint8_t dy = difference(battle_row(actor.cell), battle_row(destination));
+        if(!battle_move_reaches(rules.movement_type, rules.move_range, dx, dy))
+            return false;
+        if(rules.movement_type != BATTLE_MOVEMENT_GLIDE || dx == 1)
+            return true;
+        uint8_t middle = (uint8_t)((actor.cell + destination) / 2);
+        return !battle_blocked(state.field, middle) &&
+               battle_unit_at(state, middle) == BATTLE_NO_UNIT;
     }
     uint8_t distance = battle_line_distance(actor.cell, destination);
     return distance && distance <= rules.move_range &&
@@ -305,12 +409,15 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
 }
 
 bool battle_can_attack(BattleState const& state, uint8_t attacker, uint8_t victim) {
+    if(attacker >= state.unit_count || victim >= state.unit_count)
+        return false;
     BattleUnit const& actor = state.units[attacker];
     BattleUnit const& target = state.units[victim];
     if(!actor.hp || !target.hp || actor.team == target.team)
         return false;
-    uint8_t distance = battle_line_distance(actor.cell, target.cell);
-    if(!battle_in_attack_range(battle_rules(actor.id), distance))
+    BattleUnitRules const& rules = battle_rules(actor.id);
+    uint8_t distance = attack_distance(rules, actor.cell, target.cell);
+    if(!battle_in_attack_range(rules, distance))
         return false;
     return distance == 1 || !battle_line_blocked(state, actor.cell, target.cell);
 }
@@ -332,7 +439,7 @@ static bool battle_occupied(uint8_t const* rows, uint8_t cell) {
     return (rows[battle_row(cell)] >> battle_column(cell)) & 1;
 }
 
-// Appends the empty cells a straight move reaches, nearest first, stopping at the first occupied
+// Appends the empty cells a ground move reaches, nearest first, stopping at the first occupied
 // cell.
 static inline __attribute__((always_inline)) uint8_t battle_ray(uint8_t const* rows, uint8_t* out,
                                                                 uint8_t count, uint8_t unit_bits,
@@ -347,9 +454,8 @@ static inline __attribute__((always_inline)) uint8_t battle_ray(uint8_t const* r
     return count;
 }
 
-// Appends one knight leap of (dx, dy) when it lands on the board on an empty cell. The offsets are
-// immediates at each call, so leaps need no table.
-static inline __attribute__((always_inline)) uint8_t battle_leap(uint8_t const* rows, uint8_t* out,
+// Appends one jump of (dx, dy) when it lands on the board on an empty cell.
+static inline __attribute__((always_inline)) uint8_t battle_jump(uint8_t const* rows, uint8_t* out,
                                                                  uint8_t count, uint8_t unit_bits,
                                                                  uint8_t x, uint8_t y, int8_t dx,
                                                                  int8_t dy) {
@@ -365,6 +471,29 @@ static inline __attribute__((always_inline)) uint8_t battle_leap(uint8_t const* 
 
 static uint8_t smaller(uint8_t a, uint8_t b) {
     return a < b ? a : b;
+}
+
+RPG_NOINLINE static uint8_t battle_vault_or_glide(BattleUnitRules const& rules, uint8_t const* rows,
+                                                  uint8_t* out, uint8_t count, uint8_t unit_bits,
+                                                  uint8_t cell) {
+    uint8_t x = battle_column(cell), y = battle_row(cell);
+    if(rules.movement_type == BATTLE_MOVEMENT_VAULT) {
+        int8_t range = (int8_t)rules.move_range;
+        count = battle_jump(rows, out, count, unit_bits, x, y, 0, (int8_t)-range);
+        count = battle_jump(rows, out, count, unit_bits, x, y, range, 0);
+        count = battle_jump(rows, out, count, unit_bits, x, y, 0, range);
+        return battle_jump(rows, out, count, unit_bits, x, y, (int8_t)-range, 0);
+    }
+
+    uint8_t north = smaller(y, rules.move_range);
+    uint8_t east = smaller((uint8_t)(BATTLE_COLUMNS - 1 - x), rules.move_range);
+    uint8_t south = smaller((uint8_t)(BATTLE_ROWS - 1 - y), rules.move_range);
+    uint8_t west = smaller(x, rules.move_range);
+    count = battle_ray(rows, out, count, unit_bits, cell, 1 - BATTLE_COLUMNS, smaller(north, east));
+    count = battle_ray(rows, out, count, unit_bits, cell, 1 + BATTLE_COLUMNS, smaller(south, east));
+    count =
+        battle_ray(rows, out, count, unit_bits, cell, -1 + BATTLE_COLUMNS, smaller(south, west));
+    return battle_ray(rows, out, count, unit_bits, cell, -1 - BATTLE_COLUMNS, smaller(north, west));
 }
 
 // The enumeration behind battle_actions and battle_unit_actions, for units first to end - 1. The
@@ -400,7 +529,7 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
             BattleUnit const& target = state.units[v];
             if(!target.hp || target.team == actor.team)
                 continue;
-            uint8_t distance = battle_line_distance(actor.cell, target.cell);
+            uint8_t distance = attack_distance(rules, actor.cell, target.cell);
             if(distance < lo || distance > hi)
                 continue;
             if(distance > 1) {
@@ -429,14 +558,18 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
         BattleUnitRules const& rules = battle_rules(actor.id);
         if(rules.movement_type == BATTLE_MOVEMENT_LEAP) {
             // Clockwise from north-north-east.
-            count = battle_leap(rows, out, count, unit_bits, x, y, 1, -2);
-            count = battle_leap(rows, out, count, unit_bits, x, y, 2, -1);
-            count = battle_leap(rows, out, count, unit_bits, x, y, 2, 1);
-            count = battle_leap(rows, out, count, unit_bits, x, y, 1, 2);
-            count = battle_leap(rows, out, count, unit_bits, x, y, -1, 2);
-            count = battle_leap(rows, out, count, unit_bits, x, y, -2, 1);
-            count = battle_leap(rows, out, count, unit_bits, x, y, -2, -1);
-            count = battle_leap(rows, out, count, unit_bits, x, y, -1, -2);
+            count = battle_jump(rows, out, count, unit_bits, x, y, 1, -2);
+            count = battle_jump(rows, out, count, unit_bits, x, y, 2, -1);
+            count = battle_jump(rows, out, count, unit_bits, x, y, 2, 1);
+            count = battle_jump(rows, out, count, unit_bits, x, y, 1, 2);
+            count = battle_jump(rows, out, count, unit_bits, x, y, -1, 2);
+            count = battle_jump(rows, out, count, unit_bits, x, y, -2, 1);
+            count = battle_jump(rows, out, count, unit_bits, x, y, -2, -1);
+            count = battle_jump(rows, out, count, unit_bits, x, y, -1, -2);
+            continue;
+        }
+        if(rules.movement_type != BATTLE_MOVEMENT_ORTHOGONAL) {
+            count = battle_vault_or_glide(rules, rows, out, count, unit_bits, actor.cell);
             continue;
         }
         // North, east, south, and west, each as far as the range and the board edge allow.
@@ -479,9 +612,16 @@ RPG_NOINLINE bool battle_can_act(BattleState const& state) {
 uint8_t battle_engagement_damage(BattleUnit const& actor, uint8_t destination) {
     if(actor.id & BATTLE_PARTY_SOURCE) {
         PartyMember const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
-        if(member.movement_class == MOMENTUM_CLASS && party_movement_perk_rank(member) &&
-           at_range(actor.cell, destination, MOMENTUM_RANGE))
-            return BATTLE_ENGAGEMENT_DAMAGE + MOMENTUM_BONUS;
+        if(party_movement_perk_rank(member)) {
+            if(member.movement_class == MOMENTUM_CLASS &&
+               at_range(actor.cell, destination, MOMENTUM_RANGE))
+                return BATTLE_ENGAGEMENT_DAMAGE + MOMENTUM_BONUS;
+            if(member.movement_class == VAULT_FORCE_CLASS)
+                return BATTLE_ENGAGEMENT_DAMAGE + VAULT_FORCE_BONUS;
+            if(member.movement_class == SLIPSTREAM_CLASS &&
+               diagonal_distance(actor.cell, destination) == SLIPSTREAM_RANGE)
+                return BATTLE_ENGAGEMENT_DAMAGE + SLIPSTREAM_BONUS;
+        }
     }
     return BATTLE_ENGAGEMENT_DAMAGE;
 }
@@ -517,8 +657,7 @@ BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction act
             return BATTLE_ACTION_MOVE;
         kills = engagement.kills;
     } else {
-        kills =
-            state.units[occupant].hp <= battle_attack_damage(actor, state.units[occupant]) ? 1 : 0;
+        kills = battle_attack_impact(state, action.unit_index, occupant).kills;
     }
     if(!kills)
         return BATTLE_ACTION_ATTACK;
@@ -564,14 +703,47 @@ static bool battle_damage(BattleUnit& unit, uint8_t amount) {
     return !unit.hp;
 }
 
-// Pushes a struck unit one cell directly away from its attacker when that cell is on the board,
-// open, and empty. Attacks are always along a row or column, so the push follows that line.
-static void battle_knock_back(BattleState& state, BattleUnit const& actor, BattleUnit& target) {
-    DIRECTION away = battle_direction(actor.cell, target.cell);
-    uint8_t cell = target.cell;
-    if(battle_neighbor(target.cell, away, cell) && !battle_blocked(state.field, cell) &&
-       battle_unit_at(state, cell) == BATTLE_NO_UNIT)
-        target.cell = cell;
+// Both kinds of forced displacement use the same landing check.
+static void battle_displace(BattleState& state, BattleUnit& unit, uint8_t from, uint8_t away_from) {
+    uint8_t cell;
+    if(battle_neighbor(from, battle_direction(away_from, from), cell) &&
+       !battle_blocked(state.field, cell) && battle_unit_at(state, cell) == BATTLE_NO_UNIT)
+        unit.cell = cell;
+}
+
+RPG_NOINLINE static bool battle_resolve_attack(BattleState& state, uint8_t attacker, uint8_t victim,
+                                               bool special) {
+    BattleUnit& actor = state.units[attacker];
+    BattleUnit& target = state.units[victim];
+    uint8_t from = actor.cell, to = target.cell;
+    uint8_t attack = battle_attack_class(actor.id);
+    BATTLE_ATTACK_EFFECT effect = ATTACK_INFO[attack].effect;
+    uint8_t primary = primary_damage(state, attacker, victim, attack, special);
+    uint8_t targets = effect == BATTLE_EFFECT_SPLASH ? battle_splash_targets(state, victim) : 0;
+    uint8_t hp_lost = target.hp < primary ? target.hp : primary;
+    bool fell = battle_damage(target, primary);
+
+    if(targets) {
+        uint8_t damage = splash_damage(actor);
+        for(uint8_t i = 0; targets; ++i, targets >>= 1)
+            if(targets & 1)
+                fell = battle_damage(state.units[i], damage) || fell;
+    }
+
+    if(effect == BATTLE_EFFECT_DRAIN && hp_lost) {
+        uint8_t recovery = (uint8_t)(1 + LIFE_TAP_BONUS * attack_perk_rank(actor));
+        if(target.hp && recovery >= hp_lost)
+            recovery = (uint8_t)(hp_lost - 1);
+        uint16_t healed = (uint16_t)actor.hp + recovery;
+        uint8_t maximum = battle_max_hp(actor);
+        actor.hp = healed < maximum ? (uint8_t)healed : maximum;
+    }
+    if(effect == BATTLE_EFFECT_RECOIL)
+        battle_displace(state, actor, from, to);
+    else if(target.hp && (effect == BATTLE_EFFECT_KNOCKBACK ||
+                          (special && SPECIAL_INFO[attack].effect == BATTLE_EFFECT_KNOCKBACK)))
+        battle_displace(state, target, to, from);
+    return fell;
 }
 
 // Resolves a unit's move or attack. A special attack, which the caller has checked and paid for,
@@ -609,17 +781,7 @@ static void battle_act(BattleState& state, BattleAction action, bool special) {
             return;
         fell = battle_damage(actor, BATTLE_MOVE_COST) || fell;
     } else {
-        BattleUnit& target = state.units[occupant];
-        BattleUnitRules const& rules = battle_rules(actor.id);
-        // The damage is computed before the hit lowers the victim's HP, so the bonus reads the HP the
-        // victim has going into the hit.
-        fell = battle_damage(target, special ? battle_special_damage(actor, target)
-                                             : battle_attack_damage(actor, target));
-        bool knockback = rules.effect == BATTLE_EFFECT_KNOCKBACK ||
-                         (special && SPECIAL_INFO[battle_attack_class(actor.id)].effect ==
-                                         BATTLE_EFFECT_KNOCKBACK);
-        if(!fell && knockback)
-            battle_knock_back(state, actor, target);
+        fell = battle_resolve_attack(state, action.unit_index, occupant, special);
     }
 
     if(fell && battle_check(state, acting))
@@ -633,12 +795,6 @@ void battle_apply(BattleState& state, BattleAction action) {
         return;
     }
     battle_act(state, action, false);
-}
-
-uint8_t battle_special_damage(BattleUnit const& attacker, BattleUnit const& victim) {
-    SpecialInfo const& special = SPECIAL_INFO[battle_attack_class(attacker.id)];
-    uint8_t bonus = victim.hp == battle_max_hp(victim) ? special.bonus_full : special.bonus_injured;
-    return (uint8_t)(battle_attack_damage(attacker, victim) + bonus);
 }
 
 bool battle_special_legal(BattleState const& state, BattleAction action) {

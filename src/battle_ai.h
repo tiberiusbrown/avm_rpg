@@ -58,9 +58,8 @@ struct BattleSearchStats {
     uint8_t progress;                          // Calls to battle_think_progress.
 };
 
-// The deepest search the shared action stack holds from this position: BATTLE_AI_DEPTH for battles
-// of up to three units a side, fewer for larger ones. Units never return, so the limit holds below
-// it.
+// The deepest search the shared action stack holds from this position, using the class and living
+// opponent counts to bound each side's list. Defeated units do not return during search.
 uint8_t battle_search_depth_limit(BattleState const& state);
 
 // Negamax with alpha-beta pruning, searched completely to `depth` plies (clamped to 1 through

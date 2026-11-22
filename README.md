@@ -31,7 +31,7 @@ is not drawn while the panel covers the screen.
 - The overview groups level, current/maximum HP and AP, movement and attack types, and XP above the
   category list. For parties with more than one member, chevrons flank the member counter.
 - **Specials** lists the starting special, with its AP cost, for the member's attack type. A opens its
-  details: the cost, the range along a row or column, and the effect. The bonuses are read from the
+  details, including the cost, targeting geometry, range, and effect. The bonuses are read from the
   battle's tables, and the description scrolls with up and down.
 - **Perks** shows two ordered tracks, one for the member's movement class and one for their attack
   class. Pick **Learn Perk!**, press A to inspect either available perk, press A again to open the
@@ -415,10 +415,9 @@ and house tilesets. See the [battlefield authoring guide](docs/essential_npcs.md
   metadata. Both sides use the same movement and attack rules. Every encounter deploys the
   living members of the current saved party against its authored enemy roster. The
   [combat rules and enemy catalog](docs/game_logic.md#6-combat-encounters-and-the-world-remembers) specify the details.
-- Battlefield tiles with collision in the board's tileset block. No unit stands on them or moves
-  through them, and they stop arrows, spear thrusts, and knockback. A rogue's leap passes over them,
-  as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at
-  (6,0), rocks at (1,3), and a boulder at (4,3), which leave an open lane through rows 1 and 2.
+- Blocking battlefield tiles stop ground movement, ranged attacks, and forced displacement.
+  Leap and Vault jump over terrain and units to an open landing. Glide follows a clear diagonal
+  path. The [class catalog](docs/game_logic.md#52-battle-movement-classes) lists each geometry.
 - During a player turn, B opens the shared pause menu when no unit is selected; otherwise it
   cancels the selected unit. The battle menu contains **Resume**, **Resign**, **Audio**, and
   **Pass**. Pass and Resign open centered confirmation panels: A accepts after a 240 ms guard
@@ -428,38 +427,29 @@ and house tilesets. See the [battlefield authoring guide](docs/essential_npcs.md
   Resume or B returns to the same battle, and Audio uses the same sliders and transition as
   exploration, with the frozen board behind it. Confirmed Pass voluntarily consumes the party's
   turn. The AI considers Pass for either side at every search depth, alongside moves and attacks.
-- Each activation is one move, one attack, or a pass. Every move costs its mover 1 HP, whatever its
-  distance, but first deals 1 damage to every enemy beside its destination (2 with Momentum on a
-  two-cell move). An attack costs nothing
-  and hits only its target. A unit with 1 HP may still move: it deals its damage and then falls,
-  unless that damage defeats the last enemy, which wins the battle before the cost is paid. A side
-  with no legal action passes automatically. Every pass deals 1 damage to every living member
-  of the passing team, for both the player and AI, and can defeat the whole team. Every activation costs HP, so
-  every battle ends.
-- A straight move walks at the exploration walking speed and pose. A knight leap is a fast arcing
-  jump: the rogue reaches its cell in eight frames, rising up to ten pixels above its path. An archer faces its target and looses an arrow, drawn in one of four direction
-  sprites, which flies four pixels a frame from the archer to the target; the target flashes only
-  once the arrow arrives. Any other attacker lunges four pixels toward its target, holds for about a
-  quarter second, and returns. Once a move arrives, every unit that lost HP flashes: for about a
-  second when an enemy was hit, and briefly when only the mover paid. A knocked-back unit flashes at
-  its new cell. While a unit flashes, a spiky burst over its cell shows the full damage dealt,
-  including damage beyond its remaining HP. The next turn waits for the flashing to end, and a
-  defeated unit flashes before it disappears. After the enemy's action the cursor returns on
-  the next frame.
+- One move, attack, or pass takes the side's turn. A move deals engagement damage around the
+  landing cell before its 1 HP cost. A unit can move at 1 HP, and keeps that HP if engagement
+  wins the battle. Both teams lose 1 HP per living unit when they pass. Arc can strike a diagonal
+  target. Drain heals the attacker, Recoil can move the attacker, Flank rewards allied support,
+  and Blast can damage several enemies in one action.
+- Leap and Vault arc over the crossed tiles. Glide slides diagonally, and Recoil shows the strike
+  followed by the retreat. Hits show each affected unit's actual HP loss, while Drain shows a
+  separate healing indicator on the attacker. Blast flashes each damaged enemy. The next turn
+  begins after the reaction animation.
 - Each side moves in turn. The enemy deepens a negamax search with alpha-beta pruning one activation at
   a time, up to four, within a budget of 480 positions (fewer with more than four living units), and
   uses the deepest completed search. It assumes the heroes reply with their best action. It scores a
   position by the damage it deals and the heroes it removes, which count for more than its own losses,
   plus terms for the attacks each side can make and for how far each enemy still is from an attack
   position. Moves that damage or defeat enemies are searched alongside attacks. The search runs
-  synchronously and takes up to two seconds on the AVM: 0.3 to 1.9 seconds in the measured positions,
-  including three and four units a side (`docs/performance.md`). While it runs, a small box at the
+  synchronously. The [AVM timings](docs/performance.md#combat-class-measurements) include four units
+  a side. While it runs, a small box at the
   center of the screen shows three dots that fill in about five times a second; each update redraws
   only that box and pushes the display without clearing it.
 - At the result overlay, final ally HP is copied back into the saved party, including move/pass
   costs and defeated members at zero HP. MHP, classes and membership are preserved. Resigning
   ends the live run with its remaining battle HP. A press of A confirms VICTORY or DEFEAT. Battles
-  provide no automatic healing; entering with no living party members immediately results in defeat.
+  grant no victory HP recovery. Entering with no living party members immediately results in defeat.
   A victory also restores 1 AP to every saved member, including one that fell, up to its maximum. A
   defeat restores none. During a battle, AP changes only when a special is used, which spends it at
   once from the saved member.

@@ -41,80 +41,73 @@ static constexpr BattleAction PASS_ACTION{BATTLE_NO_UNIT, 0};
 // stored. The search fails hard: a node's value is its alpha, clamped to its window, which picks
 // the same root action and score as an exact search and needs no separate best score. Positions are
 // kept separately, so the root reads the caller's state and never copies it.
-// The most legal actions one unit of a type can have anywhere on the board, derived from its rules
-// and the board's size at compile time. Along each direction a ray yields its moves up to the first
-// unit and at most one attack on that unit, within the cells left before the edge; a knight has its
-// leaps that land on the board and at most one attack per direction. On the 8x4 board that is 4 for
-// a fighter or a brute, 7 for an archer, a spearman, or a wolf, and 10 for a rogue (six leaps at
-// most). `moves` is the most moves alone, which with one attack per opponent also bounds the unit.
+// Board-wide bounds for a class pair. Ground moves and attacks that share an orthogonal ray
+// compete for cells. Other geometries are bounded independently, with at most one orthogonal
+// target per ray or one diagonal target per adjacent corner.
 struct UnitLimit {
     uint8_t actions, moves;
 };
 
-// The most actions along one direction with `room` cells before the edge.
-static constexpr uint8_t ray_limit(BattleUnitRules const& rules, uint8_t room) {
-    uint8_t range = rules.movement_type == BATTLE_MOVEMENT_LEAP ? 0 : rules.move_range;
-    uint8_t best = room < range ? room : range; // No unit along the ray: moves only.
+static constexpr uint8_t ray_limit(BattleUnitRules const& rules, uint8_t room, uint8_t range) {
+    uint8_t best = room < range ? room : range;
     for(uint8_t first = 1; first <= room; ++first) {
         uint8_t moves = first - 1 < range ? (uint8_t)(first - 1) : range;
-        uint8_t attack = first >= rules.attack_min && first <= rules.attack_max ? 1 : 0;
+        uint8_t attack = battle_in_attack_range(rules, first) ? 1 : 0;
         if(moves + attack > best)
             best = (uint8_t)(moves + attack);
     }
     return best;
 }
 
-static constexpr UnitLimit unit_limit(BattleUnitRules const& rules) {
-    constexpr int8_t leap_x[8] = {1, 2, 2, 1, -1, -2, -2, -1};
-    constexpr int8_t leap_y[8] = {-2, -1, 1, 2, 2, 1, -1, -2};
-    UnitLimit limit{0, 0};
-    for(uint8_t y = 0; y < BATTLE_ROWS; ++y)
-        for(uint8_t x = 0; x < BATTLE_COLUMNS; ++x) {
-            uint8_t rooms[4] = {y, (uint8_t)(BATTLE_COLUMNS - 1 - x),
-                                (uint8_t)(BATTLE_ROWS - 1 - y), x};
-            uint8_t moves = 0, actions = 0;
-            for(uint8_t room : rooms)
-                actions = (uint8_t)(actions + ray_limit(rules, room));
-            if(rules.movement_type == BATTLE_MOVEMENT_LEAP) {
-                for(uint8_t k = 0; k < 8; ++k) {
-                    int nx = x + leap_x[k], ny = y + leap_y[k];
-                    if(nx >= 0 && nx < BATTLE_COLUMNS && ny >= 0 && ny < BATTLE_ROWS)
-                        ++moves;
-                }
-                actions = (uint8_t)(actions + moves);
-            } else {
-                for(uint8_t room : rooms)
-                    moves = (uint8_t)(moves + (room < rules.move_range ? room : rules.move_range));
-            }
-            if(actions > limit.actions)
-                limit.actions = actions;
-            if(moves > limit.moves)
-                limit.moves = moves;
-        }
-    return limit;
-}
-
 struct UnitLimits {
     UnitLimit classes[BATTLE_RULE_COUNT];
+    uint8_t most_actions;
 };
 
 static constexpr UnitLimits make_unit_limits() {
     UnitLimits limits{};
-    for(uint8_t t = 0; t < BATTLE_RULE_COUNT; ++t)
-        limits.classes[t] = unit_limit(BATTLE_RULES.classes[t]);
+    for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m) {
+        auto const& move = MOVEMENT_INFO[m];
+        for(uint8_t y = 0; y < BATTLE_ROWS; ++y)
+            for(uint8_t x = 0; x < BATTLE_COLUMNS; ++x) {
+                uint8_t moves = battle_moves_on_empty_board(move, x, y);
+                uint8_t rooms[] = {y, (uint8_t)(BATTLE_COLUMNS - 1 - x),
+                                   (uint8_t)(BATTLE_ROWS - 1 - y), x};
+                for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
+                    uint8_t index = (uint8_t)(m * ATTACK_CLASS_COUNT + a);
+                    auto const& rules = BATTLE_RULES.classes[index];
+                    auto& limit = limits.classes[index];
+                    uint8_t actions = moves;
+                    if(rules.geometry == BATTLE_ATTACK_DIAGONAL) {
+                        actions += (1 + (x > 0 && x + 1 < BATTLE_COLUMNS)) *
+                                   (1 + (y > 0 && y + 1 < BATTLE_ROWS));
+                    } else {
+                        bool shared = move.movement_type == BATTLE_MOVEMENT_ORTHOGONAL;
+                        if(shared)
+                            actions = 0;
+                        for(uint8_t room : rooms)
+                            actions += ray_limit(rules, room, shared ? move.move_range : 0);
+                    }
+                    if(moves > limit.moves)
+                        limit.moves = moves;
+                    if(actions > limit.actions)
+                        limit.actions = actions;
+                    if(actions > limits.most_actions)
+                        limits.most_actions = actions;
+                }
+            }
+    }
     return limits;
 }
 
 // Constant, so on the AVM it sits in program memory and costs no RAM.
 static constexpr UnitLimits UNIT_LIMITS = make_unit_limits();
-static_assert(
-    [] {
-        for(auto const& limit : UNIT_LIMITS.classes)
-            if(limit.actions > 10 || limit.moves > BATTLE_MOVE_LIMIT)
-                return false;
-        return true;
-    }(),
-    "independent class combinations fit the shared action stack");
+static_assert([] {
+    for(auto const& limit : UNIT_LIMITS.classes)
+        if(limit.moves > BATTLE_MOVE_LIMIT || limit.actions < limit.moves)
+            return false;
+    return true;
+}());
 static_assert(
     UNIT_LIMITS.classes[(uint8_t)MOVEMENT_LEAP * ATTACK_CLASS_COUNT + ATTACK_SHOOT].moves == 6,
     "leap movement is independent of attack class");
@@ -134,17 +127,14 @@ static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t 
     return (uint8_t)(total + 1);
 }
 
-// The plies on the stack list their actions one after another, each starting where its parent's
-// list ends. The stack is battle_action_scratch, which nothing else uses while the search runs. Its
-// 82 bytes hold two plies of any battle of up to four a side, even four rogues a side (40 unit
-// actions plus a pass each); three plies of a mixed four-on-four battle; and four plies of any
-// two-on-two battle (at most 16 unit actions plus a pass per side). battle_search_depth_limit stops
-// the search at the deepest ply the stack holds.
+// The plies' lists share scratch. The root fits for every class combination and team split.
+// Positions with lower bounds can search deeper without growing the workspace.
 static constexpr uint16_t ACTION_STACK_CAPACITY = BATTLE_ACTION_SCRATCH_CAPACITY;
 
-static_assert(ACTION_STACK_CAPACITY >= 2 * (BATTLE_SIDE_CAPACITY * 10 + 1) &&
+static_assert(ACTION_STACK_CAPACITY >= BATTLE_ACTION_CAPACITY + 1 &&
+                  ACTION_STACK_CAPACITY >= BATTLE_SIDE_CAPACITY * UNIT_LIMITS.most_actions + 1 &&
                   ACTION_STACK_CAPACITY <= 255,
-              "two plies of four rogues a side fit, and the stack's indices are bytes");
+              "a full ply and its pass fit, and the stack indices are bytes");
 
 uint8_t battle_search_depth_limit(BattleState const& state) {
     // Sides alternate and never gain units, so the living units now bound every list below this
@@ -166,8 +156,7 @@ uint8_t battle_search_depth_limit(BattleState const& state) {
             break;
         ++depth;
     }
-    // Even a contrived side of eight units lists at most 8 x 7 actions (six leaps and one attack
-    // each), so a root list of any position fits and the limit is at least one.
+    // A single root list always fits, even with a nonstandard team split.
     return depth ? depth : 1;
 }
 
@@ -204,19 +193,29 @@ static constexpr uint8_t outside(uint8_t distance, uint8_t lo, uint8_t hi) {
     return distance > hi ? (uint8_t)(distance - hi) : 0;
 }
 
-// outside() for each unit type's attack range and every distance on the board, built at compile
-// time. The gaps below are read once per pair of units in every evaluation and once per move in
-// every ordering, so a lookup replaces the comparisons.
-struct OutsideTable {
-    uint8_t cells[ATTACK_CLASS_COUNT][BATTLE_COLUMNS];
+// The shortest empty-board distance to a firing position, by attack and coordinate difference.
+struct AttackGaps {
+    uint8_t cells[ATTACK_CLASS_COUNT][BATTLE_CELLS];
     uint8_t slow[MOVEMENT_CLASS_COUNT];
 };
 
-static constexpr OutsideTable make_outside() {
-    OutsideTable table{};
-    for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a)
-        for(uint8_t d = 0; d < BATTLE_COLUMNS; ++d)
-            table.cells[a][d] = outside(d, ATTACK_INFO[a].attack_min, ATTACK_INFO[a].attack_max);
+static constexpr AttackGaps make_attack_gaps() {
+    AttackGaps table{};
+    for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
+        auto const& attack = ATTACK_INFO[a];
+        for(uint8_t dy = 0; dy < BATTLE_ROWS; ++dy)
+            for(uint8_t dx = 0; dx < BATTLE_COLUMNS; ++dx) {
+                uint8_t gap;
+                if(attack.geometry == BATTLE_ATTACK_DIAGONAL) {
+                    gap = (uint8_t)((dx ? dx - 1 : 1) + (dy ? dy - 1 : 1));
+                } else {
+                    uint8_t row = (uint8_t)(dy + outside(dx, attack.attack_min, attack.attack_max));
+                    uint8_t col = (uint8_t)(dx + outside(dy, attack.attack_min, attack.attack_max));
+                    gap = row < col ? row : col;
+                }
+                table.cells[a][battle_cell(dx, dy)] = gap;
+            }
+    }
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m) {
         auto const& move = MOVEMENT_INFO[m];
         table.slow[m] = move.movement_type == BATTLE_MOVEMENT_LEAP || move.move_range > 1 ? 0 : 1;
@@ -224,26 +223,27 @@ static constexpr OutsideTable make_outside() {
     return table;
 }
 
-// Constant, so on the AVM it sits in program memory and costs no RAM.
-static constexpr OutsideTable OUTSIDE = make_outside();
+static constexpr AttackGaps ATTACK_GAPS = make_attack_gaps();
 
-// The attack gap for one row of the outside table: line up on the row and then correct the distance
-// along it, or line up on the column and correct along that, whichever is shorter.
-static uint8_t table_gap(uint8_t const* out, uint8_t dx, uint8_t dy) {
-    uint8_t by_row = (uint8_t)(dy + out[dx]);
-    uint8_t by_column = (uint8_t)(dx + out[dy]);
-    return by_row < by_column ? by_row : by_column;
+static uint8_t table_gap(uint8_t const* gaps, uint8_t dx, uint8_t dy) {
+    return gaps[battle_cell(dx, dy)];
 }
 
 uint8_t battle_attack_gap(uint8_t id, uint8_t dx, uint8_t dy) {
-    return table_gap(OUTSIDE.cells[battle_attack_class(id)], dx, dy);
+    return table_gap(ATTACK_GAPS.cells[battle_attack_class(id)], dx, dy);
 }
 
-// The enemy's utility in a position, from the enemy's perspective. The party's score is its exact
-// negation, so the search stays zero-sum. Every opposing pair is examined once: its attack gap
-// feeds the positional terms, and a pair on one row or column is checked against both units' attack
-// ranges, read from the outside table that the rules derive, and for a unit standing between them
-// with battle_line_blocked, the same tests battle_can_attack makes.
+// The utility is zero-sum. Each opposing pair supplies its attack gap and any legal threats.
+// Formation scoring runs only for legal threats from the classes that benefit from it.
+static int16_t strike_value(BattleState const& state, uint8_t attack, uint8_t actor, uint8_t target,
+                            bool next) {
+    int16_t value = next ? UTILITY_STRIKE_NOW : UTILITY_STRIKE_LATER;
+    if((attack == ATTACK_FLANK && battle_flank_supported(state, actor, target)) ||
+       (attack == ATTACK_BLAST && battle_splash_targets(state, target)))
+        value += value / 2;
+    return value;
+}
+
 // Full-byte HP can exceed the search's signed score range. Accumulate material separately and
 // saturate below terminal scores, keeping the hot positional evaluation in 16-bit arithmetic.
 RPG_NOINLINE static int16_t material_utility(BattleState const& state) {
@@ -286,7 +286,8 @@ static int16_t enemy_utility(BattleState const& state) {
         BattleUnit const& enemy = state.units[e];
         if(!enemy.hp || enemy.team != BATTLE_ENEMY)
             continue;
-        uint8_t const* out = OUTSIDE.cells[battle_attack_class(enemy.id)];
+        uint8_t attack = battle_attack_class(enemy.id);
+        uint8_t const* out = ATTACK_GAPS.cells[attack];
         uint8_t ex = battle_column(enemy.cell), ey = battle_row(enemy.cell);
         uint8_t reach = 0xFF;
         uint8_t heroes = party_mask;
@@ -299,25 +300,21 @@ static int16_t enemy_utility(BattleState const& state) {
             uint8_t gap = table_gap(out, dx, dy);
             if(gap < reach)
                 reach = gap;
-            if(dx && dy)
+            // An off-axis pair can threaten only from adjacent diagonals.
+            if(dx && dy && (dx != 1 || dy != 1))
                 continue;
-            uint8_t distance = (uint8_t)(dx + dy);
-            // A distance is in a unit's attack range exactly when it lies zero cells outside it.
-            bool enemy_hits = !out[distance];
-            bool hero_hits = !OUTSIDE.cells[battle_attack_class(hero.id)][distance];
-            if(!(enemy_hits || hero_hits) ||
-               (distance > 1 && battle_line_blocked(state, enemy.cell, hero.cell)))
+            uint8_t hero_attack = battle_attack_class(hero.id);
+            bool hero_hits = !table_gap(ATTACK_GAPS.cells[hero_attack], dx, dy);
+            if((gap && !hero_hits) ||
+               ((dx | dy) > 1 && battle_line_blocked(state, enemy.cell, hero.cell)))
                 continue;
-            bool enemy_next = state.turn == BATTLE_ENEMY;
-            if(enemy_hits)
-                utility =
-                    (int16_t)(utility + (enemy_next ? UTILITY_STRIKE_NOW : UTILITY_STRIKE_LATER));
+            if(!gap)
+                utility += strike_value(state, attack, e, k, state.turn == BATTLE_ENEMY);
             if(hero_hits)
-                utility =
-                    (int16_t)(utility - (enemy_next ? UTILITY_STRIKE_LATER : UTILITY_STRIKE_NOW));
+                utility -= strike_value(state, hero_attack, k, e, state.turn == BATTLE_PARTY);
         }
         // Half moves: a fast unit covers two cells a move, and any other unit one.
-        reach = (uint8_t)(reach << OUTSIDE.slow[battle_movement_class(enemy.id)]);
+        reach = (uint8_t)(reach << ATTACK_GAPS.slow[battle_movement_class(enemy.id)]);
         utility = (int16_t)(utility - UTILITY_GAP * reach);
         if(reach < nearest)
             nearest = reach;
@@ -338,7 +335,7 @@ int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply) {
     return winner == side ? magnitude : (int16_t)-magnitude;
 }
 
-// The smallest attack gap from a cell to any opponent of `team`, for one row of the outside table.
+// The smallest attack gap from a cell to any opponent of `team`.
 static uint8_t nearest_gap(BattleState const& state, BATTLE_TEAM team, uint8_t const* out,
                            uint8_t cell) {
     uint8_t x = battle_column(cell), y = battle_row(cell);
@@ -363,7 +360,7 @@ static void set_targets(BattleState const& state, uint8_t* targets) {
         BattleUnit const& unit = state.units[u];
         if(!unit.hp || unit.team != state.turn)
             continue;
-        uint8_t const* out = OUTSIDE.cells[battle_attack_class(unit.id)];
+        uint8_t const* out = ATTACK_GAPS.cells[battle_attack_class(unit.id)];
         uint8_t nearest = 0xFF;
         uint8_t ux = battle_column(unit.cell), uy = battle_row(unit.cell);
         for(uint8_t i = 0; i < state.unit_count; ++i) {
@@ -390,36 +387,31 @@ static uint8_t gap_between(uint8_t const* out, uint8_t from, uint8_t to) {
 static bool approaches(BattleState const& state, uint8_t const* targets, uint8_t packed) {
     uint8_t u = (uint8_t)(packed >> 5);
     BattleUnit const& unit = state.units[u];
-    uint8_t const* out = OUTSIDE.cells[battle_attack_class(unit.id)];
+    uint8_t const* out = ATTACK_GAPS.cells[battle_attack_class(unit.id)];
     uint8_t target = targets[u];
     return gap_between(out, (uint8_t)(packed & (BATTLE_CELLS - 1)), target) <
            gap_between(out, unit.cell, target);
 }
 
-// Whether a packed attack removes its victim.
-static bool kills(BattleState const& state, uint8_t packed) {
-    BattleUnit const& victim =
-        state.units[battle_unit_at(state, (uint8_t)(packed & (BATTLE_CELLS - 1)))];
-    return victim.hp <= battle_attack_damage(state.units[packed >> 5], victim);
-}
-
-// Whether a packed action that defeats an opponent defeats them all. An attack removes one victim;
-// a move's engagement can remove several. Only kills are asked, so the loop runs for few actions;
-// it counts here rather than calling battle_engagement, which would add a frame below the search's.
+// Only actions already known to defeat at least one opponent are checked for a win.
 static bool wins(BattleState const& state, uint8_t packed) {
-    uint8_t destination = (uint8_t)(packed & (BATTLE_CELLS - 1));
-    bool attack = battle_unit_at(state, destination) != BATTLE_NO_UNIT;
-    uint8_t opponents = 0, defeated = attack ? 1 : 0;
-    uint8_t damage = attack ? 0 : battle_engagement_damage(state.units[packed >> 5], destination);
+    BattleAction action = battle_unpack(packed);
+    uint8_t victim = battle_unit_at(state, action.destination);
+    if(victim != BATTLE_NO_UNIT) {
+        uint8_t defeated = 1;
+        if(battle_attack_class(state.units[action.unit_index].id) == ATTACK_BLAST)
+            defeated = battle_attack_impact(state, action.unit_index, victim).kills;
+        return defeated == battle_living(state, opponent(state.turn));
+    }
+
+    uint8_t damage = battle_engagement_damage(state.units[action.unit_index], action.destination);
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
-        if(!unit.hp || unit.team == state.turn)
-            continue;
-        ++opponents;
-        if(unit.hp <= damage && battle_cells_adjacent(unit.cell, destination))
-            ++defeated;
+        if(unit.hp && unit.team != state.turn &&
+           (unit.hp > damage || !battle_cells_adjacent(unit.cell, action.destination)))
+            return false;
     }
-    return defeated == opponents;
+    return true;
 }
 
 // Whether a packed action's destination has its bit set in a set of row masks, bit x of rows[y].
@@ -475,7 +467,7 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
     // Masks of cells beside any opponent, an opponent with 1 HP, or one with 2 HP.
     // The same bytes hold the approach targets afterwards.
     uint8_t rows[3 * BATTLE_ROWS] = {};
-    bool fragile = false, momentum_target = false;
+    bool fragile = false, boosted_target = false;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
         if(!unit.hp || unit.team == state.turn)
@@ -484,26 +476,33 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE) {
             mark_neighbors(rows + BATTLE_ROWS, unit.cell);
             fragile = true;
-        } else if(state.turn == BATTLE_PARTY && unit.hp == BATTLE_ENGAGEMENT_DAMAGE + MOMENTUM_BONUS) {
+        } else if(unit.hp == BATTLE_ENGAGEMENT_DAMAGE + 1) {
             mark_neighbors(rows + 2 * BATTLE_ROWS, unit.cell);
-            momentum_target = true;
+            boosted_target = true;
         }
     }
 
     // Kills to the front of each group: [attack kills | other attacks][move kills | other moves]. A
     // move can kill only a fragile opponent, so without one the move pass is skipped.
     uint8_t* const killing = rows + BATTLE_ROWS;
-    uint8_t attack_kills =
-        partition(actions, 0, attacks, [&](uint8_t packed) { return kills(state, packed); });
+    uint8_t attack_kills = partition(actions, 0, attacks, [&](uint8_t packed) {
+        BattleAction action = battle_unpack(packed);
+        uint8_t victim = battle_unit_at(state, action.destination);
+        return battle_attack_impact(state, action.unit_index, victim).kills != 0;
+    });
     uint8_t move_kills = 0;
-    if(fragile || momentum_target) {
-        move_kills = (uint8_t)(partition(actions, attacks, count, [&](uint8_t packed) {
-            return in_rows(killing, packed) ||
-                   (momentum_target && in_rows(rows + 2 * BATTLE_ROWS, packed) &&
-                    battle_engagement_damage(state.units[packed >> 5],
-                                             packed & (BATTLE_CELLS - 1)) >
-                        BATTLE_ENGAGEMENT_DAMAGE);
-        }) - attacks);
+    if(fragile || boosted_target) {
+        move_kills =
+            (uint8_t)(partition(actions, attacks, count,
+                                [&](uint8_t packed) {
+                                    return in_rows(killing, packed) ||
+                                           (boosted_target &&
+                                            in_rows(rows + 2 * BATTLE_ROWS, packed) &&
+                                            battle_engagement_damage(state.units[packed >> 5],
+                                                                     packed & (BATTLE_CELLS - 1)) >
+                                                BATTLE_ENGAGEMENT_DAMAGE);
+                                }) -
+                      attacks);
         // Rotate the move kills ahead of the other attacks, so every kill leads.
         reverse(actions, attack_kills, attacks);
         reverse(actions, attacks, (uint8_t)(attacks + move_kills));
@@ -809,11 +808,10 @@ int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
         battle_living(state, actor.team == BATTLE_PARTY ? BATTLE_ENEMY : BATTLE_PARTY);
     uint8_t target = battle_unit_at(state, action.destination);
     if(target != BATTLE_NO_UNIT) {
-        uint8_t hp = state.units[target].hp,
-                damage = battle_attack_damage(actor, state.units[target]);
-        if(hp <= damage)
-            return opponents == 1 ? GREEDY_WIN : (int16_t)(GREEDY_KILL + GREEDY_HP * hp);
-        return (int16_t)(GREEDY_HP * damage);
+        BattleAttackImpact impact = battle_attack_impact(state, action.unit_index, target);
+        if(impact.kills == opponents)
+            return GREEDY_WIN;
+        return (int16_t)(GREEDY_KILL * impact.kills + GREEDY_HP * impact.damage);
     }
     BattleEngagement engagement = battle_engagement(state, action.unit_index, action.destination);
     if(engagement.kills && engagement.kills == opponents)
@@ -825,7 +823,7 @@ int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
         (int16_t)(GREEDY_KILL * engagement.kills +
                   GREEDY_HP * (engagement.damage - BATTLE_MOVE_COST) - (falls ? GREEDY_KILL : 0));
     return (int16_t)(value - nearest_gap(state, actor.team,
-                                         OUTSIDE.cells[battle_attack_class(actor.id)],
+                                         ATTACK_GAPS.cells[battle_attack_class(actor.id)],
                                          action.destination));
 }
 

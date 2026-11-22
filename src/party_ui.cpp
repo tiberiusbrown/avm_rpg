@@ -278,16 +278,15 @@ char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party) {
 
 char const PROGMEM* party_movement_name(uint8_t movement) {
     static char const PROGMEM* const PROGMEM NAMES[MOVEMENT_CLASS_COUNT] = {
-        F("Step"),
-        F("Leap"),
-        F("Charge"),
+        F("Step"), F("Leap"), F("Charge"), F("Vault"), F("Glide"),
     };
     return NAMES[movement];
 }
 
 char const PROGMEM* party_attack_name(uint8_t attack) {
     static char const PROGMEM* const PROGMEM NAMES[ATTACK_CLASS_COUNT] = {
-        F("Strike"), F("Shoot"), F("Reach"), F("Impact"), F("Rend"),
+        F("Strike"), F("Shoot"), F("Reach"),  F("Impact"), F("Rend"),
+        F("Arc"),    F("Drain"), F("Recoil"), F("Flank"),  F("Blast"),
     };
     return NAMES[attack];
 }
@@ -311,6 +310,15 @@ char const PROGMEM* party_special_text(uint8_t attack) {
           "the cell behind it is empty."),
         F("Adds to Rend's normal attack, which deals 2 damage, or 4 below half HP. Adds 1 at full "
           "HP, and 3 below full HP."),
+        F("Hits one diagonally adjacent enemy. Adds 2 damage to the normal Arc attack."),
+        F("Hits an orthogonal neighbor. Adds 3 damage. Restores 1 HP on a kill or a hit of at "
+          "least 2 HP."),
+        F("Hits an orthogonal neighbor. Adds 3 damage. The attacker retreats one open cell "
+          "directly away."),
+        F("Adds 2 damage. Flank starts at 4 damage if another living ally shares a target edge, "
+          "or 2 otherwise. Hits an orthogonal neighbor."),
+        F("Clear row or column, 2-3 cells. Adds 2 primary damage. Other enemies sharing a target "
+          "edge take 1 splash damage."),
     };
     return TEXTS[attack];
 }

@@ -138,7 +138,7 @@ struct GameStats {
     unsigned victory, defeat, timeout;
 };
 
-// Every completed activation must lower the total living HP: the battle's termination guarantee.
+// This Grove fixture has no healing attacks, so every completed activation lowers total HP.
 static void require_progress(unsigned before, BattleState const& s) {
     if(total_hp(s) >= before) {
         printf("activation %u lost no HP\n", (unsigned)s.activations);
