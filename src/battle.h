@@ -29,8 +29,8 @@ constexpr uint8_t battle_max_engagement_damage() {
     uint8_t bonus = VAULT_FORCE_BONUS + VAULT_STRIKE_BONUS;
     constexpr uint8_t other_bonuses[] = {
         SPEARHEAD_BONUS + MOMENTUM_BONUS,
-        LANDING_STRIKE_BONUS,
-        WIDE_LANDING_BONUS,
+        LANDING_STRIKE_BONUS + SKYFALL_BONUS,
+        WIDE_LANDING_BONUS + SKYFALL_BONUS,
         CUTBACK_BONUS,
         SLIPSTREAM_BONUS,
     };
@@ -459,7 +459,9 @@ struct BattleAttackImpact {
 // Damage and eliminations across all victims of a legal normal attack.
 BattleAttackImpact battle_attack_impact(BattleState const& state, uint8_t attacker, uint8_t victim);
 bool battle_flank_supported(BattleState const& state, uint8_t attacker, uint8_t victim);
-uint8_t battle_splash_targets(BattleState const& state, uint8_t victim);
+uint8_t battle_splash_targets(BattleState const& state, uint8_t attacker, uint8_t victim);
+bool battle_reach_through_ally(BattleState const& state, BattleUnit const& attacker,
+                               uint8_t destination);
 // The sprite row a unit is drawn with.
 uint8_t battle_sprite_row(BattleUnit const& unit);
 
@@ -520,6 +522,10 @@ BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction act
 
 // HP cost of a voluntary move if battle continues after engagement.
 uint8_t battle_move_cost(BattleUnit const& actor, bool engages);
+
+// Unit bits for engagement away from the orthogonal landing neighbors.
+uint8_t battle_extra_engagement(BattleState const& state, BattleUnit const& actor,
+                                uint8_t destination);
 
 // The engagement a move to `destination` would make: how many living enemies of the unit stand
 // orthogonally adjacent to it, how many are defeated, and how much HP is lost in total. The

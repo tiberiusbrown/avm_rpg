@@ -239,7 +239,7 @@ static int16_t strike_value(BattleState const& state, uint8_t attack, uint8_t ac
                             bool next) {
     int16_t value = next ? UTILITY_STRIKE_NOW : UTILITY_STRIKE_LATER;
     if((attack == ATTACK_FLANK && battle_flank_supported(state, actor, target)) ||
-       (attack == ATTACK_BLAST && battle_splash_targets(state, target)))
+       (attack == ATTACK_BLAST && battle_splash_targets(state, actor, target)))
         value += value / 2;
     return value;
 }
@@ -304,11 +304,18 @@ static int16_t enemy_utility(BattleState const& state) {
             if(dx && dy && (dx != 1 || dy != 1))
                 continue;
             uint8_t hero_attack = battle_attack_class(hero.id);
+            bool enemy_hits = !gap;
             bool hero_hits = !table_gap(ATTACK_GAPS.cells[hero_attack], dx, dy);
-            if((gap && !hero_hits) ||
-               ((dx | dy) > 1 && battle_line_blocked(state, enemy.cell, hero.cell)))
+            if(!enemy_hits && !hero_hits)
                 continue;
-            if(!gap)
+            uint8_t distance = (uint8_t)(dx | dy);
+            if(distance > 1 && battle_line_blocked(state, enemy.cell, hero.cell)) {
+                enemy_hits = enemy_hits && distance == THROUGH_THE_RANKS_RANGE &&
+                             battle_reach_through_ally(state, enemy, hero.cell);
+                hero_hits = hero_hits && distance == THROUGH_THE_RANKS_RANGE &&
+                            battle_reach_through_ally(state, hero, enemy.cell);
+            }
+            if(enemy_hits)
                 utility += strike_value(state, attack, e, k, state.turn == BATTLE_ENEMY);
             if(hero_hits)
                 utility -= strike_value(state, hero_attack, k, e, state.turn == BATTLE_PARTY);
@@ -397,15 +404,15 @@ static bool approaches(BattleState const& state, uint8_t const* targets, uint8_t
 static bool wins(BattleState const& state, uint8_t packed) {
     BattleAction action = battle_unpack(packed);
     uint8_t victim = battle_unit_at(state, action.destination);
+    uint8_t opponents = battle_living(state, opponent(state.turn));
+    if(opponents == 1)
+        return true;
     if(victim != BATTLE_NO_UNIT) {
-        uint8_t defeated = 1;
-        if(battle_attack_class(state.units[action.unit_index].id) == ATTACK_BLAST)
-            defeated = battle_attack_impact(state, action.unit_index, victim).kills;
-        return defeated == battle_living(state, opponent(state.turn));
+        uint8_t attack = battle_attack_class(state.units[action.unit_index].id);
+        return (attack == ATTACK_BLAST || attack == ATTACK_SHOOT || attack == ATTACK_IMPACT) &&
+               battle_attack_impact(state, action.unit_index, victim).kills == opponents;
     }
-
-    return battle_engagement(state, action.unit_index, action.destination).kills ==
-           battle_living(state, opponent(state.turn));
+    return battle_engagement(state, action.unit_index, action.destination).kills == opponents;
 }
 
 // Whether a packed action's destination has its bit set in a set of row masks, bit x of rows[y].
@@ -455,12 +462,14 @@ static uint8_t partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE
     return begin;
 }
 
-// Kept out of line, so its working values never sit on the search's deepest frames.
+// Kills start each group, followed by other attacks, engagement moves, and quiet moves.
 RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
                                           uint8_t attacks, bool approach) {
-    // Masks beside any opponent, a base engagement kill, or a possible perk-assisted kill.
-    // The same bytes hold the approach targets afterwards.
-    uint8_t rows[3 * BATTLE_ROWS] = {};
+    // These masks share the battle workspace with the action lists. The same bytes hold
+    // the approach targets once the damaging moves have been brought to the front.
+    uint8_t* rows = runtime_workspace.battle.order_rows;
+    for(uint8_t i = 0; i < 3 * BATTLE_ROWS; ++i)
+        rows[i] = 0;
     bool fragile = false, boosted_target = false;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
@@ -476,14 +485,12 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         }
     }
 
-    // Kills to the front of each group: [attack kills | other attacks][move kills | other moves]. A
-    // move can kill only a fragile opponent, so without one the move pass is skipped.
-    uint8_t* const killing = rows + BATTLE_ROWS;
     uint8_t attack_kills = partition(actions, 0, attacks, [&](uint8_t packed) {
         BattleAction action = battle_unpack(packed);
         uint8_t victim = battle_unit_at(state, action.destination);
         return battle_attack_impact(state, action.unit_index, victim).kills != 0;
     });
+    uint8_t* const killing = rows + BATTLE_ROWS;
     uint8_t move_kills = 0;
     if(fragile || boosted_target) {
         move_kills =
@@ -491,38 +498,47 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
                                 [&](uint8_t packed) {
                                     if(in_rows(killing, packed))
                                         return true;
-                                    if(!boosted_target || !in_rows(rows + 2 * BATTLE_ROWS, packed))
-                                        return false;
                                     BattleAction action = battle_unpack(packed);
                                     BattleUnit const& actor = state.units[action.unit_index];
                                     if(!(actor.id & BATTLE_PARTY_SOURCE))
                                         return false;
                                     PartyMember const& member =
                                         game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
-                                    return party_movement_perk_rank(member) &&
+                                    bool boosted = boosted_target &&
+                                                   in_rows(rows + 2 * BATTLE_ROWS, packed) &&
+                                                   party_movement_perk_rank(member);
+                                    bool extra = fragile && battle_extra_engagement(
+                                                                state, actor, action.destination);
+                                    return (boosted || extra) &&
                                            battle_engagement(state, action.unit_index,
                                                              action.destination)
                                                .kills;
                                 }) -
                       attacks);
+    }
+    if(move_kills) {
         // Rotate the move kills ahead of the other attacks, so every kill leads.
         reverse(actions, attack_kills, attacks);
         reverse(actions, attacks, (uint8_t)(attacks + move_kills));
         reverse(actions, attack_kills, (uint8_t)(attacks + move_kills));
     }
-    uint8_t damaging = (uint8_t)(attack_kills + move_kills);
-    partition(actions, 0, damaging, [&](uint8_t packed) { return wins(state, packed); });
-    // Then the other attacks, which all damage, then the moves that engage an enemy, then quiet
-    // moves.
+    partition(actions, 0, (uint8_t)(attack_kills + move_kills),
+              [&](uint8_t packed) { return wins(state, packed); });
     uint8_t quiet = (uint8_t)(attacks + move_kills);
     if(!approach)
         return quiet;
-    quiet = partition(actions, quiet, count, [&](uint8_t packed) { return in_rows(rows, packed); });
-    if(quiet == count || !approach)
-        return quiet;
-    set_targets(state, rows);
-    partition(actions, quiet, count,
-              [&](uint8_t packed) { return approaches(state, rows, packed); });
+    quiet = partition(actions, quiet, count, [&](uint8_t packed) {
+        if(in_rows(rows, packed))
+            return true;
+        BattleAction action = battle_unpack(packed);
+        return battle_extra_engagement(state, state.units[action.unit_index], action.destination) !=
+               0;
+    });
+    if(quiet != count) {
+        set_targets(state, rows);
+        partition(actions, quiet, count,
+                  [&](uint8_t packed) { return approaches(state, rows, packed); });
+    }
     return quiet;
 }
 

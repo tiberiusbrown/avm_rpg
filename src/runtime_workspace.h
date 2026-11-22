@@ -54,6 +54,7 @@ struct BattleWorkspace {
     // between searches, battle_can_act, the battle screen's destination markers, and the greedy choice
     // list actions here briefly. No list here survives a call into another of those users.
     uint8_t action_scratch[BATTLE_ACTION_SCRATCH_CAPACITY];
+    uint8_t order_rows[3 * BATTLE_ROWS];
 };
 
 union RuntimeWorkspace {
@@ -76,7 +77,7 @@ inline constexpr uint8_t (&killers)[BATTLE_AI_DEPTH] = runtime_workspace.battle.
 inline constexpr uint8_t (&battle_action_scratch)[BATTLE_ACTION_SCRATCH_CAPACITY] =
     runtime_workspace.battle.action_scratch;
 
-static_assert(sizeof(RuntimeWorkspace) == 226, "the battle search is the larger of the two shares");
+static_assert(sizeof(RuntimeWorkspace) == 238, "the battle search is the larger of the two shares");
 #ifdef RPG_AVM
 static_assert(sizeof(ExplorationWorkspace) == 131, "tile window, camera, admission and foot cache");
 #endif

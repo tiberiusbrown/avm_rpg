@@ -344,7 +344,7 @@ RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
         int16_t x = cell_x(cell), y = cell_y(cell);
         if(!((screen.flashing >> i) & 1)) {
             avm_draw_filled_rect_black(x + 3, y + 4, 10, 7);
-            avm_draw_text(x + 4, y + 10, damage == 1 ? F("+1") : F("+2"));
+            avm_draw_text(x + 4, y + 10, damage == 1 ? F("+1") : damage == 2 ? F("+2") : F("+3"));
             continue;
         }
         avm_draw_plus_mask(x, y, battle_damage_frame(damage));

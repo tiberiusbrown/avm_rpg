@@ -1671,10 +1671,10 @@ static void start_grove_contact(Device& d) {
     d.wait_for_battle();
 }
 
-static void verify_second_perk_rank(Device& d, fs::path const& out) {
+static void verify_consecutive_perk_ranks(Device& d, fs::path const& out) {
     Game training = d.state();
     training.party.members[0].movement_class = MOVEMENT_STEP;
-    training.party.members[0].level = 4;
+    training.party.members[0].level = 6;
     d.set_state(training);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1686,15 +1686,17 @@ static void verify_second_perk_rank(Device& d, fs::path const& out) {
     d.tap(BTN_A); // Perks
     d.tap(BTN_UP);
     d.tap(BTN_A); // Learn Perk
-    for(uint8_t rank = 1; rank <= 2; ++rank) {
+    for(uint8_t rank = 1; rank <= 3; ++rank) {
         d.tap(BTN_A); // Inspect the next movement perk.
         if(rank == 2)
             d.capture(out / "footwork-details.pgm");
+        else if(rank == 3)
+            d.capture(out / "shield-wall-details.pgm");
         d.tap(BTN_A); // Open confirmation.
         d.tap(BTN_A); // Learn the perk.
         PartyMember learned = d.state().party.members[0];
         require(party_movement_perk_rank(learned) == rank &&
-                    party_unspent_perks(learned) == 2 - rank,
+                    party_unspent_perks(learned) == 3 - rank,
                 "Party did not learn the next Step rank");
     }
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"learning consecutive perk ranks\"}\n";
@@ -1709,6 +1711,7 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         ATTACK_CLASS attack;
         uint8_t actor, target, victim, final_cell, actor_hp, victim_hp;
         bool special;
+        uint8_t rank = 2;
     };
 
     static constexpr Case CASES[] = {
@@ -1723,22 +1726,24 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         {"battle_arc", MOVEMENT_STEP, ATTACK_ARC, battle_cell(3, 1), battle_cell(4, 2),
          battle_cell(4, 2), battle_cell(3, 1), 15, 3, true},
         {"battle_drain", MOVEMENT_STEP, ATTACK_DRAIN, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 17, 4, true},
+         battle_cell(3, 1), battle_cell(2, 1), 18, 3, true, 3},
+        {"battle_reach", MOVEMENT_STEP, ATTACK_REACH, battle_cell(1, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(1, 1), 15, 3, true, 3},
         {"battle_recoil", MOVEMENT_LEAP, ATTACK_RECOIL, battle_cell(2, 1), battle_cell(3, 1),
          battle_cell(3, 1), battle_cell(1, 1), 15, 2, true},
         {"battle_flank", MOVEMENT_STEP, ATTACK_FLANK, battle_cell(2, 1), battle_cell(3, 1),
          battle_cell(3, 1), battle_cell(2, 1), 15, 4, false},
         {"battle_blast", MOVEMENT_STEP, ATTACK_BLAST, battle_cell(2, 1), battle_cell(5, 1),
-         battle_cell(5, 1), battle_cell(2, 1), 15, 5, true},
+         battle_cell(5, 1), battle_cell(2, 1), 15, 4, true, 3},
     };
     for(auto const& test : CASES) {
         Game world = d.state();
         PartyMember& member = world.party.members[0];
         member.movement_class = test.movement;
         member.attack_class = test.attack;
-        member.level = 4;
+        member.level = (uint8_t)(2 * test.rank);
         member.ap = 4;
-        member.perk_ranks = test.target == test.victim ? (uint8_t)(2 << 3) : 2;
+        member.perk_ranks = test.target == test.victim ? (uint8_t)(test.rank << 3) : test.rank;
         d.set_state(world);
 
         BattleState state{};
@@ -1752,11 +1757,17 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
             state.units[state.unit_count++] =
                 BattleUnit{battle_cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY};
         }
+        if(test.attack == ATTACK_REACH) {
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(2, 1), 10, ENEMY_FIGHTER, BATTLE_PARTY};
+        }
         if(test.attack == ATTACK_BLAST) {
             state.units[state.unit_count++] =
                 BattleUnit{battle_cell(5, 2), 1, ENEMY_FIGHTER, BATTLE_ENEMY};
             state.units[state.unit_count++] =
                 BattleUnit{battle_cell(6, 1), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(4, 2), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
         }
         d.set_battle(state);
         for(unsigned i = 1; i < BATTLE_COLUMNS; ++i)
@@ -1804,9 +1815,12 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
                     resolved.units[1].hp == test.victim_hp &&
                     d.state().party.members[0].ap == (test.special ? 2 : 4),
                 (std::string(test.name) + " did not resolve from player input").c_str());
+        if(test.attack == ATTACK_REACH)
+            require(resolved.units[1].cell == battle_cell(4, 1) && resolved.units[3].hp == 10,
+                    "Driving Thrust did not pass through its ally and push the target");
         if(test.attack == ATTACK_BLAST)
-            require(!resolved.units[3].hp && resolved.units[4].hp == 8,
-                    "Detonation did not resolve Shrapnel damage for both victims");
+            require(!resolved.units[3].hp && resolved.units[4].hp == 8 && resolved.units[5].hp == 9,
+                    "Detonation did not apply orthogonal and diagonal splash damage");
         d.wait_for_battle(1);
     }
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"new combat classes through battle input\"}\n";
@@ -2793,7 +2807,7 @@ int main(int argc, char** argv) try {
         d.tap(BTN_A);
         d.advance(0, 3200000);
         if(std::string(argv[6]) == "perk-ranks")
-            verify_second_perk_rank(d, out);
+            verify_consecutive_perk_ranks(d, out);
         else
             verify_battle_classes(d, out);
         return 0;

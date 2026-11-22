@@ -381,16 +381,23 @@ static void test_perk_selection() {
     party_ui_perk_learned(ui);
     party_gain_experience(member, 255);
     CHECK(member.level == 10 && party_unspent_perks(member) == 3);
-    for(uint8_t track = 0; track < 2; ++track) {
+    CHECK(party_perk_status(member, PERK_ATTACK, 2) == PERK_STATUS_LEARNABLE);
+    CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+    for(uint8_t i = 0; i < 3; ++i) {
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_LEARN);
         CHECK(party_learn_perk(member, party_ui_choice_track(ui)));
         party_ui_perk_learned(ui);
-        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
-        CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+        if(i == 0)
+            CHECK(party_perk_status(member, PERK_ATTACK, 3) == PERK_STATUS_LEARNABLE);
+        if(i == 1) {
+            CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
+            CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+        }
     }
-    CHECK(party_unspent_perks(member) == 1);
+    CHECK(party_attack_perk_rank(member) == 3 && party_movement_perk_rank(member) == 2);
+    CHECK(party_unspent_perks(member) == 0);
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_PERKS);
     CHECK(press(ui, party, BTN_LEFT) == PARTY_EVENT_TICK && ui.member == 1);
     CHECK(party_unspent_perks(party.members[ui.member]) == 0);
@@ -502,30 +509,57 @@ static void test_perk_descriptions() {
         char const* effect;
     };
 
-    static constexpr PerkText EXPECTED[PARTY_PERK_TRACK_COUNT][2] = {
-        {{"Hold Together", "1 less direct damage"}, {"Footwork", "costs 0 HP"}},
-        {{"Landing Strike", "exactly one enemy"}, {"Wide Landing", "exactly two enemies"}},
-        {{"Spearhead", "directly ahead"}, {"Momentum", "two-cell move"}},
-        {{"Vault Strike", "enemy you Vault over"}, {"Vault Force", "Every Vault landing"}},
-        {{"Cutback", "exactly one enemy"}, {"Slipstream", "two-cell diagonal move"}},
-        {{"Keen Edge", "at full HP"}, {"Sword Mastery", "Strike attacks deal 1 extra"}},
-        {{"Longshot", "at range 4"}, {"Sharpshooter", "at every legal range"}},
-        {{"Lunge", "at range 2"}, {"Press Back", "at range 2 push"}},
-        {{"Body Check", "occupies the push cell"}, {"Heavy Blow", "deal 1 extra damage"}},
-        {{"Bloodletting", "below three quarters"}, {"Blood Sense", "below full HP"}},
+    static constexpr PerkText EXPECTED[PARTY_PERK_TRACK_COUNT][3] = {
+        {{"Hold Together", "1 less direct damage"},
+         {"Footwork", "costs 0 HP"},
+         {"Shield Wall", "reduce direct damage by 2"}},
+        {{"Landing Strike", "exactly one enemy"},
+         {"Wide Landing", "exactly two enemies"},
+         {"Skyfall", "every enemy beside the landing"}},
+        {{"Spearhead", "directly ahead"},
+         {"Momentum", "two-cell move"},
+         {"Overrun", "push the surviving enemy"}},
+        {{"Vault Strike", "enemy you Vault over"},
+         {"Vault Force", "Every Vault landing"},
+         {"Shock Landing", "diagonally beside the landing"}},
+        {{"Cutback", "exactly one enemy"},
+         {"Slipstream", "two-cell diagonal move"},
+         {"Passing Cut", "beside takeoff or midpoint"}},
+        {{"Keen Edge", "at full HP"},
+         {"Sword Mastery", "Strike attacks deal 1 extra"},
+         {"Duelist", "no living ally"}},
+        {{"Longshot", "at range 4"},
+         {"Sharpshooter", "at every legal range"},
+         {"Piercing Shot", "directly behind the target"}},
+        {{"Lunge", "at range 2"},
+         {"Short Grip", "2 extra damage at range 1"},
+         {"Through the Ranks", "through a living ally"}},
+        {{"Body Check", "occupies the push cell"},
+         {"Heavy Blow", "deal 1 extra damage"},
+         {"Collision", "Deal 3 damage"}},
+        {{"Bloodletting", "below three quarters"},
+         {"Blood Sense", "below full HP"},
+         {"Blood Rush", "half of your own maximum HP"}},
         {{"Open Angle", "both orthogonal corner cells"},
-         {"Crosscut", "Arc attacks deal 1 extra damage"}},
-        {{"Life Tap", "can heal 2 HP"}, {"Deep Cut", "1 extra direct damage"}},
+         {"Crosscut", "Arc attacks deal 1 extra damage"},
+         {"Inside Angle", "either orthogonal corner"}},
+        {{"Life Tap", "can heal 2 HP"},
+         {"Deep Cut", "1 extra direct damage"},
+         {"Deep Siphon", "can heal 3 HP"}},
         {{"Parting Blow", "retreat succeeds"},
-         {"Counterforce", "Recoil attacks deal 1 extra damage"}},
-        {{"Encircle", "another ally"}, {"Tactical Edge", "on every hit"}},
+         {"Counterforce", "Recoil attacks deal 1 extra damage"},
+         {"Springback", "up to two open cells"}},
+        {{"Encircle", "another ally"},
+         {"Tactical Edge", "on every hit"},
+         {"Converging Blades", "per ally supporting"}},
         {{"Cluster Burst", "at least two enemies"},
-         {"Shrapnel", "2 damage to each secondary enemy"}},
+         {"Shrapnel", "2 damage to each secondary enemy"},
+         {"Shockwave", "diagonally beside the target"}},
     };
     for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track) {
         for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank) {
             uint8_t code = party_perk_code(track, rank);
-            if(rank < 2 && EXPECTED[track][rank].name) {
+            if(rank < 3) {
                 CHECK(strcmp(party_perk_name(code), EXPECTED[track][rank].name) == 0);
                 CHECK(strstr(party_perk_text(code), EXPECTED[track][rank].effect));
             } else {
@@ -535,20 +569,21 @@ static void test_perk_descriptions() {
     }
 }
 
-static void test_second_rank_selection() {
+static void test_consecutive_rank_selection() {
     Party party = make_party(1);
     auto& member = party.members[0];
     member.movement_class = MOVEMENT_VAULT;
     member.attack_class = ATTACK_DRAIN;
-    member.level = 4;
+    member.level = 6;
     CHECK(party_perk_status(member, PERK_MOVEMENT, 1) == PERK_STATUS_LEARNABLE);
     CHECK(party_perk_status(member, PERK_MOVEMENT, 2) == PERK_STATUS_LOCKED);
-    CHECK(party_perk_status(member, PERK_MOVEMENT, 3) == PERK_STATUS_FUTURE);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 3) == PERK_STATUS_LOCKED);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 4) == PERK_STATUS_FUTURE);
 
     PartyUi ui{};
     open_perk_row(ui, party, PERK_ROW_CHOICE);
     CHECK(strcmp(party_perk_name(party_ui_row_perk(ui, party, 0)), "Vault Strike") == 0);
-    for(uint8_t rank = 1; rank <= 2; ++rank) {
+    for(uint8_t rank = 1; rank <= 3; ++rank) {
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
         CHECK(ui.entry == party_perk_code(MOVEMENT_VAULT, rank - 1));
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
@@ -560,10 +595,13 @@ static void test_second_rank_selection() {
         if(rank == 1) {
             CHECK(party_perk_status(member, PERK_MOVEMENT, 2) == PERK_STATUS_LEARNABLE);
             CHECK(strcmp(party_perk_name(party_ui_row_perk(ui, party, 0)), "Vault Force") == 0);
+        } else if(rank == 2) {
+            CHECK(party_perk_status(member, PERK_MOVEMENT, 3) == PERK_STATUS_LEARNABLE);
+            CHECK(strcmp(party_perk_name(party_ui_row_perk(ui, party, 0)), "Shock Landing") == 0);
         }
     }
     CHECK(!party_unspent_perks(member));
-    member.level = 6;
+    member.level = 8;
     CHECK(party_unspent_perks(member) == 1);
     CHECK(!party_can_learn_perk(member, PERK_MOVEMENT));
     CHECK(party_can_learn_perk(member, PERK_ATTACK));
@@ -652,7 +690,7 @@ int main() {
     test_equipment_flow();
     test_catalog_entries_are_complete();
     test_perk_descriptions();
-    test_second_rank_selection();
+    test_consecutive_rank_selection();
     test_descriptions_wrap();
     test_navigation_leaves_party_unchanged();
     test_random_presses_stay_in_bounds();

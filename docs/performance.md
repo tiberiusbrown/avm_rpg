@@ -458,6 +458,10 @@ Completing rank 2 across all tracks added 1,602 flash bytes. The shipping guest
 uses 580 bytes of static RAM and has a complete 256-byte stack bound. The longest
 decision in the same probe took 2.35 seconds.
 
+The rank-3 perks and Reach's Short Grip added 4,479 flash bytes. The shipping
+guest uses 580 bytes of static RAM and has a complete 250-byte stack bound.
+The longest of the same 17 timing-probe decisions took 2.52 seconds.
+
 ### Earlier battle measurements
 
 The search and simulation figures below predate Rend's victim-dependent damage (2, or 4 below half HP),

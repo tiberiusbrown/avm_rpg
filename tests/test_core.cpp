@@ -454,7 +454,12 @@ static void saves() {
             member.level = 6;
             CHECK(!save_valid());
             member.level = 10;
-            member.perk_ranks = 0x13;
+            CHECK(party_learn_perk(member, PERK_MOVEMENT));
+            CHECK(save_valid() && save_restore() && member.perk_ranks == 0x13);
+            member.level = 8;
+            CHECK(!save_valid());
+            member.level = 10;
+            member.perk_ranks = 4;
             CHECK(!save_valid());
         }
     }
@@ -602,6 +607,7 @@ static void permanent_perks() {
     party_gain_experience(member, 255);
     CHECK(member.level == 10 && party_unspent_perks(member) == 3 && party_max_hp(member) == 24);
     CHECK(party_learn_perk(member, PERK_ATTACK) && party_learn_perk(member, PERK_ATTACK));
+    CHECK(party_learn_perk(member, PERK_ATTACK));
     CHECK(!party_learn_perk(member, PERK_MOVEMENT) && !party_learn_perk(member, PERK_ATTACK));
     CHECK(!party_learn_perk(member, (PERK_TRACK_KIND)255));
     Game saved = game;
@@ -610,10 +616,10 @@ static void permanent_perks() {
     CHECK(game.party.members[0].perk_ranks == 0);
     game = saved;
     CHECK(save_restore());
-    CHECK(party_movement_perk_rank(member) == 2 && party_attack_perk_rank(member) == 2);
-    CHECK(party_unspent_perks(member) == 1 && member.hp == 16);
+    CHECK(party_movement_perk_rank(member) == 2 && party_attack_perk_rank(member) == 3);
+    CHECK(party_unspent_perks(member) == 0 && member.hp == 16);
 
-    static constexpr uint8_t INVALID_RANKS[] = {0x40, 0x80, 3, 24, 25, 47, 63};
+    static constexpr uint8_t INVALID_RANKS[] = {4, 27, 32, 47, 63, 0x40, 0x80};
     for(uint8_t bad : INVALID_RANKS) {
         member.perk_ranks = bad;
         PartyMember before = member;

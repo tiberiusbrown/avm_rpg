@@ -308,10 +308,10 @@ Both quest rewards cap gold at the wallet limit. Each XP payout belongs to the f
 - Party capacity: **4**. Identity cannot be duplicated. New recruits begin at full derived HP/AP and level 1; recruiting never resets existing members' progress.
 - Party member levels: **1–10**. XP to next level from current level `L`: `5 × (L + 1)` (e.g. 10 at level 1, 15 at level 2). XP is the amount **toward** the next level, not cumulative; overflow carries across level-ups, and XP at level 10 is discarded.
 - Base maximum HP: **20**, except Rowan **18**. Add **+2 at level 3**, **+2 more at level 7** and equipped HP bonuses. Leveling does **not** itself restore current HP.
-- Normal/special **direct attack base damage** gains **+1 at level 5** and **+1 more at level 9**. Engagement damage and Blast splash use their own base damage and perks.
+- Normal/special **direct attack base damage** gains **+1 at level 5** and **+1 more at level 9**. Engagement and secondary attack damage use their own base damage and perks.
 - Max AP: **4** for all current members. No rank/item currently increases maximum AP.
 - Victory AP recovery: **1 baseline**, plus any `ITEM_DAWN_PENDANT` bonus, capped at 4. AP is not automatically restored on turn changes or within combat.
-- Perk choices: one at **levels 2, 4, 6, 8, and 10**, derived as `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement perk track and one attack perk track. Ranks are learned in order and their effects stack. Each track supports up to five ranks in the save and menu. Class-specific availability is listed below. Unspent choices may remain after the available ranks on both tracks are learned.
+- Perk choices: one at **levels 2, 4, 6, 8, and 10**, derived as `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement perk track and one attack perk track. Ranks are learned in order and their effects stack. Each track supports up to five ranks in the save and menu. Class-specific availability is listed below. Unspent choices remain available until used.
 
 ### 5.2 Battle movement classes
 
@@ -320,20 +320,22 @@ Both quest rewards cap gold at the wallet limit. Each XP payout belongs to the f
 | `MOVEMENT_STEP` | 0 | Orthogonal, **1 cell** | Must pass through/land on empty nonblocking cell |
 | `MOVEMENT_LEAP` | 1 | Knight leap: **2 cells on one axis + 1 perpendicular** | Can pass over units/obstacles, but landing cell must be free |
 | `MOVEMENT_CHARGE` | 2 | Orthogonal, **1–2 cells** | Every traversed cell and the destination must be clear |
+| `MOVEMENT_CHARGE` | 3 | `OVERRUN` | After engagement on a one- or two-cell Charge, push the surviving enemy directly ahead one open cell farther in the direction of travel. |
 | `MOVEMENT_VAULT` | 3 | Orthogonal, **exactly 2 cells** | The landing must be open. The intermediate cell can hold terrain or a unit |
 | `MOVEMENT_GLIDE` | 4 | Diagonal, **1–2 cells** | Both axes move the same distance. The diagonal path and landing must be open, regardless of the two orthogonal corner cells |
 
 ### 5.3 Battle attack classes (normal actions)
 
 Each attack selects one living enemy. Orthogonal attacks follow a shared row or column, with
-intervening living units and blocked terrain screening longer-range attacks. Arc reaches only an
-adjacent diagonal and has no intermediate cell. Normal attacks cost **0 AP** and take one team turn.
+intervening living units and blocked terrain screening longer-range attacks. Reach's Through the
+Ranks allows a range-2 hit through a living ally. Arc reaches only an adjacent diagonal. Normal attacks cost **0 AP** and take one team turn.
 
 | Attack class | Code | Geometry | Base primary damage | Extra effect |
 |---|---:|---|---:|---|
 | `ATTACK_STRIKE` | 0 | Orthogonal 1 | 3 | |
 | `ATTACK_SHOOT` | 1 | Orthogonal 2–4 | 3 | |
 | `ATTACK_REACH` | 2 | Orthogonal 1–2 | 3 | |
+| `ATTACK_REACH` | 3 | `THROUGH_THE_RANKS` | Range-2 hits can pass through a living ally in the middle cell. Blocking terrain and enemies still screen attacks. |
 | `ATTACK_IMPACT` | 3 | Orthogonal 1 | 2 | Push a surviving target one open cell directly away |
 | `ATTACK_REND` | 4 | Orthogonal 1 | 2, or 4 if target HP is below half its maximum | |
 | `ATTACK_ARC` | 5 | Diagonal 1 on each axis | 3 | |
@@ -343,9 +345,9 @@ adjacent diagonal and has no intermediate cell. Normal attacks cost **0 AP** and
 | `ATTACK_BLAST` | 9 | Orthogonal 2–3 | 2 | Deal 1 splash damage to each other living enemy orthogonally adjacent to the primary target's original cell, even on a primary kill |
 
 Apply level, weapon, and direct attack perk bonuses to the selected base primary damage. Enemy
-presets receive none of those party bonuses. Splash requires line of sight to the primary target
-only. It affects each qualifying secondary enemy once and leaves friendlies, diagonal neighbors,
-and terrain unharmed. Only Shrapnel increases splash damage. When the target survives, Drain healing is capped at one
+presets receive none of those party bonuses. Secondary damage from Blast, Piercing Shot, and
+Collision uses the primary attack's line of sight and hits each qualifying enemy once.
+When the target survives, Drain healing is capped at one
 less than the target's actual HP loss, with a floor of zero. A finishing blow allows full Drain
 healing, even against a target at 1 HP. All Drain healing is capped at the attacker's maximum HP.
 
@@ -372,42 +374,56 @@ There is **no special-ability learning/unlock progression** implemented. Special
 
 Learn perks through the Party menu. The implementation catalog is `src/perks.def`. Attack
 perks apply to normal attacks and starting specials. Movement damage bonuses apply to
-engagement after voluntary moves.
+engagement after voluntary moves. All tracks have three learnable ranks. Each attack track's
+perks improve its class effects and apply whenever their conditions are met.
 
 | Track | Rank | Perk ID | Effect |
 |---|---:|---|---|
 | `MOVEMENT_STEP` | 1 | `HOLD_TOGETHER` | Reduce incoming direct damage from a normal attack or special by 1, to a minimum of 1, while orthogonally adjacent to a living ally before the hit. |
 | `MOVEMENT_STEP` | 2 | `FOOTWORK` | A Step that deals engagement damage costs 0 HP. Quiet Steps and passes cost 1 HP. |
+| `MOVEMENT_STEP` | 3 | `SHIELD_WALL` | Hold Together reduces direct damage by 2 total while next to a living ally, to a minimum of 1. |
 | `MOVEMENT_LEAP` | 1 | `LANDING_STRIKE` | +1 engagement damage to the enemy when the Leap lands orthogonally adjacent to exactly one living enemy. |
 | `MOVEMENT_LEAP` | 2 | `WIDE_LANDING` | +1 engagement damage to each enemy when the Leap lands orthogonally adjacent to exactly two living enemies. |
+| `MOVEMENT_LEAP` | 3 | `SKYFALL` | +1 engagement damage to every orthogonally adjacent enemy on landing. Total damage per enemy is 3 with one or two such enemies and 2 with three or more. |
 | `MOVEMENT_CHARGE` | 1 | `SPEARHEAD` | On a one- or two-cell Charge, deal +1 engagement damage to the living enemy one cell directly ahead of the landing, in the direction traveled. |
 | `MOVEMENT_CHARGE` | 2 | `MOMENTUM` | +1 engagement damage to every adjacent enemy after a two-cell Charge. A forward enemy takes 3 total engagement damage from both ranks. |
 | `MOVEMENT_VAULT` | 1 | `VAULT_STRIKE` | +1 engagement damage to the living enemy in the jumped cell. |
 | `MOVEMENT_VAULT` | 2 | `VAULT_FORCE` | +1 engagement damage to every enemy adjacent to the landing cell. The jumped enemy takes 3 total engagement damage when both perks apply. |
+| `MOVEMENT_VAULT` | 3 | `SHOCK_LANDING` | Deal 1 engagement damage to each enemy diagonally adjacent to the landing. |
 | `MOVEMENT_GLIDE` | 1 | `CUTBACK` | +1 engagement damage after a one-cell Glide that lands beside exactly one living enemy. |
 | `MOVEMENT_GLIDE` | 2 | `SLIPSTREAM` | +1 engagement damage to every adjacent enemy after a two-cell Glide. |
+| `MOVEMENT_GLIDE` | 3 | `PASSING_CUT` | Deal 1 engagement damage to enemies orthogonally beside the takeoff cell or midpoint. Each enemy takes damage once, using landing damage when eligible. Cutback counts only orthogonal landing neighbors. |
 | `ATTACK_STRIKE` | 1 | `KEEN_EDGE` | +1 direct damage against an enemy at full HP before the hit. |
 | `ATTACK_STRIKE` | 2 | `SWORD_MASTERY` | +1 direct damage on every hit. |
+| `ATTACK_STRIKE` | 3 | `DUELIST` | +2 direct damage if the target has no living orthogonally adjacent ally. |
 | `ATTACK_SHOOT` | 1 | `LONGSHOT` | +1 direct damage at range 4. |
 | `ATTACK_SHOOT` | 2 | `SHARPSHOOTER` | +1 direct damage at every legal range. |
+| `ATTACK_SHOOT` | 3 | `PIERCING_SHOT` | Deal 2 damage to an enemy in the cell immediately behind the primary target along the shot, including on a primary kill. |
 | `ATTACK_REACH` | 1 | `LUNGE` | +1 direct damage at range 2. |
-| `ATTACK_REACH` | 2 | `PRESS_BACK` | A normal hit at range 2 pushes a surviving target one cell directly away if the destination is open. Driving Thrust already pushes at either range. |
+| `ATTACK_REACH` | 2 | `SHORT_GRIP` | +2 direct damage at range 1. |
 | `ATTACK_IMPACT` | 1 | `BODY_CHECK` | +1 direct damage if a living unit occupies the cell directly behind the target before the hit. A board edge or blocked terrain alone grants no bonus. |
 | `ATTACK_IMPACT` | 2 | `HEAVY_BLOW` | +1 direct damage on every hit. |
+| `ATTACK_IMPACT` | 3 | `COLLISION` | Deal 3 damage to an enemy in the push destination, including on a primary kill. The occupied cell blocks the push for that hit. |
 | `ATTACK_REND` | 1 | `BLOODLETTING` | Raises the threshold for 4 base damage to strictly below three quarters of the target's maximum HP. |
 | `ATTACK_REND` | 2 | `BLOOD_SENSE` | +1 direct damage against an enemy below full HP before the hit. |
+| `ATTACK_REND` | 3 | `BLOOD_RUSH` | +2 direct damage while the attacker is at or below half their own maximum HP. |
 | `ATTACK_ARC` | 1 | `OPEN_ANGLE` | +1 direct damage if the two orthogonal corner cells between attacker and target are both unblocked and free of living units. |
 | `ATTACK_ARC` | 2 | `CROSSCUT` | +1 direct damage on every hit. |
+| `ATTACK_ARC` | 3 | `INSIDE_ANGLE` | +2 direct damage if either orthogonal corner cell contains a living enemy. |
 | `ATTACK_DRAIN` | 1 | `LIFE_TAP` | Raises healing from up to 1 HP to up to 2 HP. The surviving-target and maximum-HP caps still apply. Weapon and level damage bonuses can increase the surviving-target cap. |
 | `ATTACK_DRAIN` | 2 | `DEEP_CUT` | +1 direct damage on every hit. |
+| `ATTACK_DRAIN` | 3 | `DEEP_SIPHON` | Raises healing to up to 3 HP. The surviving-target and maximum-HP caps still apply. |
 | `ATTACK_RECOIL` | 1 | `PARTING_BLOW` | +1 direct damage when the retreat cell is open and the attack completes the retreat, including on a killing blow. |
 | `ATTACK_RECOIL` | 2 | `COUNTERFORCE` | +1 direct damage on every hit. |
+| `ATTACK_RECOIL` | 3 | `SPRINGBACK` | Retreat up to two cells away from the target, stopping at the first obstruction. A retreat of either distance activates Parting Blow. |
 | `ATTACK_FLANK` | 1 | `ENCIRCLE` | +1 direct damage with allied support. |
 | `ATTACK_FLANK` | 2 | `TACTICAL_EDGE` | +1 direct damage on every hit. |
+| `ATTACK_FLANK` | 3 | `CONVERGING_BLADES` | +1 direct damage per other living ally orthogonally adjacent to the target. |
 | `ATTACK_BLAST` | 1 | `CLUSTER_BURST` | +1 primary damage if the attack hits at least two living splash targets. |
-| `ATTACK_BLAST` | 2 | `SHRAPNEL` | +1 splash damage per secondary target. |
+| `ATTACK_BLAST` | 2 | `SHRAPNEL` | +1 splash damage to each orthogonal secondary target. |
+| `ATTACK_BLAST` | 3 | `SHOCKWAVE` | Deal 1 splash damage to each enemy diagonally adjacent to the primary target. Orthogonal splash still deals 2, and both types count toward Cluster Burst. |
 
-The choice count is derived, not separately saved. Learned movement rank occupies `perk_ranks` bits 0–2; attack rank bits 3–5; bits 6–7 reserved. Learning a perk consumes one earned choice but does not directly spend gold, AP, or equipment.
+Existing saves with Reach rank 2 receive Short Grip. The choice count is derived from level and learned ranks. Learned movement rank occupies `perk_ranks` bits 0–2; attack rank bits 3–5; bits 6–7 reserved. Learning a perk consumes one earned choice but does not directly spend gold, AP, or equipment.
 
 ## 6. Combat, encounters and The World Remembers
 
@@ -415,12 +431,16 @@ The choice count is derived, not separately saved. Learned movement rank occupie
 
 - Combat board is **8×4 cells**. Up to **four** deployed party units and **four** enemies; battlefield selection chooses among the allowed map/tileset boards. Initial positions are randomized within designated deployment rectangles, respecting blocked cells.
 - One **unit action** (move, normal attack, special) consumes **the whole acting side's turn**. Sides alternate; a team may also pass. Automatic pass occurs if no legal action exists.
-- **Move sequence:** move to destination → deal **1 base engagement damage** to every orthogonally adjacent living enemy and apply any learned movement perk bonuses → mover pays **1 HP** unless Footwork waives the cost. Actors with **1 HP may move** and may fall from the movement price. If engagement kills the last opponent, victory is decided **before** movement HP is paid.
+- **Move sequence:** Move to the destination, deal **1 base engagement damage** to every
+  orthogonally adjacent living enemy, then apply movement perk effects. Overrun pushes a surviving
+  forward enemy after engagement damage. The mover pays **1 HP** unless Footwork waives it.
+  Actors with **1 HP may move** and may fall from the movement price. If engagement kills the
+  last opponent, victory is decided **before** movement HP is paid.
 - **Attack sequence:** Spend AP once for a special. Determine primary damage, positional bonuses,
-  and Blast victims from the original position. Apply Hold Together to the primary hit if the
-  target has it and is supported. Engagement and splash damage use their own modifiers. Apply all
-  primary and secondary damage, then any Drain healing. Resolve knockback for a surviving victim or Recoil for the attacker, using the
-  original positions. Forced displacement requires an empty, unblocked cell inside the board and
+  and secondary victims from the original position. Apply Hold Together and Shield Wall to the
+  primary hit if the target has learned them and is supported. Apply all primary and secondary
+  damage, then any Drain healing. Resolve knockback for a surviving victim or retreat for the
+  attacker, using the original positions. Forced displacement requires an empty, unblocked cell inside the board and
   ignores movement class. It costs no HP and triggers no engagement or movement perks. Check
   victory or defeat after all attack effects, then hand the turn to the other team if play continues.
   Every action either reduces total battle HP or eliminates at least one combatant, so Drain cannot
