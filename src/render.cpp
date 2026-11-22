@@ -878,7 +878,7 @@ static void draw_label_value(int16_t x, int16_t baseline, char const PROGMEM* la
 
 static char const PROGMEM* party_member_name(PartyMember const& member) {
     auto name = npc_name(member.id);
-    return name ? name : F("Traveler");
+    return name ? name : F("Alden");
 }
 
 static constexpr int16_t PARTY_ROW_SUBTITLE = 18;

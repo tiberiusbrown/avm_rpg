@@ -76,7 +76,7 @@ of the first member. Learning a perk leaves current HP and AP as they were.
 
 Attack perks apply to both normal and special attacks. See [the progression design](docs/ideas_for_items_perks_abilities.md#4-character-levels-and-two-track-perk-progression).
 
-A new game starts with the traveler (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
+A new game starts with Alden (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
 of the starting point. Choose **Join my party** to recruit him (18/18 HP, 4/4 AP, step movement, shoot attack).
 Rowan disappears from the map upon joining and stays absent on revisits and after loading.
 Party membership, current HP and AP, level, experience and both perk ranks are saved. The world stays frozen while the menu is open; music continues.
