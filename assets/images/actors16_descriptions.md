@@ -63,7 +63,7 @@ south-facing idle frame (column 6).
 | 7 | male | bald; black hair ring at the back | none | black moustache; wide dark sash | Bram |
 | 8 | female | medium brown, long, centre parting | none | none | unused |
 | 9 | female | black, long, centre parting | none | none | Tessa (`NPC_TESSA`) |
-| 10 | female | pale blond, long (assigned) | none | thick dark brows | unused |
+| 10 | female | pale blond, long (assigned) | none | thick dark brows | Surveyor (`NPC_SURVEYOR`) |
 | 11 | female | medium brown, long, straight strands | none | smile; collar and hip marks | Mara |
 | 12 | female | black, long | wide-brimmed hat | none | Nell |
 | 13 | female | dark brown, long, ruffled | none | collar and hip marks | unused |
@@ -188,6 +188,8 @@ Used by Tessa (`NPC_TESSA`).
 - **Basis:** solid black crown and hair continuing below the head.
 
 ### Row 10: pale blond, long
+
+Used by the Surveyor (`NPC_SURVEYOR`).
 
 - **Sex:** female.
 - **Hair:** pale blond or white, long to mid-back and smooth, with a few dark

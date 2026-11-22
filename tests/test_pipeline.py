@@ -1,6 +1,7 @@
 """16x16 atlas/mask packing and finite Tiled authoring contracts."""
 
 import io
+import json
 import re
 import shutil
 import sys
@@ -25,6 +26,7 @@ from generate_assets import (
     generate,
     load_world,
     map_previews,
+    read_face_frames,
     tile_export_counts,
     tile_wind_block,
     tileset_overlays,
@@ -426,19 +428,31 @@ class Pipeline(unittest.TestCase):
         body = re.sub(r"//[^\n]*", "", body)
         data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
         self.assertEqual(data[:2], [32, 32])
-        image = Image.open(self.root / "assets" / "images" / "faces32.png").convert("RGBA")
-        frames = image.height // 32 * 2
+        path = self.root / "assets" / "images" / "faces32.png"
+        image = Image.open(path).convert("L")
+        assignments = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        frames = 2 * len(assignments)
         self.assertEqual(len(data), 2 + frames * 128)
         for frame in range(frames):
+            slot = assignments[frame // 2]
+            expected = Image.new("L", (32, 32))
+            if slot is not None:
+                row, pair = slot
+                left, top = pair * 64 + frame % 2 * 32, row * 32
+                expected = image.crop((left, top, left + 32, top + 32))
             for y in range(32):
                 for x in range(32):
-                    r = image.getpixel((frame % 2 * 32 + x, frame // 2 * 32 + y))[0]
                     byte = data[2 + frame * 128 + y // 8 * 32 + x]
-                    self.assertEqual((byte >> (y % 8)) & 1, bool(r))
+                    self.assertEqual((byte >> (y % 8)) & 1, bool(expected.getpixel((x, y))))
 
     def test_face_rows_are_independent_of_npc_ids(self):
         path = self.root / "assets/images/faces32.png"
+        path.with_suffix(".json").unlink()
         image = Image.open(path).convert("RGBA")
+        # A two-column sheet can have unassigned rows beyond the current identity range.
+        image = image.crop((0, 0, 64, image.height))
+        image.putpixel((0, 32), (255, 255, 255, 255))
+        image.save(path)
         rows = image.height // 32
         source = generate(self.root)["sprites.cpp"]
         self.assertIn(f"FACE_ROW_COUNT = {rows};", source)
@@ -446,22 +460,55 @@ class Pipeline(unittest.TestCase):
         present = re.search(r"FACE_PRESENT\[\] = \{([^}]*)\}", source).group(1).split(", ")
         self.assertEqual(len(present), rows)
         self.assertEqual(present[0], "0")  # NPC_NONE has no portrait
+        self.assertEqual(present[1], "1")
         # A portrait that is all black counts as absent.
         image.paste(Image.new("RGBA", (64, 32), (0, 0, 0, 255)), (0, 32))
         image.save(path)
         edited = re.search(r"FACE_PRESENT\[\] = \{([^}]*)\}", generate(self.root)["sprites.cpp"])
         self.assertEqual(edited.group(1).split(", ")[1], "0")
 
+    def test_face_catalog_does_not_supply_dialogue_portraits(self):
+        path = self.root / "assets/images/faces32.png"
+        path.with_suffix(".json").unlink()
+        image = Image.new("RGBA", (128, 128), (0, 0, 0, 255))
+        for pixel in ((64, 0), (127, 127)):
+            image.putpixel(pixel, (255, 255, 255, 255))
+        image.save(path)
+        self.assertEqual(read_face_frames(self.root), [["." * 32] * 32] * 2)
+        image.putpixel((0, 64), (255, 255, 255, 255))
+        image.save(path)
+        frames = read_face_frames(self.root)
+        self.assertEqual(len(frames), 6)
+        self.assertEqual(frames[4][0], "#" + "." * 31)
+        self.assertTrue(all("#" not in "".join(frame) for frame in frames[:4] + frames[5:]))
+
+    def test_face_assignments_select_rows_and_pairs_in_npc_id_order(self):
+        path = self.root / "assets/images/faces32.png"
+        image = Image.new("RGBA", (128, 128), (0, 0, 0, 255))
+        for pixel in ((64, 0), (127, 127), (0, 32)):
+            image.putpixel(pixel, (255, 255, 255, 255))
+        image.save(path)
+        assignments = path.with_suffix(".json")
+        assignments.write_text("[null, [3, 1], null, [0, 1]]", encoding="utf-8")
+        frames = read_face_frames(self.root)
+        self.assertEqual(len(frames), 8)
+        self.assertEqual(frames[3][31], "." * 31 + "#")
+        self.assertEqual(frames[6][0], "#" + "." * 31)
+        self.assertEqual(sum(row.count("#") for frame in frames for row in frame), 2)
+        for invalid in ("[null, [4, 1]]", "[null, [3, 2]]"):
+            assignments.write_text(invalid, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "NPC ID 1 must select an in-bounds"):
+                read_face_frames(self.root)
+
     def test_face_sheet_is_validated(self):
         path = self.root / "assets/images/faces32.png"
         original = Image.open(path).convert("RGBA")
-        self.assertEqual(original.width, 64)
         for image in [
             original.crop((0, 0, 48, original.height)),
-            original.crop((0, 0, 64, original.height - 8)),
+            original.crop((0, 0, original.width, original.height - 8)),
         ]:
             image.save(path)
-            with self.assertRaisesRegex(ValueError, "expected a PNG 64 pixels wide"):
+            with self.assertRaisesRegex(ValueError, "expected a PNG in 64-pixel column pairs"):
                 generate(self.root)
         for pixel, color in [((0, 0), (0, 0, 0, 0)), ((1, 1), (128, 128, 128, 255))]:
             edited = original.copy()

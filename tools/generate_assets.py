@@ -2,6 +2,7 @@
 
 import argparse
 import io
+import json
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -1364,37 +1365,80 @@ def read_prompt_frames(root=ROOT):
     ]
 
 
-# The NPC faces, faces32.png: opaque black and white 32x32 frames in two columns (mouth closed, mouth
-# open) and one row per NPC_ID, so frame NPC_ID * 2 + open is that NPC's face. A row that is all
-# black has no portrait.
+# Portraits are grouped by actor sprite row. faces32.json selects a closed/open pair per NPC ID.
 FACE_SIZE = 32
 FACE_COLUMNS = 2
+FACE_PAIR_WIDTH = FACE_COLUMNS * FACE_SIZE
+
+
+def read_face_assignments(path, rows, pairs):
+    try:
+        assignments = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{path}: {error}") from error
+    require(
+        isinstance(assignments, list) and 1 <= len(assignments) <= 256 and assignments[0] is None,
+        path,
+        "expected 1..256 NPC portrait assignments with null for NPC_NONE",
+    )
+    for npc_id, slot in enumerate(assignments):
+        require(
+            slot is None
+            or (
+                isinstance(slot, list)
+                and len(slot) == 2
+                and type(slot[0]) is int
+                and type(slot[1]) is int
+                and 0 <= slot[0] < rows
+                and 0 <= slot[1] < pairs
+            ),
+            path,
+            f"NPC ID {npc_id} must select an in-bounds [row, pair] or null",
+        )
+    return assignments
 
 
 def read_face_frames(root=ROOT):
-    """Read the independent portrait row count from the face sheet height."""
+    """Pack the selected dialogue frames in NPC ID order."""
     path = root / "assets" / "images" / "faces32.png"
     with Image.open(path) as image:
         rows = image.height // FACE_SIZE
         require(
             image.format == "PNG"
-            and image.size == (FACE_COLUMNS * FACE_SIZE, rows * FACE_SIZE)
+            and image.width >= FACE_PAIR_WIDTH
+            and image.width % FACE_PAIR_WIDTH == 0
+            and image.height == rows * FACE_SIZE
             and 1 <= rows <= 256,
             path,
-            f"expected a PNG {FACE_COLUMNS * FACE_SIZE} pixels wide holding 1..256 rows of {FACE_SIZE}",
+            f"expected a PNG in {FACE_PAIR_WIDTH}-pixel column pairs holding 1..256 rows of {FACE_SIZE}",
         )
         pixels = image.convert("RGBA")
+        colors = pixels.getcolors(maxcolors=2)
         require(
-            all(
-                (r, g, b, a) in ((0, 0, 0, 255), (255, 255, 255, 255))
-                for r, g, b, a in pixel_values(pixels)
+            colors is not None and all(
+                color in ((0, 0, 0, 255), (255, 255, 255, 255))
+                for _, color in colors
             ),
             path,
             "use opaque black and white pixels",
         )
+    assignments_path = path.with_suffix(".json")
+    if assignments_path.exists():
+        assignments = read_face_assignments(assignments_path, rows, pixels.width // FACE_PAIR_WIDTH)
+    else:
+        # Older sheets store the dialogue frames in NPC ID order in the first pair.
+        if pixels.width > FACE_PAIR_WIDTH:
+            dialogue = pixels.crop((0, 0, FACE_PAIR_WIDTH, pixels.height))
+            bounds = dialogue.getchannel("R").getbbox()
+            rows = (bounds[3] + FACE_SIZE - 1) // FACE_SIZE if bounds else 1
+        assignments = [(row, 0) for row in range(rows)]
     frames = []
-    for frame_y in range(rows):
-        for frame_x in range(FACE_COLUMNS):
+    for slot in assignments:
+        if slot is None:
+            frames.extend([["." * FACE_SIZE] * FACE_SIZE for _ in range(FACE_COLUMNS)])
+            continue
+        frame_y, pair = slot
+        for frame_x in range(pair * FACE_COLUMNS, (pair + 1) * FACE_COLUMNS):
             frames.append(
                 [
                     "".join(

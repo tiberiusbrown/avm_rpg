@@ -134,8 +134,9 @@ Essential NPCs with unfinished `NPC_TARGET` or `NPC_ROUTE` movement keep their s
 waypoints, detours and pauses survive until completion or scene reset. Policy changes are
 applied after scripted motion completes. This can temporarily saturate the pool.
 
-Portrait rows are independent of identities: `FACE_ROW_COUNT` bounds `FACE_PRESENT` and
-sprite selection. NPCs without a portrait use text dialogue; sprite rows may be shared.
+The portrait sheet groups faces by actor sprite row. `faces32.json` selects a portrait
+pair for each NPC ID, and `FACE_ROW_COUNT` bounds the exported `FACE_PRESENT` table
+and frame selection. NPCs without a portrait use text dialogue.
 Party names use `npc_name` with a safe fallback.
 
 ## Motion

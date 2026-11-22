@@ -149,24 +149,25 @@ transparent pixels preserve it. Each frame has its own mask. No standalone
 
 ### NPC faces
 
-`faces32.png` is the portrait sheet for dialogue: opaque black and white 32x32 frames
-in two columns, 64x128 for the four current IDs. Row `n` is the face of `NPC_ID` `n`
-(`NPC_NONE` is row 0); column 0 has the mouth closed and column 1 has it open, so a
-speaking NPC alternates them. The open mouth keeps the closed mouth's width and is
-three rows tall, and the jaw drops two rows with it. Faces follow the NPC, not its
-sprite row, so two NPCs on one row can have different faces. Each face is drawn from
+`faces32.png` is a 256x512 sheet of opaque black and white 32x32 portraits arranged
+in closed/open column pairs. Each row lines up with the same row in `actors16.png`.
+The first pair holds the original dialogue portraits alongside three variants.
+`faces32.json` assigns a zero-based `[row, pair]` to each NPC ID and uses `null` for
+`NPC_NONE` and other IDs without a portrait. The open mouth keeps
+the closed mouth's width and is three rows tall. The jaw drops two rows with it.
+Two NPCs with the same overworld sprite can have different faces. Each face is drawn from
 scratch to match its sprite's sex, hair and head covering (see
 `actors16_descriptions.md`), and a row with no portrait is solid black. Facial features
 share one grid in every face: eyes are three pixels wide on rows 15-16 at columns 11-13
 and 18-20, the nose ends on row 18, and the closed mouth is columns 14-17 of row 21. Every figure
 has a thin white line around its black outline, so skin and cloth read as a white fill,
 a black line, then the white line, and dark masses such as hair are black inside that
-white line. Append whole 32-pixel rows when adding portraits. `tools/generate_assets.py` emits the
-sheet as `FACE_SPRITES` (frame `NPC_ID * 2 + open`) with a `FACE_PRESENT` byte per portrait row, and
-exports `FACE_ROW_COUNT`, independent of `NPC_ID_LIMIT`. Identities outside the portrait
-range use text dialogue. The dialogue overlay draws it above
-the panel (see `docs/essential_npcs.md`). See `assets/images/AUTHORING_FACES.md` for how to
-draw a face.
+white line. `tools/generate_assets.py` exports the assigned pairs in NPC ID order as
+`FACE_SPRITES` (frame `NPC_ID * 2 + open`), with a `FACE_PRESENT` byte per exported
+ID and `FACE_ROW_COUNT` independent of `NPC_ID_LIMIT`. Speakers outside
+that range use text dialogue. The dialogue overlay draws portraits above the panel
+(see `docs/essential_npcs.md`). The [face authoring guide](../assets/images/AUTHORING_FACES.md)
+lists the sprite associated with every portrait.
 
 ### Dialogue prompt indicators
 

@@ -168,6 +168,7 @@ add_test(NAME tiled_pipeline COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURC
 add_test(NAME generated_assets COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_assets.py --check)
 add_test(NAME content COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_content.py)
 file(GLOB_RECURSE ASSET_INPUTS CONFIGURE_DEPENDS assets/*.tmx assets/*.tsx assets/*.png)
+list(APPEND ASSET_INPUTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/images/faces32.json")
 set(ASSET_OUTPUTS)
 foreach(asset area_ids.h world_assets.h map_positions.h tile_ids.h handler_defaults.h map_assets.cpp map_handler_catalog.h npc_routes.h npc_routes.cpp sprites.cpp)
     list(APPEND ASSET_OUTPUTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/${asset}")
