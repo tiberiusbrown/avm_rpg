@@ -147,8 +147,8 @@ static void conversations() {
     // A repeated conversation delivers again but completes nothing new.
     quest_emit(NpcTalked<NPC_TESSA>{});
     CHECK(test_talks[5] == 2 && test_completions[5] == 1);
-    // Dry Roots shares the villager conversation, and it is not started, so it stays unstarted.
-    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_NOT_STARTED);
+    // The shipping quest does not subscribe to the synthetic conversation.
+    CHECK(quest_status(QUEST_LANTERN_KEEPER) == QUEST_NOT_STARTED);
 }
 
 static void starts() {
@@ -161,8 +161,8 @@ static void starts() {
     // Starting again is idempotent, and it does not run start() again.
     CHECK(!quest_start(Q(8)) && test_starts[8] == 1);
     // A later start keeps the tracked quest.
-    CHECK(quest_start(QUEST_DRY_ROOTS) && quest_selected() == Q(8));
-    CHECK(quest_select(QUEST_DRY_ROOTS) && quest_selected() == QUEST_DRY_ROOTS);
+    CHECK(quest_start(QUEST_LANTERN_KEEPER) && quest_selected() == Q(8));
+    CHECK(quest_select(QUEST_LANTERN_KEEPER) && quest_selected() == QUEST_LANTERN_KEEPER);
 }
 
 static void long_journal() {
@@ -179,8 +179,8 @@ static void long_journal() {
     for(unsigned i = 0; i < listed; ++i)
         CHECK(quest_journal_entry((uint8_t)i) == expected[i]);
     CHECK(quest_journal_entry((uint8_t)listed) == QUEST_NONE);
-    // Dry Roots is not started, so it is hidden from the Journal.
-    CHECK(!quest_listed(QUEST_DRY_ROOTS));
+    // Lantern Keeper is not started, so it is hidden from the Journal.
+    CHECK(!quest_listed(QUEST_LANTERN_KEEPER));
 
     // A tracked quest replaces the previous one, and only active quests can be tracked.
     CHECK(quest_select(Q(9)) && quest_selected() == Q(9));

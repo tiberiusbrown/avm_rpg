@@ -490,9 +490,9 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
     return wait_for_input(DIALOGUE_CHOICE);
 }
 
-uint8_t dialogue_options_ex(char const PROGMEM* const PROGMEM* options, uint8_t count,
-                            bool allow_back) {
-    open_overlay();
+// Keep menu row storage off the stack while opening or animating the overlay.
+static RPG_NOINLINE uint8_t choose_dialogue_option(char const PROGMEM* const PROGMEM* options,
+                                                   uint8_t count, bool allow_back) {
     input_sync();
     dialogue_prompt = DIALOGUE_OPTIONS;
     uint8_t selected = 0, first = 0;
@@ -535,6 +535,12 @@ uint8_t dialogue_options_ex(char const PROGMEM* const PROGMEM* options, uint8_t 
             }
         }
     }
+}
+
+uint8_t dialogue_options_ex(char const PROGMEM* const PROGMEM* options, uint8_t count,
+                            bool allow_back) {
+    open_overlay();
+    return choose_dialogue_option(options, count, allow_back);
 }
 
 void party_joined(NPC_ID id) {

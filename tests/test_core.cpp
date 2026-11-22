@@ -426,7 +426,7 @@ static void saves() {
     CHECK(game.gold == 37 && game.get_flag(FLAG_RESERVED));
     CHECK(!memcmp(&game.supplies, &saved.supplies, sizeof(Supplies)));
     CHECK(!game.ticks && !game.player.walking);
-    CHECK(game.flags.get_flag(FLAG_ORRIN_ACCOUNT) == saved.flags.get_flag(FLAG_ORRIN_ACCOUNT));
+    CHECK(game.flags.get_flag(FLAG_LANTERN_RECORD_FOUND) == saved.flags.get_flag(FLAG_LANTERN_RECORD_FOUND));
     update_visible_world(0, false);
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
     CHECK(cached_tile(positions::WellSign) == TILE_SIGN);

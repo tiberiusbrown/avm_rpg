@@ -369,6 +369,9 @@ Rules for houses:
 - **Inn.** `InnRest` is the `rest_at_inn` point on the right end of the counter.
   Keep the floor south of it clear so the player can face the counter and use A.
   `InnExit` remains the walk-out doorway.
+- **Document tables.** The `WorkshopRecord` and `SurveyorNotes` handler points
+  use `TABLE_WORKSHOP_RECORD` (`0xD0`) and `TABLE_SURVEY_NOTES` (`0xD1`).
+  Leave a clear adjacent cell for reading.
 - **Interactive tiles block.** A pot or chest takes its handler point on its own
   cell, and the player interacts from the next cell while facing it. Content code records
   the collected state, as outdoors.

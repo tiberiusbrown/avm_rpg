@@ -1,5 +1,26 @@
 # Performance evidence
 
+## Millcross quest integration
+
+The RelWithDebInfo shipping guest uses 580 bytes of static RAM, including
+261 saved bytes. Full LTO verifies a complete 251-byte stack bound, 24-bit
+dispatch pointers, and no stored map positions.
+
+| Device workload | Worst exploration cycles | Budget |
+| --- | ---: | ---: |
+| Full replay | 317,332 | 320,000 |
+| Sound and mechanism replay | 316,621 | 320,000 |
+| Millcross quest replay | 312,152 | 320,000 |
+
+Normal and FXC produced the same peaks. A cached chunk can contain an NPC site
+outside the tile window. The site now checks its tile against the cache before
+evaluating the policy or requesting admission. This removes redundant admission
+work while preserving the offscreen guard and actor-pool priority.
+
+Reproduce with the `rpg_integration_full` CMake target. The target retains
+logs, timing measurements, and captures in `build/verification-*`.
+
+
 ## Exploration regression diagnosis and correction (2026-11-18)
 
 The starting RPG checkout is `6d57b70` (the previous NPC fixes, committed by the

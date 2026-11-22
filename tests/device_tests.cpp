@@ -354,7 +354,9 @@ struct Device {
                     std::cerr << "Over-budget frame: total=" << last.total
                               << " render=" << last.render << " reload=" << last.reload
                               << " chunks=" << last.chunks << " actors/collision=" << last.collision
-                              << " serial=" << serial() << '\n';
+                              << " serial=" << serial() << " area=" << unsigned(frame_area)
+                              << " player=" << state().player.x << ',' << state().player.y
+                              << '\n';
                 if(proof || state().area == frame_area)
                     worst_exploration_cycles = std::max(worst_exploration_cycles, last.total);
                 require(!check_timing || (!proof && state().area != frame_area) ||
@@ -512,9 +514,9 @@ struct Device {
         throw std::runtime_error("dialogue exceeded the page bound");
     }
 
-    void capture(fs::path const& path) {
-        // Let the OLED scan out a newly displayed modal page while simulation is paused.
-        if(prompt() != DIALOGUE_CLOSED)
+    void capture(fs::path const& path, bool wait_for_scanout = false) {
+        // A new scene or dialogue panel may still be scanning out.
+        if(wait_for_scanout || prompt() != DIALOGUE_CLOSED)
             advance(0, 1600000);
 
         // cycle() advances the OLED; advance(0) refreshes its unfiltered visible array.
@@ -2066,27 +2068,28 @@ static void advance_to_dialogue_options(Device& d) {
 
 static void verify_quest_level_up(Device& d, fs::path const& out) {
     Snapshot fixture = d.state();
-    fixture.player = {(uint16_t)(positions::TessaWell.x * TILE),
-                      (uint16_t)((positions::TessaWell.y + 1) * TILE), NORTH, 0};
+    fixture.player = {(uint16_t)((positions::VillageLantern.x - 1) * TILE),
+                      (uint16_t)(positions::VillageLantern.y * TILE), EAST, 0};
     fixture.npcs.entering = 1;
-    fixture.flags.set_flag(FLAG_ORCHARD_DISPUTE);
-    fixture.flags.set_flag(FLAG_BRAM_ACCOUNT);
-    fixture.flags.set_flag(FLAG_ORRIN_ACCOUNT);
+    fixture.flags.set_flag(FLAG_LANTERN_STARTED);
+    fixture.flags.set_flag(FLAG_LANTERN_DIAGNOSED);
+    fixture.flags.set_flag(FLAG_LANTERN_RECORD_FOUND);
     fixture.party.members[0].level = 1;
-    fixture.party.members[0].experience = 6;
+    fixture.party.members[0].experience = 4;
     fixture.party.members[0].perk_ranks = 0;
     d.set_state(fixture);
     d.frame();
 
+    d.capture(out / "lantern-unlit.pgm", true);
     d.tap(BTN_A);
     advance_to_dialogue_options(d);
-    d.capture(out / "dry-roots-options.pgm");
+    d.capture(out / "lantern-modern-options.pgm");
     d.tap(BTN_B);
     d.frame();
-    require(!d.state().get_flag(FLAG_ORCHARD_SETTLED) &&
-                !d.state().get_flag(FLAG_ORCHARD_PUBLIC) &&
-                d.state().party.members[0].experience == 6,
-            "canceling the settlement changed quest state");
+    require(!d.state().get_flag(FLAG_LANTERN_RESTORED) &&
+                !d.state().get_flag(FLAG_LANTERN_MODERN) &&
+                d.state().party.members[0].experience == 4,
+            "canceling the repair changed quest state");
 
     d.tap(BTN_A);
     advance_to_dialogue_options(d);
@@ -2097,16 +2100,16 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
         d.wait_for_prompt();
         prompt = d.prompt();
         require(prompt == DIALOGUE_MORE || prompt == DIALOGUE_DONE,
-                "expected Tessa's resolution text");
+                "expected Bram's resolution text");
         d.tap(BTN_A);
     }
-    require(prompt == DIALOGUE_DONE, "Tessa's resolution text did not finish");
+    require(prompt == DIALOGUE_DONE, "Bram's resolution text did not finish");
     d.advance(0, 3200000);
     Snapshot rewarded = d.state();
-    require(rewarded.get_flag(FLAG_ORCHARD_SETTLED) && rewarded.get_flag(FLAG_ORCHARD_PUBLIC) &&
-                rewarded.party.members[0].level == 2 &&
+    require(rewarded.get_flag(FLAG_LANTERN_RESTORED) && rewarded.get_flag(FLAG_LANTERN_MODERN) &&
+                rewarded.gold == fixture.gold + 12 && rewarded.party.members[0].level == 2 &&
                 party_unspent_perks(rewarded.party.members[0]) == 1,
-            "Dry Roots did not earn a level and a perk choice");
+            "Lantern Keeper did not earn a level and a perk choice");
     unsigned serial = d.serial();
     d.advance(0, 3200000);
     require(d.serial() == serial, "quest level-up notice did not wait for dismissal");
@@ -2115,6 +2118,134 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
     d.frame();
     require(d.serial() != serial && party_unspent_perks(d.state().party.members[0]) == 1,
             "dismissing the quest notice did not resume exploration with a pending perk");
+    d.capture(out / "lantern-modern.pgm", true);
+}
+
+static void verify_venlor_quests(Device& d, fs::path const& out) {
+    auto place = [&](TilePos site, int8_t dx, int8_t dy, DIRECTION facing) {
+        Game fixture = d.state();
+        fixture.area = site.area;
+        if(site.area == AREA_CAVE)
+            fixture.dimensions = {CAVE_WIDTH, CAVE_HEIGHT};
+        else if(site.area == AREA_INTERIORS)
+            fixture.dimensions = {INTERIORS_WIDTH, INTERIORS_HEIGHT};
+        else
+            fixture.dimensions = {OUTDOOR_WIDTH, OUTDOOR_HEIGHT};
+        fixture.player = {(uint16_t)((site.x + dx) * TILE), (uint16_t)((site.y + dy) * TILE),
+                          facing, 0};
+        fixture.previous_player_tile = {};
+        fixture.npcs = {};
+        fixture.npcs.entering = 1;
+        d.set_state(fixture);
+        d.frame();
+    };
+    auto inspect = [&](char const* filename) {
+        d.capture(out / filename, true);
+        d.tap(BTN_A);
+        d.dismiss_dialogue();
+    };
+    auto surveyors_here = [&] {
+        auto state = d.state();
+        return std::count_if(std::begin(state.npcs.actors), std::end(state.npcs.actors),
+                             [](Npc const& n) { return n.id == NPC_SURVEYOR; });
+    };
+
+    place(positions::WorkshopRecord, 0, 1, NORTH);
+    inspect("workshop-record.pgm");
+    require(d.state().get_flag(FLAG_LANTERN_RECORD_FOUND) && !d.state().get_flag(FLAG_LANTERN_STARTED),
+            "reading the workshop record did not preserve early evidence");
+    place(positions::SurveyorNotes, 0, 1, NORTH);
+    inspect("surveyor-notes.pgm");
+    require(d.state().get_flag(FLAG_SURVEY_STARTED) && d.state().get_flag(FLAG_SURVEY_NOTES_READ),
+            "the survey notes did not start the search");
+
+    place(positions::MineLanternRelay, 0, 1, NORTH);
+    Game gate_open = d.state();
+    gate_open.flags.set_flag(FLAG_CAVE_GATE);
+    d.set_state(gate_open);
+    d.frame();
+    inspect("mine-lantern-relay.pgm");
+    require(d.state().get_flag(FLAG_LANTERN_RELAY_FOUND) && !d.state().get_flag(FLAG_CAVE_BRIDGE),
+            "the relay depended on the bridge");
+
+    Game crossing = d.state();
+    crossing.flags.set_flag(FLAG_CAVE_BRIDGE);
+    // Keep this scenario below the level-up threshold at each separate reward.
+    crossing.party.members[0].level = 2;
+    crossing.party.members[0].experience = 0;
+    d.set_state(crossing);
+    place(positions::SurveyorTrapped, 0, 1, NORTH);
+    require(surveyors_here() == 1, "trapped surveyor did not appear");
+    d.capture(out / "surveyor-trapped.pgm", true);
+    for(uint8_t response : {BTN_B, BTN_A}) {
+        d.tap(BTN_A);
+        d.wait_for_prompt();
+        while(d.prompt() == DIALOGUE_MORE) {
+            d.tap(BTN_A);
+            d.wait_for_prompt();
+        }
+        require(d.prompt() == DIALOGUE_CHOICE, "surveyor did not offer to leave");
+        d.tap(response);
+        if(response == BTN_B) {
+            d.frame();
+            require(d.state().get_flag(FLAG_SURVEYOR_FOUND) &&
+                        !d.state().get_flag(FLAG_SURVEYOR_RESCUED) &&
+                        d.state().gold == crossing.gold && surveyors_here() == 1,
+                    "declining the rescue changed its outcome");
+        } else {
+            d.dismiss_dialogue();
+        }
+    }
+    require(d.state().get_flag(FLAG_SURVEYOR_RESCUED) && surveyors_here() == 0 &&
+                d.state().gold == crossing.gold + 15 &&
+                d.state().party.members[0].experience == 8 &&
+                !d.state().get_flag(FLAG_CAVE_CHEST),
+            "rescue did not retire the surveyor and award exactly 8 XP and 15 G");
+    place(positions::CaveLadder, 0, 1, NORTH);
+    walk_to_area(d, BTN_UP, AREA_OUTDOOR, "the rescued surveyor's ladder did not lead outside");
+    walk_to_area(d, BTN_UP, AREA_CAVE, "the hatch did not reopen the ladder route");
+    place(positions::InnExit, 0, -1, SOUTH);
+    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "the inn did not return to Millcross");
+    d.hold(BTN_RIGHT, TILE);
+    require(surveyors_here() == 1, "the returned surveyor did not appear by the inn");
+    d.capture(out / "surveyor-returned.pgm", true);
+    d.tap(BTN_A);
+    advance_to_dialogue_options(d);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.dismiss_dialogue();
+    require(d.state().gold == crossing.gold + 15, "post-rescue conversation reissued a reward");
+
+    // Walk around Well Square from the inn. Normal movement admits actors incrementally.
+    d.hold(BTN_DOWN, 3 * TILE);
+    d.hold(BTN_RIGHT, (positions::VillageLantern.x - positions::SurveyorReturned.x) * TILE);
+    Game diagnosis = d.state();
+    diagnosis.flags.set_flag(FLAG_LANTERN_DIAGNOSED);
+    d.set_state(diagnosis);
+    d.tap(BTN_A);
+    advance_to_dialogue_options(d);
+    d.capture(out / "lantern-ancient-options.pgm");
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.dismiss_dialogue();
+    require(d.state().get_flag(FLAG_LANTERN_RESTORED) && !d.state().get_flag(FLAG_LANTERN_MODERN) &&
+                d.state().gold == crossing.gold + 27 &&
+                d.state().party.members[0].experience == 14,
+            "ancient restoration did not preserve the repair method or award 6 XP and 12 G");
+    d.capture(out / "lantern-ancient.pgm", true);
+    d.tap(BTN_B);
+    for(unsigned row = 0; row < PAUSE_JOURNAL - PAUSE_RESUME; ++row)
+        d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 3200000);
+    d.capture(out / "journal-both-completed.pgm");
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 3200000);
+    d.capture(out / "journal-surveyor-completed.pgm");
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.advance(0, 3200000);
 }
 
 static void verify_millcross_views(Device& d, fs::path const& out) {
@@ -2426,14 +2557,12 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
     (void)out;
     Snapshot before = d.state();
     Game started = before;
-    started.flags.set_flag(FLAG_ORCHARD_DISPUTE);
+    started.flags.set_flag(FLAG_LANTERN_STARTED);
     d.set_state(started);
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    // Save, Party and Journal are always visible outdoors, so three steps down reach Journal.
-    d.tap(BTN_DOWN);
-    d.tap(BTN_DOWN);
-    d.tap(BTN_DOWN);
+    for(unsigned row = 0; row < PAUSE_JOURNAL - PAUSE_RESUME; ++row)
+        d.tap(BTN_DOWN);
     {
         PauseTiming opening(d);
         d.tap(BTN_A);
@@ -2574,8 +2703,10 @@ int main(int argc, char** argv) try {
     }
     if(std::string(argv[6]) == "millcross") {
         verify_millcross_views(d, out);
-        verify_quest_level_up(d, out);
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Millcross views and settlement choice\"}\n";
+        verify_venlor_quests(d, out);
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Millcross views, ancient lantern repair and surveyor rescue\"}\n";
+        std::cout << "{\"worst_exploration_cycles\":" << worst_exploration_cycles
+                  << ",\"within_frame_budget\":true}\n";
         return 0;
     }
     verify_options(d, out);
@@ -2717,7 +2848,7 @@ int main(int argc, char** argv) try {
     verify_house_fades(d);
     verify_area_music(d);
 
-    // A ready settlement opens real dialogue, and B can leave the choice without committing it.
+    // A prepared lantern repair opens dialogue, and B can leave without committing it.
     Game before_social = d.state();
     verify_quest_level_up(d, out);
     d.set_state(before_social);
@@ -2756,10 +2887,10 @@ int main(int argc, char** argv) try {
     require(d.serial() != menu_serial, "Map did not resume exploration");
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    // Start Dry Roots for this menu, so the Journal lists it and its detail view has text to draw.
+    // Start Lantern Keeper for this menu, so the Journal lists it and its detail view has text to draw.
     Game before_quest = d.state();
     Game quest = before_quest;
-    quest.flags.set_flag(FLAG_ORCHARD_DISPUTE);
+    quest.flags.set_flag(FLAG_LANTERN_STARTED);
     d.set_state(quest);
     menu_state = d.state();
     menu_serial = d.serial();

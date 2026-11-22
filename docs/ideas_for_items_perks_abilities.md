@@ -3,6 +3,8 @@
 **Status:** Design reference and idea bank, not an implementation specification  
 **Design target:** A compact, exploration-driven fantasy RPG with tactical battles and a tight Arduboy memory/UI budget.
 
+For shipped mechanics and exact values, see [game logic](game_logic.md).
+
 ## 1. Design goals and existing combat assumptions
 
 The reward system should make exploring a side passage, clearing an optional dungeon, and accepting a quest feel valuable for *different* reasons. Long-term character growth should open tactical possibilities without making the existing movement/positioning system irrelevant.

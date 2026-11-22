@@ -83,6 +83,7 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 | `0x42` | 66 | `CHEST_CLOSED` | partly | Closed chest with a lit lid and a lock. Collectible. Blocks its cell without the top corners. |
 | `0x43` | 67 | `CHEST_OPEN` | partly | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 | `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
+| `0xD0–0xD2` | 208–210 | `VILLAGE_LANTERN_DARK`, `VILLAGE_LANTERN_MODERN`, `VILLAGE_LANTERN_ANCIENT` | partly | Shared diamond collision. Paint the dark variant under the `VillageLantern` marker. |
 
 The road, bridge, large boulder, water, raised-area and fence cells are named too. Their
 tables are in [Roads](#roads), [Bridges](#bridges), [Rocks](#rocks), [Water](#water),

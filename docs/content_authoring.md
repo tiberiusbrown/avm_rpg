@@ -4,6 +4,8 @@ Use this guide when adding maps, NPCs, quests, encounters, or environmental deta
 Read the [world bible](world_bible.md) for established setting facts and the
 [game design](game_design.md) for the larger project goals.
 
+Use [game logic](game_logic.md) for authoritative mechanics, dependencies, and rewards.
+
 ## Author for an 8×4 viewport
 
 The Arduboy shows about eight terrain tiles across and four down, with smooth

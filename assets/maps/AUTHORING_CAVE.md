@@ -305,12 +305,12 @@ A cave joins the outdoor map through passages.
   and Nell’s warning about the wolf. The exit leads to Millcross’s north road.
 - The **rail gallery** contains a wolf encounter and a tally board. `CaveLever`
   opens the east gate to the winch room.
-- The **winch room** holds `CaveVaultLever`, which opens `CaveNookGate` to the west.
+- The **winch room** holds `CaveVaultLever`, which opens `CaveNookGate` to the west. Its south wall holds the old lantern relay.
   `CavePlate` in the west inspection nook extends the bridge and opens the
   surface hatch.
 - The **grotto** in the northwest holds a pool and an optional inscription.
 - A steam vent bars the north passage intermittently. The restored bridge
-  leads to the supply chest and the ladder back to the west ridge.
+  leads to the supply chest, the surveyor’s landing, and the ladder back to the west ridge.
 
 ## Before committing a cave map
 

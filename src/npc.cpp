@@ -239,6 +239,12 @@ void npc_retire_enemy(NPC_ID id) {
             retire_slot((uint8_t)(actor - game.npcs.actors), NPC_RETIRED_ENCOUNTER);
 }
 
+void npc_leave_scene(NPC_ID id) {
+    if(id != NPC_NONE && id < NPC_ID_LIMIT && npc_location(id).area != game.area)
+        if(auto* actor = npc_find(id))
+            retire_slot((uint8_t)(actor - game.npcs.actors));
+}
+
 RPG_NOINLINE void npc_stage_begin() {
 #ifndef RPG_AVM
     npc_site_checks = 0;

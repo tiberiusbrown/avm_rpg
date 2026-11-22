@@ -67,6 +67,8 @@ inline void npc_offer_candidate(NPC_ID id, TilePos site) {
 // Called after adding a party member. Retires its map actor, preserving the occupied prefix.
 void npc_recruit(NPC_ID id);
 void npc_retire_enemy(NPC_ID id);
+// Finish a scripted departure once the NPC policy assigns it outside this area.
+void npc_leave_scene(NPC_ID id);
 bool npc_visible(uint16_t x, uint16_t y);
 bool npc_overlap(uint16_t x, uint16_t y, uint16_t other_x, uint16_t other_y);
 void npc_reset();

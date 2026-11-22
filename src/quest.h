@@ -75,6 +75,16 @@ char const PROGMEM* quest_objective(QUEST_ID id);
 // bounds for that area.
 bool quest_marker(QUEST_ID id, uint8_t area, TilePos& out);
 
+// Copy a fixed marker as immediate coordinates, with no stored map position.
+template <TilePos POS> bool quest_fixed_marker(uint8_t area, TilePos& out) {
+    if(area != POS.area)
+        return false;
+    out.area = POS.area;
+    out.x = POS.x;
+    out.y = POS.y;
+    return true;
+}
+
 // Tracking is separate from status and from the Journal's highlight. Only an active quest can be
 // tracked, and at most one quest is tracked at a time.
 QUEST_ID quest_selected();
@@ -83,7 +93,7 @@ void quest_deselect();
 // The tracked quest's marker in an area. It is false when no quest is tracked.
 bool quest_map_marker(uint8_t area, TilePos& out);
 
-// Journal entries are quests that are not started. They are listed in ID order, and a scan answers
+// Journal entries are quests that have started. They are listed in ID order, and a scan answers
 // each lookup, so no list is stored.
 bool quest_listed(QUEST_ID id);
 uint8_t quest_journal_count();
@@ -103,6 +113,8 @@ void quest_settle();
 // A quest completion handler may award XP once when it records completion. The exploration
 // screen consumes any resulting level-ups after the world update and dialogue finish.
 void quest_award_experience(uint8_t experience);
+// Grants XP and credits as much gold as the wallet can hold.
+void quest_award_reward(uint8_t experience, uint8_t gold);
 LevelUpNotice quest_take_level_ups();
 // Clears transient evaluation state on a new game or a loaded save.
 void quest_reset();

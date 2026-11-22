@@ -9,6 +9,9 @@
 
 > **Core thesis:** Build a small-scale but genuine Elder Scrolls-style open-world RPG, with a main quest, optional quests, freely explorable towns and dungeons, named characters, ambient wandering NPCs, consequential choices, and a world entirely designed and authored by AI. Implement game behavior and quest logic in native C/C++, not a runtime scripting language. Use AVM's expanded code/content storage to make the world substantially richer than a conventional tiny handheld RPG, while strictly bounding guest RAM and stack.
 
+[Game logic](game_logic.md) is the canonical specification for shipped mechanics
+and content. This document records Venlor’s wider design vision and proposals.
+
 ## 1. Executive summary
 
 The game is a top-down, tile-based, single-player fantasy RPG for a 128 × 64 monochrome display and six controls (D-pad plus A and B). The player can largely ignore the main storyline, travel around the world, explore settlements and wilderness, enter dungeons, meet people, fight enemies, find secrets, improve equipment, and follow side quests. Significant events change conversations and local world state. The world should feel authored, interconnected, and worth exploring rather than generated merely to fill space.

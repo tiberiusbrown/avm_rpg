@@ -110,8 +110,11 @@ assert {o["handler"] for o in m.objects if o["handler"]} == {
     "take_passage",
     "maintenance_hatch",
     "show_message",
+    "village_lantern",
+    "read_survey_trail",
 }
-assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house", "rest_at_inn", "open_shop", "show_message"}
+assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house", "rest_at_inn", "open_shop", "show_message",
+                                                                   "read_workshop_record", "read_survey_notes"}
 # Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
 assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["collision"] == 0xFFFF
 assert 0 not in m.data, "0x00 is EMPTY and must not be painted outdoors"
@@ -186,7 +189,7 @@ for index, name, mask in (
 ):
     assert tiles[index]["symbol"] == name and tiles[index]["collision"] == mask, name
     assert not tiles[index]["portal"]
-assert sum(not t["symbol"].startswith("ATLAS_") for t in tiles.values()) == 133
+assert sum(not t["symbol"].startswith("ATLAS_") for t in tiles.values()) == 136
 # Unnamed cells are solid, except the shaped roof pieces.
 SHAPED_UNNAMED = {0x81: 0xC600, 0x90: 0xF660, 0x92: 0xCF0C}
 for index, tile in tiles.items():
@@ -292,7 +295,7 @@ for y in range(m.height):
             )
 assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
 assert {0x08, 0x09, 0x0A, 0x59} <= set(m.data), "outdoor floors use sparse grass too"
-outdoor_residents = ("TessaWell", "TessaOrchard", "OrrinLane", "RowanHome", "BramYard", "NellLookout")
+outdoor_residents = ("TessaWell", "TessaOrchard", "OrrinLane", "RowanHome", "BramYard", "NellLookout", "SurveyorReturned")
 
 
 def position(name):
@@ -413,6 +416,13 @@ for name in doors:
         room.add((x, y))
         queue.extend(((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)))
     room_cells[name] = room
+for room, marker, tile in (("Smithy", "WorkshopRecord", "TABLE_WORKSHOP_RECORD"),
+                           ("Inn", "SurveyorNotes", "TABLE_SURVEY_NOTES")):
+    assert inside(*position(marker)) == house_symbol[tile]
+    assert any(cell in room_cells[room] for cell in adjacent(position(marker))), marker
+for marker, tile in (("VillageLantern", "VILLAGE_LANTERN_DARK"), ("SurveyTrailMark", "SIGN")):
+    assert at(*position(marker)) == symbol_index[tile]
+    assert any(cell in seen for cell in adjacent(position(marker))), marker
 assert len({frozenset(room) for room in room_cells.values()}) == len(doors), "two houses share a room"
 # No other interior is on screen from anywhere the player can stand. The view is 8x4
 # tiles around the player, and up to 9x5 when the camera is between tiles.
@@ -518,7 +528,7 @@ for chimney, roof in (("ROOF_FLAT_CHIMNEY", 0xB5), ("ROOF_SLOPE_CHIMNEY", 0x92))
 # AUTHORING_DUNGEON.md. The three tilesets share their room pieces, cell for cell.
 INTERIOR_TILESETS = {
     "house": {
-        "named": 110,
+        "named": 112,
         "walkable": {
             "ARCHWAY", "DOORMAT", "DOOR_OPEN", "EDGE_LEFT_EXIT",
             "EDGE_LEFT_RIGHT_EXIT", "EDGE_RIGHT_EXIT", "EDGE_TOP_EXIT", "FLOOR_CHECKER",
@@ -611,7 +621,9 @@ for name, records in {**interior_records, "world": world_records}.items():
 ALIKE = (
     ("SWITCH_LEFT", "SWITCH_RIGHT"), ("CHEST_CLOSED", "CHEST_OPEN"), ("BARREL", "CRATE"),
     ("MINECART", "MINECART_FULL"), ("PEDESTAL", "ORB_DARK", "ORB_LIT"), ("STATUE", "STATUE_BROKEN"),
-    ("TABLE", "TABLE_SET", "TABLE_CANDLE", "TABLE_LEFT", "TABLE_MIDDLE", "TABLE_RIGHT"),
+    ("TABLE", "TABLE_SET", "TABLE_CANDLE", "TABLE_LEFT", "TABLE_MIDDLE", "TABLE_RIGHT",
+     "TABLE_WORKSHOP_RECORD", "TABLE_SURVEY_NOTES"),
+    ("VILLAGE_LANTERN_DARK", "VILLAGE_LANTERN_MODERN", "VILLAGE_LANTERN_ANCIENT"),
     ("COUNTER_LEFT", "COUNTER_MIDDLE", "COUNTER_RIGHT", "COUNTER_SINK"),
     ("CHAIR_SOUTH", "CHAIR_NORTH", "CHAIR_EAST", "CHAIR_WEST"),
     ("ROCK_SMALL", "ROCK_FLAT"), ("TORCH_POST", "FLAG"),
@@ -677,9 +689,7 @@ EDGE_OF = {
 HANDLER_TILES = {
     "take_passage": {"EDGE_TOP_EXIT", "LADDER_UP"},
     "show_message": {"SIGN", "PLAQUE"},
-    "read_bridge_notice": {"SIGN"},
-    "read_wolf_warning": {"SIGN"},
-    "read_mine_ledger": {"SIGN"},
+    "take_lantern_relay": {"LANTERN"},
     "use_lever": {"SWITCH_LEFT"},
     "press_plate": {"PRESSURE_PLATE"},
     "open_chest": {"CHEST_CLOSED"},
@@ -765,7 +775,7 @@ for map_symbol in ("CAVE", "DUNGEON"):
             if o["handler"] in OPENS:
                 opening.add((point["tx"], point["ty"]))
         marker = o["name"] + ("Region" if o["rectangle"] else "")
-        if o["handler"] not in {"steam_vent", "read_bridge_notice", "read_wolf_warning", "read_mine_ledger"}:
+        if o["handler"] not in {"steam_vent", "take_lantern_relay"}:
             assert f"positions::{marker}" in logic, f"{o['name']} is missing from the tables in src/logic/area_{kind}.h"
     # Every walkable cell can be reached once the mechanisms are open. A barred cell that no
     # handler opens is scenery, and the flood passes its door.
@@ -845,10 +855,16 @@ for steam in (False, True):
     assert not approachable(camp, "CaveVaultLever") and position("CavePlate") not in camp
     east = mine_route("CaveSpawn", (gate,), steam)
     assert approachable(east, "CaveVaultLever") and position("CavePlate") not in east
+    assert not approachable(camp, "MineLanternRelay")
+    assert approachable(east, "MineLanternRelay")
     west = mine_route("CaveSpawn", (gate, grille), steam)
     assert position("CavePlate") in west and not approachable(west, "CaveChest")
+    assert not approachable(west, "SurveyorTrapped")
 # The bridge stays open after either lever is reset. The vent always clears with time.
 restored = mine_route("CaveSpawn", span)
+assert approachable(restored, "SurveyorTrapped")
+assert position("SurveyorTrapped") != position("CaveLadder")
+assert approachable(mine_route("SurveyorTrapped", span), "CaveLadder")
 assert all(approachable(restored, name) for name in ("CaveChest", "CaveLadder", "PoolEcho"))
 
 # Both ends of every passage are in the table, and the outdoor ends are the right entrances.

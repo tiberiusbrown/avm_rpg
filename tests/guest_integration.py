@@ -207,46 +207,28 @@ def main():
                     refs[k]["address"] for k in ["game", "frame_marker", "frame_serial"]
                 ]
             )
-            output = run(
-                [
-                    device,
-                    artifacts / f"{name}{variant}.arduboy",
-                    *addresses,
-                    work / mode,
-                    mode if args.full or mode == "proof" else "smoke",
-                    0 if mode == "proof" else refs["dialogue_prompt"]["address"],
-                    0 if mode == "proof" else refs["world_phase"]["address"],
-                    0 if mode == "proof" else refs["battle_qa_state"]["address"],
-                    0 if mode == "proof" else refs["battle_qa_ready"]["address"],
-                    0 if mode == "proof" else refs["dialogue_panel_open"]["address"],
-                    0 if mode == "proof" else refs["runtime_workspace"]["address"],
-                ],
-                work / f"{mode}.log",
-            )
-            device_measurements = [
-                json.loads(row) for row in output.splitlines() if row.startswith("{")
+            qa_keys = [
+                "dialogue_prompt", "world_phase", "battle_qa_state", "battle_qa_ready",
+                "dialogue_panel_open", "runtime_workspace",
             ]
+            qa_addresses = [0 if mode == "proof" else refs[key]["address"] for key in qa_keys]
+            cases = [(mode, mode if args.full or mode == "proof" else "smoke")]
             if mode != "proof":
-                # Menu ticks, the wind and a lever's chained sounds, on their own, so that they
-                # run whether or not the long scenarios pass.
-                sounds = run(
+                cases.append((f"{mode}-sounds", "sounds"))
+                if args.full:
+                    cases.append((f"{mode}-millcross", "millcross"))
+
+            device_measurements = []
+            for label, scenario in cases:
+                output = run(
                     [
-                        device,
-                        artifacts / f"{name}{variant}.arduboy",
-                        *addresses,
-                        work / f"{mode}-sounds",
-                        "sounds",
-                        refs["dialogue_prompt"]["address"],
-                        refs["world_phase"]["address"],
-                        refs["battle_qa_state"]["address"],
-                        refs["battle_qa_ready"]["address"],
-                        refs["dialogue_panel_open"]["address"],
-                        refs["runtime_workspace"]["address"],
+                        device, artifacts / f"{name}{variant}.arduboy", *addresses,
+                        work / label, scenario, *qa_addresses,
                     ],
-                    work / f"{mode}-sounds.log",
+                    work / f"{label}.log",
                 )
                 device_measurements += [
-                    json.loads(row) for row in sounds.splitlines() if row.startswith("{")
+                    json.loads(row) for row in output.splitlines() if row.startswith("{")
                 ]
             if mode == "fxc":
                 for measurement in device_measurements:

@@ -7,7 +7,7 @@ form a compact prefix; retirement moves full records without resetting other act
 character sprites, resolver functions and chunk tables remain in PROGMEM. Stage scratch
 holds at most eight candidates, regardless of the identity count.
 
-Millcross’s seven identities are listed in the [world bible](world_bible.md).
+Millcross’s resident identities are listed in the [world bible](world_bible.md).
 `npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
 `dialogue_show(id, F("..."))` shows that name in a fitted panel above the main
 dialogue panel, aligned with its left edge. The name remains visible across pages.
@@ -34,7 +34,7 @@ Successful `party_add` calls for NPCs then show "<name> has joined the party!"
 and play the `party_join` jingle. Failed additions and the initial traveler setup
 remain silent; the announcement uses the ordinary close/dismiss prompt.
 
-Tessa stands by the well until Dry Roots is settled, then moves to the orchard.
+Tessa stands near the well. The surveyor’s policy moves between the mine and Millcross.
 Orrin and Nell wander within their respective lanes. Every resident’s dialogue
 is delivered through `npc_dialogue` after `npc_talk`.
 
@@ -64,9 +64,9 @@ NPCs. The stable identities in `npc_ids.h` run from 1 through `NPC_ID_LIMIT - 1`
 For example:
 
 ```cpp
-template <> struct NpcPolicy<NPC_TESSA>
-    : AtOneOf<positions::TessaWell,
-              When<positions::TessaOrchard, [] { return game.get_flag(FLAG_ORCHARD_SETTLED); }>> {};
+template <> struct NpcPolicy<NPC_SURVEYOR>
+    : AtOneOf<positions::SurveyorTrapped,
+              When<positions::SurveyorReturned, [] { return game.get_flag(FLAG_SURVEYOR_RESCUED); }>> {};
 ```
 
 The first matching `When` wins; otherwise `current()` returns the default. Predicates
@@ -77,7 +77,7 @@ from the index. Missing policies and invalid template identities fail compilatio
 `npc_location<ID>()` inlines the policy; `npc_location(id)` uses a dense ROM resolver table.
 
 Every frame, after tile updates and overlap repair, `STAGE_NPCS` dispatches only cached
-chunks. Begin examines only active slots, refreshes their derived `assigned_site`, and
+chunks. A site outside the tile cache is dropped before its policy is resolved. Begin examines only active slots, refreshes their derived `assigned_site`, and
 retires safely unloadable actors. Chunk specializations check only policy sites in their
 chunk and evaluate only their compile-time location policy. `npc_offer_candidate` owns
 area, party, active identity, definition, cache, visibility, portal and collision checks.
@@ -99,15 +99,15 @@ iteration, so this also covers camera movement after the NPC stage and before dr
 Exact edge contact is offscreen; intersecting even one protected pixel defers admission.
 The 11x7 cache has enough margin to cache the full 8x8 feet before this clearance
 is lost, including fractional camera phases. No extra tile of clearance is needed.
-Retirement uses the same sprite geometry but additionally requires an uncached
+Ordinary retirement uses the same sprite geometry but additionally requires an uncached
 footprint, and never unloads unfinished targets/routes. This deliberately stricter
 lifecycle condition retains partially clipped sprites even when their feet leave the
 cache. Ordinary `NPC_STAND`/`NPC_WANDER` actors also retain their slots while their
 same-area logical home's full footprint remains cached. Their uncached feet freeze
 simulation, preserving movement state until the cache covers them again. They unload
 once both actor and home leave the cache and the sprite is safely offscreen. This avoids
-retiring a local wanderer only to reconstruct it immediately at its home. Policy changes
-are applied first; `NPC_TRAVEL` still completes off cache and emits its target event,
+retiring a local wanderer only to reconstruct it immediately at its home. A scripted departure can retire an actor when its policy has already
+assigned it outside the current area. Policy changes are applied first; `NPC_TRAVEL` still completes off cache and emits its target event,
 regardless of destination caching. A full pool waits without evicting retained residents,
 including for a higher-priority candidate; no pressure-based eviction is added.
 The retirement hook receives

@@ -41,7 +41,7 @@ void npc_on_activate(Npc& n) {
             game.player.y = next.y * TILE;
             break;
         case 3:
-            game.clear_flag(FLAG_ORRIN_ACCOUNT);
+            game.clear_flag(FLAG_LANTERN_RECORD_FOUND);
             break;
         case 4:
             game.party.members[game.party.count++] = {1, 1, 0, 0, (NPC_ID)5};
@@ -109,7 +109,7 @@ int main() {
     CHECK(npc_site_checks == 0);
     npc_stage_end();
 
-    game.set_flag(FLAG_ORRIN_ACCOUNT);
+    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
     world_enter(positions::TestField.area, positions::TestField.x * TILE,
                 positions::TestField.y * TILE, SOUTH);
     // A clear synthetic cache isolates selection from authored terrain.
@@ -138,7 +138,7 @@ int main() {
     // of the admission proof; no later candidate may reuse stale eligibility.
     for(unsigned mutation = 1; mutation <= 5; ++mutation) {
         game_new();
-        game.set_flag(FLAG_ORRIN_ACCOUNT);
+        game.set_flag(FLAG_LANTERN_RECORD_FOUND);
         world_enter(positions::TestField.area, positions::TestField.x * TILE,
                     positions::TestField.y * TILE, SOUTH);
         npc_reset();
@@ -159,7 +159,7 @@ int main() {
     // Full pool of ordinary off-cache residents with cached homes. Even a
     // higher-priority offer must wait; retention neither evicts nor duplicates.
     game_new();
-    game.set_flag(FLAG_ORRIN_ACCOUNT);
+    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
     world_enter(positions::TestField.area, positions::TestField.x * TILE,
                 positions::TestField.y * TILE, SOUTH);
     npc_reset();

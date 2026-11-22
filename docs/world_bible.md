@@ -18,29 +18,31 @@ hazards.
 
 | Resident | Place and role |
 | --- | --- |
-| Tessa | Orchard keeper, direct and protective of her trees. Waits near the well while the sluice dispute is unresolved, then goes back to her orchard. |
+| Tessa | Orchard keeper, direct and protective of her trees. Often stops in Well Square and remembers sorting apples by the old lantern. |
 | Orrin | Retired sluice tender, a dry observer who walks near the elder's house. He knows how the old gates actually worked. |
 | Rowan | Hooded road archer near the square. Offers practical advice and can join the traveler. |
 | Mara | Lantern Inn keeper. Knows the neighbors and offers the party a place to recover. |
 | Bram | Smith, proud of his workmanship. He shut the orchard sluice after the water started flowing backward. |
 | Nell | Curious mine watcher on the north lane. Notices tracks and other details the adults pass over. |
 | Ada | Provisions merchant. Keeps inventory and thinks in terms of weather, work, and what customers can carry. |
+| Surveyor | Methodical field worker who took notes at the inn before following the old mine survey. After their return, they compare the new route with the old workings. |
 
-## Local quests
+## The well lantern and the mine survey
 
-- **Dry Roots** follows the dispute over the orchard sluice. Bram admits
-  closing it and Orrin confirms the reverse flow. Tessa accepts either a public
-  explanation or a private conversation. She goes back to work and the neighbors
-  respond to the chosen resolution.
-- **The Span Below** follows the painted maintenance directions in Hollow
-  Mine. The east gate leads to the release for the west inspection nook.
-  The plate in that nook extends the bridge permanently. The far side holds
-  maintenance supplies and boots. The same linkage opens the surface hatch and
-  allows two-way passage from the west ridge.
-- **Tracks in the Dust** begins at the mine warning or when the wolf is driven
-  off. The tally beyond the tracks describes a load that appeared twice.
-  Nell recognizes the mark on the ledger. The warning, victory, and discovery
-  remain independent of the bridge and orchard.
+The Lantern Inn takes its name from the public lamp at the well. The old
+workshop supplied both the square and the mine, and Bram has kept its
+records. Mara remembers the square when the lantern was working. Orrin
+remembers stories about another lamp on the same line. The revived light
+may burn steadily with a part made in Millcross or pulse with a bell-like
+sound from the well if the old machinery is put back to work.
+
+Nell saw the surveyor heading north toward Hollow Mine. They left their
+notes on the inn table and marked the trail on the way up. The collapse
+cut off the far landing, where the surveyor waited near the maintenance
+ladder. A hatch on the west ridge once let mine crews reach that landing
+from the surface. The cave wolf remains a danger on the rails.
+
+For quest mechanics and dependencies, see [game logic](game_logic.md).
 
 ## Facts and open questions
 

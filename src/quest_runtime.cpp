@@ -236,6 +236,12 @@ void quest_award_experience(uint8_t experience) {
         pending_level_ups.award(game.party, i, experience);
 }
 
+void quest_award_reward(uint8_t experience, uint8_t gold) {
+    uint16_t room = UINT16_MAX - game.gold;
+    game.gold += gold < room ? gold : room;
+    quest_award_experience(experience);
+}
+
 LevelUpNotice quest_take_level_ups() {
     LevelUpNotice notice = pending_level_ups;
     pending_level_ups = {};

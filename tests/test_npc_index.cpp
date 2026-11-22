@@ -85,7 +85,7 @@ static void test_entry_casts_residents() {
 // left to the corner-free scenarios.
 static void test_casts_wait_for_spots_out_of_view() {
     game_new();
-    game.set_flag(FLAG_BRAM_ACCOUNT);
+    game.set_flag(FLAG_LANTERN_DIAGNOSED);
     place_player(positions::TessaWell.x - 1, positions::TessaWell.y);
     update_visible_world(0, false); // Refreshes the cache for this view before the edits below.
     npc_reset();

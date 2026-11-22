@@ -771,12 +771,12 @@ void journal_open(JournalView& view, QUEST_ID id) {
         journal_wrap(quest_summary(id), TextRangeWidth{}, view.starts, JOURNAL_SUMMARY_LINES);
 }
 
-static char const PROGMEM* journal_status_label(QUEST_ID id) {
+static char const PROGMEM* journal_status_label(QUEST_ID id, bool compact = false) {
     switch(quest_status(id)) {
         case QUEST_ACTIVE:
             return F("Active");
         case QUEST_COMPLETED:
-            return F("Completed");
+            return compact ? F("Done") : F("Completed");
         case QUEST_FAILED:
             return F("Failed");
         default:
@@ -804,7 +804,7 @@ static void render_journal_list(int16_t x, JournalView const& view) {
         QUEST_ID id = quest_journal_entry(index);
         int16_t y = 20 + row * 9;
         char const PROGMEM* state =
-            quest_selected() == id ? F("Tracked") : journal_status_label(id);
+            quest_selected() == id ? F("Tracked") : journal_status_label(id, true);
         int16_t state_x = 113 - avm_text_width(state);
         begin_menu_row(x, y, index == view.selection, 112);
         text_draw_clipped(x + 7, y, quest_title(id), state_x - 10);
@@ -817,7 +817,12 @@ static void render_journal_list(int16_t x, JournalView const& view) {
 static void render_journal_detail(int16_t x, JournalView const& view) {
     QUEST_ID id = view.open;
     avm_draw_sprite_self_masked(x + 5, 4, MENU_ICONS, MENU_BOOK);
-    draw_menu_title(x + 14, quest_title(id), 110);
+    char const PROGMEM* title = quest_title(id);
+    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
+    if(avm_text_width(title) > 110 && title[0] == 'T' && title[1] == 'h' &&
+       title[2] == 'e' && title[3] == ' ')
+        title += 4;
+    draw_menu_title(x + 14, title, 110);
     draw_menu_rule(x, 21);
 
     bool tracked = quest_selected() == id;

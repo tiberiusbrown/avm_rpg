@@ -4,11 +4,11 @@ C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. Use the D-pad to move, A to interact, and B to open the pause menu.
 Walking into a hostile creature or blocking its step starts a battle.
 
-Millcross opens at Well Square. Talk to Tessa about the dry orchard, recruit
-Rowan near the square, or follow the north road to Hollow Mine. The Lantern Inn
-offers free rest, and Ada stocks supplies across the square. Save from the
-pause menu before entering the mine. The first authored village, its residents,
-and its quests are described in the [world bible](docs/world_bible.md).
+Millcross opens at Well Square. Inspect the dark well lantern, ask Mara at the
+Lantern Inn about it, or follow Nell’s lead about a missing surveyor. The inn
+offers free rest, Ada stocks supplies across the square, and Rowan can join the
+party. The [world bible](docs/world_bible.md) describes the village and its
+residents. The [game logic canon](docs/game_logic.md) details the shipped quests.
 
 Teleports, including entering and leaving buildings, use the same 320 ms dither fade through
 black as battles. The destination's camera, tile cache and actors are prepared while the screen
@@ -32,13 +32,10 @@ is not drawn while the panel covers the screen.
   category list. For parties with more than one member, chevrons flank the member counter.
 - **Specials** lists the starting special, with its AP cost, for the member's attack type. A opens its
   details: the cost, the range along a row or column, and the effect. The bonuses are read from the
-  battle's tables, and the description scrolls with up and down. Power Strike, Opening Shot, Driving Thrust,
-  Crushing Bash and Wound Hunter are the only specials, and no others are unlocked.
+  battle's tables, and the description scrolls with up and down.
 - **Perks** shows two ordered tracks, one for the member's movement class and one for their attack
-  class. Levels 2, 4, 6, 8 and 10 each grant one choice. Pick **Learn Perk!**, press A to inspect
-  either available perk, press A again to open the confirmation, then press A to learn it permanently
-  or B to cancel. Only the first of five planned ranks on each track is available. Extra choices
-  stay pending, so a level-10 member with both first ranks learned still has three choices.
+  class. Pick **Learn Perk!**, press A to inspect either available perk, press A again to open the
+  confirmation, then press A to learn it permanently or B to cancel. Extra choices stay pending.
   **From Equipment** lists the selected member’s active item effects and their sources.
   A `!` beside Party in the pause menu and a star beside the member's name mark pending choices.
   Victory shows the names and new levels of members who leveled up, with `Perk available!`
@@ -49,37 +46,18 @@ is not drawn while the panel covers the screen.
   the picker at the same item. Replacing or removing equipment keeps it available to the party.
   Equipment changes preserve current HP and AP, clamping either value if its maximum falls.
 
-| Equipment | Effect | Where to get it |
-|---|---|---|
-| Iron Fang | +1 damage to normal and special attacks | Owned at the start, with empty equipment slots |
-| Traveler's Boots | +2 maximum HP | Hollow Mine chest |
-| Dawn Pendant | +1 AP recovered after victory, capped at maximum AP | Old Vault chest |
-| Vital Pendant | +3 maximum HP | Old Vault chest |
-
-Equipment ownership uses a contiguous world-flag range sized by `ITEM_DEFINED_COUNT`. Stable zero-based item
-IDs follow the order above and map to `FLAG_ITEM_FIRST + item_id`. Each member stores three
-separate wearer references, with zero for empty and item ID plus one for an occupied slot.
+Equipment ownership uses the item flag range. Member slots store zero for empty
+or one plus the item ID. See the [equipment catalog](docs/game_logic.md#41-equipment-item-catalog)
+for effects and acquisition.
 
 The panel's navigation lives only while it is open, so closing and reopening Party starts at the overview
 of the first member. Learning a perk leaves current HP and AP as they were.
 
-| Track | Class | First perk | Effect |
-|---|---|---|---|
-| Movement | Step | Steadfast | +3 maximum HP |
-| Movement | Leap | Renewal | +1 AP after victory, up to maximum AP |
-| Movement | Charge | Momentum | +1 engagement damage to each adjacent enemy after a two-cell move |
-| Attack | Strike | Keen Edge | +1 direct damage against full-HP enemies |
-| Attack | Shoot | Longshot | +1 direct damage at range 4 |
-| Attack | Reach | Lunge | +1 direct damage at range 2 |
-| Attack | Impact | Heavy Blow | +1 direct damage |
-| Attack | Rend | Blood Sense | +1 direct damage against injured enemies |
+The [progression rules](docs/game_logic.md#5-character-classes-progression-and-perks)
+list the available perks and specials. Alden starts alone. Rowan waits southeast of
+the starting point. Choose **Join my party** to recruit him. The world stays frozen
+while the menu is open and music continues.
 
-Attack perks apply to both normal and special attacks. See [the progression design](docs/ideas_for_items_perks_abilities.md#4-character-levels-and-two-track-perk-progression).
-
-A new game starts with Alden (20/20 HP, 4/4 AP, step movement and strike attack). Rowan waits southeast
-of the starting point. Choose **Join my party** to recruit him (18/18 HP, 4/4 AP, step movement, shoot attack).
-Rowan disappears from the map upon joining and stays absent on revisits and after loading.
-Party membership, current HP and AP, level, experience and both perk ranks are saved. The world stays frozen while the menu is open; music continues.
 Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
 
 **Supplies** opens a full-width panel with the same slide, fade, row highlight, footer buttons
@@ -88,36 +66,14 @@ A inspects it, then opens a target list or Elixir confirmation. The target list 
 and skips ineligible members as you move the highlight. A uses the item and returns to its stack.
 B goes back one page and closes the list to resume exploration.
 
-| Supply | Starting count | Effect |
-|---|---:|---|
-| Potion | 2 | Restore up to 8 HP to one conscious member |
-| Elixir | 1 | Restore up to 4 HP to every conscious member |
-| Revive | 1 | Raise one member at 0 HP to 5 HP, capped at their maximum |
-| Ether | 1 | Restore up to 3 AP to one member, including at 0 HP |
+The General Store is on the east side of the village. Talk to Ada or face the
+counter and press A. Use Up and Down to choose a supply or scroll its description.
+A opens the description and purchase confirmation. B backs out one page or exits.
+The [supplies and rewards ledger](docs/game_logic.md#4-items-inventory-services-and-rewards)
+lists prices, effects, capacity, and chest contents.
 
-The village General Store sells Potion (12 G), Elixir (22 G), Revive (30 G), and
-Ether (18 G). The store is on the east side of the village. Inside, walk up to
-the counter, face it, and press **A**.
-Use up/down to select an item or scroll its description. Press **A** to inspect,
-open the purchase confirmation, and confirm. **B** backs out one page or exits
-the list. Each purchase adds one supply and deducts its price together, provided
-you have enough gold and are carrying fewer than 15 of that supply. The store has
-unlimited stock. Selling, equipment purchases, and variable prices are deferred.
-
-Each victory credits 3 gold per deployed enemy to the party wallet, up to 65,535
-gold. The repeatable Grove battle awards 6 gold. The victory panel shows the
-credited gold and party XP before any separate level-up notice. The inn heals
-the party and restores AP for free. Store purchases provide supplies you can carry
-and use later from the Supplies menu. Saving preserves both gold and supplies.
-
-The party shares a limit of 15 per supply. Supplies are usable outside battle, and a use
-with no effect leaves the stack unchanged. The Hollow Mine chest adds a Potion and an Ether.
-The Old Vault chest adds an Elixir and a Revive. Each still gives 25 gold once, and stays
-closed if the party cannot carry the entire reward.
-
-Face the counter inside the inn and press A to ask for free rest. A accepts and restores the
-entire party to full HP and AP, including members at 0 HP. B declines. Shops, buying and selling
-equipment, crafting, upgrades, durability and randomized equipment are deferred.
+Face the inn counter and press A to ask for free rest. A accepts and restores
+the party’s HP and AP. B declines.
 
 Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
 building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
@@ -336,7 +292,7 @@ into the Old Vault. Walk into either to enter. Both are built around mechanisms:
 gates that draw down into the floor, pressure plates, spikes, sinking blocks, a bridge over a
 chasm and a steam vent that blows by the clock. Repairing the mine's bridge opens a two-way maintenance hatch on the west ridge. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build requires save version 21.** The map, NPC identity, and
+**This development build requires save version 22.** The map, NPC identity, and
 world flag changes make older saves incompatible. The live, pointer-free
 `Game` struct is saved directly from AVM's `.saved` prefix, including 16 defeated-enemy
 bits and the shared two-byte respawn countdown. Validation checks the countdown,
@@ -388,7 +344,7 @@ reports are verified by the full-LTO guest link.
   in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
   `tests/story_stub.*` records story calls and sound requests on the host.
 - `src/quest.h`, `src/quest_dispatch.h`, `src/quest_runtime.cpp` and `src/quests/`: the quest interface,
-  compile-time event dispatch and the three Millcross quests. `src/journal.h` and the Journal screen show them.
+  compile-time event dispatch and the two Millcross quests. `src/journal.h` and the Journal screen show them.
   `docs/quests.md` describes the architecture. `tests/test_quests.cpp`, `tests/test_quest_catalog.cpp`
   and `tests/test_quest_validation.py` cover them.
 - `assets/music/*.avms`: all editable soundtrack scores.
@@ -448,35 +404,17 @@ and house tilesets. See the [battlefield authoring guide](docs/essential_npcs.md
   A filled bar highlights Attack first, and the special lists its AP cost. UP and DOWN choose,
   A confirms, and B closes
   the offer without acting, leaving the hero selected. A special needs enough AP for its cost, so a
-  hero short of AP attacks normally at once. A special deals the normal damage plus a bonus: Power
-  Strike +3, Opening Shot +4 against a full-HP enemy and +1 otherwise, Driving Thrust +2 and a knockback,
-  Crushing Bash +3 and a knockback, and Wound Hunter +3 against an injured enemy and +1 otherwise.
+  hero short of AP attacks normally at once. See the [special ability catalog](docs/game_logic.md#54-starting-special-abilities)
+  for costs and damage.
 - Hovering the cursor over a living actor shows its movement class, attack class and HP/MHP in a small panel on
   the opposite side of the screen. The panel disappears over empty cells.
 - Party members store uint8 current HP and AP and independent movement/attack class IDs in saved RAM.
   Their maximum HP and AP are computed for each member rather than stored.
   An enemy stores only uint8 HP and an enemy ID in its live battle record; its MHP, movement,
   attack and artwork are read from `EnemyInfo` in program memory. Board placement is separate
-  metadata. Both sides use the same movement and attack rules. The six enemy presets are:
-
-  | Archetype | Movement | Attack | Damage | Starting HP |
-  |---|---|---|---|---|
-  | Fighter | one cell straight | adjacent | 3 | 10 |
-  | Rogue | knight leap over anything | adjacent | 3 | 10 |
-  | Archer | one cell straight | straight line, 2 to 4 cells | 3 | 9 |
-  | Spearman | one cell straight | straight line, 1 or 2 cells | 3 | 10 |
-  | Wolf | one or two cells straight | adjacent, Rend | 2, or 4 below half HP | 9 |
-  | Brute | one cell straight | adjacent, then knockback | 2 | 12 |
-
-  Moves need empty, open cells all the way, except the rogue's leap, which needs only an empty, open
-  landing cell. Attacks need every cell between to be empty and open, whoever stands there. A brute
-  pushes a surviving victim one cell straight away when that cell is on the board, empty, and open.
-  Rend deals 2 to a victim at half its maximum HP or more and 4 to one below half; every other attack
-  deals its fixed damage.
-  Attackers never move. A battle holds up to four units a side. Every encounter deploys the
-  living members of the current saved party against its authored enemy roster. Recruitment
-  changes the next battle's roster. HP supports the complete 0..255 range. Zero-HP members
-  stay out of deployment.
+  metadata. Both sides use the same movement and attack rules. Every encounter deploys the
+  living members of the current saved party against its authored enemy roster. The
+  [combat rules and enemy catalog](docs/game_logic.md#6-combat-encounters-and-the-world-remembers) specify the details.
 - Battlefield tiles with collision in the board's tileset block. No unit stands on them or moves
   through them, and they stop arrows, spear thrusts, and knockback. A rogue's leap passes over them,
   as it passes over units, but cannot land on them. The Grove has a pine at (4,0), a round tree at

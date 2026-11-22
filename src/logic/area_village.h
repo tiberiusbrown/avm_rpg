@@ -4,7 +4,8 @@
 #include "enemy_spawn.h"
 #include "npc_content.h"
 #include "npc_policy.h"
-#include "quests/dry_roots.h"
+#include "quests/lantern_keeper.h"
+#include "tile_ids.h"
 #include "mechanisms.h"
 #include "area_ids.h"
 
@@ -21,10 +22,7 @@ inline void lantern_inn_rest() {
 }
 
 #ifndef RPG_NPC_POLICY_HEADER
-template <> struct NpcPolicy<NPC_TESSA>
-    : AtOneOf<positions::TessaWell,
-              When<positions::TessaOrchard, [] { return game.get_flag(FLAG_ORCHARD_SETTLED); }>> {};
-
+template <> struct NpcPolicy<NPC_TESSA> : AtOneOf<positions::TessaWell> {};
 template <> struct NpcPolicy<NPC_ORRIN> : AtOneOf<positions::OrrinLane> {};
 template <> struct NpcPolicy<NPC_ROWAN> : AtOneOf<positions::RowanHome> {};
 template <> struct NpcPolicy<NPC_MARA> : AtOneOf<positions::MaraInn> {};
@@ -39,36 +37,19 @@ template <> struct NpcContent<NPC_TESSA> {
 
     static void talk() {
         constexpr auto id = NPC_TESSA;
-        switch(quest_status(QUEST_DRY_ROOTS)) {
-            case QUEST_NOT_STARTED:
-                if(dialogue_ask(id, F("Bram shut my sluice and my trees are drying out. Will you ask him and Orrin what happened?")))
-                    quest_start(QUEST_DRY_ROOTS);
-                return;
-            case QUEST_COMPLETED:
-                if(game.get_flag(FLAG_ORCHARD_PUBLIC))
-                    dialogue_show(id, F("Bram told the whole square about the water. No more whispers. Come see the new grafts."));
+        switch(dialogue_options<"Orchard", "The lantern">()) {
+            case 0:
+                dialogue_show(id, F("I water the grafts by hand now. Bram meant well closing the sluice, but he could have told me first."));
+                break;
+            case 1:
+                if(!game.get_flag(FLAG_LANTERN_RESTORED))
+                    dialogue_show(id, F("I used to sort my apples by the light from the well. Have you had a look at that lamp?"));
                 else
-                    dialogue_show(id, F("Bram came by after supper. We agreed to watch the sluice together. The trees can wait a little."));
-                return;
-            default:
+                    dialogue_show(id, game.get_flag(FLAG_LANTERN_MODERN)
+                                          ? F("That's a clean, steady light. Bram does good work when you give him time.")
+                                          : F("My grandfather used to count that pulse while he worked. I'd forgotten the sound of it."));
                 break;
         }
-
-        if(!Quest<QUEST_DRY_ROOTS>::ready()) {
-            dialogue_show(id, F("Ask Bram in his yard east of here. Orrin walks by the north lane. He's seen every trick that sluice has."));
-            return;
-        }
-        if(!dialogue_show(id, F("Water ran uphill? If Orrin saw it too, I believe you. Do we talk at the well or give Bram a quiet word?")))
-            return;
-
-        uint8_t choice = dialogue_options<"Tell the square", "Speak in private">();
-        if(choice > 1)
-            return;
-        if(choice == 0)
-            game.set_flag(FLAG_ORCHARD_PUBLIC);
-        quest_emit(NpcTalked<id>{});
-        dialogue_show(id, choice == 0 ? F("I'll ask him to tell the square. I'll be out in the orchard after.")
-                                      : F("I'll talk to him after supper. For now, my trees need me."));
     }
 };
 
@@ -78,18 +59,22 @@ template <> struct NpcContent<NPC_ORRIN> {
 
     static void talk() {
         constexpr auto id = NPC_ORRIN;
-        switch(dialogue_options<"The sluice", "Old work", "Bram">()) {
+        switch(dialogue_options<"Old workshop", "Mine workings", "The sluice">()) {
             case 0:
-                if(dialogue_show(id, F("Water climbed the race. I watched the foam pass three stones going uphill. Bram did right to shut it.")))
-                    game.set_flag(FLAG_ORRIN_ACCOUNT);
+                if(game.get_flag(FLAG_LANTERN_RESTORED))
+                    dialogue_show(id, game.get_flag(FLAG_LANTERN_MODERN)
+                                          ? F("A regulator we can make here. Good. We won't have to ask the mine for another.")
+                                          : F("Watch the pulse in the well. My mother said there was once a second lamp on the other end of the line."));
+                else
+                    dialogue_show(id, F("Bram kept a record from the old workshop. Try the table inside his smithy."));
                 break;
             case 1:
-                dialogue_show(id, F("My mother said old things remember their work. A gate wants to open. A wolf wants its den back."));
+                dialogue_show(id, game.get_flag(FLAG_SURVEYOR_RESCUED)
+                                      ? F("I owe the surveyor tea. They'll want to hear how that hatch used to rattle.")
+                                      : F("The east winch room feeds the west inspection nook. That's where they kept the bridge release."));
                 break;
             case 2:
-                dialogue_show(id, game.get_flag(FLAG_ORCHARD_SETTLED)
-                                      ? F("Bram and Tessa can share a bench again. That's a start.")
-                                      : F("He can fix any hinge in Millcross. Ask him a straight question and he goes all stiff."));
+                dialogue_show(id, F("I watched the foam climb three stones uphill. Bram did right to shut the race."));
                 break;
         }
     }
@@ -109,10 +94,14 @@ template <> struct NpcContent<NPC_ROWAN> {
                 party_add(party_new_member(id, MOVEMENT_STEP, ATTACK_SHOOT));
                 break;
             case 1:
-                dialogue_show(id, F("Mara keeps a bed ready. Save before heading north and stop at the inn if the road bites back."));
+                dialogue_show(id, game.get_flag(FLAG_SURVEYOR_RESCUED)
+                                      ? F("The surveyor's taking the sun by the inn. Good to see them above ground.")
+                                      : F("Mara keeps a bed ready. Stop at the inn if the road bites back."));
                 break;
             case 2:
-                dialogue_show(id, F("Nell saw wolf tracks by the rails. I'll take the back line if you take point."));
+                dialogue_show(id, game.get_flag(FLAG_LANTERN_RESTORED)
+                                      ? F("You can see the well lamp from the north road now. In the mine, watch for wolf tracks by the rails.")
+                                      : F("Nell saw wolf tracks by the rails. I'll take the back line if you take point."));
                 break;
             case 3:
                 dialogue_show(id, game.get_flag(FLAG_CAVE_BRIDGE)
@@ -129,18 +118,24 @@ template <> struct NpcContent<NPC_MARA> {
 
     static void talk() {
         constexpr auto id = NPC_MARA;
-        switch(dialogue_options<"Get some rest", "Around town", "The lantern">()) {
+        switch(dialogue_options<"Get some rest", "The lantern", "Survey notes">()) {
             case 0:
                 lantern_inn_rest();
                 break;
             case 1:
-                if(game.get_flag(FLAG_ORCHARD_SETTLED))
-                    dialogue_show(id, F("Tessa has gone back to her trees. She left an apple on Bram's bench."));
-                else
-                    dialogue_show(id, F("Tessa's been at the well all morning. Bram walked right by her and counted his nails."));
+                if(game.get_flag(FLAG_LANTERN_RESTORED))
+                    dialogue_show(id, game.get_flag(FLAG_LANTERN_MODERN)
+                                          ? F("Bram's new light stays steady in the wind. I can see the square from my door again.")
+                                          : F("The old light is back. I'd forgotten how it flickers right before the well rings."));
+                else if(game.get_flag(FLAG_LANTERN_STARTED))
+                    dialogue_show(id, F("Bram works east of the square. He'll know what's wrong with the well lantern."));
+                else if(dialogue_ask(id, F("The well lantern went dark. Will you ask Bram to have a look?")))
+                    quest_start(QUEST_LANTERN_KEEPER);
                 break;
             case 2:
-                dialogue_show(id, F("I leave a lamp in the window for Nell. She brings home stones that keep shining after dark."));
+                dialogue_show(id, game.get_flag(FLAG_SURVEYOR_RESCUED)
+                                      ? F("The surveyor's outside. I sent them out with a hot mug.")
+                                      : F("The surveyor left their notes on the table to the east. Nell was the last to see them."));
                 break;
         }
     }
@@ -152,18 +147,22 @@ template <> struct NpcContent<NPC_BRAM> {
 
     static void talk() {
         constexpr auto id = NPC_BRAM;
-        switch(dialogue_options<"The sluice", "Your work">()) {
+        switch(dialogue_options<"The lantern", "Old workshop", "Your work">()) {
             case 0:
-                if(game.get_flag(FLAG_ORCHARD_SETTLED)) {
-                    dialogue_show(id, game.get_flag(FLAG_ORCHARD_PUBLIC)
-                                          ? F("I owed the square an explanation. Tessa stood beside me while I gave it.")
-                                          : F("Tessa heard me out. We're watching the race together before I touch that gate again."));
-                } else if(dialogue_show(id, F("I closed it. The stream ran backward and the gear shook in my hands. Ask Orrin. He was there."))) {
-                    game.set_flag(FLAG_BRAM_ACCOUNT);
-                }
+                if(game.get_flag(FLAG_LANTERN_RESTORED))
+                    dialogue_show(id, game.get_flag(FLAG_LANTERN_MODERN)
+                                          ? F("I can make another regulator from that pattern. I hope we won't need one.")
+                                          : F("The old relay draws its beat from somewhere. I only wired it back in."));
+                else if(Quest<QUEST_LANTERN_KEEPER>::ready())
+                    dialogue_show(id, F("Meet me at the well lantern. We can fit a new part or use the old relay if you have it."));
+                else if(dialogue_show(id, F("I opened the well lantern this morning. The regulator is cracked. The old workshop record is inside my smithy.")))
+                    game.set_flag(FLAG_LANTERN_DIAGNOSED);
                 break;
             case 1:
-                dialogue_show(id, F("Hinges, nails, pruning knives. Ada knows what a good edge costs. Here for a repair? Set it by the door."));
+                dialogue_show(id, F("The record is on my table. The workshop built lamps for both the mine and the square."));
+                break;
+            case 2:
+                dialogue_show(id, F("Hinges, nails, pruning knives. Got something that needs an edge? Set it by the door."));
                 break;
         }
     }
@@ -175,19 +174,22 @@ template <> struct NpcContent<NPC_NELL> {
 
     static void talk() {
         constexpr auto id = NPC_NELL;
-        switch(dialogue_options<"Wolf tracks", "Mine bridge", "Your finds">()) {
+        switch(dialogue_options<"The surveyor", "Mine trail", "The old relay">()) {
             case 0:
-                dialogue_show(id, game.get_flag(FLAG_MINE_LEDGER)
-                                      ? F("Two loads with one mark? I've seen that mark on a stone above the eastern trail.")
-                                      : F("One wolf, fresh tracks, right on the mine rails. I left a warning at the camp. Bring Rowan if you go."));
+                if(game.get_flag(FLAG_SURVEYOR_RESCUED))
+                    dialogue_show(id, F("They're back! I want to see the sketch of the landing by the ladder."));
+                else if(game.get_flag(FLAG_SURVEY_STARTED))
+                    dialogue_show(id, F("They were headed for the far side of Hollow Mine. Their notes are on the inn table."));
+                else if(dialogue_ask(id, F("The surveyor went to Hollow Mine and missed supper. Will you look for them?")))
+                    quest_start(QUEST_MISSING_SURVEYOR);
                 break;
             case 1:
                 dialogue_show(id, game.get_flag(FLAG_CAVE_BRIDGE)
-                                      ? F("I heard the bridge slam into place from the ridge. It still knows how to do that.")
-                                      : F("The miners drew arrows in chalk. There's a plate in a nook west of the rails."));
+                                      ? F("I heard the bridge slam into place. The hatch is on the west ridge if you want a shorter walk.")
+                                      : F("Look for the survey mark on the north road. In the mine, the east winch opens the way to the west plate."));
                 break;
             case 2:
-                dialogue_show(id, F("Mara calls them pocket gravel. See this one? It only shines with the lamp out."));
+                dialogue_show(id, F("There's a lamp with a coil in the east winch room. I saw it just past the gate."));
                 break;
         }
     }
@@ -204,7 +206,12 @@ template <> struct NpcContent<NPC_ADA> {
                 shop_requested = true;
                 break;
             case 1:
-                dialogue_show(id, F("Miners used to buy lamp oil by the barrel. These days it's Bram buying files and Nell asking for string."));
+                if(game.get_flag(FLAG_SURVEYOR_RESCUED))
+                    dialogue_show(id, F("The surveyor bought a fresh notebook. They say the west hatch cuts the climb in half."));
+                else if(game.get_flag(FLAG_LANTERN_RESTORED))
+                    dialogue_show(id, F("People wait under the well lantern again. Good for the evening trade."));
+                else
+                    dialogue_show(id, F("Miners used to buy lamp oil by the barrel. These days it's Bram buying files and Nell asking for string."));
                 break;
         }
     }
@@ -218,7 +225,7 @@ namespace handler_impl {
 
 template <> struct AreaMessages<AREA_OUTDOOR> {
     static constexpr Message TABLE[] = {
-        {positions::WellSign, F("Millcross. Lantern Inn west, provisions east, Hollow Mine north.")},
+        {positions::WellSign, F("Millcross. Well lantern south of this sign. Inn west, provisions east, Hollow Mine north.")},
         {positions::OrchardSign, F("Orchard lane. Latch the pens behind you. Mind the grafts.")},
         {positions::SmithySign, F("Bram's smithy. Set repairs by the door.")},
         {positions::CaveSign, F("Hollow Mine. Wolf sign on the rails. Save before entering. Watch for steam.")},
@@ -232,6 +239,62 @@ template <> struct AreaMessages<AREA_INTERIORS> {
         {positions::InnRegister, F("Most guests sign under a trade. Someone wrote: Here to listen to the well.")},
     };
 };
+
+template <TilePos POS> void village_lantern(Tiles<POS>) {
+    if(game.get_flag(FLAG_LANTERN_RESTORED))
+        set_tile<POS>(game.get_flag(FLAG_LANTERN_MODERN) ? TILE_VILLAGE_LANTERN_MODERN
+                                                       : TILE_VILLAGE_LANTERN_ANCIENT);
+}
+
+template <TilePos POS> void village_lantern(Dialogue<POS>) {
+    if(!player_just_interacted<POS>())
+        return;
+    if(game.get_flag(FLAG_LANTERN_RESTORED)) {
+        dialogue_show(game.get_flag(FLAG_LANTERN_MODERN) ? F("The new regulator holds the light steady.")
+                                                       : F("The old relay pulses in time with a ring from the well."));
+        return;
+    }
+
+    quest_start(QUEST_LANTERN_KEEPER);
+    using Lantern = Quest<QUEST_LANTERN_KEEPER>;
+    if(!Lantern::ready()) {
+        dialogue_show(F("The lantern is dark. A smith's mark is stamped on its base."));
+        return;
+    }
+
+    bool has_relay = game.get_flag(FLAG_LANTERN_RELAY_FOUND);
+    if(!dialogue_show(NPC_BRAM, has_relay ? F("I can fit a new regulator or hook up that old relay. Which shall it be?")
+                                         : F("I can make a new regulator now. We can also wait if you want to look for the old relay.")))
+        return;
+    uint8_t choice = has_relay
+                         ? dialogue_options<"Fit new regulator", "Restore old relay", "Leave it for now">()
+                         : dialogue_options<"Fit new regulator", "Leave it for now">();
+    if((choice == 0 || (has_relay && choice == 1)) && Lantern::repair(choice == 0))
+        dialogue_show(NPC_BRAM, choice == 0 ? F("There. A good steady light, made right here.")
+                                           : F("There it goes. Hear the well ring when the light pulses?"));
+}
+
+template <TilePos POS> void read_workshop_record(Dialogue<POS>) {
+    if(player_just_interacted<POS>()) {
+        game.set_flag(FLAG_LANTERN_RECORD_FOUND);
+        dialogue_show(F("Workshop record: the square lamp can take a new regulator. Its original relay is stored in the east winch room of Hollow Mine."));
+    }
+}
+
+template <TilePos POS> void read_survey_notes(Dialogue<POS>) {
+    if(player_just_interacted<POS>()) {
+        quest_start(QUEST_MISSING_SURVEYOR);
+        game.set_flag(FLAG_SURVEY_NOTES_READ);
+        dialogue_show(F("Survey notes: follow the rails past the east gate. Crossing control in west inspection nook. Check ladder on far landing."));
+    }
+}
+
+template <TilePos POS> void read_survey_trail(Dialogue<POS>) {
+    if(player_just_interacted<POS>()) {
+        game.set_flag(FLAG_SURVEY_TRAIL_FOUND);
+        dialogue_show(F("Survey mark: north to the rail entrance. The west ridge hatch is linked to the bridge."));
+    }
+}
 
 template <TilePos POS> void maintenance_hatch(Tiles<POS>) {
     if(game.get_flag(FLAG_CAVE_BRIDGE))

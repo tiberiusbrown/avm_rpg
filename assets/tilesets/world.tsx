@@ -1753,24 +1753,24 @@
   <tile id="208">
     <properties>
       <property name="runtime_id" type="int" value="208" />
-      <property name="symbol" type="string" value="ATLAS_D0" />
-      <property name="collision" type="int" value="65535" />
+      <property name="symbol" type="string" value="VILLAGE_LANTERN_DARK" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
   <tile id="209">
     <properties>
       <property name="runtime_id" type="int" value="209" />
-      <property name="symbol" type="string" value="ATLAS_D1" />
-      <property name="collision" type="int" value="65535" />
+      <property name="symbol" type="string" value="VILLAGE_LANTERN_MODERN" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>
   <tile id="210">
     <properties>
       <property name="runtime_id" type="int" value="210" />
-      <property name="symbol" type="string" value="ATLAS_D2" />
-      <property name="collision" type="int" value="65535" />
+      <property name="symbol" type="string" value="VILLAGE_LANTERN_ANCIENT" />
+      <property name="collision" type="int" value="37830" />
       <property name="portal" type="bool" value="false" />
     </properties>
   </tile>

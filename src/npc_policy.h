@@ -86,7 +86,10 @@ template <NPC_ID ID, TilePos POS> struct NpcSite {
 #ifndef RPG_AVM
         ++npc_site_checks;
 #endif
-        if(npc_location<ID>() == POS)
+        // A chunk can overlap the cache while this tile-aligned site is outside it.
+        // Reject it before resolving a dynamic policy or scanning the actor pool.
+        if((uint16_t)(POS.x - cache.origin_tx) < CACHE_WIDTH &&
+           (uint16_t)(POS.y - cache.origin_ty) < CACHE_HEIGHT && npc_location<ID>() == POS)
             npc_offer_candidate(ID, POS);
     }
 };

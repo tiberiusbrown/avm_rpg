@@ -12,15 +12,16 @@ enum NPC_ID : uint8_t {
     NPC_MARA,
     NPC_BRAM,
     NPC_NELL,
-    NPC_ADA
+    NPC_ADA,
+    NPC_SURVEYOR
 };
 // One past the last essential identity. Party and quest dialogue use this range.
 #ifndef RPG_NPC_ID_LIMIT
-#define RPG_NPC_ID_LIMIT 8
+#define RPG_NPC_ID_LIMIT 9
 #endif
 inline constexpr uint8_t NPC_ID_LIMIT = RPG_NPC_ID_LIMIT;
 
 inline constexpr uint8_t NPC_ENEMY_FIRST = NPC_ID_LIMIT;
-static_assert(NPC_ENEMY_FIRST > NPC_ADA, "enemy NPC identity range");
+static_assert(NPC_ENEMY_FIRST > NPC_SURVEYOR, "enemy NPC identity range");
 
 #endif

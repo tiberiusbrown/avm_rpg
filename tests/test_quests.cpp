@@ -14,6 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static_assert(NPC_SURVEYOR == 8 && NPC_ENEMY_FIRST == 9);
+static_assert(FLAG_ITEM_FIRST == 22 && FLAG_ENEMY_FIRST == 26 && FLAG_COUNT == 42);
+
 static unsigned checks;
 #define CHECK(value)                                                                               \
     do {                                                                                           \
@@ -24,15 +27,17 @@ static unsigned checks;
         }                                                                                          \
     } while(0)
 
-static bool accept;
+static bool accept = true;
 static char const* words;
+static NPC_ID speaker;
 
 bool dialogue_show(char const PROGMEM* text) {
     words = text;
     return accept;
 }
 
-bool dialogue_show(NPC_ID, char const PROGMEM* text) {
+bool dialogue_show(NPC_ID id, char const PROGMEM* text) {
+    speaker = id;
     return dialogue_show(text);
 }
 
@@ -76,98 +81,150 @@ static void reload() {
     CHECK(saved.gold == game.gold && !memcmp(&saved.party, &game.party, sizeof(game.party)));
 }
 
-static void social(bool public_explanation) {
-    talk(NPC_TESSA, 0, false);
-    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_NOT_STARTED);
-    talk(NPC_TESSA);
-    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE);
-    TilePos target;
-    CHECK(quest_marker(QUEST_DRY_ROOTS, AREA_OUTDOOR, target) && target == positions::BramYard);
-
-    talk(NPC_BRAM, 255);
-    talk(NPC_ORRIN, 0, false);
-    CHECK(!game.get_flag(FLAG_BRAM_ACCOUNT) && !game.get_flag(FLAG_ORRIN_ACCOUNT));
-    talk(NPC_ORRIN);
-    talk(NPC_TESSA);
-    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE);
-    reload();
-    talk(NPC_BRAM);
-    CHECK(quest_marker(QUEST_DRY_ROOTS, AREA_OUTDOOR, target) && target == positions::TessaWell);
-    talk(NPC_TESSA, 255);
-    talk(NPC_TESSA, 0, false);
-    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE && !game.get_flag(FLAG_ORCHARD_PUBLIC));
-
-    talk(NPC_TESSA, public_explanation ? 0 : 1);
-    CHECK(quest_status(QUEST_DRY_ROOTS) == QUEST_COMPLETED && !quest_objective(QUEST_DRY_ROOTS));
-    CHECK(game.get_flag(FLAG_ORCHARD_PUBLIC) == public_explanation);
-    CHECK(npc_location(NPC_TESSA) == positions::TessaOrchard);
-    auto xp = game.party.members[0].experience;
-    reload();
-    talk(NPC_BRAM);
-    CHECK(strstr(words, public_explanation ? "square" : "heard me out"));
-    talk(NPC_TESSA);
-    CHECK(game.party.members[0].experience == xp);
+static void markers(QUEST_ID id, TilePos expected) {
+    TilePos out;
+    CHECK(quest_objective(id) && quest_marker(id, expected.area, out) && out == expected);
 }
 
-static void bridge() {
-    accept = false;
-    touch(positions::CaveNotice);
-    CHECK(quest_status(QUEST_SPAN_BELOW) == QUEST_NOT_STARTED);
-    accept = true;
-    touch(positions::CaveNotice);
-    CHECK(quest_status(QUEST_SPAN_BELOW) == QUEST_ACTIVE);
-    touch(positions::CaveLever);
-    CHECK(game.get_flag(FLAG_CAVE_GATE));
+static void lantern(bool modern, bool start_at_inn) {
+    constexpr auto id = QUEST_LANTERN_KEEPER;
+    if(start_at_inn) {
+        talk(NPC_MARA, 255);
+        talk(NPC_MARA, 1, false);
+        CHECK(quest_status(id) == QUEST_NOT_STARTED);
+        talk(NPC_MARA, 1);
+        CHECK(quest_status(id) == QUEST_ACTIVE && quest_selected() == id);
+        markers(id, positions::BramYard);
+        talk(NPC_BRAM, 255);
+        CHECK(!game.get_flag(FLAG_LANTERN_DIAGNOSED));
+        talk(NPC_BRAM);
+        markers(id, positions::SmithyDoor);
+        markers(id, positions::WorkshopRecord);
+        touch(positions::WorkshopRecord);
+    } else {
+        if(!modern) {
+            touch(positions::CaveLever);
+            touch(positions::MineLanternRelay);
+            CHECK(game.get_flag(FLAG_LANTERN_RELAY_FOUND));
+        }
+        touch(positions::WorkshopRecord);
+        talk(NPC_BRAM);
+        CHECK(quest_status(id) == QUEST_NOT_STARTED);
+        story_stub_set_choice(255);
+        touch(positions::VillageLantern, EAST);
+        CHECK(quest_status(id) == QUEST_ACTIVE);
+    }
+    if(!modern && start_at_inn) {
+        if(!game.get_flag(FLAG_CAVE_GATE)) {
+            markers(id, positions::CaveLever);
+            touch(positions::CaveLever);
+        }
+        markers(id, positions::MineLanternRelay);
+        touch(positions::MineLanternRelay);
+    }
+    markers(id, positions::VillageLantern);
+    reload();
+
+    uint16_t gold = game.gold;
+    auto before = game.party.members[0];
+    CHECK(cached_tile(positions::VillageLantern) == TILE_VILLAGE_LANTERN_DARK ||
+          game.area != AREA_OUTDOOR);
+    story_stub_set_choice(255);
+    touch(positions::VillageLantern, EAST);
+    CHECK(quest_status(id) == QUEST_ACTIVE);
+    story_stub_set_choice(modern ? 1 : 2);
+    touch(positions::VillageLantern, EAST);
+    CHECK(!game.get_flag(FLAG_LANTERN_RESTORED) && !game.get_flag(FLAG_LANTERN_MODERN));
+    CHECK(game.gold == gold && game.party.members[0].experience == before.experience);
+
+    story_stub_set_choice(modern ? 0 : 1);
+    touch(positions::VillageLantern, EAST);
+    CHECK(quest_status(id) == QUEST_COMPLETED && !quest_objective(id));
+    TilePos marker;
+    CHECK(!quest_marker(id, AREA_OUTDOOR, marker));
+    CHECK(game.get_flag(FLAG_LANTERN_MODERN) == modern && game.gold == gold + 12);
+    CHECK(game.get_flag(FLAG_LANTERN_RELAY_FOUND) == !modern);
+    unsigned xp = game.party.members[0].experience +
+                  (game.party.members[0].level - before.level) * 10;
+    CHECK(xp == before.experience + 6);
+    reload();
+    CHECK(cached_tile(positions::VillageLantern) == (modern ? TILE_VILLAGE_LANTERN_MODERN
+                                                          : TILE_VILLAGE_LANTERN_ANCIENT));
+    auto rewarded = game.party.members[0];
+    touch(positions::VillageLantern, EAST);
+    talk(NPC_MARA, 1);
+    CHECK(speaker == NPC_MARA && words && game.gold == gold + 12);
+    talk(NPC_BRAM);
+    CHECK(speaker == NPC_BRAM && words && game.get_flag(FLAG_LANTERN_MODERN) == modern);
+    CHECK(game.party.members[0].experience == rewarded.experience &&
+          game.party.members[0].level == rewarded.level);
+}
+
+static void open_bridge() {
+    if(!game.get_flag(FLAG_CAVE_GATE))
+        touch(positions::CaveLever);
     touch(positions::CaveLever);
     CHECK(!game.get_flag(FLAG_CAVE_GATE));
     touch(positions::CaveLever);
-    reload();
     touch(positions::CaveVaultLever);
     CHECK(game.get_flag(FLAG_CAVE_NOOK));
     stand(positions::CavePlate, NORTH);
     game_update(0, 0);
-    CHECK(quest_status(QUEST_SPAN_BELOW) == QUEST_COMPLETED && !quest_objective(QUEST_SPAN_BELOW));
+    CHECK(game.get_flag(FLAG_CAVE_BRIDGE));
     stand({AREA_CAVE, positions::CaveBridge_1.x, (uint8_t)(positions::CaveBridge_1.y + 1)}, NORTH);
+    game_update(0, 0);
     CHECK(cached_tile(positions::CaveBridge_1) == CAVE_TILE_BRIDGE_VERTICAL);
-    reload();
-    touch(positions::CaveChest);
-    CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && game.gold == 25);
-    reload();
-    touch(positions::CaveChest);
-    CHECK(game.gold == 25 && strstr(words, "empty"));
 }
 
-static void tracks(bool read_warning) {
-    touch(positions::MineLedger);
-    CHECK(!game.get_flag(FLAG_MINE_LEDGER));
-    if(read_warning) {
-        touch(positions::MineWarning);
-        CHECK(quest_status(QUEST_TRACKS_IN_DUST) == QUEST_ACTIVE);
-    }
-    stand({AREA_CAVE, (uint8_t)(positions::MineScout.x - 1), positions::MineScout.y}, EAST);
-    auto const wolf = (NPC_ID)(NPC_ENEMY_FIRST + 1);
-    CHECK(npc_find(wolf));
+enum SurveyLead { NELL, NOTES, FREE_EXPLORATION };
 
-    story_stub_reset(BATTLE_DEFEAT);
-    encounter_contact(wolf);
-    CHECK(!encounter_run() && !game.get_flag(FLAG_MINE_WOLF_DRIVEN));
-    story_stub_set_result(BATTLE_VICTORY);
-    encounter_contact(wolf);
-    CHECK(encounter_run() && game.get_flag(FLAG_MINE_WOLF_DRIVEN));
-    CHECK(story_stub_battles() == 2 && quest_status(QUEST_TRACKS_IN_DUST) == QUEST_ACTIVE);
-    reload();
+static void survey(SurveyLead lead) {
+    constexpr auto id = QUEST_MISSING_SURVEYOR;
+    CHECK(npc_location(NPC_SURVEYOR) == positions::SurveyorTrapped);
+    if(lead == NELL) {
+        talk(NPC_NELL, 0, false);
+        CHECK(quest_status(id) == QUEST_NOT_STARTED);
+        talk(NPC_NELL);
+        CHECK(!game.get_flag(FLAG_SURVEY_NOTES_READ));
+    } else if(lead == NOTES) {
+        touch(positions::SurveyTrailMark);
+        CHECK(game.get_flag(FLAG_SURVEY_TRAIL_FOUND) && quest_status(id) == QUEST_NOT_STARTED);
+        touch(positions::SurveyorNotes);
+        CHECK(game.get_flag(FLAG_SURVEY_NOTES_READ));
+    }
+    if(lead != FREE_EXPLORATION) {
+        CHECK(quest_status(id) == QUEST_ACTIVE);
+        markers(id, positions::CaveMouth);
+    }
+    open_bridge();
+    CHECK(quest_status(id) == (lead == FREE_EXPLORATION ? QUEST_NOT_STARTED : QUEST_ACTIVE));
+    if(lead != FREE_EXPLORATION)
+        markers(id, positions::SurveyorTrapped);
+
+    uint16_t gold = game.gold;
+    auto before = game.party.members[0];
     accept = false;
-    touch(positions::MineLedger);
-    CHECK(!game.get_flag(FLAG_MINE_LEDGER));
-    accept = true;
-    touch(positions::MineLedger);
-    CHECK(quest_status(QUEST_TRACKS_IN_DUST) == QUEST_COMPLETED);
-    auto xp = game.party.members[0].experience;
+    touch(positions::SurveyorTrapped);
+    CHECK(game.get_flag(FLAG_SURVEYOR_FOUND) && !game.get_flag(FLAG_SURVEYOR_RESCUED));
+    CHECK(quest_status(id) == QUEST_ACTIVE && game.gold == gold);
+    CHECK(npc_find(NPC_SURVEYOR) && npc_find(NPC_SURVEYOR)->assigned_site == positions::SurveyorTrapped);
     reload();
-    touch(positions::MineLedger);
-    CHECK(game.party.members[0].experience == xp);
+    CHECK(npc_find(NPC_SURVEYOR));
+    accept = true;
+    touch(positions::SurveyorTrapped);
+    CHECK(quest_status(id) == QUEST_COMPLETED && !quest_objective(id) && !npc_find(NPC_SURVEYOR));
+    CHECK(npc_location(NPC_SURVEYOR) == positions::SurveyorReturned && game.gold == gold + 15);
+    CHECK(game.party.members[0].experience + (game.party.members[0].level - before.level) * 10 ==
+          before.experience + 8);
+    CHECK(!game.get_flag(enemy_defeated_flag_at(1)) && !game.get_flag(FLAG_CAVE_CHEST));
+    reload();
+    CHECK(!npc_find(NPC_SURVEYOR));
+    touch(positions::SurveyorReturned, WEST);
+    CHECK(npc_find(NPC_SURVEYOR) && npc_find(NPC_SURVEYOR)->assigned_site == positions::SurveyorReturned);
+    talk(NPC_SURVEYOR, 1);
+    CHECK(game.gold == gold + 15 && game.get_flag(FLAG_CAVE_BRIDGE));
     talk(NPC_NELL);
-    CHECK(strstr(words, "eastern trail"));
+    CHECK(speaker == NPC_NELL && words && game.gold == gold + 15);
 }
 
 struct FiveWide {
@@ -185,31 +242,170 @@ static void journal_text() {
     }
 }
 
+static void journal_completed() {
+    CHECK(QUEST_ID_LIMIT == 3 && quest_journal_count() == 2 && quest_selected() == QUEST_NONE);
+    CHECK(quest_journal_entry(0) == QUEST_LANTERN_KEEPER &&
+          quest_journal_entry(1) == QUEST_MISSING_SURVEYOR && quest_journal_entry(2) == QUEST_NONE);
+    journal_text();
+    TilePos out;
+    CHECK(!quest_map_marker(AREA_OUTDOOR, out));
+
+    // The World Remembers can revive the mine wolf while preserving all authored progress.
+    game.set_flag(enemy_defeated_flag_at(1));
+    game.remember_timer = 1;
+    CHECK(remember_tick());
+    remember_reset();
+    CHECK(!game.get_flag(enemy_defeated_flag_at(1)) && game.get_flag(FLAG_CAVE_BRIDGE));
+    CHECK(quest_status(QUEST_LANTERN_KEEPER) == QUEST_COMPLETED &&
+          quest_status(QUEST_MISSING_SURVEYOR) == QUEST_COMPLETED);
+}
+
+static void mine_without_combat() {
+    game_new();
+    story_stub_reset(BATTLE_DEFEAT);
+    stand({AREA_OUTDOOR, positions::CaveMouth.x, (uint8_t)(positions::CaveMouth.y + 1)}, NORTH);
+    auto walk = [](uint8_t direction, unsigned pixels) {
+        for(unsigned i = 0; i < pixels; ++i) {
+            game_update(direction);
+            if(!encounter_run()) {
+                fprintf(stderr, "Caught at %u, %u, direction %u\n", game.player.x, game.player.y, direction);
+                CHECK(false);
+            }
+        }
+    };
+
+    for(unsigned frame = 0; frame < 2 * TILE && game.area != AREA_CAVE; ++frame)
+        walk(BTN_UP, 1);
+    CHECK(game.area == AREA_CAVE);
+    walk(BTN_UP, game.player.y - positions::CaveSpawn.y * TILE);
+    CHECK(game.player.y == positions::CaveSpawn.y * TILE);
+
+    // Hug the east edge of the two-lane rail approach so the pursuing wolf stays
+    // in the other lane. Its defeat flag must stay clear across the whole route.
+    constexpr unsigned RAIL_MARGIN = TILE + FOOT_LEFT;
+    constexpr unsigned DRAW_WOLF = 26;
+    walk(BTN_UP, DRAW_WOLF);
+    walk(0, 4);
+    walk(BTN_RIGHT, RAIL_MARGIN);
+    walk(BTN_UP, (positions::CaveSpawn.y - positions::CaveLever.y) * TILE - DRAW_WOLF);
+    walk(BTN_RIGHT, (positions::CaveLever.x - 1 - positions::CaveSpawn.x) * TILE - RAIL_MARGIN);
+    CHECK(game.player.x == (positions::CaveLever.x - 1) * TILE &&
+          game.player.y == positions::CaveLever.y * TILE);
+    game_update(0, BTN_A);
+    CHECK(game.get_flag(FLAG_CAVE_GATE));
+
+    walk(BTN_DOWN, TILE);
+    walk(BTN_RIGHT, (positions::CaveGate.x - positions::CaveLever.x + 1) * TILE);
+    walk(BTN_UP, (positions::CaveLever.y + 1 - positions::MineLanternRelay.y) * TILE);
+    walk(BTN_LEFT, (positions::CaveGate.x - positions::MineLanternRelay.x - 1) * TILE);
+    game_update(0, BTN_A);
+    CHECK(game.get_flag(FLAG_LANTERN_RELAY_FOUND));
+    CHECK(!game.get_flag(FLAG_CAVE_BRIDGE) && !game.get_flag(enemy_defeated_flag_at(1)));
+    auto move_to = [&](uint8_t direction, uint16_t current, uint8_t tile) {
+        uint16_t goal = tile * TILE;
+        bool decreasing = direction == BTN_UP || direction == BTN_LEFT;
+        CHECK(decreasing ? current >= goal : current <= goal);
+        walk(direction, decreasing ? current - goal : goal - current);
+        CHECK((direction == BTN_UP || direction == BTN_DOWN ? game.player.y : game.player.x) == goal);
+    };
+    auto east = [&](uint8_t tile) { move_to(BTN_RIGHT, game.player.x, tile); };
+    auto west = [&](uint8_t tile) { move_to(BTN_LEFT, game.player.x, tile); };
+    auto north = [&](uint8_t tile) { move_to(BTN_UP, game.player.y, tile); };
+    auto south = [&](uint8_t tile) { move_to(BTN_DOWN, game.player.y, tile); };
+    east(positions::CaveVaultLever.x);
+    walk(BTN_DOWN, 1);
+    game_update(0, BTN_A);
+    CHECK(game.get_flag(FLAG_CAVE_NOOK));
+    north(positions::MineLanternRelay.y);
+    west(positions::CaveGate.x);
+    south(positions::CavePlate.y);
+    west(positions::CaveLever.x - 1);
+    north(positions::CaveLever.y);
+    west(positions::CaveLever.x - 3);
+    south(positions::CavePlate.y);
+    west(positions::CavePlate.x);
+    CHECK(game.get_flag(FLAG_CAVE_BRIDGE));
+    east(positions::CaveVent.x);
+    // The grate can close while the player is approaching. Wait through at most
+    // one vent cycle, then cross the bridge from the south.
+    uint16_t landing = (positions::CaveBridge_0.y - 1) * TILE;
+    for(unsigned i = 0; i < 256 + 10 * TILE && game.player.y > landing; ++i)
+        walk(BTN_UP, 1);
+    CHECK(game.player.y == landing);
+    east(positions::SurveyorTrapped.x);
+    game_update(BTN_UP);
+    CHECK(encounter_run());
+    CHECK(npc_find(NPC_SURVEYOR));
+    game_update(0, BTN_A);
+    CHECK(game.get_flag(FLAG_SURVEYOR_RESCUED) && !game.get_flag(FLAG_LANTERN_STARTED));
+    CHECK(!game.get_flag(enemy_defeated_flag_at(1)) && story_stub_battles() == 0);
+}
+
+static void invalid_saves() {
+    for(FLAG invalid : {FLAG_LANTERN_MODERN, FLAG_LANTERN_RESTORED, FLAG_SURVEYOR_FOUND,
+                        FLAG_SURVEYOR_RESCUED, FLAG_SURVEY_NOTES_READ}) {
+        game_new();
+        game.set_flag(invalid);
+        CHECK(!save_valid());
+    }
+    game_new();
+    game.set_flag(FLAG_SURVEY_STARTED);
+    game.set_flag(FLAG_SURVEYOR_FOUND);
+    game.set_flag(FLAG_SURVEYOR_RESCUED);
+    CHECK(!save_valid());
+    game.set_flag(FLAG_CAVE_BRIDGE);
+    CHECK(save_valid());
+
+    game_new();
+    game.set_flag(FLAG_LANTERN_STARTED);
+    game.set_flag(FLAG_LANTERN_DIAGNOSED);
+    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
+    game.set_flag(FLAG_LANTERN_RESTORED);
+    CHECK(!save_valid());
+    game.set_flag(FLAG_LANTERN_MODERN);
+    CHECK(save_valid());
+    --game.save_version;
+    CHECK(!save_valid());
+}
+
 int main() {
     game_new();
     CHECK(!quest_start(QUEST_NONE) && !quest_select((QUEST_ID)200));
     CHECK(quest_journal_count() == 0);
-    social(true);
-    bridge();
-    tracks(true);
-    CHECK(quest_journal_count() == 3 && quest_selected() == QUEST_NONE);
-    journal_text();
+    lantern(true, true);
+    CHECK(quest_status(QUEST_MISSING_SURVEYOR) == QUEST_NOT_STARTED);
+    survey(NOTES);
+    journal_completed();
+    touch(positions::CaveChest);
+    CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && game.gold == 52);
+    reload();
+    touch(positions::CaveChest);
+    CHECK(game.gold == 52);
 
     game_new();
-    tracks(false);
-    bridge();
-    social(false);
-    CHECK(quest_journal_count() == 3 && quest_selected() == QUEST_NONE);
-    journal_text();
+    survey(FREE_EXPLORATION);
+    CHECK(quest_status(QUEST_LANTERN_KEEPER) == QUEST_NOT_STARTED);
+    lantern(false, true);
+    journal_completed();
 
     game_new();
-    game.set_flag(FLAG_MINE_LEDGER);
-    CHECK(!save_valid());
+    lantern(false, false);
+    CHECK(quest_status(QUEST_MISSING_SURVEYOR) == QUEST_NOT_STARTED);
+    survey(NELL);
+    journal_completed();
+
     game_new();
-    game.set_flag(FLAG_ORCHARD_SETTLED);
-    CHECK(!save_valid());
-    game_new();
-    --game.save_version;
-    CHECK(!save_valid());
+    talk(NPC_ROWAN);
+    CHECK(game.party.count == 2);
+    game.gold = UINT16_MAX - 1;
+    quest_start(QUEST_LANTERN_KEEPER);
+    game.set_flag(FLAG_LANTERN_DIAGNOSED);
+    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
+    story_stub_set_choice(0);
+    touch(positions::VillageLantern, EAST);
+    CHECK(game.gold == UINT16_MAX && game.party.members[0].experience == 6 &&
+          game.party.members[1].experience == 6);
+    invalid_saves();
+    mine_without_combat();
     printf("Millcross quest checks passed (%u)\n", checks);
 }

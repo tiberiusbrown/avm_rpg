@@ -33,7 +33,7 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
-// Questions take the scripted answer. Silas's offer is accepted unless a test changes it.
+// Questions take the scripted answer. Offers are accepted unless a test changes the answer.
 static bool answer_yes = true;
 static unsigned questions;
 
@@ -108,27 +108,30 @@ int main() {
     npc_dialogue();
     CHECK(shown == 0);
 
-    // Requests are consumed once, and the offer uses the identity of its speaker.
-    npc_talk(NPC_TESSA);
+    // Requests are consumed once. Mara's lantern offer uses her own speaker identity.
+    story_stub_set_choice(1);
+    npc_talk(NPC_MARA);
     CHECK(shown == 0 && questions == 0);
     npc_dialogue();
-    CHECK(questions == 1 && quest_status(QUEST_DRY_ROOTS) == QUEST_ACTIVE);
+    CHECK(questions == 1 && quest_status(QUEST_LANTERN_KEEPER) == QUEST_ACTIVE);
     npc_dialogue();
     CHECK(questions == 1);
 
+    story_stub_set_choice(0);
     npc_talk(NPC_ORRIN);
     npc_dialogue();
-    CHECK(shown == 1 && strstr(last_text, "climbed the race"));
-    CHECK(last_speaker == NPC_ORRIN && game.get_flag(FLAG_ORRIN_ACCOUNT));
+    CHECK(shown == 1 && last_text && last_speaker == NPC_ORRIN);
+    CHECK(!game.get_flag(FLAG_LANTERN_DIAGNOSED));
 
     npc_talk(NPC_NONE);
     npc_dialogue();
     CHECK(shown == 1);
     game_new();
     answer_yes = false;
-    npc_talk(NPC_TESSA);
+    story_stub_set_choice(1);
+    npc_talk(NPC_MARA);
     npc_dialogue();
-    CHECK(questions == 2 && quest_status(QUEST_DRY_ROOTS) == QUEST_NOT_STARTED);
+    CHECK(questions == 2 && quest_status(QUEST_LANTERN_KEEPER) == QUEST_NOT_STARTED);
     answer_yes = true;
 
     story_stub_reset(BATTLE_VICTORY);

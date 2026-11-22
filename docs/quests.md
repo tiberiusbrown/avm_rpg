@@ -4,8 +4,8 @@ Quests are compile-time definitions in their own headers. Each quest owns its st
 objective, map marker and event handlers. The engine reaches them only through `src/quest.h`, so
 adding a quest does not change the Journal, the map or the dialogue code.
 
-The shipping catalog contains Dry Roots, The Span Below, and Tracks in the Dust.
-`src/quest_runtime.cpp` compiles the registry.
+`src/quest_runtime.cpp` compiles the registry. See [game logic](game_logic.md) for
+the canonical quest specifications and reward contracts.
 
 ## Files
 
@@ -18,7 +18,7 @@ The shipping catalog contains Dry Roots, The Span Below, and Tracks in the Dust.
 | `src/quests/` | Authored quest definitions. |
 | `src/quest_runtime.cpp` | Generated dispatch, pending evaluation, selection and the public API. |
 | `src/journal.h` | Journal layout constants, the view struct and the summary word wrap. |
-| `src/logic/area_village.h`, `src/logic/area_cave.h` | Resident conversations, inscriptions, and battle hooks that update saved facts or emit events. |
+| `src/logic/area_village.h`, `src/logic/area_cave.h` | Area interactions and conversations that update saved facts or emit events. |
 | `src/screens.cpp`, `src/render.cpp` | The Journal screen and the tracked-quest map marker. |
 
 ## Identity and registration
@@ -29,7 +29,7 @@ past the largest ID, and it can be overridden with `RPG_QUEST_ID_LIMIT` for a te
 Each quest specializes `Quest<ID>` in its own header:
 
 ```cpp
-template <> struct Quest<QUEST_DRY_ROOTS> { /* members below */ };
+template <> struct Quest<QUEST_LANTERN_KEEPER> { /* members below */ };
 ```
 
 To register a quest, add its ID to `quest_ids.h`, add its header to `quest_registry.h`, and
@@ -57,15 +57,13 @@ Status, text and marker queries must not change game state. `start`, `evaluate`,
 
 ## Derived status and persistence
 
-Status derives from saved facts. For example, The Span Below is completed
-when the bridge flag is set and active once the maintenance notice is read.
+Status derives from saved facts. The Lantern Keeper, for example, reads
+persistent evidence and the state of the well lantern.
 
-`Game::selected_quest` stores the tracked quest or `QUEST_NONE`. Save version 21
-rejects earlier development saves because map positions, identities, and flag
-indices changed. The save checks the tracked ID and calls each quest’s
-`consistent()`. Dry Roots requires the offer and both accounts for a settlement.
-Tracks in the Dust requires a victory before the tally can be recorded.
-`save_restore()` clears a selection that names an inactive quest.
+`Game::selected_quest` stores the tracked quest or `QUEST_NONE`. The save
+checks the tracked ID and calls each quest’s `consistent()` to reject impossible
+combinations. `save_restore()` clears a selection that names an inactive quest.
+The save version and persistent-state contracts live in [game logic](game_logic.md).
 
 Computed statuses, summaries, markers, the Journal cursor and pending evaluations are not saved.
 
@@ -83,7 +81,7 @@ The quest is evaluated later, at the settle described below.
 occurrence is delivered once, immediately, to the quests that name that NPC. Delivery is a
 per-NPC sequence of direct calls, generated at compile time, so it never scans the catalog.
 
-Handlers should check status themselves when progress depends on it. Dry Roots checks that the inquiry is active and both accounts are recorded.
+Handlers check prerequisites before they mutate saved state. A single successful transition guards any one-time reward.
 
 ## Settling
 
@@ -129,7 +127,7 @@ The summary is wrapped once, when the quest opens. The wrap records line offsets
 in program memory, and it keeps at most `JOURNAL_SUMMARY_LINES` lines. Nothing is copied, so the
 Journal has no text buffer. Measurement and drawing use small chunks on the stack.
 The native tests check the wrap with a fixed-width stand-in font, which
-confirms that lines fit their width and that no text is lost. The device suite starts Dry Roots for one
+confirms that lines fit their width and that no text is lost. The device suite starts The Lantern Keeper for one
 pause menu, opens its detail view, captures it for review, and checks that the view leaves the game
 state unchanged. It does not assert the rendered pixels. The world does not simulate while the Journal is open.
 
@@ -143,9 +141,9 @@ is outside that area, whatever the quest computed.
 The marker is a black-edged white diamond that blinks opposite the player's marker. It needs no
 asset. Its position uses the same tile-to-map mapping as the player.
 
-Dry Roots uses `npc_location()` to guide the player to the next witness or back
-to Tessa. The mine quests mark the entrance on the outdoor map. Tracks in the
-Dust also supplies the rail chamber and tally locations to cave-area queries.
+The Lantern Keeper uses authored points for evidence and the eventual repair.
+`quest_fixed_marker<POS>()` copies coordinates as compile-time values. A quest
+can answer with a different position for each area.
 
 ## Compile-time and runtime checks
 
@@ -172,7 +170,7 @@ place is caught only by a behavioral test.
 ## Adding a quest
 
 1. Add `QUEST_NEW_NAME` to `quest_ids.h`. Give it the next free value.
-2. Add any flags it needs to `flags.h`, before `FLAG_COUNT`.
+2. Record the content and saved-state contracts in [game logic](game_logic.md), then add any flags to `flags.h`. Review save compatibility.
 3. Create `src/quests/new_name.h` with `template <> struct Quest<QUEST_NEW_NAME> { ... };`.
 4. Include the header from `quest_registry.h`.
 5. Add tests in `tests/test_quests.cpp`, and run `ctest` for `quests` and `quest_validation`.
@@ -182,21 +180,12 @@ place is caught only by a behavioral test.
 Keep a quest's progress in game flags, so that it is saved and restored with the rest of the game.
 A quest that reacts to a flag change should subscribe with `FlagChanged`, not poll each frame.
 
-## Millcross examples
+## Rewards and notifications
 
-- **Dry Roots** starts with Tessa’s offer. Confirming either resolution emits
-  `NpcTalked<NPC_TESSA>` after both witnesses’ accounts have been heard. Its
-  completion changes Tessa’s location and the dialogue of affected residents.
-- **The Span Below** starts when the player reads the maintenance notice.
-  The bridge plate completes the quest, extends the span, and opens the
-  maintenance hatch even if the notice was skipped.
-- **Tracks in the Dust** becomes active at Nell’s warning or on beating the
-  mine wolf. Finding and reading the tally after victory completes it.
-  The tally stays recorded if the wolf returns under The World Remembers.
-
-Dry Roots and Tracks in the Dust award experience once. When someone levels
-up, exploration presents the level-up notice after the dialogue closes.
-Earned perk choices stay pending in Party after the notice is dismissed.
+Content can call `quest_award_reward` after a confirmed completion. The runtime
+credits gold up to the wallet cap and records level-ups from awarding party XP.
+Exploration presents those notices after dialogue closes. Earned perk choices
+remain available in Party.
 
 ## Limitations
 
@@ -206,5 +195,5 @@ Earned perk choices stay pending in Party after the notice is dismissed.
 - `FlagChanged` is exercised only by the 40-ID test catalog. The shipping catalog has no flag
   subscriptions, so no shipping evaluation runs.
 - `QUEST_FAILED` is part of the derived model and the Journal, but no quest produces it yet.
-- Only `NpcTalked` has an emitter. Battles, items, party changes, area entry and map positions have
-  no events yet, because the spec asks for only the sources needed now.
+- The event types cover flag changes and NPC conversations. The synthetic catalog exercises both.
+  Shipping interactions directly record their authoritative facts.

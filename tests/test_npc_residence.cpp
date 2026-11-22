@@ -1,5 +1,5 @@
 #include "rpg.h"
-#include "logic/area_village.h"
+#include "chunk.h"
 #include "npc.h"
 #include "logic/npc_logic.h"
 #include "map_positions.h"
@@ -37,15 +37,11 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
     return dialogue_ask(question);
 }
 
-static bool quest_site(TilePos site) {
-    if(site == positions::TessaOrchard) {
-        game.set_flag(FLAG_ORCHARD_DISPUTE);
-        game.set_flag(FLAG_BRAM_ACCOUNT);
-        game.set_flag(FLAG_ORRIN_ACCOUNT);
-        game.set_flag(FLAG_ORCHARD_SETTLED);
-    } else {
-        game.clear_flag(FLAG_ORCHARD_SETTLED);
-    }
+static bool residence_site(TilePos site) {
+    if(site == positions::TessaOrchard)
+        game.set_flag(FLAG_LANTERN_RECORD_FOUND);
+    else
+        game.clear_flag(FLAG_LANTERN_RECORD_FOUND);
     return npc_location(NPC_TESSA) == site;
 }
 
@@ -71,7 +67,7 @@ static void test_defaults_and_view_admission() {
 static void test_static_npc_stays_in_its_chunk() {
     game_new();
     CHECK(npc_location(NPC_ORRIN) == positions::OrrinLane);
-    CHECK(quest_site(positions::TessaWell));
+    CHECK(residence_site(positions::TessaWell));
     CHECK(npc_location(NPC_ORRIN) == positions::OrrinLane);
 }
 
@@ -80,7 +76,7 @@ static void test_destination_admission_and_travel() {
     npc_reset();
     // The player stands beside the destination, which is then in view.
     place_player(positions::TessaOrchard.x - 1, positions::TessaOrchard.y);
-    CHECK(quest_site(positions::TessaOrchard));
+    CHECK(residence_site(positions::TessaOrchard));
     update_visible_world(0, false);
     Npc* villager = npc_find(NPC_TESSA);
     CHECK(villager);
@@ -89,7 +85,7 @@ static void test_destination_admission_and_travel() {
 
     // An active dynamic NPC walks toward a new destination; it does not teleport.
     uint16_t x = villager->actor.x, y = villager->actor.y;
-    CHECK(quest_site(positions::TessaWell));
+    CHECK(residence_site(positions::TessaWell));
     update_visible_world(0, false);
     villager = npc_find(NPC_TESSA);
     CHECK(villager && villager->behavior == NPC_TRAVEL);
@@ -97,7 +93,7 @@ static void test_destination_admission_and_travel() {
 }
 
 static void test_save_round_trip_and_rejection() {
-    CHECK(quest_site(positions::TessaOrchard));
+    CHECK(residence_site(positions::TessaOrchard));
     TilePos before = npc_location(NPC_TESSA);
     Game saved = game;
 
@@ -117,7 +113,7 @@ static void test_save_round_trip_and_rejection() {
 
 static void test_destination_collision_and_recruitment() {
     game_new();
-    CHECK(quest_site(positions::TessaOrchard));
+    CHECK(residence_site(positions::TessaOrchard));
     place_player(positions::TessaOrchard.x, positions::TessaOrchard.y);
     update_visible_world(0, false);
     CHECK(!npc_find(NPC_TESSA));
@@ -185,7 +181,7 @@ static void test_travel_finishes_outside_cache() {
     game_new();
     Npc* villager = npc_find(NPC_TESSA);
     CHECK(villager);
-    CHECK(quest_site(positions::TessaOrchard));
+    CHECK(residence_site(positions::TessaOrchard));
 
     npc_stage_begin();
     npc_stage_end();
@@ -213,7 +209,7 @@ static void test_travel_finishes_outside_cache() {
     villager = npc_find(NPC_TESSA);
     CHECK(villager && villager->assigned_site == positions::TessaOrchard);
     CHECK(villager->actor.x == positions::TessaOrchard.x * TILE);
-    CHECK(quest_site(positions::TessaWell));
+    CHECK(residence_site(positions::TessaWell));
     update_visible_world(0, false);
     CHECK(npc_find(NPC_TESSA)->behavior == NPC_TRAVEL);
 }

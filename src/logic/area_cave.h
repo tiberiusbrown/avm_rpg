@@ -6,23 +6,58 @@
 #include "container_rewards.h"
 #include "area_ids.h"
 #include "tile_ids.h"
-#include "quest.h"
+#include "npc_content.h"
+#include "npc_policy.h"
+#include "quests/missing_surveyor.h"
 
 // Hollow Mine. The east winch releases the west inspection nook and its bridge plate.
 
 inline constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS =
     battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF);
 
-struct MineWolfHooks : EnemyHooks {
-    static void victory() {
-        game.set_flag(FLAG_MINE_WOLF_DRIVEN);
-    }
-};
-
 using CaveEnemies = TypeList<
     EnemySpawn<positions::MineScout, &BATTLE_MINE_SCOUTS, 17, ENEMY_CHASE, SPEED_FAST, 0,
-               RESPAWN_REMEMBER, MineWolfHooks>
+               RESPAWN_REMEMBER>
 >;
+
+#ifndef RPG_NPC_POLICY_HEADER
+inline bool surveyor_rescued() { return game.get_flag(FLAG_SURVEYOR_RESCUED); }
+
+template <> struct NpcPolicy<NPC_SURVEYOR>
+    : AtOneOf<positions::SurveyorTrapped, When<positions::SurveyorReturned, surveyor_rescued>> {};
+#endif
+
+template <> struct NpcContent<NPC_SURVEYOR> {
+    static constexpr auto name = F("Surveyor");
+    static constexpr NpcDefinition PROGMEM definition{NPC_STAND, SOUTH, 0, 32, 32, 0, 0, 5, 0, 10, true};
+
+    static void talk() {
+        constexpr auto id = NPC_SURVEYOR;
+        if(game.get_flag(FLAG_SURVEYOR_RESCUED)) {
+            switch(dialogue_options<"Mine routes", "The old relay">()) {
+                case 0:
+                    dialogue_show(id, F("The ridge hatch skips the rail gallery. I marked it on the new survey."));
+                    break;
+                case 1:
+                    dialogue_show(id, F("The coil in the east winch room is stamped with the same mark as the well lantern."));
+                    break;
+            }
+            return;
+        }
+
+        quest_start(QUEST_MISSING_SURVEYOR);
+        game.set_flag(FLAG_SURVEYOR_FOUND);
+        if(!game.get_flag(FLAG_CAVE_BRIDGE)) {
+            dialogue_show(id, F("I can't get back across. The west inspection plate should release the bridge."));
+            return;
+        }
+        if(dialogue_ask(id, F("I thought I'd have to spend another night here. Can you show me the way to the hatch?")) &&
+           Quest<QUEST_MISSING_SURVEYOR>::rescue()) {
+            dialogue_show(id, F("I see the ladder now. I'll meet you by the inn. Thank you."));
+            npc_leave_scene(id);
+        }
+    }
+};
 
 namespace handler_impl {
 
@@ -73,34 +108,22 @@ template <TilePos POS> void steam_vent(Tiles<POS>) {
     }
 }
 
-template <TilePos POS> void read_bridge_notice(Dialogue<POS>) {
-    if(player_just_interacted<POS>() &&
-       dialogue_show(F("Bridge crew: first throw the east gate lever. Open the west inspection nook from the winch room.")))
-        quest_start(QUEST_SPAN_BELOW);
-}
-
-template <TilePos POS> void read_wolf_warning(Dialogue<POS>) {
-    if(player_just_interacted<POS>() &&
-       dialogue_show(F("Nell's chalk: Wolf on the rails ahead. Its tracks go past the old tally board.")))
-        quest_start(QUEST_TRACKS_IN_DUST);
-}
-
-template <TilePos POS> void read_mine_ledger(Dialogue<POS>) {
+template <TilePos POS> void take_lantern_relay(Dialogue<POS>) {
     if(!player_just_interacted<POS>())
         return;
-    if(!game.get_flag(FLAG_MINE_WOLF_DRIVEN)) {
-        dialogue_show(F("Fresh claw marks score the dust. Something is still guarding this chamber."));
+    if(game.get_flag(FLAG_LANTERN_RELAY_FOUND)) {
+        dialogue_show(F("The lamp bracket still bears the workshop mark."));
         return;
     }
-    if(dialogue_show(F("Two loads came up. Same weight, same ore, same cut in every stone. Both marks are identical.")) &&
-       !game.get_flag(FLAG_MINE_LEDGER)) {
-        game.set_flag(FLAG_MINE_LEDGER);
-        quest_award_experience(3);
-    }
+    game.set_flag(FLAG_LANTERN_RELAY_FOUND);
+    dialogue_show(F("You free an old copper relay from the lamp bracket. Its mark matches the well lantern."));
 }
 
 template <> struct AreaMessages<AREA_CAVE> {
     static constexpr Message TABLE[] = {
+        {positions::CaveNotice, F("Bridge crew: throw the east gate lever first. Open the west inspection nook from the winch room.")},
+        {positions::MineWarning, F("Nell's chalk: wolf on the rails ahead. Watch the corners.")},
+        {positions::MineLedger, F("Two loads came up. Same weight, same ore. Both entries carry the same unusual mark.")},
         {positions::WinchChalk, F("Chalk over the winch: release the west grille. Step on the plate behind it to run the bridge out.")},
         {positions::VentChalk, F("Wait for the hiss to die. Cross on the dark grate. Same rule on the way back.")},
         {positions::PoolEcho, F("Two tide lines on the same stone. The lower one is wet, but the pool has never reached it today.")},

@@ -2,10 +2,10 @@
 #define QUEST_CATALOG_REGISTRY_H
 
 // Registry for the catalog test build, which sets RPG_QUEST_ID_LIMIT to 40. Quest 1 is the
-// shipping Dry Roots. Quests 2 to 39 are synthetic probes whose state lives in test arrays, because
+// shipping Lantern Keeper. Quests 2 to 39 are synthetic probes whose state lives in test arrays, because
 // 40 quests cannot each own flags. They cover flag subscriptions, cascades, an evaluation cycle,
 // conversation delivery, starts, markers, consistency and a long Journal.
-#include "quests/dry_roots.h"
+#include "quests/lantern_keeper.h"
 #include "map_positions.h"
 
 inline QUEST_STATUS test_status[QUEST_ID_LIMIT];

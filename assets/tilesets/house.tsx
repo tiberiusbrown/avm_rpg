@@ -1681,7 +1681,7 @@
   <tile id="208">
     <properties>
       <property name="runtime_id" type="int" value="208" />
-      <property name="symbol" type="string" value="ATLAS_D0" />
+      <property name="symbol" type="string" value="TABLE_WORKSHOP_RECORD" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>
@@ -1689,7 +1689,7 @@
   <tile id="209">
     <properties>
       <property name="runtime_id" type="int" value="209" />
-      <property name="symbol" type="string" value="ATLAS_D1" />
+      <property name="symbol" type="string" value="TABLE_SURVEY_NOTES" />
       <property name="collision" type="int" value="65535" />
       <property name="portal" type="bool" value="false" />
     </properties>

@@ -135,7 +135,7 @@ int main() {
     // Absence and other-area assignments retain visible actors until safe unloading.
     game_new();
     CHECK(npc_find(NPC_TESSA));
-    game.set_flag(FLAG_BRAM_ACCOUNT);
+    game.set_flag(FLAG_LANTERN_DIAGNOSED);
     update_visible_world(0, false);
     CHECK(npc_find(NPC_TESSA));
     game.player.x = positions::TestField.x * TILE;
@@ -148,7 +148,7 @@ int main() {
     CHECK(retired == before_unload + 1);
 
     game_new();
-    game.set_flag(FLAG_ORRIN_ACCOUNT);
+    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
     update_visible_world(0, false);
     CHECK(npc_find(NPC_TESSA) && npc_location(NPC_TESSA).area == AREA_CAVE);
     game.player.x = positions::TestField.x * TILE;
@@ -162,7 +162,7 @@ int main() {
 
     game_new();
     CHECK(npc_follow_route(NPC_TESSA, 2));
-    game.set_flag(FLAG_ORRIN_ACCOUNT);
+    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
     game.player.x = positions::TestField.x * TILE;
     game.player.y = positions::TestField.y * TILE;
     update_visible_world(0, false);

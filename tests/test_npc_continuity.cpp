@@ -196,7 +196,7 @@ static void run(uint32_t seed, unsigned frames) {
         if(rng() % 8 == 0)
             held = moves_for[rng() % (sizeof(moves_for) / sizeof(moves_for[0]))];
         if(rng() % 120 == 0)
-            game.toggle_flag(FLAG_ORCHARD_SETTLED);
+            game.toggle_flag(FLAG_LANTERN_RECORD_FOUND);
         if(rng() % 160 == 0)
             npc_move_to(NPC_ORRIN, (uint16_t)(positions::OrrinLane.x * TILE - 16 + rng() % 33),
                       (uint16_t)(positions::OrrinLane.y * TILE - 12 + rng() % 25));

@@ -210,9 +210,9 @@ inline constexpr uint8_t TILE_ATLAS_CC = 204;
 inline constexpr uint8_t TILE_ATLAS_CD = 205;
 inline constexpr uint8_t TILE_ATLAS_CE = 206;
 inline constexpr uint8_t TILE_ATLAS_CF = 207;
-inline constexpr uint8_t TILE_ATLAS_D0 = 208;
-inline constexpr uint8_t TILE_ATLAS_D1 = 209;
-inline constexpr uint8_t TILE_ATLAS_D2 = 210;
+inline constexpr uint8_t TILE_VILLAGE_LANTERN_DARK = 208;
+inline constexpr uint8_t TILE_VILLAGE_LANTERN_MODERN = 209;
+inline constexpr uint8_t TILE_VILLAGE_LANTERN_ANCIENT = 210;
 inline constexpr uint8_t TILE_ATLAS_D3 = 211;
 inline constexpr uint8_t TILE_ATLAS_D4 = 212;
 inline constexpr uint8_t TILE_ATLAS_D5 = 213;
@@ -260,7 +260,7 @@ inline constexpr uint8_t TILE_ATLAS_FE = 254;
 inline constexpr uint8_t TILE_COUNT = 255;
 // The atlas frames in the tileset's sprite sheets. The sheets stop after the highest
 // tile that has art or is painted on a map, and a wind block follows them.
-inline constexpr uint16_t TILE_SPRITE_COUNT = 199;
+inline constexpr uint16_t TILE_SPRITE_COUNT = 211;
 inline constexpr uint8_t CAVE_TILE_EMPTY = 0;
 inline constexpr uint8_t CAVE_TILE_EDGE_TOP = 1;
 inline constexpr uint8_t CAVE_TILE_EDGE_LEFT = 2;
@@ -987,8 +987,8 @@ inline constexpr uint8_t HOUSE_TILE_ATLAS_CC = 204;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_CD = 205;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_CE = 206;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_CF = 207;
-inline constexpr uint8_t HOUSE_TILE_ATLAS_D0 = 208;
-inline constexpr uint8_t HOUSE_TILE_ATLAS_D1 = 209;
+inline constexpr uint8_t HOUSE_TILE_TABLE_WORKSHOP_RECORD = 208;
+inline constexpr uint8_t HOUSE_TILE_TABLE_SURVEY_NOTES = 209;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_D2 = 210;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_D3 = 211;
 inline constexpr uint8_t HOUSE_TILE_ATLAS_D4 = 212;
@@ -1037,7 +1037,7 @@ inline constexpr uint8_t HOUSE_TILE_ATLAS_FE = 254;
 inline constexpr uint8_t HOUSE_TILE_COUNT = 255;
 // The atlas frames in the tileset's sprite sheets. The sheets stop after the highest
 // tile that has art or is painted on a map, and a wind block follows them.
-inline constexpr uint16_t HOUSE_TILE_SPRITE_COUNT = 126;
+inline constexpr uint16_t HOUSE_TILE_SPRITE_COUNT = 210;
 inline constexpr uint8_t TILESET_BLOCKED[] = {
     63, 240, 63, 255, 63, 255, 255, 255, 14, 255, 0, 253, 8, 255, 8, 248,
     255, 191, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,

@@ -224,7 +224,7 @@ int main(int argc, char** argv) try {
         require(orrin != world.npcs.actors + NPC_CAPACITY, "Orrin is not active");
         orrin->state = NPC_STATE_NONE;
         orrin->timer = 40;
-        world.flags.set_flag(FLAG_ORCHARD_DISPUTE);
+        world.flags.set_flag(FLAG_LANTERN_STARTED);
         world.player = {(uint16_t)(orrin->actor.x + FOOT_WIDTH), orrin->actor.y, WEST, 0};
         d.set_state(world);
         d.frame();

@@ -1,3 +1,31 @@
+## Game logic and documentation authority
+
+**Read [docs/game_logic.md](docs/game_logic.md) before modifying gameplay logic or authored content.**
+Use it as the canonical specification for concrete game behavior, state, rewards, and
+dependencies. Code is the executable implementation. Reconcile disagreements between it
+and the canon in the same change.
+
+- Update the affected canon entries whenever you add or change a quest, NPC, item, perk,
+  special ability, encounter, environmental mechanism, or persistent flag.
+- Keep identifiers explicit and consistent. Reuse existing NPCs, flags, item IDs, locations,
+  and mechanisms. Record new flags and identity contracts before or alongside implementation.
+- Derive quest progression from saved facts and avoid duplicating derived state.
+- Review save compatibility when persistent layouts, identity ranges, or saved semantics change.
+- Distinguish implemented content from future proposals. Verify the final behavior and keep
+  the canon synchronized with exact predicates, numerical effects, and rewards.
+
+| Document | Responsibility |
+| --- | --- |
+| [Game logic](docs/game_logic.md) | Authoritative gameplay logic, content inventories, saved state, mechanics, quests, dependencies, and rewards |
+| [World bible](docs/world_bible.md) | Setting, geography, history, personalities, relationships, and open mysteries |
+| [Content authoring](docs/content_authoring.md) | Design principles, density, dialogue, exploration, quest quality, and review checklist |
+| [Quest framework](docs/quests.md) | Technical registry, events, Journal integration, and implementation interfaces |
+| [Game design](docs/game_design.md) | High-level vision, goals, scope, and design pillars |
+| [Map authoring](assets/maps/AUTHORING.md) and related guides | Technical Tiled map and tileset authoring rules |
+| [Ideas](docs/ideas_for_items_perks_abilities.md) | Noncanonical brainstorming. Entries imply neither approval nor implementation |
+
+## Development
+
 - Use C++20 for game code and native C++ tests.
 - Use snake_case for functions and variables, CamelCase for struct types, and ALL_CAPS for constants, macros, enum types, and enum values.
 - Indent with four spaces; do not use tabs.

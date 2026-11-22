@@ -1,5 +1,8 @@
 # Technical decisions
 
+This log records decisions in their original development context. See
+[game logic](game_logic.md) for current gameplay and save contracts.
+
 ## M1.5 world architecture
 
 Current world behavior is specified in [chunk_world.md](chunk_world.md) and

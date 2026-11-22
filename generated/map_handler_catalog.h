@@ -59,25 +59,25 @@ struct MapOperation_press_plate {
         Handler<POS, STAGE>{}.press_plate();
     }
 };
-struct MapOperation_read_bridge_notice {
+struct MapOperation_read_survey_notes {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_bridge_notice<POS, STAGE>();
+        handler_impl::implemented_read_survey_notes<POS, STAGE>();
     template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_bridge_notice();
+        Handler<POS, STAGE>{}.read_survey_notes();
     }
 };
-struct MapOperation_read_mine_ledger {
+struct MapOperation_read_survey_trail {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_mine_ledger<POS, STAGE>();
+        handler_impl::implemented_read_survey_trail<POS, STAGE>();
     template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_mine_ledger();
+        Handler<POS, STAGE>{}.read_survey_trail();
     }
 };
-struct MapOperation_read_wolf_warning {
+struct MapOperation_read_workshop_record {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_wolf_warning<POS, STAGE>();
+        handler_impl::implemented_read_workshop_record<POS, STAGE>();
     template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_wolf_warning();
+        Handler<POS, STAGE>{}.read_workshop_record();
     }
 };
 struct MapOperation_rest_at_inn {
@@ -108,6 +108,13 @@ struct MapOperation_steam_vent {
         Handler<POS, STAGE>{}.steam_vent();
     }
 };
+struct MapOperation_take_lantern_relay {
+    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
+        handler_impl::implemented_take_lantern_relay<POS, STAGE>();
+    template <TilePos POS, HandlerStage STAGE> static void run() {
+        Handler<POS, STAGE>{}.take_lantern_relay();
+    }
+};
 struct MapOperation_take_passage {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
         handler_impl::implemented_take_passage<POS, STAGE>();
@@ -120,6 +127,13 @@ struct MapOperation_use_lever {
         handler_impl::implemented_use_lever<POS, STAGE>();
     template <TilePos POS, HandlerStage STAGE> static void run() {
         Handler<POS, STAGE>{}.use_lever();
+    }
+};
+struct MapOperation_village_lantern {
+    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
+        handler_impl::implemented_village_lantern<POS, STAGE>();
+    template <TilePos POS, HandlerStage STAGE> static void run() {
+        Handler<POS, STAGE>{}.village_lantern();
     }
 };
 using AllMapHandlers = TypeList<
@@ -140,6 +154,8 @@ using AllMapHandlers = TypeList<
     MapSite<positions::SluiceStone, MapOperation_show_message>,
     MapSite<positions::SmithyDoor, MapOperation_enter_house>,
     MapSite<positions::SmithySign, MapOperation_show_message>,
+    MapSite<positions::SurveyTrailMark, MapOperation_read_survey_trail>,
+    MapSite<positions::VillageLantern, MapOperation_village_lantern>,
     MapSite<positions::WeaverDoor, MapOperation_enter_house>,
     MapSite<positions::WellSign, MapOperation_show_message>,
     MapSite<positions::BakeryExit, MapOperation_leave_house>,
@@ -154,7 +170,9 @@ using AllMapHandlers = TypeList<
     MapSite<positions::ShopCounter, MapOperation_open_shop>,
     MapSite<positions::ShopExit, MapOperation_leave_house>,
     MapSite<positions::SmithyExit, MapOperation_leave_house>,
+    MapSite<positions::SurveyorNotes, MapOperation_read_survey_notes>,
     MapSite<positions::WeaverExit, MapOperation_leave_house>,
+    MapSite<positions::WorkshopRecord, MapOperation_read_workshop_record>,
     MapSite<positions::CaveBridge_0, MapOperation_show_state>,
     MapSite<positions::CaveBridge_1, MapOperation_show_state>,
     MapSite<positions::CaveChest, MapOperation_open_chest>,
@@ -163,13 +181,14 @@ using AllMapHandlers = TypeList<
     MapSite<positions::CaveLadder, MapOperation_take_passage>,
     MapSite<positions::CaveLever, MapOperation_use_lever>,
     MapSite<positions::CaveNookGate, MapOperation_show_state>,
-    MapSite<positions::CaveNotice, MapOperation_read_bridge_notice>,
+    MapSite<positions::CaveNotice, MapOperation_show_message>,
     MapSite<positions::CavePlate, MapOperation_press_plate>,
     MapSite<positions::CaveVaultLever, MapOperation_use_lever>,
     MapSite<positions::CaveVent, MapOperation_steam_vent>,
     MapSite<positions::LadderChalk, MapOperation_show_message>,
-    MapSite<positions::MineLedger, MapOperation_read_mine_ledger>,
-    MapSite<positions::MineWarning, MapOperation_read_wolf_warning>,
+    MapSite<positions::MineLanternRelay, MapOperation_take_lantern_relay>,
+    MapSite<positions::MineLedger, MapOperation_show_message>,
+    MapSite<positions::MineWarning, MapOperation_show_message>,
     MapSite<positions::PoolEcho, MapOperation_show_message>,
     MapSite<positions::VentChalk, MapOperation_show_message>,
     MapSite<positions::WinchChalk, MapOperation_show_message>,
