@@ -1,31 +1,62 @@
-// Class, perk identifier, effect magnitude, required range (0 for any), name, description.
-MOVEMENT_PERK(MOVEMENT_STEP, STEADFAST, 3, 0, "Steadfast",
-              "Maximum HP increases by 3. Learning this perk does not restore HP.")
-MOVEMENT_PERK(MOVEMENT_LEAP, RENEWAL, 1, 0, "Renewal",
-              "Recover 1 additional AP after each victory, up to maximum AP.")
-MOVEMENT_PERK(MOVEMENT_CHARGE, MOMENTUM, 1, 2, "Momentum",
+// Class, rank, identifier, effect magnitude, required range (0 for any), name, description.
+// Keep each track's entries consecutive and in ascending rank order.
+MOVEMENT_PERK(MOVEMENT_STEP, 1, HOLD_TOGETHER, 1, 0, "Hold Together",
+              "While beside a living ally, take 1 less direct damage per hit, down to 1.")
+MOVEMENT_PERK(MOVEMENT_STEP, 2, FOOTWORK, 0, 0, "Footwork",
+              "A Step that deals engagement damage costs 0 HP.")
+MOVEMENT_PERK(MOVEMENT_LEAP, 1, LANDING_STRIKE, 1, 0, "Landing Strike",
+              "Landing next to exactly one enemy deals 1 extra engagement damage to it.")
+MOVEMENT_PERK(MOVEMENT_LEAP, 2, WIDE_LANDING, 1, 0, "Wide Landing",
+              "Landing next to exactly two enemies deals 1 extra engagement damage to each.")
+MOVEMENT_PERK(MOVEMENT_CHARGE, 1, SPEARHEAD, 1, 0, "Spearhead",
+              "Deal 1 extra engagement damage to the enemy directly ahead of the landing.")
+MOVEMENT_PERK(MOVEMENT_CHARGE, 2, MOMENTUM, 1, 2, "Momentum",
               "A two-cell move deals 1 extra engagement damage to each adjacent enemy.")
-MOVEMENT_PERK(MOVEMENT_VAULT, VAULT_FORCE, 1, 0, "Vault Force",
+MOVEMENT_PERK(MOVEMENT_VAULT, 1, VAULT_STRIKE, 1, 0, "Vault Strike",
+              "Deal 1 extra engagement damage to the enemy you Vault over.")
+MOVEMENT_PERK(MOVEMENT_VAULT, 2, VAULT_FORCE, 1, 0, "Vault Force",
               "Every Vault landing deals 1 extra engagement damage to each adjacent enemy.")
-MOVEMENT_PERK(MOVEMENT_GLIDE, SLIPSTREAM, 1, 2, "Slipstream",
+MOVEMENT_PERK(MOVEMENT_GLIDE, 1, CUTBACK, 1, 1, "Cutback",
+              "A one-cell Glide deals 1 extra engagement damage if exactly one enemy is beside the landing.")
+MOVEMENT_PERK(MOVEMENT_GLIDE, 2, SLIPSTREAM, 1, 2, "Slipstream",
               "A two-cell diagonal move deals 1 extra engagement damage to each adjacent enemy.")
-ATTACK_PERK(ATTACK_STRIKE, KEEN_EDGE, 1, 0, "Keen Edge",
+ATTACK_PERK(ATTACK_STRIKE, 1, KEEN_EDGE, 1, 0, "Keen Edge",
             "Normal and special attacks deal 1 extra damage against enemies at full HP.")
-ATTACK_PERK(ATTACK_SHOOT, LONGSHOT, 1, 4, "Longshot",
+ATTACK_PERK(ATTACK_STRIKE, 2, SWORD_MASTERY, 1, 0, "Sword Mastery",
+            "Normal and special Strike attacks deal 1 extra damage.")
+ATTACK_PERK(ATTACK_SHOOT, 1, LONGSHOT, 1, 4, "Longshot",
             "Normal and special attacks deal 1 extra damage at range 4.")
-ATTACK_PERK(ATTACK_REACH, LUNGE, 1, 2, "Lunge",
+ATTACK_PERK(ATTACK_SHOOT, 2, SHARPSHOOTER, 1, 0, "Sharpshooter",
+            "Normal and special Shoot attacks deal 1 extra damage at every legal range.")
+ATTACK_PERK(ATTACK_REACH, 1, LUNGE, 1, 2, "Lunge",
             "Normal and special attacks deal 1 extra damage at range 2.")
-ATTACK_PERK(ATTACK_IMPACT, HEAVY_BLOW, 1, 0, "Heavy Blow",
+ATTACK_PERK(ATTACK_REACH, 2, PRESS_BACK, 1, 2, "Press Back",
+            "Normal Reach hits at range 2 push a surviving target one cell if the landing is open.")
+ATTACK_PERK(ATTACK_IMPACT, 1, BODY_CHECK, 1, 0, "Body Check",
+            "Impact and Crushing Bash deal 1 extra damage if a living unit occupies the push cell.")
+ATTACK_PERK(ATTACK_IMPACT, 2, HEAVY_BLOW, 1, 0, "Heavy Blow",
             "Normal and special attacks deal 1 extra damage.")
-ATTACK_PERK(ATTACK_REND, BLOOD_SENSE, 1, 0, "Blood Sense",
+ATTACK_PERK(ATTACK_REND, 1, BLOODLETTING, 0, 0, "Bloodletting",
+            "Rend deals 4 base damage against targets below three quarters of maximum HP.")
+ATTACK_PERK(ATTACK_REND, 2, BLOOD_SENSE, 1, 0, "Blood Sense",
             "Normal and special attacks deal 1 extra damage against enemies below full HP.")
-ATTACK_PERK(ATTACK_ARC, CROSSCUT, 1, 0, "Crosscut",
+ATTACK_PERK(ATTACK_ARC, 1, OPEN_ANGLE, 1, 0, "Open Angle",
+            "Arc and Crescent Cut deal 1 extra damage when both orthogonal corner cells are open.")
+ATTACK_PERK(ATTACK_ARC, 2, CROSSCUT, 1, 0, "Crosscut",
             "Normal and special Arc attacks deal 1 extra damage.")
-ATTACK_PERK(ATTACK_DRAIN, LIFE_TAP, 1, 0, "Life Tap",
+ATTACK_PERK(ATTACK_DRAIN, 1, LIFE_TAP, 1, 0, "Life Tap",
             "Drain can heal 2 HP. On a surviving target, healing is capped at 1 less than HP lost.")
-ATTACK_PERK(ATTACK_RECOIL, COUNTERFORCE, 1, 0, "Counterforce",
+ATTACK_PERK(ATTACK_DRAIN, 2, DEEP_CUT, 1, 0, "Deep Cut",
+            "Drain and Siphon deal 1 extra direct damage.")
+ATTACK_PERK(ATTACK_RECOIL, 1, PARTING_BLOW, 1, 0, "Parting Blow",
+            "Recoil and Spring Blow deal 1 extra damage when the retreat succeeds.")
+ATTACK_PERK(ATTACK_RECOIL, 2, COUNTERFORCE, 1, 0, "Counterforce",
             "Normal and special Recoil attacks deal 1 extra damage.")
-ATTACK_PERK(ATTACK_FLANK, ENCIRCLE, 1, 0, "Encircle",
+ATTACK_PERK(ATTACK_FLANK, 1, ENCIRCLE, 1, 0, "Encircle",
             "Flank deals 1 extra damage when another ally is orthogonally adjacent to the target.")
-ATTACK_PERK(ATTACK_BLAST, SHRAPNEL, 1, 0, "Shrapnel",
+ATTACK_PERK(ATTACK_FLANK, 2, TACTICAL_EDGE, 1, 0, "Tactical Edge",
+            "Flank and Pincer Strike deal 1 extra damage on every hit.")
+ATTACK_PERK(ATTACK_BLAST, 1, CLUSTER_BURST, 1, 0, "Cluster Burst",
+            "Blast and Detonation deal 1 extra primary damage if at least two enemies take splash damage.")
+ATTACK_PERK(ATTACK_BLAST, 2, SHRAPNEL, 1, 0, "Shrapnel",
             "Normal and special Blast attacks deal 2 damage to each secondary enemy.")

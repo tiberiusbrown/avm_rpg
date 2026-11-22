@@ -404,14 +404,8 @@ static bool wins(BattleState const& state, uint8_t packed) {
         return defeated == battle_living(state, opponent(state.turn));
     }
 
-    uint8_t damage = battle_engagement_damage(state.units[action.unit_index], action.destination);
-    for(uint8_t i = 0; i < state.unit_count; ++i) {
-        BattleUnit const& unit = state.units[i];
-        if(unit.hp && unit.team != state.turn &&
-           (unit.hp > damage || !battle_cells_adjacent(unit.cell, action.destination)))
-            return false;
-    }
-    return true;
+    return battle_engagement(state, action.unit_index, action.destination).kills ==
+           battle_living(state, opponent(state.turn));
 }
 
 // Whether a packed action's destination has its bit set in a set of row masks, bit x of rows[y].
@@ -464,7 +458,7 @@ static uint8_t partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE
 // Kept out of line, so its working values never sit on the search's deepest frames.
 RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
                                           uint8_t attacks, bool approach) {
-    // Masks of cells beside any opponent, an opponent with 1 HP, or one with 2 HP.
+    // Masks beside any opponent, a base engagement kill, or a possible perk-assisted kill.
     // The same bytes hold the approach targets afterwards.
     uint8_t rows[3 * BATTLE_ROWS] = {};
     bool fragile = false, boosted_target = false;
@@ -476,7 +470,7 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE) {
             mark_neighbors(rows + BATTLE_ROWS, unit.cell);
             fragile = true;
-        } else if(unit.hp == BATTLE_ENGAGEMENT_DAMAGE + 1) {
+        } else if(unit.hp <= battle_max_engagement_damage()) {
             mark_neighbors(rows + 2 * BATTLE_ROWS, unit.cell);
             boosted_target = true;
         }
@@ -495,12 +489,20 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         move_kills =
             (uint8_t)(partition(actions, attacks, count,
                                 [&](uint8_t packed) {
-                                    return in_rows(killing, packed) ||
-                                           (boosted_target &&
-                                            in_rows(rows + 2 * BATTLE_ROWS, packed) &&
-                                            battle_engagement_damage(state.units[packed >> 5],
-                                                                     packed & (BATTLE_CELLS - 1)) >
-                                                BATTLE_ENGAGEMENT_DAMAGE);
+                                    if(in_rows(killing, packed))
+                                        return true;
+                                    if(!boosted_target || !in_rows(rows + 2 * BATTLE_ROWS, packed))
+                                        return false;
+                                    BattleAction action = battle_unpack(packed);
+                                    BattleUnit const& actor = state.units[action.unit_index];
+                                    if(!(actor.id & BATTLE_PARTY_SOURCE))
+                                        return false;
+                                    PartyMember const& member =
+                                        game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
+                                    return party_movement_perk_rank(member) &&
+                                           battle_engagement(state, action.unit_index,
+                                                             action.destination)
+                                               .kills;
                                 }) -
                       attacks);
         // Rotate the move kills ahead of the other attacks, so every kill leads.
@@ -816,12 +818,12 @@ int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
     BattleEngagement engagement = battle_engagement(state, action.unit_index, action.destination);
     if(engagement.kills && engagement.kills == opponents)
         return GREEDY_WIN; // A winning sacrifice still wins.
-    bool falls = actor.hp <= BATTLE_MOVE_COST;
+    uint8_t cost = battle_move_cost(actor, engagement.hits != 0);
+    bool falls = actor.hp <= cost;
     if(falls && battle_living(state, actor.team) == 1)
         return GREEDY_LOSS; // The side's last unit would fall without winning.
-    int16_t value =
-        (int16_t)(GREEDY_KILL * engagement.kills +
-                  GREEDY_HP * (engagement.damage - BATTLE_MOVE_COST) - (falls ? GREEDY_KILL : 0));
+    int16_t value = (int16_t)(GREEDY_KILL * engagement.kills +
+                              GREEDY_HP * (engagement.damage - cost) - (falls ? GREEDY_KILL : 0));
     return (int16_t)(value - nearest_gap(state, actor.team,
                                          ATTACK_GAPS.cells[battle_attack_class(actor.id)],
                                          action.destination));

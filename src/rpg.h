@@ -153,8 +153,9 @@ constexpr uint8_t party_experience_needed(uint8_t level) {
     return (uint8_t)(5 * (level + 1));
 }
 
-#define MOVEMENT_PERK(cls, id, amount, range, name, text) \
-    inline constexpr uint8_t id##_CLASS = cls, id##_BONUS = amount, id##_RANGE = range;
+#define MOVEMENT_PERK(cls, rank, id, amount, range, name, text)                                    \
+    inline constexpr uint8_t id##_CLASS = cls, id##_RANK = rank, id##_BONUS = amount,              \
+                             id##_RANGE = range;
 #define ATTACK_PERK MOVEMENT_PERK
 #include "perks.def"
 #undef ATTACK_PERK
@@ -163,7 +164,55 @@ constexpr uint8_t party_experience_needed(uint8_t level) {
 enum PERK_TRACK_KIND : uint8_t { PERK_MOVEMENT, PERK_ATTACK };
 
 inline constexpr uint8_t PERK_TRACK_RANKS = 5;
-inline constexpr uint8_t PERK_IMPLEMENTED_RANKS = 1;
+inline constexpr uint8_t PERK_TRACK_COUNT = MOVEMENT_CLASS_COUNT + (uint8_t)ATTACK_CLASS_COUNT;
+
+struct PerkTrack {
+    uint8_t first, ranks;
+};
+
+struct PerkTracks {
+    PerkTrack entries[PERK_TRACK_COUNT];
+};
+
+inline constexpr PerkTracks PERK_TRACKS = [] {
+    PerkTracks tracks{};
+    uint8_t entry = 0;
+    auto add = [&](uint8_t track, uint8_t rank) {
+        auto& info = tracks.entries[track];
+        if(!info.ranks)
+            info.first = entry;
+        return ++info.ranks == rank && rank <= PERK_TRACK_RANKS && info.first + rank - 1 == entry++;
+    };
+#define MOVEMENT_PERK(cls, rank, id, amount, range, name, text)                                    \
+    if(!add(cls, rank))                                                                            \
+        return PerkTracks{};
+#define ATTACK_PERK(cls, rank, id, amount, range, name, text)                                      \
+    if(!add(MOVEMENT_CLASS_COUNT + (uint8_t)cls, rank))                                            \
+        return PerkTracks{};
+#include "perks.def"
+#undef ATTACK_PERK
+#undef MOVEMENT_PERK
+    return tracks;
+}();
+
+static_assert(
+    [] {
+        for(auto const& track : PERK_TRACKS.entries)
+            if(!track.ranks)
+                return false;
+        return true;
+    }(),
+    "every class has contiguous ranks in the perk catalog");
+
+constexpr uint8_t party_perk_limit(PartyMember const& member, PERK_TRACK_KIND track) {
+    if(track == PERK_MOVEMENT)
+        return member.movement_class < MOVEMENT_CLASS_COUNT
+                   ? PERK_TRACKS.entries[member.movement_class].ranks
+                   : 0;
+    return member.attack_class < ATTACK_CLASS_COUNT
+               ? PERK_TRACKS.entries[MOVEMENT_CLASS_COUNT + member.attack_class].ranks
+               : 0;
+}
 
 constexpr uint8_t party_movement_perk_rank(PartyMember const& member) {
     return member.perk_ranks & 7;
@@ -190,8 +239,8 @@ bool party_learn_perk(PartyMember& member, PERK_TRACK_KIND track);
 // Checks level, XP toward the next level, and ranks funded by the earned milestones.
 constexpr bool party_progress_valid(PartyMember const& member) {
     if(member.level < 1 || member.level > PARTY_MAX_LEVEL || (member.perk_ranks & 0xc0) ||
-       party_movement_perk_rank(member) > PERK_IMPLEMENTED_RANKS ||
-       party_attack_perk_rank(member) > PERK_IMPLEMENTED_RANKS ||
+       party_movement_perk_rank(member) > party_perk_limit(member, PERK_MOVEMENT) ||
+       party_attack_perk_rank(member) > party_perk_limit(member, PERK_ATTACK) ||
        party_movement_perk_rank(member) + party_attack_perk_rank(member) > member.level / 2)
         return false;
     return member.level == PARTY_MAX_LEVEL ? member.experience == 0
@@ -209,16 +258,15 @@ constexpr uint8_t party_victory_experience(PartyMember const&) {
 inline constexpr uint8_t PARTY_BASE_AP = 4;
 
 // The maximum HP of a party member: the base of its identity, the traveler's 20 or Rowan's 18, plus
-// 2 at level 3, 2 more at level 7, and 3 with Steadfast.
+// 2 at level 3, 2 more at level 7, and any equipped HP bonuses.
 constexpr uint8_t party_max_hp(PartyMember const& member) {
     uint8_t base = member.id == NPC_ROWAN ? 18 : 20;
-    uint8_t steadfast = member.movement_class == STEADFAST_CLASS && party_movement_perk_rank(member)
-                            ? STEADFAST_BONUS : 0;
     uint8_t boots = equipment_get(member, SLOT_ARMOR) == ITEM_TRAVELERS_BOOTS
                         ? TRAVELERS_BOOTS_HP : 0;
     uint8_t pendant = equipment_get(member, SLOT_RELIC) == ITEM_VITAL_PENDANT
                           ? VITAL_PENDANT_HP : 0;
-    return (uint8_t)(boots + pendant + base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0) + steadfast);
+    return (uint8_t)(boots + pendant + base + (member.level >= 3 ? 2 : 0) +
+                     (member.level >= 7 ? 2 : 0));
 }
 
 // The normal-attack damage a party member adds: 1 at level 5 and 1 more at level 9.
@@ -234,10 +282,8 @@ constexpr uint8_t party_max_ap(PartyMember const&) {
 inline constexpr uint8_t PARTY_VICTORY_AP = 1;
 
 constexpr uint8_t party_victory_ap(PartyMember const& member) {
-    uint8_t renewal = member.movement_class == RENEWAL_CLASS && party_movement_perk_rank(member)
-                          ? RENEWAL_BONUS : 0;
     uint8_t dawn = equipment_get(member, SLOT_RELIC) == ITEM_DAWN_PENDANT ? DAWN_PENDANT_AP : 0;
-    return PARTY_VICTORY_AP + renewal + dawn;
+    return PARTY_VICTORY_AP + dawn;
 }
 
 // A member at full HP and AP, level 1 with no experience, as the traveler and new recruits join.

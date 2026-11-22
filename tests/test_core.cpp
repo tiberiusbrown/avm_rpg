@@ -447,8 +447,28 @@ static void saves() {
             CHECK(save_valid() && save_restore());
             CHECK(member.movement_class == movement && member.attack_class == attack);
             CHECK(member.perk_ranks == 0x09);
+            member.level = 8;
+            CHECK(party_learn_perk(member, PERK_MOVEMENT));
+            CHECK(party_learn_perk(member, PERK_ATTACK));
+            CHECK(save_valid() && save_restore() && member.perk_ranks == 0x12);
+            member.level = 6;
+            CHECK(!save_valid());
+            member.level = 10;
+            member.perk_ranks = 0x13;
+            CHECK(!save_valid());
         }
     }
+    // A version 22 member who learned the former Step perk could have three more HP.
+    game = saved;
+    auto& former_steadfast = game.party.members[0];
+    former_steadfast.level = 2;
+    former_steadfast.perk_ranks = 1;
+    former_steadfast.hp = 24;
+    reject();
+    former_steadfast.hp = 23;
+    CHECK(save_valid() && save_restore());
+    CHECK(former_steadfast.hp == 20 && former_steadfast.perk_ranks == 1);
+
     game = saved;
     game.player.x = positions::WellSign.x * TILE;
     game.player.y = positions::WellSign.y * TILE;
@@ -574,14 +594,14 @@ static void permanent_perks() {
     CHECK(party_gain_experience(member, 10) == 1 && party_unspent_perks(member) == 1);
     CHECK(party_learn_perk(member, PERK_MOVEMENT));
     CHECK(party_movement_perk_rank(member) == 1 && party_attack_perk_rank(member) == 0);
-    CHECK(member.hp == 16 && member.ap == 4 && party_max_hp(member) == 23);
+    CHECK(member.hp == 16 && member.ap == 4 && party_max_hp(member) == 20);
     CHECK(!party_learn_perk(member, PERK_ATTACK));
     CHECK(party_gain_experience(member, 35) == 2 && party_unspent_perks(member) == 1);
-    CHECK(!party_learn_perk(member, PERK_MOVEMENT));
-    CHECK(party_learn_perk(member, PERK_ATTACK) && party_unspent_perks(member) == 0);
-    CHECK(party_max_hp(member) == 25);
+    CHECK(party_learn_perk(member, PERK_MOVEMENT) && party_unspent_perks(member) == 0);
+    CHECK(party_max_hp(member) == 22);
     party_gain_experience(member, 255);
-    CHECK(member.level == 10 && party_unspent_perks(member) == 3 && party_max_hp(member) == 27);
+    CHECK(member.level == 10 && party_unspent_perks(member) == 3 && party_max_hp(member) == 24);
+    CHECK(party_learn_perk(member, PERK_ATTACK) && party_learn_perk(member, PERK_ATTACK));
     CHECK(!party_learn_perk(member, PERK_MOVEMENT) && !party_learn_perk(member, PERK_ATTACK));
     CHECK(!party_learn_perk(member, (PERK_TRACK_KIND)255));
     Game saved = game;
@@ -590,10 +610,10 @@ static void permanent_perks() {
     CHECK(game.party.members[0].perk_ranks == 0);
     game = saved;
     CHECK(save_restore());
-    CHECK(party_movement_perk_rank(member) == 1 && party_attack_perk_rank(member) == 1);
-    CHECK(party_unspent_perks(member) == 3 && member.hp == 16);
+    CHECK(party_movement_perk_rank(member) == 2 && party_attack_perk_rank(member) == 2);
+    CHECK(party_unspent_perks(member) == 1 && member.hp == 16);
 
-    static constexpr uint8_t INVALID_RANKS[] = {0x40, 0x80, 2, 16, 17, 47, 63};
+    static constexpr uint8_t INVALID_RANKS[] = {0x40, 0x80, 3, 24, 25, 47, 63};
     for(uint8_t bad : INVALID_RANKS) {
         member.perk_ranks = bad;
         PartyMember before = member;
@@ -655,26 +675,26 @@ static void equipment_operations() {
         leader.level = 7;
         CHECK(party_learn_perk(leader, PERK_MOVEMENT));
         uint8_t hp = leader.hp;
-        CHECK(party_max_hp(leader) == 27);
+        CHECK(party_max_hp(leader) == 24);
         CHECK(equipment_equip(0, ITEM_IRON_FANG));
         CHECK(equipment_get(leader, SLOT_ARMOR) == ITEM_NONE);
         CHECK(equipment_equip(0, ITEM_TRAVELERS_BOOTS));
-        CHECK(party_max_hp(leader) == 29);
+        CHECK(party_max_hp(leader) == 26);
         CHECK(equipment_equip(0, ITEM_VITAL_PENDANT));
-        CHECK(party_max_hp(leader) == 32 && leader.hp == hp);
-        leader.hp = 32;
+        CHECK(party_max_hp(leader) == 29 && leader.hp == hp);
+        leader.hp = 29;
 
         if(count > 1) {
             CHECK(equipment_equip(count - 1, ITEM_VITAL_PENDANT));
             CHECK(equipment_wearer(ITEM_VITAL_PENDANT) == count - 1);
-            CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_NONE && leader.hp == 29);
+            CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_NONE && leader.hp == 26);
         } else {
             CHECK(equipment_equip(0, ITEM_DAWN_PENDANT));
             CHECK(equipment_owned(ITEM_VITAL_PENDANT));
-            CHECK(leader.hp == 29 && party_victory_ap(leader) == 2);
+            CHECK(leader.hp == 26 && party_victory_ap(leader) == 2);
         }
         CHECK(equipment_unequip(0, SLOT_ARMOR));
-        CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && leader.hp == 27);
+        CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && leader.hp == 24);
         before = game;
         CHECK(!equipment_equip(0, ITEM_IRON_FANG) && !equipment_unequip(0, SLOT_ARMOR));
         CHECK(!memcmp(&before, &game, sizeof(Game)));

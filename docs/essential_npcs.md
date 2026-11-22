@@ -45,7 +45,7 @@ immediately. Party membership prevents him from
 being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
 4/4 AP, and step movement/strike attack. Both start at full HP and AP through `party_new_member`.
 Party current HP and AP and both class identifiers are bytes. Maximum HP is derived by `party_max_hp`
-from identity (20 base HP, or 18 for Rowan), level bonuses, and Steadfast if learned. Maximum AP
+from identity (20 base HP, or 18 for Rowan), level bonuses, and equipped HP bonuses. Maximum AP
 is 4. Saves validate the party count, unique NPC identities, statistics, and both perk ranks. The pause menu's Party panel shows one page per member, turned with left and
 right, and freezes world simulation while it eases in and out.
 

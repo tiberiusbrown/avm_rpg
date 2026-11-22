@@ -35,7 +35,8 @@ is not drawn while the panel covers the screen.
   battle's tables, and the description scrolls with up and down.
 - **Perks** shows two ordered tracks, one for the member's movement class and one for their attack
   class. Pick **Learn Perk!**, press A to inspect either available perk, press A again to open the
-  confirmation, then press A to learn it permanently or B to cancel. Extra choices stay pending.
+  confirmation, then press A to learn it permanently or B to cancel. Ranks stack and availability
+  depends on the class. Extra choices stay pending.
   **From Equipment** lists the selected member’s active item effects and their sources.
   A `!` beside Party in the pause menu and a star beside the member's name mark pending choices.
   Victory shows the names and new levels of members who leveled up, with `Perk available!`
@@ -428,8 +429,8 @@ and house tilesets. See the [battlefield authoring guide](docs/essential_npcs.md
   exploration, with the frozen board behind it. Confirmed Pass voluntarily consumes the party's
   turn. The AI considers Pass for either side at every search depth, alongside moves and attacks.
 - One move, attack, or pass takes the side's turn. A move deals engagement damage around the
-  landing cell before its 1 HP cost. A unit can move at 1 HP, and keeps that HP if engagement
-  wins the battle. Both teams lose 1 HP per living unit when they pass. Arc can strike a diagonal
+  landing cell before paying its 1 HP move cost. Footwork waives the cost for a Step that engages.
+  A unit can move at 1 HP and keeps that HP if engagement wins the battle. Both teams lose 1 HP per living unit when they pass. Arc can strike a diagonal
   target. Drain heals the attacker, Recoil can move the attacker, Flank rewards allied support,
   and Blast can damage several enemies in one action.
 - Leap and Vault arc over the crossed tiles. Glide slides diagonally, and Recoil shows the strike

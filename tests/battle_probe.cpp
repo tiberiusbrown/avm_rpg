@@ -105,7 +105,7 @@ static constexpr unsigned KERNEL_LOOPS = 100;
 // Each kernel runs KERNEL_LOOPS times between two marks. Every iteration copies the scenario and changes its
 // activation count by probe_zero, which only the probe can read. The copy-only kernel gives the overhead
 // that the other kernels include, so it can be subtracted.
-static void run_kernels(BattleState const& base) {
+RPG_NOINLINE static void run_kernels(BattleState const& base) {
     uint8_t attacks = 0;
     uint8_t count = battle_actions(base, legal, attacks);
     uint16_t sum = 0;

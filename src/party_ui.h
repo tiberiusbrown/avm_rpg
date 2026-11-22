@@ -60,7 +60,7 @@ inline constexpr uint8_t PARTY_TEXT_ROWS = 4;
 inline constexpr uint8_t PARTY_TEXT_LINES = 8;
 
 // Equipment perk codes are PERK_EQUIPMENT plus the granting item's ID.
-inline constexpr uint8_t PARTY_PERK_TRACK_COUNT = MOVEMENT_CLASS_COUNT + (uint8_t)ATTACK_CLASS_COUNT;
+inline constexpr uint8_t PARTY_PERK_TRACK_COUNT = PERK_TRACK_COUNT;
 inline constexpr uint8_t PERK_EQUIPMENT = PARTY_PERK_TRACK_COUNT * PERK_TRACK_RANKS;
 
 constexpr uint8_t party_perk_code(uint8_t track, uint8_t rank) {

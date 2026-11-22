@@ -1175,15 +1175,15 @@ static void render_party_perk_choice(int16_t x, PartyUi const& ui) {
         int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * index);
         begin_menu_row(x, y, index == selected, PARTY_EDGE - PARTY_MARGIN);
         PERK_TRACK_KIND track = index == 0 ? PERK_MOVEMENT : PERK_ATTACK;
-        char const PROGMEM* name = party_perk_rank(member, track) >= PERK_IMPLEMENTED_RANKS
-                                        ? F("Next unavailable")
-                                        : party_perk_name(party_ui_row_perk(ui, game.party, index));
+        char const PROGMEM* name = party_perk_rank(member, track) >= party_perk_limit(member, track)
+                                       ? F("Next unavailable")
+                                       : party_perk_name(party_ui_row_perk(ui, game.party, index));
         draw_label_value((int16_t)(left + 3), y, index == 0 ? F("Move:") : F("Attack:"), name);
         avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     }
     int16_t note_y = PARTY_ROW_BODY + PARTY_ROW_STEP * 3;
-    if(party_movement_perk_rank(member) >= PERK_IMPLEMENTED_RANKS &&
-       party_attack_perk_rank(member) >= PERK_IMPLEMENTED_RANKS)
+    if(party_movement_perk_rank(member) >= party_perk_limit(member, PERK_MOVEMENT) &&
+       party_attack_perk_rank(member) >= party_perk_limit(member, PERK_ATTACK))
         avm_draw_text(left, note_y, F("More ranks in future"));
     else if(!available)
         avm_draw_text(left, note_y, F("No choices available"));
@@ -1289,7 +1289,9 @@ static void render_party_item_details(int16_t x, PartyUi const& ui) {
                                                                     F("Equipped"));
 }
 
-static void render_party_panel(int16_t x, PartyUi const& ui) {
+// The sliding background and the panel render in sequence, so their temporary frames can be
+// separate.
+RPG_NOINLINE static void render_party_panel(int16_t x, PartyUi const& ui) {
     draw_menu_frame(x);
     switch(ui.page) {
         case PARTY_PAGE_OVERVIEW:

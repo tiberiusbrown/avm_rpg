@@ -105,10 +105,11 @@ The flag set occupies six bytes. Enemy-index order is outdoor wolf, cave wolf, v
 - **Saved `Game`:** save version, player actor and position, RNG seed, gold (`uint16_t`, max 65,535), world tick counter, world flags, World Remembers timer, current area, level field, party (identities/classes/current HP/AP/member level and XP/perk ranks/equipment references), supplies, area dimensions, previous tile, interaction readiness, NPC pool, audio settings, and `selected_quest`.
 - **Rebuilt/transient:** tile cache/camera/workspaces, active NPC reconstruction on area load, dialogue panels/menu navigation, pending quest flag evaluations, pending level-up notices, combat search and battle scene state, and pending encounter contacts. Save restoration validates IDs, party data, flags, positions, and quest invariants; it reconstructs the view and NPC state.
 - **Quest tracking:** only one **active** quest may be selected. Starting a quest automatically selects it if none is selected. A completed/inactive quest is automatically untracked. All started or completed quests appear in the Journal; selection does not affect quest progression.
-- **Save compatibility:** `SAVE_VERSION = 22`. Version 22 saves retain their map, equipment, quest, and enemy identities. The movement and attack
-  classes added below append IDs to the existing byte fields. The member layout and stored perk
-  ranks are unchanged, so existing version 22 saves load with their original classes. Earlier
-  development saves are rejected.
+- **Save compatibility.** Version 22 stores the number of ranks learned on each track. Existing
+  saves retain their class identifiers, learned rank counts, and unspent choices. A learned rank
+  uses its current effect below. A version 22 member at Step rank 1 can load with up to 3 HP above
+  the current maximum from the former Steadfast perk. Loading clamps that HP to the current maximum.
+  Earlier development save versions are rejected.
 
 ## 2. Implemented quests
 
@@ -306,11 +307,11 @@ Both quest rewards cap gold at the wallet limit. Each XP payout belongs to the f
 - New game: one traveler (`NPC_NONE`), `MOVEMENT_STEP`, `ATTACK_STRIKE`, **level 1**, **20/20 HP**, **4/4 AP**, no equipped items, **0 G**, Iron Fang owned but unequipped, and the supply counts above. Rowan is an optional recruit: `MOVEMENT_STEP` / `ATTACK_SHOOT`, **18/18 HP**, **4/4 AP**, level 1.
 - Party capacity: **4**. Identity cannot be duplicated. New recruits begin at full derived HP/AP and level 1; recruiting never resets existing members' progress.
 - Party member levels: **1–10**. XP to next level from current level `L`: `5 × (L + 1)` (e.g. 10 at level 1, 15 at level 2). XP is the amount **toward** the next level, not cumulative; overflow carries across level-ups, and XP at level 10 is discarded.
-- Base maximum HP: **20**, except Rowan **18**. Add **+2 at level 3**, **+2 more at level 7**, equipped HP bonuses, and `STEADFAST` where applicable. Leveling does **not** itself restore current HP.
+- Base maximum HP: **20**, except Rowan **18**. Add **+2 at level 3**, **+2 more at level 7** and equipped HP bonuses. Leveling does **not** itself restore current HP.
 - Normal/special **direct attack base damage** gains **+1 at level 5** and **+1 more at level 9**. Engagement damage and Blast splash use their own base damage and perks.
 - Max AP: **4** for all current members. No rank/item currently increases maximum AP.
-- Victory AP recovery: **1 baseline**, plus any `RENEWAL` and `ITEM_DAWN_PENDANT` bonuses, capped at 4. AP is not automatically restored on turn changes or within combat.
-- Perk choices: one at **levels 2, 4, 6, 8, and 10**, derived as `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement perk track and one attack perk track. **Only rank 1 of each track is implemented**, despite the five-rank storage/UX plan. Unspent choices may remain after both currently available ranks are learned.
+- Victory AP recovery: **1 baseline**, plus any `ITEM_DAWN_PENDANT` bonus, capped at 4. AP is not automatically restored on turn changes or within combat.
+- Perk choices: one at **levels 2, 4, 6, 8, and 10**, derived as `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement perk track and one attack perk track. Ranks are learned in order and their effects stack. Each track supports up to five ranks in the save and menu. Class-specific availability is listed below. Unspent choices may remain after the available ranks on both tracks are learned.
 
 ### 5.2 Battle movement classes
 
@@ -350,7 +351,7 @@ healing, even against a target at 1 HP. All Drain healing is capped at the attac
 
 ### 5.4 Starting special abilities
 
-Each party member has **exactly one currently implemented special**, determined by its `ATTACK_CLASS`. A special targets an enemy normally reachable by that attack class, costs **2 AP**, and takes one team turn. If there is enough AP, selecting an enemy opens an attack-type choice (normal vs special). The special's damage is **normal direct damage (including existing bonuses) plus the following special bonus**, chosen by whether the victim is **at full HP** or **below full HP** (not the half-HP threshold used by Rend).
+Each party member has **exactly one currently implemented special**, determined by its `ATTACK_CLASS`. A special targets an enemy normally reachable by that attack class, costs **2 AP**, and takes one team turn. If there is enough AP, selecting an enemy opens an attack-type choice (normal vs special). The special's damage is **normal direct damage (including existing bonuses) plus the following special bonus**, chosen by whether the victim is **at full HP** or **below full HP** (separate from Rend's normal damage threshold).
 
 | Special | Attack class / ID | AP | Bonus vs full HP | Bonus vs below full HP | Additional effect |
 |---|---|---:|---:|---:|---|
@@ -367,27 +368,44 @@ Each party member has **exactly one currently implemented special**, determined 
 
 There is **no special-ability learning/unlock progression** implemented. Specials exist from the beginning according to attack class. Enemies do not spend AP or select specials.
 
-### 5.5 Implemented perks (one rank each)
+### 5.5 Implemented perks
 
-Earn and learn perks through the Party menu. The implementation catalog is `src/perks.def`. Each track offers one implemented rank (`PERK_IMPLEMENTED_RANKS`) and reserves five ranks (`PERK_TRACK_RANKS`). Attack perks apply to normal attacks and specials. Movement perks govern engagement bonuses.
+Learn perks through the Party menu. The implementation catalog is `src/perks.def`. Attack
+perks apply to normal attacks and starting specials. Movement damage bonuses apply to
+engagement after voluntary moves.
 
-| Perk ID | Track/class | Rank-1 effect | Conditions |
-|---|---|---|---|
-| `STEADFAST` | Movement / `MOVEMENT_STEP` | +3 maximum HP | Always while learned; does not heal current HP |
-| `RENEWAL` | Movement / `MOVEMENT_LEAP` | +1 AP after victory | Victory recovery, capped at AP max |
-| `MOMENTUM` | Movement / `MOVEMENT_CHARGE` | +1 engagement damage to **each** adjacent enemy | Only after a **2-cell orthogonal move**; raises engagement damage from 1 to 2 |
-| `VAULT_FORCE` | Movement / `MOVEMENT_VAULT` | +1 engagement damage to each adjacent enemy | Every Vault landing |
-| `SLIPSTREAM` | Movement / `MOVEMENT_GLIDE` | +1 engagement damage to each adjacent enemy | Only after a two-cell diagonal Glide |
-| `KEEN_EDGE` | Attack / `ATTACK_STRIKE` | +1 direct damage | Enemy at **full HP** before the hit |
-| `LONGSHOT` | Attack / `ATTACK_SHOOT` | +1 direct damage | Enemy **exactly 4 cells** away |
-| `LUNGE` | Attack / `ATTACK_REACH` | +1 direct damage | Enemy **exactly 2 cells** away |
-| `HEAVY_BLOW` | Attack / `ATTACK_IMPACT` | +1 direct damage | All targets |
-| `BLOOD_SENSE` | Attack / `ATTACK_REND` | +1 direct damage | Enemy **below full HP**, even if still ≥ half max HP |
-| `CROSSCUT` | Attack / `ATTACK_ARC` | +1 direct damage | Every Arc attack |
-| `LIFE_TAP` | Attack / `ATTACK_DRAIN` | Raise healing from 1 to up to 2 HP | Uses the same surviving-target and maximum-HP caps |
-| `COUNTERFORCE` | Attack / `ATTACK_RECOIL` | +1 direct damage | Every Recoil attack. Retreat distance stays one cell |
-| `ENCIRCLE` | Attack / `ATTACK_FLANK` | +1 direct damage | Only with allied support |
-| `SHRAPNEL` | Attack / `ATTACK_BLAST` | +1 splash damage | Each secondary victim |
+| Track | Rank | Perk ID | Effect |
+|---|---:|---|---|
+| `MOVEMENT_STEP` | 1 | `HOLD_TOGETHER` | Reduce incoming direct damage from a normal attack or special by 1, to a minimum of 1, while orthogonally adjacent to a living ally before the hit. |
+| `MOVEMENT_STEP` | 2 | `FOOTWORK` | A Step that deals engagement damage costs 0 HP. Quiet Steps and passes cost 1 HP. |
+| `MOVEMENT_LEAP` | 1 | `LANDING_STRIKE` | +1 engagement damage to the enemy when the Leap lands orthogonally adjacent to exactly one living enemy. |
+| `MOVEMENT_LEAP` | 2 | `WIDE_LANDING` | +1 engagement damage to each enemy when the Leap lands orthogonally adjacent to exactly two living enemies. |
+| `MOVEMENT_CHARGE` | 1 | `SPEARHEAD` | On a one- or two-cell Charge, deal +1 engagement damage to the living enemy one cell directly ahead of the landing, in the direction traveled. |
+| `MOVEMENT_CHARGE` | 2 | `MOMENTUM` | +1 engagement damage to every adjacent enemy after a two-cell Charge. A forward enemy takes 3 total engagement damage from both ranks. |
+| `MOVEMENT_VAULT` | 1 | `VAULT_STRIKE` | +1 engagement damage to the living enemy in the jumped cell. |
+| `MOVEMENT_VAULT` | 2 | `VAULT_FORCE` | +1 engagement damage to every enemy adjacent to the landing cell. The jumped enemy takes 3 total engagement damage when both perks apply. |
+| `MOVEMENT_GLIDE` | 1 | `CUTBACK` | +1 engagement damage after a one-cell Glide that lands beside exactly one living enemy. |
+| `MOVEMENT_GLIDE` | 2 | `SLIPSTREAM` | +1 engagement damage to every adjacent enemy after a two-cell Glide. |
+| `ATTACK_STRIKE` | 1 | `KEEN_EDGE` | +1 direct damage against an enemy at full HP before the hit. |
+| `ATTACK_STRIKE` | 2 | `SWORD_MASTERY` | +1 direct damage on every hit. |
+| `ATTACK_SHOOT` | 1 | `LONGSHOT` | +1 direct damage at range 4. |
+| `ATTACK_SHOOT` | 2 | `SHARPSHOOTER` | +1 direct damage at every legal range. |
+| `ATTACK_REACH` | 1 | `LUNGE` | +1 direct damage at range 2. |
+| `ATTACK_REACH` | 2 | `PRESS_BACK` | A normal hit at range 2 pushes a surviving target one cell directly away if the destination is open. Driving Thrust already pushes at either range. |
+| `ATTACK_IMPACT` | 1 | `BODY_CHECK` | +1 direct damage if a living unit occupies the cell directly behind the target before the hit. A board edge or blocked terrain alone grants no bonus. |
+| `ATTACK_IMPACT` | 2 | `HEAVY_BLOW` | +1 direct damage on every hit. |
+| `ATTACK_REND` | 1 | `BLOODLETTING` | Raises the threshold for 4 base damage to strictly below three quarters of the target's maximum HP. |
+| `ATTACK_REND` | 2 | `BLOOD_SENSE` | +1 direct damage against an enemy below full HP before the hit. |
+| `ATTACK_ARC` | 1 | `OPEN_ANGLE` | +1 direct damage if the two orthogonal corner cells between attacker and target are both unblocked and free of living units. |
+| `ATTACK_ARC` | 2 | `CROSSCUT` | +1 direct damage on every hit. |
+| `ATTACK_DRAIN` | 1 | `LIFE_TAP` | Raises healing from up to 1 HP to up to 2 HP. The surviving-target and maximum-HP caps still apply. Weapon and level damage bonuses can increase the surviving-target cap. |
+| `ATTACK_DRAIN` | 2 | `DEEP_CUT` | +1 direct damage on every hit. |
+| `ATTACK_RECOIL` | 1 | `PARTING_BLOW` | +1 direct damage when the retreat cell is open and the attack completes the retreat, including on a killing blow. |
+| `ATTACK_RECOIL` | 2 | `COUNTERFORCE` | +1 direct damage on every hit. |
+| `ATTACK_FLANK` | 1 | `ENCIRCLE` | +1 direct damage with allied support. |
+| `ATTACK_FLANK` | 2 | `TACTICAL_EDGE` | +1 direct damage on every hit. |
+| `ATTACK_BLAST` | 1 | `CLUSTER_BURST` | +1 primary damage if the attack hits at least two living splash targets. |
+| `ATTACK_BLAST` | 2 | `SHRAPNEL` | +1 splash damage per secondary target. |
 
 The choice count is derived, not separately saved. Learned movement rank occupies `perk_ranks` bits 0–2; attack rank bits 3–5; bits 6–7 reserved. Learning a perk consumes one earned choice but does not directly spend gold, AP, or equipment.
 
@@ -397,10 +415,11 @@ The choice count is derived, not separately saved. Learned movement rank occupie
 
 - Combat board is **8×4 cells**. Up to **four** deployed party units and **four** enemies; battlefield selection chooses among the allowed map/tileset boards. Initial positions are randomized within designated deployment rectangles, respecting blocked cells.
 - One **unit action** (move, normal attack, special) consumes **the whole acting side's turn**. Sides alternate; a team may also pass. Automatic pass occurs if no legal action exists.
-- **Move sequence:** move to destination → deal **1 engagement damage** to every orthogonally adjacent living enemy (or 2 when Momentum, Vault Force, or Slipstream applies) → mover loses **1 HP**. Actors with **1 HP may move** and may fall from the movement price. If engagement kills the last opponent, victory is decided **before** movement HP is paid.
+- **Move sequence:** move to destination → deal **1 base engagement damage** to every orthogonally adjacent living enemy and apply any learned movement perk bonuses → mover pays **1 HP** unless Footwork waives the cost. Actors with **1 HP may move** and may fall from the movement price. If engagement kills the last opponent, victory is decided **before** movement HP is paid.
 - **Attack sequence:** Spend AP once for a special. Determine primary damage, positional bonuses,
-  and Blast victims from the original position. Apply all primary and secondary damage, then any
-  Drain healing. Resolve knockback for a surviving victim or Recoil for the attacker, using the
+  and Blast victims from the original position. Apply Hold Together to the primary hit if the
+  target has it and is supported. Engagement and splash damage use their own modifiers. Apply all
+  primary and secondary damage, then any Drain healing. Resolve knockback for a surviving victim or Recoil for the attacker, using the
   original positions. Forced displacement requires an empty, unblocked cell inside the board and
   ignores movement class. It costs no HP and triggers no engagement or movement perks. Check
   victory or defeat after all attack effects, then hand the turn to the other team if play continues.

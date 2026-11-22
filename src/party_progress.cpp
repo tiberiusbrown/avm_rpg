@@ -21,8 +21,9 @@ uint8_t party_gain_experience(PartyMember& member, uint8_t amount) {
 
 bool party_can_learn_perk(PartyMember const& member, PERK_TRACK_KIND track) {
     return (track == PERK_MOVEMENT || track == PERK_ATTACK) && party_progress_valid(member) &&
-           member.movement_class < MOVEMENT_CLASS_COUNT && member.attack_class < ATTACK_CLASS_COUNT &&
-           party_unspent_perks(member) && party_perk_rank(member, track) < PERK_IMPLEMENTED_RANKS;
+           member.movement_class < MOVEMENT_CLASS_COUNT &&
+           member.attack_class < ATTACK_CLASS_COUNT && party_unspent_perks(member) &&
+           party_perk_rank(member, track) < party_perk_limit(member, track);
 }
 
 bool party_learn_perk(PartyMember& member, PERK_TRACK_KIND track) {

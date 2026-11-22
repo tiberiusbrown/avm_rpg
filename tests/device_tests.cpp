@@ -1128,7 +1128,7 @@ static void verify_perk_choice(Device& d, fs::path const& out) {
     d.tap(BTN_A); // Perks
     d.tap(BTN_UP);
     d.tap(BTN_A); // Learn Perk
-    d.tap(BTN_A); // Inspect Steadfast
+    d.tap(BTN_A); // Inspect Hold Together
     d.advance(BTN_A, 8000000); // Open confirmation and hold A across multiple frames.
     require(d.state().party.members[0].perk_ranks == 0, "holding A learned the perk");
     d.capture(out / "perk-confirm.pgm");
@@ -1139,8 +1139,8 @@ static void verify_perk_choice(Device& d, fs::path const& out) {
     PartyMember learned = d.state().party.members[0];
     require(party_movement_perk_rank(learned) == 1 && party_attack_perk_rank(learned) == 0 &&
                 party_unspent_perks(learned) == 0 && learned.hp == 16 &&
-                party_max_hp(learned) == 23,
-            "confirmed Steadfast did not spend one choice and increase maximum HP");
+                party_max_hp(learned) == 20,
+            "confirmed Hold Together did not spend exactly one choice");
     d.tap(BTN_A);
     require(d.state().party.members[0].perk_ranks == learned.perk_ranks,
             "another press learned an unavailable rank");
@@ -1671,6 +1671,35 @@ static void start_grove_contact(Device& d) {
     d.wait_for_battle();
 }
 
+static void verify_second_perk_rank(Device& d, fs::path const& out) {
+    Game training = d.state();
+    training.party.members[0].movement_class = MOVEMENT_STEP;
+    training.party.members[0].level = 4;
+    d.set_state(training);
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Party
+    d.advance(0, 8000000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Perks
+    d.tap(BTN_UP);
+    d.tap(BTN_A); // Learn Perk
+    for(uint8_t rank = 1; rank <= 2; ++rank) {
+        d.tap(BTN_A); // Inspect the next movement perk.
+        if(rank == 2)
+            d.capture(out / "footwork-details.pgm");
+        d.tap(BTN_A); // Open confirmation.
+        d.tap(BTN_A); // Learn the perk.
+        PartyMember learned = d.state().party.members[0];
+        require(party_movement_perk_rank(learned) == rank &&
+                    party_unspent_perks(learned) == 2 - rank,
+                "Party did not learn the next Step rank");
+    }
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"learning consecutive perk ranks\"}\n";
+}
+
 static void verify_battle_classes(Device& d, fs::path const& out) {
     start_grove_contact(d);
 
@@ -1683,20 +1712,24 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
     };
 
     static constexpr Case CASES[] = {
+        {"battle_step", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(2, 1),
+         battle_cell(3, 1), battle_cell(2, 1), 15, 9, false},
+        {"battle_charge", MOVEMENT_CHARGE, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
+         battle_cell(4, 1), battle_cell(3, 1), 14, 7, false},
         {"battle_vault", MOVEMENT_VAULT, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
-         battle_cell(2, 1), battle_cell(3, 1), 14, 8, false},
+         battle_cell(2, 1), battle_cell(3, 1), 14, 7, false},
         {"battle_glide", MOVEMENT_GLIDE, ATTACK_STRIKE, battle_cell(1, 0), battle_cell(3, 2),
          battle_cell(3, 1), battle_cell(3, 2), 14, 8, false},
         {"battle_arc", MOVEMENT_STEP, ATTACK_ARC, battle_cell(3, 1), battle_cell(4, 2),
-         battle_cell(4, 2), battle_cell(3, 1), 15, 4, true},
+         battle_cell(4, 2), battle_cell(3, 1), 15, 3, true},
         {"battle_drain", MOVEMENT_STEP, ATTACK_DRAIN, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 17, 5, true},
+         battle_cell(3, 1), battle_cell(2, 1), 17, 4, true},
         {"battle_recoil", MOVEMENT_LEAP, ATTACK_RECOIL, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(1, 1), 15, 3, true},
+         battle_cell(3, 1), battle_cell(1, 1), 15, 2, true},
         {"battle_flank", MOVEMENT_STEP, ATTACK_FLANK, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 15, 5, false},
+         battle_cell(3, 1), battle_cell(2, 1), 15, 4, false},
         {"battle_blast", MOVEMENT_STEP, ATTACK_BLAST, battle_cell(2, 1), battle_cell(5, 1),
-         battle_cell(5, 1), battle_cell(2, 1), 15, 6, true},
+         battle_cell(5, 1), battle_cell(2, 1), 15, 5, true},
     };
     for(auto const& test : CASES) {
         Game world = d.state();
@@ -1705,7 +1738,7 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         member.attack_class = test.attack;
         member.level = 4;
         member.ap = 4;
-        member.perk_ranks = 0x09;
+        member.perk_ranks = test.target == test.victim ? (uint8_t)(2 << 3) : 2;
         d.set_state(world);
 
         BattleState state{};
@@ -2617,7 +2650,7 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
                 equipment_get(loaded.party.members[1], SLOT_WEAPON) == ITEM_NONE,
             "smoke restart did not restore equipment ownership and slots");
     require(party_movement_perk_rank(member) == 1 && member.hp == 16 &&
-                party_max_hp(member) == 23 && party_unspent_perks(member) == 0,
+                party_max_hp(member) == 20 && party_unspent_perks(member) == 0,
             "smoke restart did not restore the learned perk and current HP");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"boot, input, display, perk confirmation and "
                  "save/restart\"}\n";
@@ -2713,7 +2746,8 @@ int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 13,
             "device_tests package game_address marker_address serial_address "
             "output_directory "
-            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|shop|sounds|functional|"
+            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|perk-ranks|shop|sounds|"
+            "functional|"
             "sounds-functional "
             "dialogue_address phase_address "
             "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
@@ -2754,11 +2788,14 @@ int main(int argc, char** argv) try {
         verify_smoke(d, package, out);
         return 0;
     }
-    if(std::string(argv[6]) == "battle-classes") {
+    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "perk-ranks") {
         d.advance(0, 3200000);
         d.tap(BTN_A);
         d.advance(0, 3200000);
-        verify_battle_classes(d, out);
+        if(std::string(argv[6]) == "perk-ranks")
+            verify_second_perk_rank(d, out);
+        else
+            verify_battle_classes(d, out);
         return 0;
     }
 

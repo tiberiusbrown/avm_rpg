@@ -5,6 +5,14 @@
 #include "quest.h"
 #include <string.h>
 
+// Version 22 predates the Step perk change. A learned first rank could grant 3 extra HP.
+static uint8_t saved_max_hp(PartyMember const& member) {
+    uint8_t maximum = party_max_hp(member);
+    if(member.movement_class == MOVEMENT_STEP && party_movement_perk_rank(member) == 1)
+        maximum += 3;
+    return maximum;
+}
+
 bool save_valid() {
     if(game.options.music > OPTION_VOLUME_MAX || game.options.sfx > OPTION_VOLUME_MAX)
         return false;
@@ -20,8 +28,8 @@ bool save_valid() {
         PartyMember const& member = game.party.members[i];
         if(!party_progress_valid(member) || member.id >= NPC_ID_LIMIT ||
            member.movement_class >= MOVEMENT_CLASS_COUNT ||
-           member.attack_class >= ATTACK_CLASS_COUNT ||
-           member.hp > party_max_hp(member) || member.ap > party_max_ap(member))
+           member.attack_class >= ATTACK_CLASS_COUNT || member.hp > saved_max_hp(member) ||
+           member.ap > party_max_ap(member))
             return false;
         for(uint8_t j = 0; j < i; ++j)
             if(game.party.members[j].id == member.id)
@@ -44,6 +52,13 @@ bool save_valid() {
 bool save_restore() {
     if(!save_valid())
         return false;
+
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        auto& member = game.party.members[i];
+        uint8_t maximum = party_max_hp(member);
+        if(member.hp > maximum)
+            member.hp = maximum;
+    }
 
     // The entire pointer-free Game is saved in place. Rebuild its derived world/NPC state before
     // resuming, including overlap repair in the caller's first cache refresh.

@@ -149,18 +149,16 @@ The campaign caps at level 10. Each victory grants 2 XP per member, and every ev
 
 Experience is **not cumulative**. Each member's experience counts only toward the next level and resets at every level-up, so each requirement is 10 plus 5 per level already gained and fits in one byte. The requirements are `5 × (level + 1)`.
 
-Each choice permanently advances one track by one rank. Rank 1 is available on both tracks. With both first ranks learned, any remaining choices stay pending until more ranks are implemented. The five-rank plan allows builds from a 5/0 specialist to a 3/2 hybrid.
+Each choice permanently advances one track by one rank. See the [perk catalog](game_logic.md#55-implemented-perks) for current ranks. With both available tracks filled, remaining choices stay pending. The five-rank plan allows builds from a 5/0 specialist to a 3/2 hybrid.
 
 ### Starter tracks
 
-Rank 1 is implemented in each table. Ranks 2–5 show proposals for future versions. Direct damage perks apply to normal and special attacks and stack with level and special bonuses.
+The [game logic canon](game_logic.md#55-implemented-perks) defines ranks 1 and 2. The tables below contain ideas for ranks 3–5.
 
 #### Movement tracks
 
 | Rank | **Step** (1-tile orthogonal) | **Leap** (knight-shaped leap) | **Charge** (up to 2 orthogonal tiles) |
 |---:|---|---|---|
-| 1 | **Steadfast:** +3 maximum HP, with no healing on learning | **Renewal:** +1 AP recovery after victory, capped at maximum AP | **Momentum:** +1 engagement damage to each adjacent enemy after a two-cell move |
-| 2 | **Battle Stance:** first incoming enemy hit each battle deals −1 damage | **Landing Strike:** automatic movement damage +1 to one adjacent target | Reserved |
 | 3 | **Engagement:** automatic movement damage +1 to one adjacent target | **Evasion:** first incoming enemy hit each battle deals −2 damage | **Pursuit:** automatic movement damage +1 against one already-injured adjacent enemy |
 | 4 | Reserved | **Second Wind:** restore 2 HP after victory | **Afterglow:** recover +1 additional AP after victory |
 | 5 | **Veteran March:** restore 2 HP after victory | **Skyfall:** add +2 automatic damage to one target after a leap | Reserved |
@@ -171,8 +169,6 @@ Rank 1 is implemented in each table. Ranks 2–5 show proposals for future versi
 
 | Rank | **Strike** | **Shoot** | **Reach** | **Impact** | **Rend** |
 |---:|---|---|---|---|---|
-| 1 | **Keen Edge:** +1 damage against full-HP targets | **Longshot:** +1 damage at range 4 | **Lunge:** +1 damage at range 2 | **Heavy Blow:** +1 damage | **Blood Sense:** +1 damage against targets below maximum HP |
-| 2 | **Executioner:** +2 normal damage vs targets at half HP or less | **Reservoir:** +1 maximum AP | **Supporting Thrust:** +1 normal damage vs targets next to an ally | **Wall Breaker:** +2 normal damage if knockback is obstructed | **Fierce Technique:** first special each battle costs −1 AP (minimum 1) |
 | 3 | **Unlock Execution** as a second special | **Unlock Deadeye** as a second special | **Unlock Impale** as a second special | **Unlock Shatter Blow** as a second special | **Unlock Blood Rush** as a second special |
 | 4 | **Afterglow:** +1 AP recovered after victory | **Efficient Aim:** first special each battle costs −1 AP (minimum 1) | **Reservoir:** +1 maximum AP | **Iron Will:** first incoming enemy hit each battle deals −1 damage | **Afterglow:** +1 AP recovered after victory |
 | 5 | **Mastery:** +1 to special damage | **Deadeye:** +2 special damage vs isolated targets | **Perfect Reach:** +2 normal damage at range 2 | **Siegebreaker:** +2 special damage when a push succeeds | **Relentless:** +2 special damage while below half HP |
@@ -832,7 +828,7 @@ This dungeon gives the player **money, recovery, experience, lore, and unique eq
 IDs are zero-based and stable in catalog order. Iron Fang (0) adds +1 direct attack damage,
 including specials. Traveler’s Boots (1) add +2 maximum HP. Dawn Pendant (2) adds +1 AP
 recovery after victory, including for incapacitated members. Vital Pendant (3) adds +3 maximum
-HP. HP bonuses stack with level and Steadfast. Dawn Pendant stacks with Renewal up to
+HP. HP bonuses stack with level. Dawn Pendant increases victory recovery up to
 maximum AP. Movement engagement uses its existing damage calculation.
 
 `Game::flags` uses a contiguous range of `ITEM_DEFINED_COUNT` bits for equipment ownership.
@@ -896,11 +892,11 @@ level or class restrictions are deferred.
 Built:
 
 - The game logic canon lists the shipped movement and attack classes and starting specials.
-- Party members store current HP and AP. Maximum HP uses the traveler's base of 20 or Rowan's base of 18, plus level bonuses and Steadfast when earned. Maximum AP is 4.
-- A victory restores 1 AP to every saved member, or 2 with Renewal, up to maximum AP. Recovery also applies to incapacitated members.
-- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning at rank 1. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
+- Party members store current HP and AP. Maximum HP uses the traveler's base of 20 or Rowan's base of 18, plus level and equipment bonuses. Maximum AP is 4.
+- A victory restores 1 AP to every saved member, or 2 with Dawn Pendant, up to maximum AP. Recovery also applies to incapacitated members.
+- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning for the available class ranks. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
 - The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and inherits its class geometry and resolves the special’s effects. A unit short of AP attacks normally at once.
 
-Not built: specials in the enemy AI's search, which still plans with normal attacks only; the rank-3 second special; perk ranks 2–5; and maximum HP based on class instead of identity.
+Future ideas include adding specials to the enemy AI's search, granting a second special at rank 3, completing the five-rank perk tracks, and deriving maximum HP from class.
 
 **North star:** After a successful expedition, players should have new tactical choices: *“Should I advance my movement style or my attack style? Which weapon improves my offense, which armor changes my defense or movement, and which relic bends the rules enough to make a new build?”*

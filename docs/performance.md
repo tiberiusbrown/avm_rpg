@@ -450,6 +450,14 @@ battle input loop. Each action averaged 319,032–320,000 cycles between display
 presentations. The longest observed interval was 355,404 cycles (22.2 ms) at the
 transition from Recoil to the enemy turn.
 
+The second-rank perk update added 926 flash bytes. The shipping guest uses 580
+bytes of static RAM and has a complete 255-byte stack bound. The slowest result
+in the same AVM search probe rose from 2.30 to 2.32 seconds.
+
+Completing rank 2 across all tracks added 1,602 flash bytes. The shipping guest
+uses 580 bytes of static RAM and has a complete 256-byte stack bound. The longest
+decision in the same probe took 2.35 seconds.
+
 ### Earlier battle measurements
 
 The search and simulation figures below predate Rend's victim-dependent damage (2, or 4 below half HP),

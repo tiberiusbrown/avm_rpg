@@ -171,11 +171,13 @@ void party_ui_perk_learned(PartyUi& ui) {
 }
 
 PARTY_PERK_STATUS party_perk_status(PartyMember const& member, PERK_TRACK_KIND track, uint8_t rank) {
-    if(rank > PERK_IMPLEMENTED_RANKS)
+    if(rank > party_perk_limit(member, track))
         return PERK_STATUS_FUTURE;
     if(rank <= party_perk_rank(member, track))
         return PERK_STATUS_EARNED;
-    return party_can_learn_perk(member, track) ? PERK_STATUS_LEARNABLE : PERK_STATUS_LOCKED;
+    return rank == party_perk_rank(member, track) + 1 && party_can_learn_perk(member, track)
+               ? PERK_STATUS_LEARNABLE
+               : PERK_STATUS_LOCKED;
 }
 
 void party_ui_open(PartyUi& ui) {
@@ -323,36 +325,37 @@ char const PROGMEM* party_special_text(uint8_t attack) {
     return TEXTS[attack];
 }
 
-char const PROGMEM* party_perk_name(uint8_t code) {
-    if(code < PERK_EQUIPMENT) {
-        if(code % PERK_TRACK_RANKS)
-            return F("Future rank");
-        static char const PROGMEM* const PROGMEM NAMES[PARTY_PERK_TRACK_COUNT] = {
-#define MOVEMENT_PERK(cls, id, amount, range, name, text) F(name),
+struct PerkLabel {
+    char const PROGMEM* name;
+    char const PROGMEM* text;
+};
+
+static PerkLabel const PROGMEM PERK_LABELS[] = {
+#define MOVEMENT_PERK(cls, rank, id, amount, range, name, text) {F(name), F(text)},
 #define ATTACK_PERK MOVEMENT_PERK
 #include "perks.def"
 #undef ATTACK_PERK
 #undef MOVEMENT_PERK
-        };
-        return NAMES[code / PERK_TRACK_RANKS];
-    }
-    return equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->modifier;
+};
+
+static PerkLabel const PROGMEM* party_perk_label(uint8_t code) {
+    auto const& track = PERK_TRACKS.entries[code / PERK_TRACK_RANKS];
+    uint8_t rank = code % PERK_TRACK_RANKS;
+    return rank < track.ranks ? &PERK_LABELS[track.first + rank] : nullptr;
+}
+
+char const PROGMEM* party_perk_name(uint8_t code) {
+    if(code >= PERK_EQUIPMENT)
+        return equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->modifier;
+    auto label = party_perk_label(code);
+    return label ? label->name : F("Future rank");
 }
 
 char const PROGMEM* party_perk_text(uint8_t code) {
-    if(code < PERK_EQUIPMENT) {
-        if(code % PERK_TRACK_RANKS)
-            return F("This rank is reserved for a future version.");
-        static char const PROGMEM* const PROGMEM TEXTS[PARTY_PERK_TRACK_COUNT] = {
-#define MOVEMENT_PERK(cls, id, amount, range, name, text) F(text),
-#define ATTACK_PERK MOVEMENT_PERK
-#include "perks.def"
-#undef ATTACK_PERK
-#undef MOVEMENT_PERK
-        };
-        return TEXTS[code / PERK_TRACK_RANKS];
-    }
-    return equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->description;
+    if(code >= PERK_EQUIPMENT)
+        return equipment_item((ITEM_ID)(code - PERK_EQUIPMENT))->description;
+    auto label = party_perk_label(code);
+    return label ? label->text : F("This rank is reserved for a future version.");
 }
 
 char const PROGMEM* party_perk_source(uint8_t code) {
