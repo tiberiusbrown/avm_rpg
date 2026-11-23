@@ -6,6 +6,7 @@
 #include "logic/npc_logic.h"
 #include "map_positions.h"
 #include "quest.h"
+#include "quest_arrow.h"
 #include "story_stub.h"
 #include "tile_ids.h"
 
@@ -423,7 +424,37 @@ static void invalid_saves() {
     CHECK(!save_valid());
 }
 
+static void quest_arrow_placement() {
+    // With the player centered, the ray passes from the right edge through the top-right corner.
+    auto right = quest_arrow_at_edge(56, 24, 570, -254, 2);
+    auto corner = quest_arrow_at_edge(56, 24, 570, -260, 2);
+    auto top = quest_arrow_at_edge(56, 24, 570, -265, 2);
+    CHECK(right.x == 117 && right.y > corner.y);
+    CHECK(corner.x == 117 && corner.y == 2);
+    CHECK(top.y == 2 && top.x == corner.x - 1);
+
+    // Switching from east to northeast changes the art while the ray still moves along the top.
+    auto east = quest_arrow_at_edge(56, 24, 1000, -499, 2);
+    auto northeast = quest_arrow_at_edge(56, 24, 1000, -500, 2);
+    CHECK(east.frame == 4 && northeast.frame == 2);
+    CHECK(east.y == 2 && northeast.y == 2 && east.x == northeast.x);
+
+    // Camera clamping can bring the player to the inset boundary. The marker still fits.
+    auto left = quest_arrow_at_edge(0, 40, -300, 0, 5);
+    CHECK(left.x == 5 && left.y == 44 && left.frame == 3);
+    auto south = quest_arrow_at_edge(92, 0, 0, 300, 5);
+    CHECK(south.x == 96 && south.y == 50 && south.frame == 6);
+    auto parallel = quest_arrow_at_edge(56, 0, 4000, 0, 5);
+    auto slightly_up = quest_arrow_at_edge(56, 0, 4000, -1, 5);
+    CHECK(parallel.x == slightly_up.x && parallel.y == slightly_up.y);
+
+    // The word divide's scaled estimate rounds one pixel too far for this long bearing.
+    auto far = quest_arrow_at_edge(56, 24, 2447, -3860, 2);
+    CHECK(far.x == 76 && far.y == 2);
+}
+
 int main() {
+    quest_arrow_placement();
     game_new();
     CHECK(!quest_start(QUEST_NONE) && !quest_select((QUEST_ID)200));
     CHECK(quest_journal_count() == 0);

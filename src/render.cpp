@@ -11,6 +11,7 @@
 #include "supplies_ui.h"
 #include "shop_ui.h"
 #include "quest.h"
+#include "quest_arrow.h"
 #include "title.h"
 #include "world_assets.h"
 #include "world_map.h"
@@ -19,49 +20,52 @@
 #include <string.h>
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
+static constexpr int16_t INTERACT_PROMPT_X = 110, INTERACT_PROMPT_Y = 7;
 
-RPG_NOINLINE static void draw_quest_arrow(Camera shown) {
+static uint8_t quest_arrow_bob() {
+    uint8_t phase = (game.ticks / 4) & 7;
+    return phase < 4 ? phase : 7 - phase;
+}
+
+// Keep the projection's frame off the stack while resolving the quest marker.
+RPG_NOINLINE static bool draw_quest_edge(int16_t world_x, int16_t world_y) {
+    int16_t player_x = (int16_t)game.player.x;
+    int16_t player_y = (int16_t)game.player.y;
+    int16_t dx = world_x - player_x;
+    int16_t dy = world_y - player_y;
+    if(!dx && !dy)
+        return false;
+
+    QuestArrowPlacement arrow = quest_arrow_at_edge(
+        player_x - (int16_t)camera.x, player_y - (int16_t)camera.y, dx, dy, 2 + quest_arrow_bob());
+    avm_draw_sprite_plus_mask(arrow.x, arrow.y, QUEST_ARROW_SPRITES, arrow.frame);
+    // The sliding sprite can cross the interaction prompt's top-right position.
+    return arrow.y <= INTERACT_PROMPT_Y && arrow.x < INTERACT_PROMPT_X + 5 &&
+           arrow.x + QUEST_ARROW_SIZE > INTERACT_PROMPT_X;
+}
+
+RPG_NOINLINE static bool draw_quest_arrow() {
     TilePos objective;
     if(!quest_exploration_marker(objective))
-        return;
+        return false;
 
     constexpr int16_t HEIGHT = 64;
     constexpr uint8_t DOWN_FRAME = 6;
-    uint8_t phase = (game.ticks / 4) & 7;
-    int16_t bob = phase < 4 ? phase : 7 - phase;
     int16_t world_x = objective.x * TILE, world_y = objective.y * TILE;
-    int16_t x = world_x - (int16_t)shown.x, y = world_y - (int16_t)shown.y;
+    int16_t x = world_x - (int16_t)camera.x, y = world_y - (int16_t)camera.y;
     if(x > -TILE && x < (int16_t)DISPLAY_WIDTH && y > -TILE && y < HEIGHT) {
         // Keep the whole sprite visible when the objective approaches the display boundary.
         x += TILE / 2 - QUEST_ARROW_SIZE / 2;
         constexpr int16_t RIGHT = DISPLAY_WIDTH - QUEST_ARROW_SIZE;
         x = x < 0 ? 0 : (x > RIGHT ? RIGHT : x);
         constexpr int16_t MIN_Y = 3;
-        y -= QUEST_ARROW_SIZE + 2;
-        y = (y < MIN_Y ? MIN_Y : y) + bob;
+        y -= (QUEST_ARROW_SIZE - 2);
+        y = (y < MIN_Y ? MIN_Y : y) + quest_arrow_bob();
         avm_draw_sprite_plus_mask(x, y, QUEST_ARROW_SPRITES, DOWN_FRAME);
-        return;
+        return false;
     }
 
-    int16_t dx = world_x - (int16_t)game.player.x;
-    int16_t dy = world_y - (int16_t)game.player.y;
-    if(!dx && !dy)
-        return;
-
-    int16_t ax = dx < 0 ? -dx : dx;
-    int16_t ay = dy < 0 ? -dy : dy;
-    int8_t edge_x = ax * 2 < ay ? 0 : (dx < 0 ? -1 : 1);
-    int8_t edge_y = ay * 2 < ax ? 0 : (dy < 0 ? -1 : 1);
-    int16_t inset = 2 + bob;
-    x = edge_x < 0 ? inset
-                   : (edge_x > 0 ? DISPLAY_WIDTH - QUEST_ARROW_SIZE - inset
-                                 : (DISPLAY_WIDTH - QUEST_ARROW_SIZE) / 2);
-    y = edge_y < 0
-            ? inset
-            : (edge_y > 0 ? HEIGHT - QUEST_ARROW_SIZE - inset : (HEIGHT - QUEST_ARROW_SIZE) / 2);
-    // The sheet follows the bearing grid in row order, skipping its center.
-    uint8_t cell = (edge_y + 1) * 3 + edge_x + 1;
-    avm_draw_sprite_plus_mask(x, y, QUEST_ARROW_SPRITES, cell - (cell > 4));
+    return draw_quest_edge(world_x, world_y);
 }
 
 // Breathing crosshair: opaque black halo around every white arm, open target center.
@@ -436,10 +440,9 @@ void rpg_render_world(uint8_t covered) {
     if(tileset_has_sky(tileset))
         draw_birds(shown);
 
-    if(!covered && quest_selected() != QUEST_NONE)
-        draw_quest_arrow(shown);
+    bool arrow_at_prompt = !covered && quest_selected() != QUEST_NONE && draw_quest_arrow();
     if(game.can_interact)
-        avm_draw_text(110, 7, F("A"));
+        avm_draw_text(INTERACT_PROMPT_X, arrow_at_prompt ? 20 : INTERACT_PROMPT_Y, F("A"));
 }
 
 // Rebuild the outgoing image: exploration and dialogue normally clear the framebuffer after

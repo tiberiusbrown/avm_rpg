@@ -149,8 +149,10 @@ The exploration arrow uses the tracked quest's marker. It points toward the
 current room's exit when the marker is in another house or outdoors. With an
 outdoor marker and no local marker in Hollow Mine or the Old Vault, it points
 to the area's main exit. Its eight bearings use `assets/images/quest_arrows9.png`.
-A visible target has a bobbing down arrow above its tile. For an offscreen target
-the arrow bobs at the screen edge. It is hidden when there is no tracking target.
+A visible target has a bobbing down arrow above its tile. For an offscreen target,
+the player's bearing intersects an inset screen rectangle to place the arrow.
+The inset animates the bob. Sprite selection still uses the eight bearings
+and does not affect where the arrow lands. It is hidden when there is no tracking target.
 
 ## Compile-time and runtime checks
 
