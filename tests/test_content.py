@@ -295,7 +295,7 @@ for y in range(m.height):
             )
 assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
 assert {0x08, 0x09, 0x0A, 0x59} <= set(m.data), "outdoor floors use sparse grass too"
-outdoor_residents = ("TessaWell", "TessaOrchard", "OrrinLane", "RowanHome", "BramYard", "NellLookout", "SurveyorReturned")
+outdoor_residents = ("TessaWell", "TessaOrchard", "OrrinLane", "RowanHome", "BramYard", "BramLantern", "NellLookout", "SurveyorReturned")
 
 
 def position(name):
@@ -310,14 +310,17 @@ def adjacent(cell):
 for name in (*outdoor_residents, "TestField"):
     assert position(name) in seen, f"{name} needs an accessible walkable center"
 for tessa in ("TessaWell", "TessaOrchard"):
-    residents = {position(name) for name in outdoor_residents
-                 if not name.startswith("Tessa") or name == tessa}
-    routes = flood(lambda x, y: clear(x, y) and (x, y) not in residents)
-    for resident in residents:
-        assert any(cell in routes for cell in adjacent(resident)), resident
-    for name, o in names.items():
-        if o["area"] == m.area and o["handler"] in {"enter_house", "take_passage", "maintenance_hatch"}:
-            assert (o["tx"], o["ty"] + 1) in routes, f"resident blocks {name}"
+    for bram in ("BramYard", "BramLantern"):
+        residents = {position(name) for name in outdoor_residents
+                     if (not name.startswith("Tessa") or name == tessa)
+                     and (not name.startswith("Bram") or name == bram)}
+        routes = flood(lambda x, y: clear(x, y) and (x, y) not in residents)
+        for resident in residents:
+            assert any(cell in routes for cell in adjacent(resident)), resident
+        for name, o in names.items():
+            if o["area"] == m.area and o["handler"] in {"enter_house", "take_passage", "maintenance_hatch"}:
+                assert (o["tx"], o["ty"] + 1) in routes, f"resident blocks {name}"
+
 
 # Houses. Each outdoor door pairs with an interior exit of the same name. The player enters
 # by activating the door and leaves by walking onto the exit.

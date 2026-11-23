@@ -44,7 +44,7 @@ NPC identities persist independently of the eight-slot live NPC/enemy pool.
 | `NPC_ORRIN` | 2 | Former sluice tender on the lane east of the inn; gives optional information about old lantern works and the mine; no required quest-completion trigger |
 | `NPC_ROWAN` | 3 | Optional archer recruit; Step/Shoot; gives navigation and mine-safety hints; otherwise unchanged |
 | `NPC_MARA` | 4 | Lantern Inn keeper and primary Lantern Keeper entry point; free rest service; reacts to outcome |
-| `NPC_BRAM` | 5 | Smith and diagnosis/restoration specialist for Lantern Keeper; presents final two-way repair decision |
+| `NPC_BRAM` | 5 | Smith at `BramYard`. Walks to `BramLantern` after arranging the repair meeting and waits there until restoration. |
 | `NPC_NELL` | 6 | Mine watcher; primary surveyor lead, trail clues; recognizes surveyor after rescue; optional lantern clue |
 | `NPC_ADA` | 7 | Supplies merchant; optional lantern/surveyor context, no mandatory quest gate |
 | `NPC_SURVEYOR` | 8 | Missing surveyor; trapped in Hollow Mine until rescued, then permanently available at a safe village location near the inn; offers post-rescue mine knowledge |
@@ -94,8 +94,9 @@ The physical mechanisms retain their existing flags. All indices refer to save f
 | 21 | `FLAG_SURVEYOR_RESCUED` | Confirm help to surveyor **after `FLAG_CAVE_BRIDGE`**, with safe return available | Completion, NPC relocation, XP + gold once; bridge/hatch are already permanently opened |
 | 22–25 | `FLAG_ITEM_FIRST + ITEM_ID` | Equipment acquisition | Four existing equipment ownership bits |
 | 26–41 | `FLAG_ENEMY_FIRST + spawn_index` | Victory against authored map enemy | 16 defeat slots; only authored respawnable bits reset |
+| 42 | `FLAG_BRAM_LANTERN_MEETING` | Finish Bram's invitation after diagnosis and workshop evidence | Assigns Bram to `BramLantern` until either repair succeeds |
 
-`FLAG_ITEM_FIRST = 22`, `FLAG_ENEMY_FIRST = 26`, and `FLAG_COUNT = 42`.
+`FLAG_ITEM_FIRST = 22`, `FLAG_ENEMY_FIRST = 26`, and `FLAG_COUNT = 43`.
 The flag set occupies six bytes. Enemy-index order is outdoor wolf, cave wolf, vault guard.
 
 **Reward atomicity:** completion flags and reward grants must be guarded by a single successful state transition. For any optional supply payout, check stack capacity before committing or use an independently claimed reward flag; the two specified quests avoid this issue by awarding only XP and gold directly. `FLAG_LANTERN_MODERN` is set atomically with restoration for the modern branch; other branch is `RESTORED && !MODERN`. Quest completion must never clear encounter flags or force a new area load.
@@ -121,7 +122,7 @@ Both shipped quests can be explored out of order and completed independently. Th
 **Owning quest:** `src/quests/lantern_keeper.h`.  
 **Area-specific logic:** `src/logic/area_village.h` and `src/logic/area_cave.h`.  
 **NPCs:** `NPC_MARA` (initial lead, post-outcome witness), `NPC_BRAM` (diagnoses and enables repair choice), `NPC_ORRIN` (optional history/clue), `NPC_NELL` (optional cave lead), `NPC_TESSA` (world reaction).  
-**Map markers:** `VillageLantern` (south edge of Well Square), `WorkshopRecord` (table inside the smithy), and `MineLanternRelay` (lamp bracket in the east winch room behind the east gate).
+**Map markers:** `VillageLantern` (south edge of Well Square), `BramLantern` (the waiting spot north of it), `WorkshopRecord` (table inside the smithy), and `MineLanternRelay` (lamp bracket in the east winch room behind the east gate).
 
 #### Start, stages and event contracts
 
@@ -134,6 +135,7 @@ Both shipped quests can be explored out of order and completed independently. Th
 | **Mechanical diagnosis** | Speak to Bram on the lantern topic, whether or not the quest is active | Set `FLAG_LANTERN_DIAGNOSED` on successful completion of investigation; optional account from Orrin never required |
 | **Workshop evidence** | Inspect `WorkshopRecord`, whether or not quest is active | Set `FLAG_LANTERN_RECORD_FOUND`; identifies mine relay as possible ancient source |
 | **Ancient branch evidence** | Find and inspect `MineLanternRelay` | Set `FLAG_LANTERN_RELAY_FOUND`; accessed through the east gate controlled by `FLAG_CAVE_GATE` |
+| **Arrange meeting** | After diagnosis and the workshop record, finish Bram's lantern invitation | Set `FLAG_BRAM_LANTERN_MEETING`. Bram walks toward the lantern and waits beside it. |
 | **Modern repair** | `FLAG_LANTERN_DIAGNOSED && FLAG_LANTERN_RECORD_FOUND && !FLAG_LANTERN_RESTORED` | Choose **conventional replacement** at `VillageLantern`, with Bram's assistance; set `FLAG_LANTERN_MODERN` and `FLAG_LANTERN_RESTORED` atomically |
 | **Ancient repair** | Modern prerequisites **plus** `FLAG_LANTERN_RELAY_FOUND` | Choose **ancient restoration** at `VillageLantern`, with Bram's assistance; set `FLAG_LANTERN_RESTORED`, leave `FLAG_LANTERN_MODERN` clear |
 | **Completed** | `FLAG_LANTERN_RESTORED` | Status completed; choice is immutable and never reoffered |
@@ -141,7 +143,10 @@ Both shipped quests can be explored out of order and completed independently. Th
 **Choice presentation:** At the lantern, Bram offers conventional replacement
 and, when the relay was recovered, ancient restoration. Confirm a repair with A,
 or leave by canceling with B or selecting the back option. Bram’s assistance takes
-place in dialogue at the lantern. Later inspections describe the permanent repair.
+place in dialogue at the lantern. Once the meeting is arranged, Bram walks while
+visible and may finish relocating offscreen. Area entry and save restoration
+rebuild him at the waiting spot. Either repair sends him back to his yard.
+Later inspections describe the permanent repair.
 
 **Objectives and markers:** Diagnose with Bram first for marker priority, then
 inspect the workshop record. The outdoor marker points to the smithy door while
@@ -160,6 +165,7 @@ ancient restoration.
 
 - `RESTORED => STARTED && DIAGNOSED && RECORD_FOUND`.
 - `RESTORED && !MODERN => RELAY_FOUND`; `MODERN => RESTORED`.
+- The saved meeting requires diagnosis and the workshop record. Repair clears it. Earlier version 22 saves can arrange the meeting by speaking to Bram.
 - Evidence may be found before quest start; avoid forcing a false state when that happens. If the player resolves the lantern through direct interaction while no quest is tracked, mark it started as part of the atomic completion path.
 - Prevent repeat XP, G and branch switching; replay/restore must reconstruct the lantern's tile state from flags.
 - No dependency on `FLAG_CAVE_BRIDGE`, `FLAG_SURVEYOR_RESCUED`, recruiting Rowan, or defeating either wolf.

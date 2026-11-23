@@ -39,6 +39,14 @@ template <TilePos DEFAULT, typename... CASES> struct AtOneOf {
 
     static_assert(valid(), "invalid or duplicate NPC policy location");
 
+    template <TilePos POS> static bool at() {
+        if constexpr(POS == DEFAULT)
+            return (!CASES::applies() && ...);
+        if constexpr(sizeof...(CASES) == 1)
+            return ((POS == CASES::position && CASES::applies()) || ...);
+        return current() == POS;
+    }
+
     static TilePos current() {
         TilePos result = DEFAULT;
         (void)((CASES::applies() ? (result = CASES::position, true) : false) || ...);
@@ -86,10 +94,18 @@ template <NPC_ID ID, TilePos POS> struct NpcSite {
 #ifndef RPG_AVM
         ++npc_site_checks;
 #endif
+        using Policy = LocationPolicy<ID>;
+        constexpr bool alternate = POS != Policy::locations[0];
+        if constexpr(alternate)
+            if(!Policy::template at<POS>())
+                return;
+
         // A chunk can overlap the cache while this tile-aligned site is outside it.
-        // Reject it before resolving a dynamic policy or scanning the actor pool.
-        if((uint16_t)(POS.x - cache.origin_tx) < CACHE_WIDTH &&
-           (uint16_t)(POS.y - cache.origin_ty) < CACHE_HEIGHT && npc_location<ID>() == POS)
+        // A wrapped negative offset remains wider than the cache on these map dimensions.
+        static_assert(MAX_MAP_WIDTH + CACHE_WIDTH <= 256 && MAX_MAP_HEIGHT + CACHE_HEIGHT <= 256);
+        if((uint8_t)(POS.x - cache.origin_tx) < CACHE_WIDTH &&
+           (uint8_t)(POS.y - cache.origin_ty) < CACHE_HEIGHT &&
+           (alternate || Policy::template at<POS>()))
             npc_offer_candidate(ID, POS);
     }
 };

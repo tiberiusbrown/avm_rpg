@@ -60,7 +60,7 @@ void offer_candidate(NPC_ID id, TilePos site);
 // Keep cheap rejection at the admission boundary, where site IDs are constants.
 // Active residents need no slow-path call, definition lookup or collision work.
 inline void npc_offer_candidate(NPC_ID id, TilePos site) {
-    if(site.area == game.area && !party_contains(id) && !npc_find(id))
+    if(site.area == game.area && !npc_find(id) && !party_contains(id))
         npc_detail::offer_candidate(id, site);
 }
 

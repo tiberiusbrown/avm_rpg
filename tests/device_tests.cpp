@@ -2221,6 +2221,55 @@ static void advance_to_dialogue_options(Device& d) {
     throw std::runtime_error("dialogue options did not appear");
 }
 
+static void verify_bram_meeting(Device& d, fs::path const& out) {
+    constexpr auto yard = positions::BramYard;
+    constexpr auto waiting = positions::BramLantern;
+    auto bram = [&] {
+        Game current = d.state();
+        for(auto const& actor : current.npcs.actors)
+            if(actor.id == NPC_BRAM)
+                return actor;
+        return Npc{};
+    };
+
+    d.frame();
+    Game fixture = d.state();
+    fixture.player = {(uint16_t)((yard.x + 1) * TILE), (uint16_t)(yard.y * TILE), WEST, 0};
+    fixture.npcs = {};
+    fixture.npcs.entering = 1;
+    fixture.flags.set_flag(FLAG_LANTERN_STARTED);
+    fixture.flags.set_flag(FLAG_LANTERN_DIAGNOSED);
+    fixture.flags.set_flag(FLAG_LANTERN_RECORD_FOUND);
+    d.set_state(fixture);
+    d.frame();
+    require(bram().id == NPC_BRAM && bram().assigned_site == yard,
+            "Bram was missing from his yard");
+
+    d.tap(BTN_A);
+    d.wait_for_typing();
+    require(d.prompt() == DIALOGUE_OPTIONS, "Bram did not offer his dialogue topics");
+    d.tap(BTN_A);
+    d.dismiss_dialogue();
+    Npc walking = bram();
+    require(d.state().get_flag(FLAG_BRAM_LANTERN_MEETING) && walking.id == NPC_BRAM &&
+                walking.behavior == NPC_TRAVEL && walking.actor.x < yard.x * TILE,
+            "Bram did not walk after his invitation");
+    d.capture(out / "bram-leaves-yard.pgm");
+
+    uint8_t lane = (uint8_t)(positions::VillageLantern.x + 3);
+    uint8_t square_row = positions::VillageLantern.y;
+    d.hold(BTN_DOWN, TILE);
+    d.hold(BTN_LEFT, (yard.x + 1 - lane) * TILE);
+    d.hold(BTN_UP, (yard.y + 1 - square_row) * TILE);
+    d.hold(0, 16);
+    Npc arrived = bram();
+    require(arrived.id == NPC_BRAM && arrived.behavior == NPC_STAND &&
+                arrived.actor.x == waiting.x * TILE && arrived.actor.y == waiting.y * TILE,
+            "Bram was not waiting beside the lantern");
+    d.capture(out / "bram-at-lantern.pgm");
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"Bram walks to the lantern\"}\n";
+}
+
 static void verify_quest_level_up(Device& d, fs::path const& out) {
     Snapshot fixture = d.state();
     fixture.player = {(uint16_t)((positions::VillageLantern.x - 1) * TILE),
@@ -2760,7 +2809,8 @@ int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 13,
             "device_tests package game_address marker_address serial_address "
             "output_directory "
-            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|perk-ranks|shop|sounds|"
+            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|perk-ranks|bram-meeting|"
+            "shop|sounds|"
             "functional|"
             "sounds-functional "
             "dialogue_address phase_address "
@@ -2802,12 +2852,15 @@ int main(int argc, char** argv) try {
         verify_smoke(d, package, out);
         return 0;
     }
-    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "perk-ranks") {
+    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "perk-ranks" ||
+       std::string(argv[6]) == "bram-meeting") {
         d.advance(0, 3200000);
         d.tap(BTN_A);
         d.advance(0, 3200000);
         if(std::string(argv[6]) == "perk-ranks")
             verify_consecutive_perk_ranks(d, out);
+        else if(std::string(argv[6]) == "bram-meeting")
+            verify_bram_meeting(d, out);
         else
             verify_battle_classes(d, out);
         return 0;

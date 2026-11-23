@@ -77,12 +77,14 @@ from the index. Missing policies and invalid template identities fail compilatio
 `npc_location<ID>()` inlines the policy; `npc_location(id)` uses a dense ROM resolver table.
 
 Every frame, after tile updates and overlap repair, `STAGE_NPCS` dispatches only cached
-chunks. A site outside the tile cache is dropped before its policy is resolved. Begin examines only active slots, refreshes their derived `assigned_site`, and
-retires safely unloadable actors. Chunk specializations check only policy sites in their
+chunks. A site must be active under its policy and lie inside the tile cache. Inactive
+alternate sites are skipped before checking their coordinates. Begin examines only active
+slots, refreshes their derived `assigned_site`, and retires safely unloadable actors.
+Chunk specializations check only policy sites in their
 chunk and evaluate only their compile-time location policy. `npc_offer_candidate` owns
 area, party, active identity, definition, cache, visibility, portal and collision checks.
-The inline admission front door owns cheap area/party/active-identity rejection;
-its outlined `npc_detail::offer_candidate` slow path handles the remaining validation.
+The inline admission front door checks the area and active identity before party membership.
+Its outlined `npc_detail::offer_candidate` slow path handles the remaining validation.
 This preserves constant site IDs without putting eligibility back into `NpcSite::run`.
 Candidates store their definition
 priority, avoiding repeated ROM definition lookups during sorting. End admits candidates

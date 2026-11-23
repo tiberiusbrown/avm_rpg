@@ -6,6 +6,7 @@ namespace positions {
 inline constexpr TilePos AdaShop{2, 61, 4};
 inline constexpr TilePos BakeryDoor{1, 33, 32};
 inline constexpr TilePos BakeryExit{2, 6, 20};
+inline constexpr TilePos BramLantern{1, 28, 27};
 inline constexpr TilePos BramYard{1, 41, 32};
 inline constexpr TilePos CaveBridge_0{3, 18, 6};
 inline constexpr TilePos CaveBridge_1{3, 18, 7};

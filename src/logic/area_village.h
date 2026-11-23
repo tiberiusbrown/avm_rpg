@@ -26,7 +26,14 @@ template <> struct NpcPolicy<NPC_TESSA> : AtOneOf<positions::TessaWell> {};
 template <> struct NpcPolicy<NPC_ORRIN> : AtOneOf<positions::OrrinLane> {};
 template <> struct NpcPolicy<NPC_ROWAN> : AtOneOf<positions::RowanHome> {};
 template <> struct NpcPolicy<NPC_MARA> : AtOneOf<positions::MaraInn> {};
-template <> struct NpcPolicy<NPC_BRAM> : AtOneOf<positions::BramYard> {};
+
+inline bool bram_meeting_at_lantern() {
+    return game.get_flag(FLAG_BRAM_LANTERN_MEETING);
+}
+
+template <>
+struct NpcPolicy<NPC_BRAM>
+    : AtOneOf<positions::BramYard, When<positions::BramLantern, bram_meeting_at_lantern>> {};
 template <> struct NpcPolicy<NPC_NELL> : AtOneOf<positions::NellLookout> {};
 template <> struct NpcPolicy<NPC_ADA> : AtOneOf<positions::AdaShop> {};
 #endif
@@ -127,6 +134,8 @@ template <> struct NpcContent<NPC_MARA> {
                     dialogue_show(id, game.get_flag(FLAG_LANTERN_MODERN)
                                           ? F("Bram's new light stays steady in the wind. I can see the square from my door again.")
                                           : F("The old light is back. I'd forgotten how it flickers right before the well rings."));
+                else if(game.get_flag(FLAG_BRAM_LANTERN_MEETING))
+                    dialogue_show(id, F("Bram will be at the well lantern."));
                 else if(game.get_flag(FLAG_LANTERN_STARTED))
                     dialogue_show(id, F("Bram works east of the square. He'll know what's wrong with the well lantern."));
                 else if(dialogue_ask(id, F("The well lantern went dark. Will you ask Bram to have a look?")))
@@ -143,7 +152,8 @@ template <> struct NpcContent<NPC_MARA> {
 
 template <> struct NpcContent<NPC_BRAM> {
     static constexpr auto name = F("Bram");
-    static constexpr NpcDefinition PROGMEM definition{NPC_STAND, SOUTH, 0, 32, 32, 0, 0, 4, 0, 7, true};
+    static constexpr NpcDefinition PROGMEM definition{NPC_STAND, SOUTH, 1, 32, 32,  0,
+                                                      0,         4,     0, 7,  true};
 
     static void talk() {
         constexpr auto id = NPC_BRAM;
@@ -153,9 +163,15 @@ template <> struct NpcContent<NPC_BRAM> {
                     dialogue_show(id, game.get_flag(FLAG_LANTERN_MODERN)
                                           ? F("I can make another regulator from that pattern. I hope we won't need one.")
                                           : F("The old relay draws its beat from somewhere. I only wired it back in."));
-                else if(Quest<QUEST_LANTERN_KEEPER>::ready())
-                    dialogue_show(id, F("Meet me at the well lantern. We can fit a new part or use the old relay if you have it."));
-                else if(dialogue_show(id, F("I opened the well lantern this morning. The regulator is cracked. The old workshop record is inside my smithy.")))
+                else if(game.get_flag(FLAG_BRAM_LANTERN_MEETING))
+                    dialogue_show(id, F("Have a look at the lantern and we'll choose a repair."));
+                else if(Quest<QUEST_LANTERN_KEEPER>::ready()) {
+                    if(dialogue_show(id, F("Meet me at the well lantern. We can fit a new part or "
+                                           "use the old relay if you have it.")))
+                        game.set_flag(FLAG_BRAM_LANTERN_MEETING);
+                } else if(dialogue_show(
+                              id, F("I opened the well lantern this morning. The regulator is "
+                                    "cracked. The old workshop record is inside my smithy.")))
                     game.set_flag(FLAG_LANTERN_DIAGNOSED);
                 break;
             case 1:

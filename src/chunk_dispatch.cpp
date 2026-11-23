@@ -94,8 +94,10 @@ template <unsigned A, HandlerStage STAGE> static CHUNK_INLINE void process_area(
         left = cache.origin_tx;
         top = cache.origin_ty;
     }
-    uint16_t right = (uint16_t)left + CACHE_WIDTH - 1;
-    uint16_t bottom = (uint16_t)top + CACHE_HEIGHT - 1;
+    // A cache window past a map edge still fits in byte-sized coordinates.
+    static_assert(MAX_MAP_WIDTH + CACHE_WIDTH <= 256 && MAX_MAP_HEIGHT + CACHE_HEIGHT <= 256);
+    uint8_t right = (uint8_t)(left + CACHE_WIDTH - 1);
+    uint8_t bottom = (uint8_t)(top + CACHE_HEIGHT - 1);
     if(right >= area.width)
         right = area.width - 1;
     if(bottom >= area.height)

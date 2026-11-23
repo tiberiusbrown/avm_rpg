@@ -15,7 +15,8 @@
 #include <string.h>
 
 static_assert(NPC_SURVEYOR == 8 && NPC_ENEMY_FIRST == 9);
-static_assert(FLAG_ITEM_FIRST == 22 && FLAG_ENEMY_FIRST == 26 && FLAG_COUNT == 42);
+static_assert(FLAG_ITEM_FIRST == 22 && FLAG_ENEMY_FIRST == 26 && FLAG_BRAM_LANTERN_MEETING == 42 &&
+              FLAG_COUNT == 43);
 
 static unsigned checks;
 #define CHECK(value)                                                                               \
@@ -158,6 +159,56 @@ static void lantern(bool modern, bool start_at_inn) {
     CHECK(speaker == NPC_BRAM && words && game.get_flag(FLAG_LANTERN_MODERN) == modern);
     CHECK(game.party.members[0].experience == rewarded.experience &&
           game.party.members[0].level == rewarded.level);
+}
+
+static void bram_meeting() {
+    game_new();
+    constexpr auto yard = positions::BramYard;
+    constexpr auto waiting = positions::BramLantern;
+    stand({yard.area, (uint8_t)(yard.x + 1), yard.y}, WEST);
+    CHECK(npc_find(NPC_BRAM) && npc_location(NPC_BRAM) == yard);
+    touch(positions::WorkshopRecord);
+    stand({yard.area, (uint8_t)(yard.x + 1), yard.y}, WEST);
+    talk(NPC_BRAM);
+    CHECK(game.get_flag(FLAG_LANTERN_DIAGNOSED) && npc_location(NPC_BRAM) == yard);
+    talk(NPC_BRAM, 0, false);
+    CHECK(npc_location(NPC_BRAM) == yard && !game.get_flag(FLAG_BRAM_LANTERN_MEETING));
+    talk(NPC_BRAM);
+    CHECK(words && strstr(words, "Meet me at the well lantern"));
+    CHECK(game.get_flag(FLAG_BRAM_LANTERN_MEETING) && npc_location(NPC_BRAM) == waiting);
+    CHECK(save_valid());
+
+    uint16_t start_x = npc_find(NPC_BRAM)->actor.x;
+    game_update(0);
+    const Npc* bram = npc_find(NPC_BRAM);
+    CHECK(bram && bram->assigned_site == waiting && bram->behavior == NPC_TRAVEL);
+    CHECK(bram->actor.x == start_x - 1 && bram->actor.walking);
+
+    // Walk around the south side of the smithy and bakery to Well Square.
+    auto walk = [](uint8_t button, unsigned pixels) {
+        for(unsigned frame = 0; frame < pixels; ++frame)
+            game_update(button);
+    };
+    uint8_t lane = (uint8_t)(positions::VillageLantern.x + 3);
+    uint8_t square_row = positions::VillageLantern.y;
+    walk(BTN_DOWN, TILE);
+    walk(BTN_LEFT, (yard.x + 1 - lane) * TILE);
+    walk(BTN_UP, (yard.y + 1 - square_row) * TILE);
+    CHECK(game.player.x == lane * TILE && game.player.y == square_row * TILE);
+    bram = npc_find(NPC_BRAM);
+    CHECK(bram && bram->behavior == NPC_STAND);
+    CHECK(bram->actor.x == waiting.x * TILE && bram->actor.y == waiting.y * TILE);
+    walk(0, 60);
+    bram = npc_find(NPC_BRAM);
+    CHECK(bram && bram->behavior == NPC_STAND && bram->actor.x == waiting.x * TILE &&
+          bram->actor.y == waiting.y * TILE);
+    reload();
+    CHECK(npc_find(NPC_BRAM) && npc_find(NPC_BRAM)->assigned_site == waiting);
+
+    story_stub_set_choice(0);
+    touch(positions::VillageLantern, EAST);
+    CHECK(quest_status(QUEST_LANTERN_KEEPER) == QUEST_COMPLETED);
+    CHECK(!game.get_flag(FLAG_BRAM_LANTERN_MEETING) && npc_location(NPC_BRAM) == yard);
 }
 
 static void open_bridge() {
@@ -343,7 +394,7 @@ static void mine_without_combat() {
 
 static void invalid_saves() {
     for(FLAG invalid : {FLAG_LANTERN_MODERN, FLAG_LANTERN_RESTORED, FLAG_SURVEYOR_FOUND,
-                        FLAG_SURVEYOR_RESCUED, FLAG_SURVEY_NOTES_READ}) {
+                        FLAG_SURVEYOR_RESCUED, FLAG_SURVEY_NOTES_READ, FLAG_BRAM_LANTERN_MEETING}) {
         game_new();
         game.set_flag(invalid);
         CHECK(!save_valid());
@@ -405,6 +456,7 @@ int main() {
     touch(positions::VillageLantern, EAST);
     CHECK(game.gold == UINT16_MAX && game.party.members[0].experience == 6 &&
           game.party.members[1].experience == 6);
+    bram_meeting();
     invalid_saves();
     mine_without_combat();
     printf("Millcross quest checks passed (%u)\n", checks);

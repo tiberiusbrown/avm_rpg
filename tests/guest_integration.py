@@ -216,6 +216,7 @@ def main():
             if mode != "proof":
                 cases.append((f"{mode}-sounds", "sounds"))
                 cases.append((f"{mode}-perk-ranks", "perk-ranks"))
+                cases.append((f"{mode}-bram-meeting", "bram-meeting"))
                 cases.append((f"{mode}-battle-classes", "battle-classes"))
                 if args.full:
                     cases.append((f"{mode}-millcross", "millcross"))

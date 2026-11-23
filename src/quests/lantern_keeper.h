@@ -56,8 +56,11 @@ template <> struct Quest<QUEST_LANTERN_KEEPER> {
     static void start() { game.set_flag(FLAG_LANTERN_STARTED); }
 
     static bool consistent() {
+        bool meeting = game.get_flag(FLAG_BRAM_LANTERN_MEETING);
         if(!game.get_flag(FLAG_LANTERN_RESTORED))
-            return !game.get_flag(FLAG_LANTERN_MODERN);
+            return !game.get_flag(FLAG_LANTERN_MODERN) && (!meeting || ready());
+        if(meeting)
+            return false;
         return game.get_flag(FLAG_LANTERN_STARTED) && ready() &&
                (game.get_flag(FLAG_LANTERN_MODERN) || game.get_flag(FLAG_LANTERN_RELAY_FOUND));
     }
@@ -69,6 +72,7 @@ template <> struct Quest<QUEST_LANTERN_KEEPER> {
         quest_start(QUEST_LANTERN_KEEPER);
         if(modern)
             game.set_flag(FLAG_LANTERN_MODERN);
+        game.clear_flag(FLAG_BRAM_LANTERN_MEETING);
         game.set_flag(FLAG_LANTERN_RESTORED);
         quest_award_reward(6, 12);
         return true;
