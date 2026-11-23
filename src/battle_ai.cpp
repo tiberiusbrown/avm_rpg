@@ -112,10 +112,11 @@ static_assert(
     UNIT_LIMITS.classes[(uint8_t)MOVEMENT_LEAP * ATTACK_CLASS_COUNT + ATTACK_SHOOT].moves == 6,
     "leap movement is independent of attack class");
 
-static bool has_extended_attack(PartyMember const& member) {
-    return party_attack_perk_rank(member) >= PERK_TRACK_RANKS &&
-           (member.attack_class == THROUGHSHOT_CLASS || member.attack_class == BLOOD_HUNT_CLASS ||
-            member.attack_class == BLIND_SIDE_CLASS);
+static bool has_extended_attack(BattleUnit const& unit) {
+    if(battle_attack_rank(unit) < PERK_TRACK_RANKS)
+        return false;
+    uint8_t attack = battle_attack_class(unit.id);
+    return attack == THROUGHSHOT_CLASS || attack == BLOOD_HUNT_CLASS || attack == BLIND_SIDE_CLASS;
 }
 
 // The most actions one side can list: each living unit's limit, with its attacks capped by the
@@ -129,13 +130,10 @@ static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t 
         UnitLimit const& limit = UNIT_LIMITS.classes[battle_rule_index(unit.id)];
         uint8_t most = (uint8_t)(limit.moves + opponents);
         uint8_t actions = limit.actions;
-        if(unit.id & BATTLE_PARTY_SOURCE) {
-            auto const& member = game.party.members[unit.id & ~BATTLE_PARTY_SOURCE];
-            // Extended attacks and Trample can share a ray with moves past their usual limits.
-            if(has_extended_attack(member) || (member.movement_class == TRAMPLE_CLASS &&
-                                               party_movement_perk_rank(member) >= TRAMPLE_RANK))
-                actions = most;
-        }
+        // Extended attacks and Trample can share a ray with moves past their usual limits.
+        if(has_extended_attack(unit) || (battle_movement_rank(unit) >= TRAMPLE_RANK &&
+                                         battle_movement_class(unit.id) == TRAMPLE_CLASS))
+            actions = most;
         total = (uint8_t)(total + (actions < most ? actions : most));
     }
     return (uint8_t)(total + 1);
@@ -315,7 +313,7 @@ RPG_NOINLINE static int16_t enemy_utility(BattleState const& state, uint8_t part
             if(dx && dy && (dx != 1 || dy != 1))
                 continue;
             uint8_t hero_attack = battle_attack_class(hero.id);
-            bool enemy_hits = !gap;
+            bool enemy_hits = !(extended & (1 << e)) && !gap;
             bool hero_hits = !(extended & (1 << k)) &&
                              !table_gap(ATTACK_GAPS.cells[hero_attack], dx, dy);
             if(!enemy_hits && !hero_hits)
@@ -345,13 +343,17 @@ RPG_NOINLINE static int16_t enemy_utility(BattleState const& state, uint8_t part
 // Rank 4 targeting uses the canonical legality check outside the base geometry scoring frame.
 RPG_NOINLINE static int16_t extended_threats(BattleState const& state, uint8_t extended) {
     int16_t utility = 0;
-    for(uint8_t hero = 0; extended; ++hero, extended >>= 1) {
+    for(uint8_t i = 0; extended; ++i, extended >>= 1) {
         if(!(extended & 1))
             continue;
-        uint8_t attack = battle_attack_class(state.units[hero].id);
-        for(uint8_t enemy = 0; enemy < state.unit_count; ++enemy)
-            if(battle_can_attack(state, hero, enemy))
-                utility += strike_value(state, attack, hero, enemy, state.turn == BATTLE_PARTY);
+        auto const& unit = state.units[i];
+        uint8_t attack = battle_attack_class(unit.id);
+        for(uint8_t victim = 0; victim < state.unit_count; ++victim) {
+            if(!battle_can_attack(state, i, victim))
+                continue;
+            int16_t value = strike_value(state, attack, i, victim, state.turn == unit.team);
+            utility += unit.team == BATTLE_ENEMY ? value : -value;
+        }
     }
     return utility;
 }
@@ -361,16 +363,16 @@ int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply) {
         uint8_t party_mask = 0, extended = 0;
         for(uint8_t i = 0; i < state.unit_count; ++i) {
             auto const& unit = state.units[i];
-            if(unit.hp && unit.team == BATTLE_PARTY) {
+            if(!unit.hp)
+                continue;
+            if(unit.team == BATTLE_PARTY)
                 party_mask |= (uint8_t)(1 << i);
-                if((unit.id & BATTLE_PARTY_SOURCE) &&
-                   has_extended_attack(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE]))
-                    extended |= (uint8_t)(1 << i);
-            }
+            if(has_extended_attack(unit))
+                extended |= (uint8_t)(1 << i);
         }
         int16_t utility = enemy_utility(state, party_mask, extended);
         if(extended)
-            utility -= extended_threats(state, extended);
+            utility += extended_threats(state, extended);
         return side == BATTLE_ENEMY ? utility : (int16_t)-utility;
     }
     // The result names the winner. state.turn is not used, because a battle-ending action leaves it
@@ -548,16 +550,13 @@ RPG_NOINLINE static MovementOrder order_movement(BattleState const& state, uint8
                                         return true;
                                     BattleAction action = battle_unpack(packed);
                                     BattleUnit const& actor = state.units[action.unit_index];
-                                    if(!(actor.id & BATTLE_PARTY_SOURCE))
+                                    uint8_t rank = battle_movement_rank(actor);
+                                    if(!rank)
                                         return false;
-                                    PartyMember const& member =
-                                        game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
                                     bool boosted = boosted_target &&
-                                                   in_rows(rows + 2 * BATTLE_ROWS, packed) &&
-                                                   party_movement_perk_rank(member);
-                                    bool diamond = member.movement_class == DIAMOND_WAKE_CLASS &&
-                                                   party_movement_perk_rank(member) >=
-                                                       DIAMOND_WAKE_RANK;
+                                                   in_rows(rows + 2 * BATTLE_ROWS, packed);
+                                    bool diamond = rank >= DIAMOND_WAKE_RANK &&
+                                                   battle_movement_class(actor.id) == DIAMOND_WAKE_CLASS;
                                     if(!boosted && !fragile && !diamond)
                                         return false;
                                     uint8_t extra = battle_extra_engagement(state, actor,
@@ -781,7 +780,7 @@ search_tree(BattleState const& root, uint8_t depth, uint16_t budget, uint16_t fi
         if(pass)
             battle_pass(child);
         else
-            battle_apply(child, battle_unpack(packed));
+            battle_simulate_action(child, battle_unpack(packed));
 
         if(ply + 1 < depth && !child.ended) {
             // Descend. The child's window is the parent's window negated and swapped: its alpha

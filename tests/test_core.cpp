@@ -369,6 +369,7 @@ static void creature_encounters() {
             BattleUnit const& unit = battle.units[battle.unit_count - expected.count + enemy];
             CHECK(unit.team == BATTLE_ENEMY && unit.id == expected.roster[enemy]);
             CHECK(unit.hp == ENEMY_INFO[unit.id].max_hp);
+            CHECK(battle_ap(unit) == ENEMY_INFO[unit.id].starting_ap);
         }
         CHECK(game.get_flag(enemy_defeated_flag(id)) && !npc_find(id));
         CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES && save_restore());

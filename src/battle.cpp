@@ -78,7 +78,8 @@ RPG_NOINLINE static void deploy(BattleState& state, BattleEncounter const PROGME
         if(!hp)
             continue;
         uint8_t pick = random_choice(available);
-        state.units[state.unit_count++] = {cells[pick], hp, id, team};
+        uint8_t ap = team == BATTLE_ENEMY ? ENEMY_INFO[id].starting_ap : 0;
+        state.units[state.unit_count++] = {cells[pick], hp, id, team, ap};
         cells[pick] = cells[--available];
     }
 }
@@ -136,6 +137,11 @@ uint8_t battle_max_hp(BattleUnit const& unit) {
     return unit.id & BATTLE_PARTY_SOURCE
                ? party_max_hp(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE])
                : ENEMY_INFO[unit.id].max_hp;
+}
+
+uint8_t battle_ap(BattleUnit const& unit) {
+    return unit.id & BATTLE_PARTY_SOURCE ? game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].ap
+                                         : unit.ap;
 }
 
 uint8_t battle_unit_at(BattleState const& state, uint8_t cell) {
@@ -220,18 +226,6 @@ RPG_NOINLINE bool battle_flank_supported(BattleState const& state, uint8_t attac
     return adjacent_allies(state, attacker, state.units[victim].cell, true);
 }
 
-static uint8_t attack_perk_rank(BattleUnit const& actor) {
-    return actor.id & BATTLE_PARTY_SOURCE
-               ? party_attack_perk_rank(game.party.members[actor.id & ~BATTLE_PARTY_SOURCE])
-               : 0;
-}
-
-static uint8_t movement_perk_rank(BattleUnit const& actor) {
-    return actor.id & BATTLE_PARTY_SOURCE
-               ? party_movement_perk_rank(game.party.members[actor.id & ~BATTLE_PARTY_SOURCE])
-               : 0;
-}
-
 static bool battle_open_cell(BattleState const& state, uint8_t cell) {
     return !battle_blocked(state.field, cell) && battle_unit_at(state, cell) == BATTLE_NO_UNIT;
 }
@@ -266,7 +260,7 @@ BATTLE_ALWAYS_INLINE static inline uint8_t recoil_landing(BattleState const& sta
                                                            uint8_t target) {
     DIRECTION away = battle_direction(target, actor.cell);
     uint8_t landing = displacement_cell(state, actor.cell, away);
-    if(landing < BATTLE_CELLS && attack_perk_rank(actor) >= SPRINGBACK_RANK) {
+    if(landing < BATTLE_CELLS && battle_attack_rank(actor) >= SPRINGBACK_RANK) {
         uint8_t farther = displacement_cell(state, landing, away);
         if(farther < BATTLE_CELLS)
             return farther;
@@ -280,13 +274,13 @@ RPG_NOINLINE static uint8_t strike_geometry(BattleState const& state, uint8_t at
     auto const& actor = state.units[attacker];
     uint8_t to = state.units[victim].cell;
     if(attack == ATTACK_ARC) {
-        uint8_t rank = attack_perk_rank(actor);
+        uint8_t rank = battle_attack_rank(actor);
         return rank ? arc_perk_bonus(state, attacker, victim, rank) : 0;
     }
     if(attack == ATTACK_RECOIL)
         return recoil_landing(state, actor, to);
-    if((attack == ATTACK_IMPACT && attack_perk_rank(actor) >= BODY_CHECK_RANK) ||
-       (attack == ATTACK_SHOOT && attack_perk_rank(actor) >= PIERCING_SHOT_RANK)) {
+    if((attack == ATTACK_IMPACT && battle_attack_rank(actor) >= BODY_CHECK_RANK) ||
+       (attack == ATTACK_SHOOT && battle_attack_rank(actor) >= PIERCING_SHOT_RANK)) {
         uint8_t behind;
         if(battle_neighbor(to, battle_direction(actor.cell, to), behind))
             return battle_unit_at(state, behind);
@@ -301,9 +295,9 @@ attack_position(BattleState const& state, uint8_t attacker, uint8_t victim, uint
         return battle_splash_targets(state, attacker, victim);
     if(attack == ATTACK_FLANK)
         return adjacent_allies(state, attacker, state.units[victim].cell,
-                               attack_perk_rank(state.units[attacker]) < CONVERGING_BLADES_RANK);
+                               battle_attack_rank(state.units[attacker]) < CONVERGING_BLADES_RANK);
     if(attack == ATTACK_STRIKE)
-        return attack_perk_rank(state.units[attacker]) >= DUELIST_RANK &&
+        return battle_attack_rank(state.units[attacker]) >= DUELIST_RANK &&
                adjacent_allies(state, victim, state.units[victim].cell, true);
     return strike_geometry(state, attacker, victim, attack);
 }
@@ -312,7 +306,7 @@ RPG_NOINLINE static uint8_t primary_damage(BattleState const& state, uint8_t att
                                            uint8_t victim_index, uint8_t attack, uint8_t position) {
     BattleUnit const& attacker = state.units[attacker_index];
     BattleUnit const& victim = state.units[victim_index];
-    uint8_t rank = attack_perk_rank(attacker);
+    uint8_t rank = battle_attack_rank(attacker);
     AttackInfo const& rules = ATTACK_INFO[attack];
     uint8_t damage = rules.damage;
     if(rules.injured_damage != rules.damage) {
@@ -330,67 +324,67 @@ RPG_NOINLINE static uint8_t primary_damage(BattleState const& state, uint8_t att
         damage += party_attack_bonus(member);
         if(equipment_get(member, SLOT_WEAPON) == ITEM_IRON_FANG)
             damage += IRON_FANG_DAMAGE;
-        if(rank) {
-            switch(attack) {
-                case ATTACK_STRIKE:
-                    if(victim.hp == battle_max_hp(victim))
-                        damage += KEEN_EDGE_BONUS;
-                    if(rank >= SWORD_MASTERY_RANK)
-                        damage += SWORD_MASTERY_BONUS;
-                    if(rank >= DUELIST_RANK && !position)
-                        damage += DUELIST_BONUS;
-                    break;
-                case ATTACK_SHOOT:
-                    if(at_range(attacker.cell, victim.cell, LONGSHOT_RANGE))
-                        damage += LONGSHOT_BONUS;
-                    if(rank >= SHARPSHOOTER_RANK)
-                        damage += SHARPSHOOTER_BONUS;
-                    break;
-                case ATTACK_REACH:
-                    if(at_range(attacker.cell, victim.cell, LUNGE_RANGE))
-                        damage += LUNGE_BONUS;
-                    if(rank >= SHORT_GRIP_RANK &&
-                       at_range(attacker.cell, victim.cell, SHORT_GRIP_RANGE))
-                        damage += SHORT_GRIP_BONUS;
-                    break;
-                case ATTACK_IMPACT:
-                    if(position < BATTLE_NO_UNIT)
-                        damage += BODY_CHECK_BONUS;
-                    if(rank >= HEAVY_BLOW_RANK)
-                        damage += HEAVY_BLOW_BONUS;
-                    break;
-                case ATTACK_REND:
-                    if(rank >= BLOOD_SENSE_RANK && victim.hp < battle_max_hp(victim))
-                        damage += BLOOD_SENSE_BONUS;
-                    if(rank >= BLOOD_RUSH_RANK && attacker.hp <= battle_max_hp(attacker) / 2)
-                        damage += BLOOD_RUSH_BONUS;
-                    break;
-                case ATTACK_ARC:
-                    damage += position;
-                    break;
-                case ATTACK_DRAIN:
-                    if(rank >= DEEP_CUT_RANK)
-                        damage += DEEP_CUT_BONUS;
-                    break;
-                case ATTACK_RECOIL:
-                    if(position < BATTLE_CELLS)
-                        damage += PARTING_BLOW_BONUS;
-                    if(rank >= COUNTERFORCE_RANK)
-                        damage += COUNTERFORCE_BONUS;
-                    break;
-                case ATTACK_FLANK:
-                    if(position)
-                        damage += ENCIRCLE_BONUS;
-                    if(rank >= TACTICAL_EDGE_RANK)
-                        damage += TACTICAL_EDGE_BONUS;
-                    if(rank >= CONVERGING_BLADES_RANK)
-                        damage += position * CONVERGING_BLADES_BONUS;
-                    break;
-                case ATTACK_BLAST:
-                    if(position & (position - 1))
-                        damage += CLUSTER_BURST_BONUS;
-                    break;
-            }
+    }
+    if(rank) {
+        switch(attack) {
+            case ATTACK_STRIKE:
+                if(victim.hp == battle_max_hp(victim))
+                    damage += KEEN_EDGE_BONUS;
+                if(rank >= SWORD_MASTERY_RANK)
+                    damage += SWORD_MASTERY_BONUS;
+                if(rank >= DUELIST_RANK && !position)
+                    damage += DUELIST_BONUS;
+                break;
+            case ATTACK_SHOOT:
+                if(at_range(attacker.cell, victim.cell, LONGSHOT_RANGE))
+                    damage += LONGSHOT_BONUS;
+                if(rank >= SHARPSHOOTER_RANK)
+                    damage += SHARPSHOOTER_BONUS;
+                break;
+            case ATTACK_REACH:
+                if(at_range(attacker.cell, victim.cell, LUNGE_RANGE))
+                    damage += LUNGE_BONUS;
+                if(rank >= SHORT_GRIP_RANK &&
+                   at_range(attacker.cell, victim.cell, SHORT_GRIP_RANGE))
+                    damage += SHORT_GRIP_BONUS;
+                break;
+            case ATTACK_IMPACT:
+                if(position < BATTLE_NO_UNIT)
+                    damage += BODY_CHECK_BONUS;
+                if(rank >= HEAVY_BLOW_RANK)
+                    damage += HEAVY_BLOW_BONUS;
+                break;
+            case ATTACK_REND:
+                if(rank >= BLOOD_SENSE_RANK && victim.hp < battle_max_hp(victim))
+                    damage += BLOOD_SENSE_BONUS;
+                if(rank >= BLOOD_RUSH_RANK && attacker.hp <= battle_max_hp(attacker) / 2)
+                    damage += BLOOD_RUSH_BONUS;
+                break;
+            case ATTACK_ARC:
+                damage += position;
+                break;
+            case ATTACK_DRAIN:
+                if(rank >= DEEP_CUT_RANK)
+                    damage += DEEP_CUT_BONUS;
+                break;
+            case ATTACK_RECOIL:
+                if(position < BATTLE_CELLS)
+                    damage += PARTING_BLOW_BONUS;
+                if(rank >= COUNTERFORCE_RANK)
+                    damage += COUNTERFORCE_BONUS;
+                break;
+            case ATTACK_FLANK:
+                if(position)
+                    damage += ENCIRCLE_BONUS;
+                if(rank >= TACTICAL_EDGE_RANK)
+                    damage += TACTICAL_EDGE_BONUS;
+                if(rank >= CONVERGING_BLADES_RANK)
+                    damage += position * CONVERGING_BLADES_BONUS;
+                break;
+            case ATTACK_BLAST:
+                if(position & (position - 1))
+                    damage += CLUSTER_BURST_BONUS;
+                break;
         }
     }
     return damage;
@@ -417,12 +411,11 @@ BATTLE_ALWAYS_INLINE static inline uint8_t raw_attack_damage(BattleState const& 
 RPG_NOINLINE static uint8_t guarded_damage(BattleState const& state, uint8_t victim_index,
                                            uint8_t damage, uint8_t& reflected) {
     BattleUnit const& victim = state.units[victim_index];
-    if(damage > HOLD_TOGETHER_BONUS && (victim.id & BATTLE_PARTY_SOURCE)) {
-        auto const& member = game.party.members[victim.id & ~BATTLE_PARTY_SOURCE];
-        if(member.movement_class == HOLD_TOGETHER_CLASS && party_movement_perk_rank(member) &&
+    if(damage > HOLD_TOGETHER_BONUS) {
+        uint8_t rank = battle_movement_rank(victim);
+        if(rank && battle_movement_class(victim.id) == HOLD_TOGETHER_CLASS &&
            adjacent_allies(state, victim_index, victim.cell, true)) {
             uint8_t reduction = HOLD_TOGETHER_BONUS;
-            uint8_t rank = party_movement_perk_rank(member);
             if(rank >= SHIELD_WALL_RANK)
                 reduction += SHIELD_WALL_BONUS;
             if(rank >= SHIELD_REBOUND_RANK) {
@@ -447,7 +440,7 @@ uint8_t battle_attack_damage(BattleState const& state, uint8_t attacker, uint8_t
 RPG_NOINLINE uint8_t battle_splash_targets(BattleState const& state, uint8_t attacker,
                                            uint8_t victim) {
     BattleUnit const& primary = state.units[victim];
-    bool diagonal = attack_perk_rank(state.units[attacker]) >= SHOCKWAVE_RANK;
+    bool diagonal = battle_attack_rank(state.units[attacker]) >= SHOCKWAVE_RANK;
     uint8_t targets = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
@@ -496,12 +489,11 @@ RPG_NOINLINE static uint8_t corner_targets(BattleState const& state, uint8_t att
                                             uint8_t victim) {
     auto const& actor = state.units[attacker];
     uint8_t to = state.units[victim].cell;
-    uint8_t a = battle_cell(battle_column(actor.cell), battle_row(to));
-    uint8_t b = battle_cell(battle_column(to), battle_row(actor.cell));
-    uint8_t first = battle_unit_at(state, a), second = battle_unit_at(state, b);
+    uint8_t first = battle_unit_at(state, battle_cell(battle_column(actor.cell), battle_row(to)));
     uint8_t targets = 0;
     if(first < BATTLE_NO_UNIT && state.units[first].team != actor.team)
         targets |= (uint8_t)(1 << first);
+    uint8_t second = battle_unit_at(state, battle_cell(battle_column(to), battle_row(actor.cell)));
     if(second < BATTLE_NO_UNIT && state.units[second].team != actor.team)
         targets |= (uint8_t)(1 << second);
     return targets;
@@ -513,10 +505,10 @@ RPG_NOINLINE static SecondaryDamage attack_splash(BattleState const& state, uint
     auto const& actor = state.units[attacker];
     uint8_t attack = battle_attack_class(actor.id);
     if(attack == ATTACK_BLAST) {
-        uint8_t damage = attack_perk_rank(actor) >= SHRAPNEL_RANK ? 1 + SHRAPNEL_BONUS : 1;
+        uint8_t damage = battle_attack_rank(actor) >= SHRAPNEL_RANK ? 1 + SHRAPNEL_BONUS : 1;
         return {position, damage, SECONDARY_SPLASH};
     }
-    uint8_t rank = attack_perk_rank(actor);
+    uint8_t rank = battle_attack_rank(actor);
     if(rank >= PERK_TRACK_RANKS) {
         if(attack == ATTACK_SHOOT) {
             SecondaryDamage shot = attack_line(state, attacker, victim, true);
@@ -563,11 +555,11 @@ RPG_NOINLINE BattleAttackImpact battle_attack_impact(BattleState const& state, u
     uint8_t attack = battle_attack_class(state.units[attacker].id);
     uint8_t secondary = attack_position(state, attacker, victim, attack);
     uint8_t raw = primary_damage(state, attacker, victim, attack, secondary);
+    SecondaryDamage splash = attack_splash(state, attacker, victim, secondary, raw, false);
     uint8_t reflected = 0;
     uint8_t damage = guarded_damage(state, victim, raw, reflected);
     uint8_t hp = state.units[victim].hp;
     BattleAttackImpact impact{(uint8_t)(hp <= damage), hp < damage ? hp : damage, reflected};
-    SecondaryDamage splash = attack_splash(state, attacker, victim, secondary, raw, false);
     for(uint8_t i = 0; splash.targets; ++i, splash.targets >>= 1) {
         if(splash.targets & 1) {
             hp = state.units[i].hp;
@@ -660,13 +652,12 @@ RPG_NOINLINE bool battle_line_blocked(BattleState const& state, uint8_t a, uint8
     return false;
 }
 
-// Only party members learn perks. A mask is enough to reuse the living guards for a whole list.
+// A mask is enough to reuse the living guards for a whole list.
 RPG_NOINLINE static uint8_t movement_guards(BattleState const& state, BATTLE_TEAM team) {
     uint8_t guards = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         auto const& unit = state.units[i];
-        if(!unit.hp || unit.team == team || !(unit.id & BATTLE_PARTY_SOURCE) ||
-           attack_perk_rank(unit) < PERK_TRACK_RANKS)
+        if(!unit.hp || unit.team == team || battle_attack_rank(unit) < PERK_TRACK_RANKS)
             continue;
         uint8_t attack = battle_attack_class(unit.id);
         if(attack == BLADE_LOCK_CLASS || attack == PIKE_FENCE_CLASS)
@@ -738,7 +729,7 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
         uint8_t dx = difference(battle_column(actor.cell), battle_column(destination));
         uint8_t dy = difference(battle_row(actor.cell), battle_row(destination));
         if(rules.movement_type == BATTLE_MOVEMENT_VAULT && !(dx && dy) &&
-           dx + dy == HIGH_VAULT_RANGE && movement_perk_rank(actor) >= HIGH_VAULT_RANK) {
+           dx + dy == HIGH_VAULT_RANGE && battle_movement_rank(actor) >= HIGH_VAULT_RANK) {
             uint8_t usual;
             return battle_neighbor(destination, battle_direction(destination, actor.cell), usual) &&
                    !battle_open_cell(state, usual);
@@ -754,7 +745,7 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
     uint8_t distance = battle_line_distance(actor.cell, destination);
     if(!distance || distance > rules.move_range)
         return false;
-    if(distance == TRAMPLE_RANGE && movement_perk_rank(actor) >= TRAMPLE_RANK) {
+    if(distance == TRAMPLE_RANGE && battle_movement_rank(actor) >= TRAMPLE_RANK) {
         uint8_t middle = (uint8_t)((actor.cell + destination) / 2);
         if(trample_enemy(state, actor, middle))
             return true;
@@ -764,11 +755,8 @@ bool battle_can_move_to(BattleState const& state, uint8_t unit_index, uint8_t de
 
 RPG_NOINLINE bool battle_reach_through_ally(BattleState const& state, BattleUnit const& attacker,
                                             uint8_t destination) {
-    if(!(attacker.id & BATTLE_PARTY_SOURCE))
-        return false;
-    auto const& member = game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE];
-    if(member.attack_class != THROUGH_THE_RANKS_CLASS ||
-       party_attack_perk_rank(member) < THROUGH_THE_RANKS_RANK)
+    if(battle_attack_class(attacker.id) != THROUGH_THE_RANKS_CLASS ||
+       battle_attack_rank(attacker) < THROUGH_THE_RANKS_RANK)
         return false;
     uint8_t middle = (uint8_t)((attacker.cell + destination) / 2);
     if(battle_blocked(state.field, middle))
@@ -787,7 +775,7 @@ bool battle_can_attack(BattleState const& state, uint8_t attacker, uint8_t victi
     BattleUnitRules const& rules = battle_rules(actor.id);
     uint8_t distance = attack_distance(rules, actor.cell, target.cell);
     if(!battle_in_attack_range(rules, distance)) {
-        if(attack_perk_rank(actor) < PERK_TRACK_RANKS)
+        if(battle_attack_rank(actor) < PERK_TRACK_RANKS)
             return false;
         distance = capstone_attack_range(state, attacker, victim, distance);
         if(!distance)
@@ -959,7 +947,7 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
             continue;
         BattleUnitRules const& rules = battle_rules(actor.id);
         uint8_t lo = rules.attack_min, hi = rules.attack_max;
-        bool capstone = attack_perk_rank(actor) >= PERK_TRACK_RANKS;
+        bool capstone = battle_attack_rank(actor) >= PERK_TRACK_RANKS;
         for(uint8_t v = 0; v < state.unit_count; ++v) {
             BattleUnit const& target = state.units[v];
             if(!target.hp || target.team == actor.team)
@@ -1005,7 +993,7 @@ static uint8_t battle_enumerate(BattleState const& state, uint8_t first, uint8_t
         bool vault = rules.movement_type == BATTLE_MOVEMENT_VAULT;
         bool ground_perk = rules.move_range == 2 &&
                            (vault || rules.movement_type == BATTLE_MOVEMENT_ORTHOGONAL) &&
-                           movement_perk_rank(actor) >= PERK_TRACK_RANKS;
+                           battle_movement_rank(actor) >= PERK_TRACK_RANKS;
         uint8_t size = ground_perk ? capstone_ground_moves(state, a, rows, moves, vault)
                                    : append_moves(state, a, rows, moves);
         if(!fences) {
@@ -1063,13 +1051,10 @@ struct EngagementDamage {
 static EngagementDamage engagement_damage(BattleUnit const& actor, uint8_t destination,
                                           uint8_t engaged) {
     EngagementDamage damage;
-    if(!(actor.id & BATTLE_PARTY_SOURCE))
-        return damage;
-    PartyMember const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
-    uint8_t rank = party_movement_perk_rank(member);
+    uint8_t rank = battle_movement_rank(actor);
     if(!rank)
         return damage;
-    switch(member.movement_class) {
+    switch(battle_movement_class(actor.id)) {
         case MOVEMENT_LEAP: {
             uint8_t rest = (uint8_t)(engaged & (engaged - 1));
             if(!rest)
@@ -1111,30 +1096,25 @@ static EngagementDamage engagement_damage(BattleUnit const& actor, uint8_t desti
 }
 
 uint8_t battle_move_cost(BattleUnit const& actor, bool engages) {
-    if(engages && (actor.id & BATTLE_PARTY_SOURCE)) {
-        auto const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
-        if(member.movement_class == FOOTWORK_CLASS &&
-           party_movement_perk_rank(member) >= FOOTWORK_RANK)
-            return FOOTWORK_BONUS;
-    }
+    if(engages && battle_movement_class(actor.id) == FOOTWORK_CLASS &&
+       battle_movement_rank(actor) >= FOOTWORK_RANK)
+        return FOOTWORK_BONUS;
     return BATTLE_MOVE_COST;
 }
 
 // Damage away from the orthogonal landing neighbors stays separate from the landing bonuses.
 RPG_NOINLINE uint8_t battle_extra_engagement(BattleState const& state, BattleUnit const& actor,
                                              uint8_t destination) {
-    if(!(actor.id & BATTLE_PARTY_SOURCE))
+    uint8_t rank = battle_movement_rank(actor);
+    if(rank < SHOCK_LANDING_RANK && rank < PASSING_CUT_RANK)
         return 0;
-    auto const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
-    bool vault = member.movement_class == SHOCK_LANDING_CLASS &&
-                 party_movement_perk_rank(member) >= SHOCK_LANDING_RANK;
-    bool glide = member.movement_class == PASSING_CUT_CLASS &&
-                 party_movement_perk_rank(member) >= PASSING_CUT_RANK;
+    uint8_t movement = battle_movement_class(actor.id);
+    bool vault = movement == SHOCK_LANDING_CLASS && rank >= SHOCK_LANDING_RANK;
+    bool glide = movement == PASSING_CUT_CLASS && rank >= PASSING_CUT_RANK;
     if(!(vault || glide))
         return 0;
     bool long_glide = glide && diagonal_distance(actor.cell, destination) == SLIPSTREAM_RANGE;
     uint8_t middle = long_glide ? (uint8_t)((actor.cell + destination) / 2) : actor.cell;
-    uint8_t rank = party_movement_perk_rank(member);
     bool diamond = long_glide && rank >= DIAMOND_WAKE_RANK;
     bool high_vault = vault && rank >= HIGH_VAULT_RANK &&
                       at_range(actor.cell, destination, HIGH_VAULT_RANGE);
@@ -1343,7 +1323,7 @@ RPG_NOINLINE static bool battle_resolve_attack(BattleState& state, uint8_t attac
     BattleUnit& actor = state.units[attacker];
     BattleUnit& target = state.units[victim];
     uint8_t attack = battle_attack_class(actor.id);
-    uint8_t rank = attack_perk_rank(actor);
+    uint8_t rank = battle_attack_rank(actor);
     uint8_t position = attack_position(state, attacker, victim, attack);
     uint8_t raw = raw_attack_damage(state, attacker, victim, attack, position, special);
     if constexpr(signature)
@@ -1429,7 +1409,7 @@ RPG_NOINLINE static uint8_t signature_targets(BattleState const& state, uint8_t 
                 // Blood Hunt is the only extended Rend geometry, with one open middle cell.
                 hit = below_half_hp(unit) &&
                       (battle_cells_adjacent(actor.cell, cell) ||
-                       (attack_perk_rank(actor) >= BLOOD_HUNT_RANK &&
+                       (battle_attack_rank(actor) >= BLOOD_HUNT_RANK &&
                         at_range(actor.cell, cell, BLOOD_HUNT_RANGE) &&
                         battle_open_cell(state, (uint8_t)((actor.cell + cell) / 2))));
                 break;
@@ -1541,7 +1521,7 @@ RPG_NOINLINE static bool battle_resolve_move(BattleState& state, BattleUnit& act
     uint8_t move_cost = battle_move_cost(actor, (engaged | extra) != 0);
     uint8_t origin = actor.cell;
     bool skyhook = engaged && !(engaged & (engaged - 1)) &&
-                   movement_perk_rank(actor) >= SKYHOOK_RANK &&
+                   battle_movement_rank(actor) >= SKYHOOK_RANK &&
                    battle_movement_class(actor.id) == SKYHOOK_CLASS;
     actor.cell = destination;
     bool fell = false;
@@ -1557,7 +1537,7 @@ RPG_NOINLINE static bool battle_resolve_move(BattleState& state, BattleUnit& act
     }
 
     if(damage.bonus_cell < BATTLE_CELLS && battle_movement_class(actor.id) == OVERRUN_CLASS &&
-       movement_perk_rank(actor) >= OVERRUN_RANK) {
+       battle_movement_rank(actor) >= OVERRUN_RANK) {
         uint8_t target = battle_unit_at(state, damage.bonus_cell);
         if(target != BATTLE_NO_UNIT && state.units[target].team != actor.team) {
             uint8_t landing =
@@ -1611,13 +1591,17 @@ bool battle_special_legal(BattleState const& state, BattleAction action,
     if(state.ended || action.unit_index >= state.unit_count || action.destination >= BATTLE_CELLS)
         return false;
     BattleUnit const& actor = state.units[action.unit_index];
-    if(!(actor.id & BATTLE_PARTY_SOURCE) || !actor.hp || actor.team != state.turn)
+    if(!actor.hp || actor.team != state.turn)
         return false;
-    PartyMember const& member = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE];
-    uint8_t attack = member.attack_class;
-    if(choice == BATTLE_SIGNATURE) {
-        if(member.level < BATTLE_SIGNATURE_LEVEL || member.ap < BATTLE_SIGNATURE_AP)
+    uint8_t attack = battle_attack_class(actor.id);
+    if(actor.id & BATTLE_PARTY_SOURCE) {
+        uint8_t level = game.party.members[actor.id & ~BATTLE_PARTY_SOURCE].level;
+        if(level < (choice == BATTLE_SIGNATURE ? BATTLE_SIGNATURE_LEVEL : BATTLE_STARTER_LEVEL))
             return false;
+    }
+    if(battle_ap(actor) < (choice == BATTLE_SIGNATURE ? BATTLE_SIGNATURE_AP : SPECIAL_INFO[attack].ap))
+        return false;
+    if(choice == BATTLE_SIGNATURE) {
         if(attack == ATTACK_REACH && !at_range(actor.cell, action.destination, 2))
             return false;
         if(attack == ATTACK_IMPACT) {
@@ -1626,8 +1610,6 @@ bool battle_special_legal(BattleState const& state, BattleAction action,
                                behind) && !battle_blocked(state.field, behind))
                 return false;
         }
-    } else if(member.level < BATTLE_STARTER_LEVEL || member.ap < SPECIAL_INFO[attack].ap) {
-        return false;
     }
     uint8_t victim = battle_unit_at(state, action.destination);
     return victim != BATTLE_NO_UNIT && battle_can_attack(state, action.unit_index, victim);
@@ -1648,15 +1630,29 @@ RPG_NOINLINE static void battle_apply_signature(BattleState& state, BattleAction
 void battle_apply_special(BattleState& state, BattleAction action, BATTLE_ATTACK_CHOICE choice) {
     if(!battle_special_legal(state, action, choice))
         return;
-    uint8_t slot = state.units[action.unit_index].id & ~BATTLE_PARTY_SOURCE;
-    auto& member = game.party.members[slot];
+    auto& actor = state.units[action.unit_index];
+    uint8_t& ap = actor.id & BATTLE_PARTY_SOURCE
+                      ? game.party.members[actor.id & ~BATTLE_PARTY_SOURCE].ap : actor.ap;
     if(choice == BATTLE_SIGNATURE) {
-        member.ap -= BATTLE_SIGNATURE_AP;
+        ap -= BATTLE_SIGNATURE_AP;
         battle_apply_signature(state, action);
     } else {
-        member.ap -= SPECIAL_INFO[member.attack_class].ap;
+        ap -= SPECIAL_INFO[battle_attack_class(actor.id)].ap;
         battle_act(state, action, true);
     }
+}
+
+BATTLE_ATTACK_CHOICE battle_enemy_attack_choice(BattleState const& state, BattleAction action) {
+    if(action.unit_index >= state.unit_count || state.turn != BATTLE_ENEMY)
+        return BATTLE_NORMAL;
+    auto const& actor = state.units[action.unit_index];
+    if(actor.ap == 0 || (actor.id & BATTLE_PARTY_SOURCE))
+        return BATTLE_NORMAL;
+    if(battle_special_legal(state, action, BATTLE_SIGNATURE))
+        return BATTLE_SIGNATURE;
+    if(battle_special_legal(state, action, BATTLE_STARTER))
+        return BATTLE_STARTER;
+    return BATTLE_NORMAL;
 }
 
 void battle_pass(BattleState& state) {

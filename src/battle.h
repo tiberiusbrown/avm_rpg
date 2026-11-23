@@ -249,6 +249,9 @@ enum ENEMY_ID : uint8_t {
 
 struct EnemyInfo {
     uint8_t max_hp, movement_class, attack_class, sprite_row;
+    uint8_t movement_rank : 3 = 0;
+    uint8_t attack_rank : 3 = 0;
+    uint8_t starting_ap = 0;
 };
 
 extern EnemyInfo const PROGMEM ENEMY_INFO[];
@@ -314,22 +317,34 @@ constexpr bool battle_in_attack_range(BattleUnitRules const& rules, uint8_t dist
     return distance >= rules.attack_min && distance <= rules.attack_max;
 }
 
-// Only HP and a source ID describe an enemy in RAM. The other byte holds board placement and
-// team. Allied units reference saved party slots; search copies never duplicate their classes.
+// Battle copies carry each enemy's remaining AP. Party sources use the saved member's AP.
 struct BattleUnit {
     uint8_t cell : 5;
     BATTLE_TEAM team : 1;
     uint8_t hp;
     uint8_t id;
+    uint8_t ap = 0;
 
     constexpr BattleUnit() : cell(0), team(BATTLE_PARTY), hp(0), id(0) {}
 
-    constexpr BattleUnit(uint8_t cell, uint8_t hp, uint8_t id, BATTLE_TEAM team)
-        : cell(cell), team(team), hp(hp), id(id) {}
+    constexpr BattleUnit(uint8_t cell, uint8_t hp, uint8_t id, BATTLE_TEAM team, uint8_t ap = 0)
+        : cell(cell), team(team), hp(hp), id(id), ap(ap) {}
 };
 
-static_assert(sizeof(BattleUnit) == 3, "one placement byte plus full HP and source ID");
-static_assert(sizeof(EnemyInfo) == 4, "enemy statistics and artwork stay in ROM");
+static_assert(sizeof(BattleUnit) == 4, "placement, HP, source ID and enemy AP");
+static_assert(sizeof(EnemyInfo) == 6, "enemy statistics and artwork stay in ROM");
+
+inline uint8_t battle_movement_rank(BattleUnit const& unit) {
+    return unit.id & BATTLE_PARTY_SOURCE
+               ? party_movement_perk_rank(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE])
+               : ENEMY_INFO[unit.id].movement_rank;
+}
+
+inline uint8_t battle_attack_rank(BattleUnit const& unit) {
+    return unit.id & BATTLE_PARTY_SOURCE
+               ? party_attack_perk_rank(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE])
+               : ENEMY_INFO[unit.id].attack_rank;
+}
 
 // Encounters select boards and enemy presets. The selected board supplies deployment areas.
 struct BattleEncounter {
@@ -447,6 +462,7 @@ struct BattleRewards {
 
 BattleRewards battle_finish(BattleState const& state);
 uint8_t battle_max_hp(BattleUnit const& unit);
+uint8_t battle_ap(BattleUnit const& unit);
 
 // The living unit on a cell, or BATTLE_NO_UNIT. Defeated units occupy no cell.
 uint8_t battle_unit_at(BattleState const& state, uint8_t cell);
@@ -577,13 +593,16 @@ constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
 // BATTLE_NO_UNIT applies a team-wide pass instead of a unit action.
 void battle_apply(BattleState& state, BattleAction action);
 
-// A living saved member on the acting side needs the special's level, AP, and a legal target.
+// The actor needs enough AP and a legal target. Party sources also need the unlock level.
 bool battle_special_legal(BattleState const& state, BattleAction action,
                           BATTLE_ATTACK_CHOICE choice = BATTLE_STARTER);
 // Resolves a legal special attack the way battle_apply resolves an attack, and first spends the
-// special's AP from the saved member. An illegal action does nothing.
+// actor's AP. An illegal action does nothing.
 void battle_apply_special(BattleState& state, BattleAction action,
                           BATTLE_ATTACK_CHOICE choice = BATTLE_STARTER);
+
+// Enemies use the highest available special when attacking. The search uses the same choice.
+BATTLE_ATTACK_CHOICE battle_enemy_attack_choice(BattleState const& state, BattleAction action);
 
 // Every living unit on the passing side loses BATTLE_MOVE_COST, which can defeat the whole team.
 // It counts as one activation. Player and AI may pass voluntarily; settling passes automatically

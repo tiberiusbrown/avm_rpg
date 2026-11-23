@@ -33,6 +33,7 @@ inline void battle_fixture_begin(BattleState& state, BattleFixture const PROGMEM
         state.units[i].team = fixture->units[i].team;
         state.units[i].hp = fixture->units[i].hp;
         state.units[i].id = fixture->units[i].id;
+        state.units[i].ap = fixture->units[i].ap;
     }
     state.result = BATTLE_DEFEAT;
 }

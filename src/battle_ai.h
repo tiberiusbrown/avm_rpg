@@ -124,6 +124,18 @@ uint16_t battle_ai_budget(BattleState const& state);
 // iteration completes, or its non-pass action is not legal, the greedy choice is used instead.
 BattleAction battle_enemy_action(BattleState const& state);
 
+// Predict the enemy's AP spending without writing to the saved party.
+inline void battle_simulate_action(BattleState& state, BattleAction action) {
+    if(action.unit_index < state.unit_count && state.units[action.unit_index].ap) {
+        auto choice = battle_enemy_attack_choice(state, action);
+        if(choice != BATTLE_NORMAL) {
+            battle_apply_special(state, action, choice);
+            return;
+        }
+    }
+    battle_apply(state, action);
+}
+
 // The greedy choice for the side to act, by battle_greedy_score. Ties go to the first action in
 // enumeration order. It is a deterministic baseline and a fallback, and it is always a legal action
 // when one exists.

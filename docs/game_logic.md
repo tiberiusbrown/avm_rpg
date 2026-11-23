@@ -348,8 +348,8 @@ Ranks allows a range-2 hit through a living ally. Arc reaches only an adjacent d
 | `ATTACK_FLANK` | 8 | Orthogonal 1 | 2, or 4 with allied support | Support requires another living ally of the attacker orthogonally adjacent to the target immediately before the hit |
 | `ATTACK_BLAST` | 9 | Orthogonal 2–3 | 2 | Deal 1 splash damage to each other living enemy orthogonally adjacent to the primary target's original cell, even on a primary kill |
 
-Apply level, weapon, and direct attack perk bonuses to the selected base primary damage. Enemy
-presets receive none of those party bonuses. Secondary damage from Blast, Piercing Shot, and
+Apply direct attack perk bonuses to the selected base primary damage for both sides. Party members
+also receive their level and weapon bonuses. Secondary damage from Blast, Piercing Shot, and
 Collision uses the primary attack's line of sight and hits each qualifying enemy once.
 When the target survives, Drain healing is capped at one
 less than the target's actual HP loss, with a floor of zero. A finishing blow allows full Drain
@@ -361,8 +361,11 @@ Each attack class grants a **2 AP starter at level 3** and a **3 AP signature at
 Both use one selected enemy eligible for the normal attack, including any learned targeting
 perks. Hooking Thrust and Wall Slam also require the setup below. A on the target offers Attack
 and any unlocked, affordable, legal specials. Below level 3 or with less than 2 AP, A attacks
-normally. A special spends AP once and takes one team turn. Both unlocks use the member's saved
-level. Enemy presets use normal attacks.
+normally. A special spends AP once and takes one team turn. Party unlocks use the member's saved
+level. When an enemy attacks, it uses an affordable, legal signature if available, then an
+affordable, legal starter if available, then its normal attack. Its AP comes from its preset at
+deployment and is spent independently for each unit. Enemy AP has no level gate or recovery
+during combat. The AI predicts the same spending rule in its search.
 
 #### Starting specials
 
@@ -398,15 +401,16 @@ Apply the whole attack before deciding victory or defeat.
 | **Wall Slam** | `ATTACK_IMPACT` | Requires blocked terrain or the board edge immediately behind the target along the attack line. Deal full damage to each enemy in the two lateral cells beside the target. |
 | **Feeding Frenzy** | `ATTACK_REND` | Each other enemy strictly below half maximum HP that the attacker can legally attack takes its own normal Rend damage. |
 | **Whirlwind** | `ATTACK_ARC` | Every other diagonally adjacent enemy takes its own normal Arc damage. Corner Sweep applies at the selected target only. |
-| **Life Channel** | `ATTACK_DRAIN` | +2 primary damage. Heal each other living party member for the actual HP the primary target lost, reduced by 1 if it survives. On a kill with Soul Dividend, each other living party member instead heals up to 5 HP. Healing caps at each recipient's maximum HP. |
+| **Life Channel** | `ATTACK_DRAIN` | +2 primary damage. Heal each other living ally for the actual HP the primary target lost, reduced by 1 if it survives. On a kill with Soul Dividend, each other living ally instead heals up to 5 HP. Healing caps at each recipient's maximum HP. |
 | **Backsweep** | `ATTACK_RECOIL` | Each other enemy orthogonally adjacent to any cell entered during the retreat takes full damage once. Dragback still applies to the surviving primary target. |
 | **Combined Arms** | `ATTACK_FLANK` | Each other living ally orthogonally adjacent to the target who can legally attack it adds their own normal primary attack damage, with level, gear, and perk bonuses, before target defenses are applied to the combined hit. |
 | **Implosion** | `ATTACK_BLAST` | Enemies exactly two cells away along the target's row or column take full damage. Each survivor moves one cell toward the primary target if that cell was open before the hit. The usual local splash retains its damage and Concussion rules. |
 
 ### 5.5 Implemented perks
 
-Learn perks through the Party menu. The implementation catalog is `src/perks.def`. Attack
-perks apply to normal attacks and specials. Movement damage bonuses apply to
+Party members learn perks through the Party menu. Enemies use ranks from their presets. The
+implementation catalog is `src/perks.def`. Attack perks apply to normal attacks and specials.
+Movement damage bonuses apply to
 engagement after voluntary moves. All tracks have four learnable ranks. Rank 4 effects are
 resolved from the current board and the original target or destination, using the usual turn and AP rules.
 
@@ -502,6 +506,10 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
   actually affected, including secondary hits, reflected damage, and perk effects. Damage bursts
   show actual HP lost, capped at 99 for display.
 - **Pass:** every living unit on that side loses **1 HP**, then battle checks for defeat. Passing is not a free defensive action.
+- Hovering over a living unit shows its movement and attack class names above its current and
+  maximum HP. Ranks 1–4 follow the class name, as in `Step 2 / Strike 3`. Rank 0 uses the name
+  alone. Enemy panels show AP while the unit has AP remaining. Party panels show AP from level 3,
+  including 0 AP. The panel fits the wider rendered line.
 - Zero-HP party members do not deploy in subsequent encounters until revived/rested. Battle outcome is victory/defeat, never a draw. Defeat returns to the title screen rather than applying quest rewards.
 - Victory writes surviving and fallen party HP back to saved members; grants each roster member (including those not deployed or at 0 HP) **2 XP** and victory AP recovery; credits **3 G for each deployed enemy** subject to wallet cap.
 
@@ -509,14 +517,14 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 
 ### 6.2 Enemy type presets
 
-| `ENEMY_ID` | Name | Max HP | Movement | Attack | Sprite row |
-|---|---|---:|---|---|---:|
-| `ENEMY_WOLF` | Wolf | 9 | Charge | Rend | 17 |
-| `ENEMY_BRUTE` | Brute | 12 | Step | Impact | 25 |
-| `ENEMY_GIANT_BAT` | Giant Bat | 6 | Glide | Arc | 18 |
-| `ENEMY_GIANT_SPIDER` | Giant Spider | 7 | Leap | Flank | 19 |
-| `ENEMY_SKELETON` | Skeleton | 10 | Step | Reach | 23 |
-| `ENEMY_FLOATING_EYE` | Floating Eye | 8 | Vault | Blast | 29 |
+| `ENEMY_ID` | Name | Max HP | Movement | Attack | Starting AP | Sprite row |
+|---|---|---:|---|---|---:|---:|
+| `ENEMY_WOLF` | Wolf | 9 | Charge | Rend | 0 | 17 |
+| `ENEMY_BRUTE` | Brute | 12 | Step | Impact | 0 | 25 |
+| `ENEMY_GIANT_BAT` | Giant Bat | 6 | Glide | Arc | 0 | 18 |
+| `ENEMY_GIANT_SPIDER` | Giant Spider | 7 | Leap | Flank | 0 | 19 |
+| `ENEMY_SKELETON` | Skeleton | 10 | Step 2 | Reach 1 | 2 | 23 |
+| `ENEMY_FLOATING_EYE` | Floating Eye | 8 | Vault 1 | Blast 2 | 3 | 29 |
 
 ### 6.3 Authored map encounters (catalog order is save-sensitive)
 

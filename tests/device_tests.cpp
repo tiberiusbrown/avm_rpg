@@ -1710,6 +1710,32 @@ static void verify_consecutive_perk_ranks(Device& d, fs::path const& out) {
 static void verify_battle_classes(Device& d, fs::path const& out) {
     start_grove_contact(d);
 
+    BattleState inspection = d.battle_state();
+    GroveCell inspect_cursor{battle_column(inspection.units[0].cell),
+                             battle_row(inspection.units[0].cell)};
+    inspection.field = BATTLEFIELD_GROVE;
+    inspection.units[0].cell = battle_cell(2, 1);
+    inspection.units[1] = {battle_cell(5, 1), 10, ENEMY_SKELETON, BATTLE_ENEMY, 2};
+    inspection.units[2] = {battle_cell(6, 2), 9, ENEMY_WOLF, BATTLE_ENEMY};
+    inspection.unit_count = 3;
+    d.set_battle(inspection);
+    Game original = d.state();
+    Game training = original;
+    training.party.members[0].level = BATTLE_STARTER_LEVEL - 1;
+    training.party.members[0].ap = 4;
+    d.set_state(training);
+    grove_move_cursor(d, inspect_cursor, {2, 1});
+    d.capture(out / "battle_party_before_ap_unlock.pgm", true);
+    training.party.members[0].level = BATTLE_STARTER_LEVEL;
+    training.party.members[0].ap = 0;
+    d.set_state(training);
+    d.capture(out / "battle_party_ap_unlocked.pgm", true);
+    d.set_state(original);
+    grove_move_cursor(d, inspect_cursor, {5, 1});
+    d.capture(out / "battle_enemy_ranks_and_ap.pgm");
+    grove_move_cursor(d, inspect_cursor, {6, 2});
+    d.capture(out / "battle_enemy_rank_zero.pgm");
+
     struct Case {
         char const* name;
         MOVEMENT_CLASS movement;

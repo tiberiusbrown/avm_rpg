@@ -8,6 +8,7 @@
 #include "sfx.h"
 
 #include <avm.h>
+#include <stdio.h>
 
 // Frames at 50 Hz. The party's result stays on screen for this long before the enemy chooses.
 static constexpr uint8_t RESULT_FRAMES = 25;
@@ -116,20 +117,42 @@ static void draw_cursor(Cursor const& cursor) {
 }
 
 // Inspect the living actor under the logical cursor, independently of the selected hero. Keep
-// the panel on the other half of the board so it cannot cover the actor being inspected.
-static void draw_actor_info(BattleState const& state, Cursor const& cursor) {
+// the panel vertically opposite the cursor so it cannot cover the actor being inspected.
+RPG_NOINLINE static void draw_actor_info(BattleState const& state, Cursor const& cursor) {
     uint8_t index = battle_unit_at(state, cursor.cell);
     if(index == BATTLE_NO_UNIT)
         return;
 
     BattleUnit const& unit = state.units[index];
-    int16_t x = battle_column(cursor.cell) < BATTLE_COLUMNS / 2 ? 60 : 2;
-    draw_panel(x, 37, 66, 25);
-    avm_draw_text(x + 3, 44, F("M:"));
-    avm_draw_text(x + 15, 44, party_movement_name(battle_movement_class(unit.id)));
-    avm_draw_text(x + 3, 51, F("A:"));
-    avm_draw_text(x + 15, 51, party_attack_name(battle_attack_class(unit.id)));
-    avm_draw_textf(x + 3, 59, F("HP %u/%u"), unit.hp, battle_max_hp(unit));
+    static constexpr char PROGMEM RANK_SUFFIX[PERK_TRACK_RANKS + 1][3] = {
+        "", " 1", " 2", " 3", " 4",
+    };
+    char classes[32];
+    snprintf_P(classes, sizeof(classes), F("%S%S / %S%S"),
+               party_movement_name(battle_movement_class(unit.id)), RANK_SUFFIX[battle_movement_rank(unit)],
+               party_attack_name(battle_attack_class(unit.id)), RANK_SUFFIX[battle_attack_rank(unit)]);
+
+    char stats[sizeof("HP 255/255  AP 255")];
+    uint8_t max_hp = battle_max_hp(unit);
+    uint8_t ap = battle_ap(unit);
+    bool show_ap = unit.team == BATTLE_ENEMY
+                       ? ap != 0
+                       : (unit.id & BATTLE_PARTY_SOURCE) &&
+                             game.party.members[unit.id & ~BATTLE_PARTY_SOURCE].level >=
+                                 BATTLE_STARTER_LEVEL;
+    if(show_ap)
+        snprintf_P(stats, sizeof(stats), F("HP %u/%u  AP %u"), unit.hp, max_hp, ap);
+    else
+        snprintf_P(stats, sizeof(stats), F("HP %u/%u"), unit.hp, max_hp);
+
+    int16_t class_width = avm_text_width(classes);
+    int16_t stats_width = avm_text_width(stats);
+    int16_t width = (class_width > stats_width ? class_width : stats_width) + 6;
+    int16_t x = (BATTLE_COLUMNS * TILE - width) / 2;
+    int16_t y = battle_row(cursor.cell) < BATTLE_ROWS / 2 ? 45 : 2;
+    draw_panel(x, y, width, 17);
+    avm_draw_text(x + 3, y + 7, classes);
+    avm_draw_text(x + 3, y + 14, stats);
 }
 
 // Moves the rendered cursor halfway toward its logical cell and advances the dash pattern.
@@ -909,7 +932,8 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         } else {
             // The party's turn starts on the frame after the enemy's action ends, so the cursor is
             // back at once.
-            resolve(screen, enemy_turn(screen), BATTLE_NORMAL);
+            BattleAction action = enemy_turn(screen);
+            resolve(screen, action, battle_enemy_attack_choice(state, action));
         }
     }
 

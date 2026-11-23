@@ -39,7 +39,7 @@ inline int16_t reference_value(BattleState const& s, BATTLE_TEAM side, uint8_t p
         if(list.actions[i] == battle_pass_marker(s))
             battle_pass(child);
         else
-            battle_apply(child, battle_unpack(list.actions[i]));
+            battle_simulate_action(child, battle_unpack(list.actions[i]));
         ++nodes;
         int16_t value = (int16_t)-reference_value(child, foe, (uint8_t)(ply + 1), depth, nodes);
         if(value > best)
@@ -56,7 +56,7 @@ inline int16_t reference_action_value(BattleState const& root, BattleAction acti
     if(action.unit_index == BATTLE_NO_UNIT)
         battle_pass(child);
     else
-        battle_apply(child, action);
+        battle_simulate_action(child, action);
     return (int16_t)-reference_value(child, foe, 1, depth, nodes);
 }
 
@@ -76,7 +76,7 @@ inline BattleSearchResult reference_search(BattleState const& root, uint8_t dept
                                   ? BattleAction{BATTLE_NO_UNIT, 0}
                                   : battle_unpack(list.actions[i]);
         BattleState child = root;
-        battle_apply(child, action);
+        battle_simulate_action(child, action);
         ++nodes;
         int16_t score = (int16_t)-reference_value(child, foe, 1, depth, nodes);
         if(i == 0 || score > best.score)

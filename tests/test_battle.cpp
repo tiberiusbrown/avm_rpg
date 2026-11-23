@@ -342,9 +342,9 @@ static void unit_definitions() {
     CHECK(ENEMY_INFO[BATTLE_TEST_ARCHER].sprite_row < 16);
 
     // The copied state stays compact: no ability data is stored per unit.
-    static_assert(sizeof(BattleUnit) == 3, "placement, full-byte HP and source ID");
-    static_assert(sizeof(BattleState) == 31, "compact battle state with a 16-bit activation counter");
-    static_assert(sizeof(EnemyInfo) == 4, "four bytes of immutable enemy information");
+    static_assert(sizeof(BattleUnit) == 4, "placement, HP, source ID and enemy AP");
+    static_assert(sizeof(BattleState) == 39, "compact battle state with a 16-bit activation counter");
+    static_assert(sizeof(EnemyInfo) == 6, "immutable enemy information");
 }
 
 static void creature_actions() {
@@ -364,7 +364,7 @@ static void creature_actions() {
     BattleState skeleton = board(BATTLE_ENEMY, {{3, 1, ENEMY_SKELETON, BATTLE_ENEMY, 10},
                                                {5, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 10}});
     battle_apply(skeleton, act(0, 5, 1));
-    CHECK(skeleton.units[1].hp == 7);
+    CHECK(skeleton.units[1].hp == 6);
 
     BattleState eye = board(BATTLE_ENEMY, {{2, 1, ENEMY_FLOATING_EYE, BATTLE_ENEMY, 8},
                                           {2, 2, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 10},
@@ -372,7 +372,39 @@ static void creature_actions() {
                                           {5, 2, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 10}});
     CHECK(battle_legal(eye, act(0, 2, 3)));
     battle_apply(eye, act(0, 5, 1));
-    CHECK(eye.units[1].hp == 10 && eye.units[2].hp == 8 && eye.units[3].hp == 9);
+    CHECK(eye.units[1].hp == 10 && eye.units[2].hp == 8 && eye.units[3].hp == 8);
+}
+
+static void enemy_ranks_and_ap() {
+    BattleState state = board(BATTLE_ENEMY, {{3, 1, ENEMY_SKELETON, BATTLE_ENEMY, 10},
+                                            {5, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 5}});
+    auto& skeleton = state.units[0];
+    CHECK(battle_movement_rank(skeleton) == 2 && battle_attack_rank(skeleton) == 1);
+    CHECK(battle_move_cost(skeleton, true) == 0 && battle_move_cost(skeleton, false) == 1);
+    BattleAction target = act(0, 5, 1);
+    CHECK(battle_enemy_attack_choice(state, target) == BATTLE_NORMAL);
+    skeleton.ap = 2;
+    CHECK(battle_enemy_attack_choice(state, act(0, 3, 2)) == BATTLE_NORMAL);
+    CHECK(battle_enemy_attack_choice(state, target) == BATTLE_STARTER);
+    CHECK(!battle_special_legal(state, target, BATTLE_SIGNATURE));
+    Party party = game.party;
+    BattleSearchResult found = battle_search(state, 1);
+    CHECK(same_action(found.action, target) && found.score == BATTLE_SCORE_WIN - 1);
+    CHECK(battle_ap(skeleton) == 2 && state.units[1].hp == 5);
+    BattleState copy = state;
+    battle_simulate_action(copy, target);
+    CHECK(copy.ended && copy.result == BATTLE_DEFEAT && battle_ap(copy.units[0]) == 0);
+    CHECK(battle_ap(skeleton) == 2);
+
+    state = board(BATTLE_ENEMY, {{2, 1, ENEMY_FLOATING_EYE, BATTLE_ENEMY, 8},
+                                {5, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 10},
+                                {5, 3, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 10}});
+    state.units[0].ap = 3;
+    CHECK(battle_enemy_attack_choice(state, target) == BATTLE_SIGNATURE);
+    battle_apply_special(state, target, BATTLE_SIGNATURE);
+    CHECK(battle_ap(state.units[0]) == 0 && state.turn == BATTLE_PARTY);
+    CHECK(state.units[1].hp == 8 && state.units[2].hp == 8 && state.units[2].cell == cell(5, 2));
+    CHECK(memcmp(&party, &game.party, sizeof(Party)) == 0);
 }
 
 static void initial_layout() {
@@ -2132,7 +2164,7 @@ static unsigned oracle_unit_limit(uint8_t type, unsigned opponents) {
 static void four_a_side() {
     BattleState s;
     battle_fixture_begin(s, &TEST_FOUR_A_SIDE);
-    CHECK(s.unit_count == 8 && sizeof(BattleState) == 31);
+    CHECK(s.unit_count == 8 && sizeof(BattleState) == 39);
     CHECK(battle_living(s, BATTLE_PARTY) == 4 && battle_living(s, BATTLE_ENEMY) == 4);
     for(uint8_t i = 0; i < 8; ++i)
         CHECK(battle_unit_at(s, s.units[i].cell) == i);
@@ -4276,6 +4308,7 @@ int main() {
     maximum_battle_damage_frame();
     unit_definitions();
     creature_actions();
+    enemy_ranks_and_ap();
     initial_layout();
     teams_are_explicit();
     battlefield_data();

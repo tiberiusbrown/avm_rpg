@@ -625,13 +625,15 @@ the blocked mask cell by cell instead of the screening table cost 229 to 238 byt
 inlining, and inlining `battle_line_blocked` with the table saved one byte (227) for 256 bytes more
 code. The blood-price update changed neither static RAM nor the stack
 bound; its code was 1,574 bytes, mostly the engagement-aware ordering and greedy choice.
-`BattleUnit` uses three bytes: board cell/team metadata, uint8 HP, and a uint8 source ID. An
-enemy's ID indexes the four-byte `EnemyInfo` ROM record (MHP, movement class, attack class, artwork).
-The high bit instead references a saved player-party slot; the battle/search does not copy its
-classes or MHP. `BattleState` holds eight slots in 31 bytes, including a uint16 activation counter.
+`BattleUnit` uses four bytes for board cell/team metadata, HP, source ID and remaining enemy AP.
+An enemy's ID indexes the six-byte `EnemyInfo` ROM record with maximum HP, class IDs, sprite row,
+packed ranks and starting AP. A source ID with its high bit set references the saved party member
+for classes, maximum HP and AP. `BattleState` holds eight slots in 39 bytes, including a uint16
+activation counter.
 The separate movement/attack tables, derived rule combinations, gap table and action limits stay
-in program memory. Search workspace is 226 bytes: four four-byte plies, four killers, the 82-byte
-shared action scratch and four 31-byte child positions. The blocking battle screen reuses a fixed
+in program memory. Search state uses 258 bytes for four four-byte plies, four killers, the 82-byte
+shared action scratch and four 39-byte child positions. The ordering masks add 12 bytes to the
+shared workspace. The blocking battle screen reuses a fixed
 static workspace to keep the complete guest stack bound below 256 bytes. The shipping build measured at that point used 585 bytes of static
 RAM (289 saved, 296 ordinary) with a 220-byte stack bound. Battle results
 write only ally HP back to the saved party. Work counters remain limited to host/probe builds.
