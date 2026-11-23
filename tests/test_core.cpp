@@ -460,6 +460,8 @@ static void saves() {
             CHECK(!save_valid());
             member.level = 10;
             member.perk_ranks = 4;
+            CHECK(save_valid() && save_restore() && member.perk_ranks == 4);
+            member.perk_ranks = 5;
             CHECK(!save_valid());
         }
     }
@@ -619,7 +621,7 @@ static void permanent_perks() {
     CHECK(party_movement_perk_rank(member) == 2 && party_attack_perk_rank(member) == 3);
     CHECK(party_unspent_perks(member) == 0 && member.hp == 16);
 
-    static constexpr uint8_t INVALID_RANKS[] = {4, 27, 32, 47, 63, 0x40, 0x80};
+    static constexpr uint8_t INVALID_RANKS[] = {5, 27, 34, 40, 47, 63, 0x40, 0x80};
     for(uint8_t bad : INVALID_RANKS) {
         member.perk_ranks = bad;
         PartyMember before = member;

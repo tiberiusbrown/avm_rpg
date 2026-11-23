@@ -344,7 +344,7 @@ RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
         int16_t x = cell_x(cell), y = cell_y(cell);
         if(!((screen.flashing >> i) & 1)) {
             avm_draw_filled_rect_black(x + 3, y + 4, 10, 7);
-            avm_draw_text(x + 4, y + 10, damage == 1 ? F("+1") : damage == 2 ? F("+2") : F("+3"));
+            avm_draw_textf(x + 4, y + 10, F("+%u"), damage);
             continue;
         }
         avm_draw_plus_mask(x, y, battle_damage_frame(damage));
@@ -665,6 +665,34 @@ RPG_NOINLINE static BattleAction enemy_turn(BattleScreen const& screen) {
     return battle_enemy_action(screen.state);
 }
 
+RPG_NOINLINE static BATTLE_RESULT show_battle_result(BattleScreen const& screen) {
+    auto const& state = screen.state;
+    BattleRewards rewards = battle_finish(state);
+    draw_board<false>(screen, BATTLE_NO_UNIT, SOUTH);
+    render_battle_result(state.result == BATTLE_VICTORY, rewards.gold_gained);
+    avm_display(false);
+    sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);
+    input_wait_press(BTN_A);
+    if(rewards.levels.members) {
+        render_level_up_notice(F("LEVEL UP"), rewards.levels);
+        avm_display(false);
+        input_wait_press(BTN_A);
+    }
+    BATTLE_RESULT result = state.result;
+    // Dialogue still open from the battle closes over the board, before the world takes its place.
+    dialogue_close();
+    fade_to_black();
+    battle_running = false;
+    if(result == BATTLE_VICTORY)
+        music_play_area();
+    // Synchronize so that no button state carries into the dialogue or exploration that follows.
+    input_sync();
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
+    RPG_QA_MARK(battle_qa_state = nullptr);
+    return result;
+}
+
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     // Battles cannot nest; reuse the one fixed screen, clearing it on every entry.
     BattleScreen& screen = active_screen;
@@ -723,28 +751,5 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
         }
     }
 
-    BattleRewards rewards = battle_finish(state);
-    draw_board<false>(screen, BATTLE_NO_UNIT, SOUTH);
-    render_battle_result(state.result == BATTLE_VICTORY, rewards.gold_gained);
-    avm_display(false);
-    sfx_play(state.result == BATTLE_VICTORY ? SFX_VICTORY : SFX_DEFEAT);
-    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_RESULT);
-    input_wait_press(BTN_A);
-    if(rewards.levels.members) {
-        render_level_up_notice(F("LEVEL UP"), rewards.levels);
-        avm_display(false);
-        input_wait_press(BTN_A);
-    }
-    BATTLE_RESULT result = state.result;
-    // Dialogue still open from the battle closes over the board, before the world takes its place.
-    dialogue_close();
-    fade_to_black();
-    battle_running = false;
-    if(result == BATTLE_VICTORY)
-        music_play_area();
-    // Synchronize so that no button state carries into the dialogue or exploration that follows.
-    input_sync();
-    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
-    RPG_QA_MARK(battle_qa_state = nullptr);
-    return result;
+    return show_battle_result(screen);
 }

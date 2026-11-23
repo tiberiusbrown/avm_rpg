@@ -1674,7 +1674,7 @@ static void start_grove_contact(Device& d) {
 static void verify_consecutive_perk_ranks(Device& d, fs::path const& out) {
     Game training = d.state();
     training.party.members[0].movement_class = MOVEMENT_STEP;
-    training.party.members[0].level = 6;
+    training.party.members[0].level = 8;
     d.set_state(training);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1686,17 +1686,19 @@ static void verify_consecutive_perk_ranks(Device& d, fs::path const& out) {
     d.tap(BTN_A); // Perks
     d.tap(BTN_UP);
     d.tap(BTN_A); // Learn Perk
-    for(uint8_t rank = 1; rank <= 3; ++rank) {
+    for(uint8_t rank = 1; rank <= PERK_TRACK_RANKS; ++rank) {
         d.tap(BTN_A); // Inspect the next movement perk.
         if(rank == 2)
             d.capture(out / "footwork-details.pgm");
         else if(rank == 3)
             d.capture(out / "shield-wall-details.pgm");
+        else if(rank == 4)
+            d.capture(out / "shield-rebound-details.pgm");
         d.tap(BTN_A); // Open confirmation.
         d.tap(BTN_A); // Learn the perk.
         PartyMember learned = d.state().party.members[0];
         require(party_movement_perk_rank(learned) == rank &&
-                    party_unspent_perks(learned) == 3 - rank,
+                    party_unspent_perks(learned) == PERK_TRACK_RANKS - rank,
                 "Party did not learn the next Step rank");
     }
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"learning consecutive perk ranks\"}\n";
@@ -1735,6 +1737,10 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
          battle_cell(3, 1), battle_cell(2, 1), 15, 4, false},
         {"battle_blast", MOVEMENT_STEP, ATTACK_BLAST, battle_cell(2, 1), battle_cell(5, 1),
          battle_cell(5, 1), battle_cell(2, 1), 15, 4, true, 3},
+        {"battle_trample", MOVEMENT_CHARGE, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
+         battle_cell(2, 1), battle_cell(3, 1), 14, 7, false, 4},
+        {"battle_throughshot", MOVEMENT_STEP, ATTACK_SHOOT, battle_cell(0, 1), battle_cell(5, 1),
+         battle_cell(5, 1), battle_cell(0, 1), 15, 1, true, 4},
     };
     for(auto const& test : CASES) {
         Game world = d.state();
@@ -1753,6 +1759,8 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         state.units[1] = BattleUnit{test.victim, 10, ENEMY_FIGHTER, BATTLE_ENEMY};
         state.units[2] = BattleUnit{battle_cell(7, 3), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
         state.unit_count = 3;
+        if(test.attack == ATTACK_SHOOT)
+            state.units[2].cell = battle_cell(7, 1);
         if(test.attack == ATTACK_FLANK) {
             state.units[state.unit_count++] =
                 BattleUnit{battle_cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY};
@@ -1821,6 +1829,8 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         if(test.attack == ATTACK_BLAST)
             require(!resolved.units[3].hp && resolved.units[4].hp == 8 && resolved.units[5].hp == 9,
                     "Detonation did not apply orthogonal and diagonal splash damage");
+        if(test.attack == ATTACK_SHOOT)
+            require(resolved.units[2].hp == 1, "Throughshot did not hit beyond its selected target");
         d.wait_for_battle(1);
     }
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"new combat classes through battle input\"}\n";

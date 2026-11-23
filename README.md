@@ -35,8 +35,8 @@ is not drawn while the panel covers the screen.
   battle's tables, and the description scrolls with up and down.
 - **Perks** shows two ordered tracks, one for the member's movement class and one for their attack
   class. Pick **Learn Perk!**, press A to inspect either available perk, press A again to open the
-  confirmation, then press A to learn it permanently or B to cancel. Ranks stack and availability
-  depends on the class. Extra choices stay pending.
+  confirmation, then press A to learn it permanently or B to cancel. Each track has four ranks.
+  Focusing on one track unlocks its rank 4 perk at level 8. Extra choices stay pending.
   **From Equipment** lists the selected member’s active item effects and their sources.
   A `!` beside Party in the pause menu and a star beside the member's name mark pending choices.
   Victory shows the names and new levels of members who leveled up, with `Perk available!`

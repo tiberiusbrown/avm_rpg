@@ -1063,7 +1063,14 @@ static void render_party_special_details(int16_t x, PartyUi const& ui) {
     avm_draw_textf((int16_t)(x + PARTY_EDGE - 24), 9, F("%u AP"),
                    SPECIAL_INFO[attack].ap);
     avm_draw_text(left, PARTY_ROW_SUBTITLE, party_attack_name(attack));
-    if(normal.geometry == BATTLE_ATTACK_DIAGONAL)
+    uint8_t rank = party_attack_perk_rank(member);
+    if(attack == THROUGHSHOT_CLASS && rank >= THROUGHSHOT_RANK)
+        avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range 2+"));
+    else if(attack == BLOOD_HUNT_CLASS && rank >= BLOOD_HUNT_RANK)
+        avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range 1-2"));
+    else if(attack == BLIND_SIDE_CLASS && rank >= BLIND_SIDE_RANK)
+        avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Blind Side"));
+    else if(normal.geometry == BATTLE_ATTACK_DIAGONAL)
         avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Diagonal 1"));
     else if(normal.attack_min == normal.attack_max)
         avm_draw_textf((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range %u"), normal.attack_min);
@@ -1091,10 +1098,11 @@ static void render_party_perk_index(int16_t x, PartyUi const& ui) {
         begin_menu_row(x, y, row == selected, PARTY_EDGE - PARTY_MARGIN);
         if(row == PERK_ROW_MOVEMENT) {
             draw_label_value(label_x, y, F("Movement:"), party_movement_name(member.movement_class));
-            avm_draw_textf(right, y, F("%u/5"), party_movement_perk_rank(member));
+            avm_draw_textf(right, y, F("%u/%u"), party_movement_perk_rank(member),
+                           PERK_TRACK_RANKS);
         } else if(row == PERK_ROW_ATTACK) {
             draw_label_value(label_x, y, F("Attack:"), party_attack_name(member.attack_class));
-            avm_draw_textf(right, y, F("%u/5"), party_attack_perk_rank(member));
+            avm_draw_textf(right, y, F("%u/%u"), party_attack_perk_rank(member), PERK_TRACK_RANKS);
         } else if(row == PERK_ROW_EQUIPMENT) {
             avm_draw_text(label_x, y, F("From Equipment"));
         } else {

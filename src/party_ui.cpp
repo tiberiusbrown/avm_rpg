@@ -267,8 +267,17 @@ uint8_t party_ui_row_perk(PartyUi const& ui, Party const& party, uint8_t index) 
 
 char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party) {
     switch(ui.page) {
-        case PARTY_PAGE_SPECIAL_DETAILS:
-            return party_special_text(party.members[ui.member].attack_class);
+        case PARTY_PAGE_SPECIAL_DETAILS: {
+            auto const& member = party.members[ui.member];
+            uint8_t rank = party_attack_perk_rank(member);
+            if(member.attack_class == BLOOD_HUNT_CLASS && rank >= BLOOD_HUNT_RANK)
+                return F("Adds 1 damage at full HP or 3 below full HP. Can hit at range 2 "
+                         "along a clear line when the target is below half HP.");
+            if(member.attack_class == BLIND_SIDE_CLASS && rank >= BLIND_SIDE_RANK)
+                return F("Adds 2 damage. Can hit from two cells straight or one diagonally if "
+                         "a living ally shares an edge with both you and the target.");
+            return party_special_text(member.attack_class);
+        }
         case PARTY_PAGE_PERK_DETAILS:
             return party_perk_text(ui.entry);
         case PARTY_PAGE_ITEM_DETAILS:

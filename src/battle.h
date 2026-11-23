@@ -453,7 +453,7 @@ uint8_t battle_attack_damage(BattleState const& state, uint8_t attacker, uint8_t
                              bool special = false);
 
 struct BattleAttackImpact {
-    uint8_t kills, damage;
+    uint8_t kills, damage, reflected;
 };
 
 // Damage and eliminations across all victims of a legal normal attack.
@@ -536,6 +536,9 @@ struct BattleEngagement {
 
 BattleEngagement battle_engagement(BattleState const& state, uint8_t unit_index,
                                    uint8_t destination);
+// Reuses a mask already obtained from battle_extra_engagement for this move.
+BattleEngagement battle_engagement(BattleState const& state, uint8_t unit_index,
+                                   uint8_t destination, uint8_t extra);
 
 // Whether two cells share an edge: a row apart (a difference of BATTLE_COLUMNS), or one apart on
 // the same row, so a row wrap is never adjacency.

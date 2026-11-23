@@ -280,7 +280,7 @@ static void test_perk_tracks_follow_classes() {
     // Member 0 moves by Step and strikes, so its movement track is Step.
     open_perk_row(ui, party, PERK_ROW_MOVEMENT);
     CHECK(ui.page == PARTY_PAGE_PERK_LIST);
-    CHECK(party_ui_entries(ui, party) == PERK_TRACK_RANKS);
+    CHECK(party_ui_entries(ui, party) == 4);
     for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank) {
         uint8_t code = party_ui_row_perk(ui, party, rank);
         CHECK(party_perk_track(code) == MOVEMENT_STEP);
@@ -298,6 +298,7 @@ static void test_perk_tracks_follow_classes() {
     CHECK(press(other, party, BTN_B) == PARTY_EVENT_CANCEL);
     CHECK(press(other, party, BTN_DOWN) == PARTY_EVENT_TICK);
     CHECK(press(other, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(party_ui_entries(other, party) == 4);
     uint8_t attack_track = party_perk_track(party_ui_row_perk(other, party, 0));
     CHECK(attack_track == (uint8_t)MOVEMENT_CLASS_COUNT + ATTACK_SHOOT);
     CHECK(strcmp(party_track_name(attack_track), "Shoot") == 0);
@@ -391,12 +392,10 @@ static void test_perk_selection() {
         party_ui_perk_learned(ui);
         if(i == 0)
             CHECK(party_perk_status(member, PERK_ATTACK, 3) == PERK_STATUS_LEARNABLE);
-        if(i == 1) {
-            CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);
-            CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
-        }
+        if(i == 1)
+            CHECK(party_perk_status(member, PERK_ATTACK, 4) == PERK_STATUS_LEARNABLE);
     }
-    CHECK(party_attack_perk_rank(member) == 3 && party_movement_perk_rank(member) == 2);
+    CHECK(party_attack_perk_rank(member) == 4 && party_movement_perk_rank(member) == 1);
     CHECK(party_unspent_perks(member) == 0);
     CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_PERKS);
     CHECK(press(ui, party, BTN_LEFT) == PARTY_EVENT_TICK && ui.member == 1);
@@ -556,6 +555,11 @@ static void test_perk_descriptions() {
          {"Shrapnel", "2 damage to each secondary enemy"},
          {"Shockwave", "diagonally beside the target"}},
     };
+    static constexpr char const* CAPSTONES[] = {
+        "Shield Rebound", "Skyhook", "Trample", "High Vault", "Diamond Wake",
+        "Blade Lock", "Throughshot", "Pike Fence", "Wrecking Line", "Blood Hunt",
+        "Corner Sweep", "Soul Dividend", "Dragback", "Blind Side", "Concussion",
+    };
     for(uint8_t track = 0; track < PARTY_PERK_TRACK_COUNT; ++track) {
         for(uint8_t rank = 0; rank < PERK_TRACK_RANKS; ++rank) {
             uint8_t code = party_perk_code(track, rank);
@@ -563,7 +567,7 @@ static void test_perk_descriptions() {
                 CHECK(strcmp(party_perk_name(code), EXPECTED[track][rank].name) == 0);
                 CHECK(strstr(party_perk_text(code), EXPECTED[track][rank].effect));
             } else {
-                CHECK(strcmp(party_perk_name(code), "Future rank") == 0);
+                CHECK(strcmp(party_perk_name(code), CAPSTONES[track]) == 0);
             }
         }
     }
@@ -578,7 +582,7 @@ static void test_consecutive_rank_selection() {
     CHECK(party_perk_status(member, PERK_MOVEMENT, 1) == PERK_STATUS_LEARNABLE);
     CHECK(party_perk_status(member, PERK_MOVEMENT, 2) == PERK_STATUS_LOCKED);
     CHECK(party_perk_status(member, PERK_MOVEMENT, 3) == PERK_STATUS_LOCKED);
-    CHECK(party_perk_status(member, PERK_MOVEMENT, 4) == PERK_STATUS_FUTURE);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 4) == PERK_STATUS_LOCKED);
 
     PartyUi ui{};
     open_perk_row(ui, party, PERK_ROW_CHOICE);
@@ -603,6 +607,16 @@ static void test_consecutive_rank_selection() {
     CHECK(!party_unspent_perks(member));
     member.level = 8;
     CHECK(party_unspent_perks(member) == 1);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 4) == PERK_STATUS_LEARNABLE);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(strcmp(party_perk_name(ui.entry), "High Vault") == 0);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+    CHECK(press(ui, party, BTN_A) == PARTY_EVENT_LEARN);
+    CHECK(party_learn_perk(member, party_ui_choice_track(ui)));
+    party_ui_perk_learned(ui);
+    CHECK(party_perk_status(member, PERK_MOVEMENT, 4) == PERK_STATUS_EARNED);
+    CHECK(!party_unspent_perks(member));
+    member.level = 10;
     CHECK(!party_can_learn_perk(member, PERK_MOVEMENT));
     CHECK(party_can_learn_perk(member, PERK_ATTACK));
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE);

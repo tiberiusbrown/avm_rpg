@@ -163,7 +163,7 @@ constexpr uint8_t party_experience_needed(uint8_t level) {
 
 enum PERK_TRACK_KIND : uint8_t { PERK_MOVEMENT, PERK_ATTACK };
 
-inline constexpr uint8_t PERK_TRACK_RANKS = 5;
+inline constexpr uint8_t PERK_TRACK_RANKS = 4;
 inline constexpr uint8_t PERK_TRACK_COUNT = MOVEMENT_CLASS_COUNT + (uint8_t)ATTACK_CLASS_COUNT;
 
 struct PerkTrack {

@@ -149,37 +149,30 @@ The campaign caps at level 10. Each victory grants 2 XP per member, and every ev
 
 Experience is **not cumulative**. Each member's experience counts only toward the next level and resets at every level-up, so each requirement is 10 plus 5 per level already gained and fits in one byte. The requirements are `5 × (level + 1)`.
 
-Each choice permanently advances one track by one rank. See the [perk catalog](game_logic.md#55-implemented-perks) for current ranks. With both available tracks filled, remaining choices stay pending. The five-rank plan allows builds from a 5/0 specialist to a 3/2 hybrid.
+Each choice permanently advances one track by one rank. Remaining choices stay pending when both tracks have reached their current learnable limit. A specialist can reach rank 4 at level 8 and use the level 10 choice on the other track. A hybrid can finish at 3/2. See the [perk catalog](game_logic.md#55-implemented-perks) for current ranks.
 
-### Starter tracks
+### Alternate rank 4 ideas
 
-The [game logic canon](game_logic.md#55-implemented-perks) defines ranks 1–3. The tables below contain ideas for ranks 4 and 5.
+The [implemented rank 4 perks](game_logic.md#55-implemented-perks) define the current tracks. These ideas were considered for the same rank.
 
-#### Movement tracks
-
-| Rank | **Step** (1-tile orthogonal) | **Leap** (knight-shaped leap) | **Charge** (up to 2 orthogonal tiles) |
-|---:|---|---|---|
-| 4 | Reserved | **Second Wind:** restore 2 HP after victory | **Afterglow:** recover +1 additional AP after victory |
-| 5 | **Veteran March:** restore 2 HP after victory | Add +2 engagement damage to one target after a leap | Reserved |
-
-**Movement-track design:** Step movement emphasizes resilience, Leap movement emphasizes reliable engagements and defense, and Charge movement emphasizes making long moves worth their HP. Movement perks may improve survival or post-battle recovery; they do not need to change move geometry. A universal +1 range modifier would violate the current compact maximum-action assumptions for some classes, so leave range-changing perks in the experimental bank until the move generator and AI bounds are explicitly updated.
-
-#### Attack tracks
-
-| Rank | **Strike** | **Shoot** | **Reach** | **Impact** | **Rend** |
-|---:|---|---|---|---|---|
-| 4 | **Afterglow:** +1 AP recovered after victory | **Efficient Aim:** first special each battle costs −1 AP (minimum 1) | **Reservoir:** +1 maximum AP | **Iron Will:** first incoming enemy hit each battle deals −1 damage | **Afterglow:** +1 AP recovered after victory |
-| 5 | **Mastery:** +1 to special damage | **Deadeye:** +2 special damage vs isolated targets | **Perfect Reach:** +2 normal damage at range 2 | **Siegebreaker:** +2 special damage when a push succeeds | **Relentless:** +2 special damage while below half HP |
-
-**Attack-track design:** Each class has a starting special at level 1. Attack perks improve the class's core attacks, including when those attacks are used as specials.
-
-**Balance caution:** A rank-5 specialization is reached only if the player spends all five perk choices on that axis. It is therefore okay for rank 5 to be relatively exciting, but a 3/2 hybrid should remain viable. Some suggested late perks need transient first-use flags or conditional hit checks.
+| Class | Perk | Proposed effect |
+|---|---|---|
+| Glide | **Undertow** | Each enemy that survives a Passing Cut away from the landing slides one diagonal cell opposite your Glide direction. Use the board after the Glide and before engagement to check that each destination is open. |
+| Glide | **Partner Glide** | Glide two cells over an ally in the midpoint and pull that ally into your vacated takeoff cell. Choose the open landing as usual. Only the Glider deals engagement damage and pays the usual movement HP. |
+| Reach | **Hooked Point** | A normal range-2 Reach hit pulls a survivor into the middle cell. If Through the Ranks let you attack through a living ally, swap that ally and the target instead. Driving Thrust pushes as usual. |
+| Reach | **Long Haft** | Attack up to three cells along a straight line. Any number of living allies can stand in the attack line. Terrain and enemies screen farther targets. |
+| Rend | **Blood Price** | While you have at least 3 HP and are at or below half your maximum HP, Wound Hunter spends 2 HP in place of 2 AP. Pay before the hit. Outside that HP range, Wound Hunter costs its usual AP. |
+| Rend | **Death's Door** | An enemy hit that would drop you from above half HP to below half HP stops you at half HP, rounded down. The existing Blood Rush threshold determines when this protection can apply. |
+| Recoil | **Wall Spring** | If the first retreat cell is blocked, spring directly to the second if it is open. If there is no retreat landing, push the surviving target up to two open cells away instead. |
+| Recoil | **Spring Vault** | Spring Blow propels you over the target into the cell directly behind it if open. If that cell is blocked, use the usual retreat. The vault works on a finishing hit as well. |
+| Blast | **Sympathetic Blast** | Splash hits the whole cluster of enemies connected to the primary target by shared edges or corners. Use their positions before damage. Each secondary enemy takes 2 splash damage if it shares an edge with another member of the cluster, or 1 if it connects only by corners. |
+| Blast | **Mortar** | Blast and Detonation can target any enemy whose row and column distances add up to two or three. The shot arcs over terrain and units. Splash remains centered on the selected enemy. |
 
 ### Experience and interface
 
 **Experience:** Track level and experience **per member**. Each member stores `level` (1–10) and `experience` as a `uint8_t` toward the next level. Experience resets at each level-up, so no cumulative total is kept. Experience is awarded after each combat victory: the full award goes to every party member, including incapacitated ones, and level-ups are processed immediately, carrying any surplus into the next level. Do not split awards four ways. New recruits can join near the current party level to avoid permanently weak recruits.
 
-**Perk screen.** The member overview shows XP and pending choices. In Party → Perks → Learn Perk, use A to inspect, A to open confirmation, and A to learn or B to cancel. The choice page shows the updated count and confirms successful learning. Rank lists identify earned, ready, locked and future ranks. From Equipment lists active effects with their granting items and opens their full descriptions.
+**Perk screen.** The member overview shows XP and pending choices. In Party → Perks → Learn Perk, use A to inspect, A to open confirmation, and A to learn or B to cancel. The choice page shows the updated count and confirms successful learning. Rank lists identify earned, ready, and locked ranks. From Equipment lists active effects with their granting items and opens their full descriptions.
 
 **Perk ranks in the save.** Each member stores movement rank in bits 0–2 and attack rank in bits 3–5 of a single byte. Bits 6–7 are reserved and must be zero. The save validator checks that each rank is implemented and that their sum fits the number of milestones earned. Pending choices equal `level / 2 - movement_rank - attack_rank` using integer division. Definition text stays in flash. Older versions are rejected.
 
@@ -326,7 +319,7 @@ Nothing in this category restores AP **during** combat. This category includes A
 
 ### How to shortlist and assign perks to class tracks
 
-The five-rank tables in section 4 are the current recommended picks. Treat every perk in this idea bank as a **possible replacement for a particular rank in one named class track**, not an extra selectable branch. For example, `Light Step` belongs naturally to Step or Leap movement, `Thornstep` to Charge or Leap movement, `Executioner` to Strike attacks, and `Afterglow` can be a rank-4 reward for an attack or movement track where its AP economy makes sense.
+Section 4 lists alternate rank 4 ideas. Treat each idea here as a candidate for a particular rank in a named class track. For example, `Light Step` suits Step or Leap movement, `Thornstep` suits Charge or Leap movement, and `Executioner` suits Strike attacks.
 
 Avoid making an entire movement track weaker than an attack track: selecting movement is a meaningful commitment, not a penalty for skipping raw damage. Movement's durability, engagement damage, and recovery can compete with attack's direct damage, extra specials, and AP cost reduction. If a new perk replaces a previously shipped rank, plan save migration or keep perk IDs/definitions stable.
 
@@ -878,7 +871,7 @@ level or class restrictions are deferred.
 - **Supplies:** Potion (+8 HP), Elixir (+4 HP to conscious party), Revive (to 5 HP), Ether (+3 AP). Out-of-battle only, quantities capped at 15.
 - **Equipment:** **Three slots per party member — weapon, armor, relic.** Start with four of each: simple attack-altering weapons, one damage-reducing armor, one movement-focused boots or cloak, and a mix of HP/AP/unique-effect relics. Expand to ~8 per slot when content justifies it.
 - **Movement armor:** Heavy gear can reduce enemy damage but lower movement range or raise movement HP cost; light gear can grant occasional range or one-time HP-cost relief. Movement attacks always happen **before** the movement HP payment.
-- **Leveling:** Ten levels, small automatic stat growth, and one decision at every even level: advance the **next movement-class perk or next attack-class perk**. Five ranks per track, five choices total; earned ranks persist.
+- **Leveling:** Ten levels, small automatic stat growth, and one decision at every even level. Advance the **next movement-class perk or next attack-class perk**. Each track caps at four ranks, with five choices total. Earned ranks persist.
 - **AP economy:** Persist AP between fights; restore **1 after each victory** per active member by default. Reserve +1/+2 extra AP recovery for meaningful perks and (mostly) relics. No AP recovery during combat.
 - Give each **attack class** the starting special listed in the game logic canon. Use an enemy eligible for a normal attack as the target. No special-only targeting initially. Avoid pure guarding and non-immediate effects that consume the party turn.
 - **XP:** Full award to active members even if incapacitated; significant quests, discovery, bosses, and one-time encounters drive progression more than repeatable grinding.
@@ -895,6 +888,6 @@ Built:
 - The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning for the available class ranks. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
 - The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and inherits its class geometry and resolves the special’s effects. A unit short of AP attacks normally at once.
 
-Future ideas include adding specials to the enemy AI's search, completing the five-rank perk tracks, and deriving maximum HP from class.
+Future ideas include adding specials to the enemy AI's search and deriving maximum HP from class.
 
 **North star:** After a successful expedition, players should have new tactical choices: *“Should I advance my movement style or my attack style? Which weapon improves my offense, which armor changes my defense or movement, and which relic bends the rules enough to make a new build?”*

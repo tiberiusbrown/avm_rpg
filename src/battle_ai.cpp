@@ -112,6 +112,12 @@ static_assert(
     UNIT_LIMITS.classes[(uint8_t)MOVEMENT_LEAP * ATTACK_CLASS_COUNT + ATTACK_SHOOT].moves == 6,
     "leap movement is independent of attack class");
 
+static bool has_extended_attack(PartyMember const& member) {
+    return party_attack_perk_rank(member) >= PERK_TRACK_RANKS &&
+           (member.attack_class == THROUGHSHOT_CLASS || member.attack_class == BLOOD_HUNT_CLASS ||
+            member.attack_class == BLIND_SIDE_CLASS);
+}
+
 // The most actions one side can list: each living unit's limit, with its attacks capped by the
 // opponents it faces, plus the always-available pass.
 static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t opponents) {
@@ -122,7 +128,15 @@ static uint8_t side_actions(BattleState const& state, BATTLE_TEAM team, uint8_t 
             continue;
         UnitLimit const& limit = UNIT_LIMITS.classes[battle_rule_index(unit.id)];
         uint8_t most = (uint8_t)(limit.moves + opponents);
-        total = (uint8_t)(total + (limit.actions < most ? limit.actions : most));
+        uint8_t actions = limit.actions;
+        if(unit.id & BATTLE_PARTY_SOURCE) {
+            auto const& member = game.party.members[unit.id & ~BATTLE_PARTY_SOURCE];
+            // Extended attacks and Trample can share a ray with moves past their usual limits.
+            if(has_extended_attack(member) || (member.movement_class == TRAMPLE_CLASS &&
+                                               party_movement_perk_rank(member) >= TRAMPLE_RANK))
+                actions = most;
+        }
+        total = (uint8_t)(total + (actions < most ? actions : most));
     }
     return (uint8_t)(total + 1);
 }
@@ -269,12 +283,9 @@ RPG_NOINLINE static int16_t material_utility(BattleState const& state) {
     return material < -19999 ? -19999 : material > 19999 ? 19999 : material;
 }
 
-static int16_t enemy_utility(BattleState const& state) {
+RPG_NOINLINE static int16_t enemy_utility(BattleState const& state, uint8_t party_mask,
+                                          uint8_t extended) {
     int16_t utility = material_utility(state);
-    uint8_t party_mask = 0;
-    for(uint8_t i = 0; i < state.unit_count; ++i)
-        if(state.units[i].hp && state.units[i].team == BATTLE_PARTY)
-            party_mask = (uint8_t)(party_mask | (1 << i));
     if(!party_mask)
         return utility;
 
@@ -305,7 +316,8 @@ static int16_t enemy_utility(BattleState const& state) {
                 continue;
             uint8_t hero_attack = battle_attack_class(hero.id);
             bool enemy_hits = !gap;
-            bool hero_hits = !table_gap(ATTACK_GAPS.cells[hero_attack], dx, dy);
+            bool hero_hits = !(extended & (1 << k)) &&
+                             !table_gap(ATTACK_GAPS.cells[hero_attack], dx, dy);
             if(!enemy_hits && !hero_hits)
                 continue;
             uint8_t distance = (uint8_t)(dx | dy);
@@ -330,9 +342,35 @@ static int16_t enemy_utility(BattleState const& state) {
     return (int16_t)(utility < -19999 ? -19999 : utility > 19999 ? 19999 : utility);
 }
 
+// Rank 4 targeting uses the canonical legality check outside the base geometry scoring frame.
+RPG_NOINLINE static int16_t extended_threats(BattleState const& state, uint8_t extended) {
+    int16_t utility = 0;
+    for(uint8_t hero = 0; extended; ++hero, extended >>= 1) {
+        if(!(extended & 1))
+            continue;
+        uint8_t attack = battle_attack_class(state.units[hero].id);
+        for(uint8_t enemy = 0; enemy < state.unit_count; ++enemy)
+            if(battle_can_attack(state, hero, enemy))
+                utility += strike_value(state, attack, hero, enemy, state.turn == BATTLE_PARTY);
+    }
+    return utility;
+}
+
 int16_t battle_score(BattleState const& state, BATTLE_TEAM side, uint8_t ply) {
     if(!state.ended) {
-        int16_t utility = enemy_utility(state);
+        uint8_t party_mask = 0, extended = 0;
+        for(uint8_t i = 0; i < state.unit_count; ++i) {
+            auto const& unit = state.units[i];
+            if(unit.hp && unit.team == BATTLE_PARTY) {
+                party_mask |= (uint8_t)(1 << i);
+                if((unit.id & BATTLE_PARTY_SOURCE) &&
+                   has_extended_attack(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE]))
+                    extended |= (uint8_t)(1 << i);
+            }
+        }
+        int16_t utility = enemy_utility(state, party_mask, extended);
+        if(extended)
+            utility -= extended_threats(state, extended);
         return side == BATTLE_ENEMY ? utility : (int16_t)-utility;
     }
     // The result names the winner. state.turn is not used, because a battle-ending action leaves it
@@ -409,7 +447,8 @@ static bool wins(BattleState const& state, uint8_t packed) {
         return true;
     if(victim != BATTLE_NO_UNIT) {
         uint8_t attack = battle_attack_class(state.units[action.unit_index].id);
-        return (attack == ATTACK_BLAST || attack == ATTACK_SHOOT || attack == ATTACK_IMPACT) &&
+        return (attack == ATTACK_BLAST || attack == ATTACK_SHOOT || attack == ATTACK_IMPACT ||
+                attack == ATTACK_ARC) &&
                battle_attack_impact(state, action.unit_index, victim).kills == opponents;
     }
     return battle_engagement(state, action.unit_index, action.destination).kills == opponents;
@@ -462,9 +501,23 @@ static uint8_t partition(uint8_t* actions, uint8_t begin, uint8_t end, PREDICATE
     return begin;
 }
 
-// Kills start each group, followed by other attacks, engagement moves, and quiet moves.
-RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
-                                          uint8_t attacks, bool approach) {
+RPG_NOINLINE static uint8_t order_attack_kills(BattleState const& state, uint8_t* actions,
+                                               uint8_t attacks) {
+    return partition(actions, 0, attacks, [&](uint8_t packed) {
+        BattleAction action = battle_unpack(packed);
+        uint8_t victim = battle_unit_at(state, action.destination);
+        return battle_attack_impact(state, action.unit_index, victim).kills != 0;
+    });
+}
+
+struct MovementOrder {
+    uint8_t kills, quiet;
+};
+
+// Movement ordering and attack damage prediction use separate frames on the AVM stack.
+RPG_NOINLINE static MovementOrder order_movement(BattleState const& state, uint8_t* actions,
+                                                 uint8_t count, uint8_t attacks,
+                                                 uint8_t attack_kills, bool approach) {
     // These masks share the battle workspace with the action lists. The same bytes hold
     // the approach targets once the damaging moves have been brought to the front.
     uint8_t* rows = runtime_workspace.battle.order_rows;
@@ -485,11 +538,6 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         }
     }
 
-    uint8_t attack_kills = partition(actions, 0, attacks, [&](uint8_t packed) {
-        BattleAction action = battle_unpack(packed);
-        uint8_t victim = battle_unit_at(state, action.destination);
-        return battle_attack_impact(state, action.unit_index, victim).kills != 0;
-    });
     uint8_t* const killing = rows + BATTLE_ROWS;
     uint8_t move_kills = 0;
     if(fragile || boosted_target) {
@@ -507,12 +555,16 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
                                     bool boosted = boosted_target &&
                                                    in_rows(rows + 2 * BATTLE_ROWS, packed) &&
                                                    party_movement_perk_rank(member);
-                                    bool extra = fragile && battle_extra_engagement(
-                                                                state, actor, action.destination);
+                                    bool diamond = member.movement_class == DIAMOND_WAKE_CLASS &&
+                                                   party_movement_perk_rank(member) >=
+                                                       DIAMOND_WAKE_RANK;
+                                    if(!boosted && !fragile && !diamond)
+                                        return false;
+                                    uint8_t extra = battle_extra_engagement(state, actor,
+                                                                             action.destination);
                                     return (boosted || extra) &&
                                            battle_engagement(state, action.unit_index,
-                                                             action.destination)
-                                               .kills;
+                                                             action.destination, extra).kills;
                                 }) -
                       attacks);
     }
@@ -522,11 +574,10 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         reverse(actions, attacks, (uint8_t)(attacks + move_kills));
         reverse(actions, attack_kills, (uint8_t)(attacks + move_kills));
     }
-    partition(actions, 0, (uint8_t)(attack_kills + move_kills),
-              [&](uint8_t packed) { return wins(state, packed); });
+    uint8_t kills = (uint8_t)(attack_kills + move_kills);
     uint8_t quiet = (uint8_t)(attacks + move_kills);
     if(!approach)
-        return quiet;
+        return {kills, quiet};
     quiet = partition(actions, quiet, count, [&](uint8_t packed) {
         if(in_rows(rows, packed))
             return true;
@@ -539,7 +590,25 @@ RPG_NOINLINE uint8_t battle_order_actions(BattleState const& state, uint8_t* act
         partition(actions, quiet, count,
                   [&](uint8_t packed) { return approaches(state, rows, packed); });
     }
-    return quiet;
+    return {kills, quiet};
+}
+
+RPG_NOINLINE static void order_wins(BattleState const& state, uint8_t* actions, uint8_t kills) {
+    partition(actions, 0, kills, [&](uint8_t packed) { return wins(state, packed); });
+}
+
+// Keep the three passes alongside each other in the search's frame.
+static inline __attribute__((always_inline)) uint8_t order_actions(
+    BattleState const& state, uint8_t* actions, uint8_t count, uint8_t attacks, bool approach) {
+    uint8_t attack_kills = order_attack_kills(state, actions, attacks);
+    MovementOrder order = order_movement(state, actions, count, attacks, attack_kills, approach);
+    order_wins(state, actions, order.kills);
+    return order.quiet;
+}
+
+uint8_t battle_order_actions(BattleState const& state, uint8_t* actions, uint8_t count,
+                             uint8_t attacks, bool approach) {
+    return order_actions(state, actions, count, attacks, approach);
 }
 
 BATTLE_SEARCH_PRIORITY battle_search_priority(BattleState const& state, BattleAction action) {
@@ -578,14 +647,15 @@ static void promote(uint8_t* actions, uint8_t to, uint8_t count, uint8_t wanted)
 // stack followed by its pass candidate. The root moves `first` to the front; a deeper
 // ply moves its killer to the front of its moves. A node whose children are all leaves skips the
 // approach ordering of its moves, which costs more than the leaves it saves.
-static void start(uint8_t ply, BattleState const& state, uint8_t base, uint8_t depth,
-                  uint16_t first) {
+static inline __attribute__((always_inline)) void start(uint8_t ply, BattleState const& state,
+                                                        uint8_t base, uint8_t depth,
+                                                        uint16_t first) {
     SearchPly& node = plies[ply];
     uint8_t* actions = battle_action_scratch + base;
     uint8_t attacks = 0;
     uint8_t count = battle_actions(state, actions, attacks);
     uint8_t quiet =
-        count ? battle_order_actions(state, actions, count, attacks, ply + 1 < depth) : 0;
+        count ? order_actions(state, actions, count, attacks, ply + 1 < depth) : 0;
     uint8_t pass = battle_pass_marker(state);
     actions[count++] = pass;
     if(ply == 0 && first < 256)
@@ -829,7 +899,12 @@ int16_t battle_greedy_score(BattleState const& state, BattleAction action) {
         BattleAttackImpact impact = battle_attack_impact(state, action.unit_index, target);
         if(impact.kills == opponents)
             return GREEDY_WIN;
-        return (int16_t)(GREEDY_KILL * impact.kills + GREEDY_HP * impact.damage);
+        bool falls = actor.hp <= impact.reflected;
+        if(falls && battle_living(state, actor.team) == 1)
+            return GREEDY_LOSS;
+        uint8_t reflected = falls ? actor.hp : impact.reflected;
+        return (int16_t)(GREEDY_KILL * (impact.kills - falls) +
+                         GREEDY_HP * (impact.damage - reflected));
     }
     BattleEngagement engagement = battle_engagement(state, action.unit_index, action.destination);
     if(engagement.kills && engagement.kills == opponents)
