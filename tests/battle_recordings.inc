@@ -242,11 +242,11 @@ static void review_setup(Device& d, ReviewBoard const& board, MOVEMENT_CLASS mov
             state.units[state.unit_count++] = {unit.cell, unit.hp, battle_party_id(slot), BATTLE_PARTY};
         } else {
             ++enemies;
-            state.units[state.unit_count++] = {unit.cell, unit.hp, ENEMY_FIGHTER, BATTLE_ENEMY};
+            state.units[state.unit_count++] = {unit.cell, unit.hp, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
         }
     }
     if(enemies < 2 && !enemy_reply)
-        state.units[state.unit_count++] = {c(7,3), 10, ENEMY_ROGUE, BATTLE_ENEMY};
+        state.units[state.unit_count++] = {c(7,3), 10, BATTLE_TEST_ROGUE, BATTLE_ENEMY};
     d.set_state(world);
     d.set_battle(state);
 }

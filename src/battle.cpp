@@ -15,19 +15,6 @@ bool battle_blocked(uint8_t field, uint8_t cell) {
     return (BATTLEFIELDS[field].blocked[battle_row(cell)] >> battle_column(cell)) & 1;
 }
 
-constexpr EnemyInfo PROGMEM ENEMY_INFO[ENEMY_COUNT] = {
-    {10, MOVEMENT_STEP, ATTACK_STRIKE, 2}, {10, MOVEMENT_LEAP, ATTACK_STRIKE, 1},
-    {9, MOVEMENT_STEP, ATTACK_SHOOT, 0},    {10, MOVEMENT_STEP, ATTACK_REACH, 3},
-    {9, MOVEMENT_CHARGE, ATTACK_REND, 17},    {12, MOVEMENT_STEP, ATTACK_IMPACT, 25},
-};
-static_assert([] {
-    for(auto const& enemy : ENEMY_INFO)
-        if(!enemy.max_hp || enemy.movement_class >= MOVEMENT_CLASS_COUNT ||
-           enemy.attack_class >= ATTACK_CLASS_COUNT || enemy.sprite_row >= ACTOR_ROW_COUNT)
-            return false;
-    return true;
-}());
-
 // Check every independent class combination, including those not used by an enemy preset.
 constexpr bool battle_classes_fit() {
     for(auto const& rules : BATTLE_RULES.classes) {

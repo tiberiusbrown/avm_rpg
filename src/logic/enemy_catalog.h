@@ -5,9 +5,10 @@
 #include "handlers.h"
 #endif
 
-// Area order and position within each list determine enemy IDs and defeated flags.
+// Catalog order determines enemy IDs and saved defeat flags. Append new spawns at the end.
 #ifndef RPG_DISABLE_ENEMY_SPAWNS
-using EnemyEntries = typename Join<VillageEnemies, CaveEnemies, DungeonEnemies>::type;
+using EnemyEntries = typename Join<VillageEnemies, CaveEnemies, DungeonEnemies,
+                                   OrchardEnemies, MineWestEnemies, VaultEastEnemies>::type;
 #else
 using EnemyEntries = TypeList<>;
 #endif

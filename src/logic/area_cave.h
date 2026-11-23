@@ -14,10 +14,15 @@
 
 inline constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS =
     battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF);
+inline constexpr BattleEncounter PROGMEM BATTLE_MINE_BAT =
+    battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_GIANT_BAT);
 
 using CaveEnemies = TypeList<
     EnemySpawn<positions::MineScout, &BATTLE_MINE_SCOUTS, 17, ENEMY_CHASE, SPEED_FAST, 0,
                RESPAWN_REMEMBER>
+>;
+using MineWestEnemies = TypeList<
+    EnemySpawn<positions::MineBatRoost, &BATTLE_MINE_BAT, 18>
 >;
 
 #ifndef RPG_NPC_POLICY_HEADER

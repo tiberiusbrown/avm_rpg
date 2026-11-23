@@ -238,12 +238,12 @@ enum BATTLE_ATTACK_CHOICE : uint8_t { BATTLE_NORMAL, BATTLE_STARTER, BATTLE_SIGN
 
 // Enemy IDs index immutable definitions, independently of the unit's team or artwork.
 enum ENEMY_ID : uint8_t {
-    ENEMY_FIGHTER,
-    ENEMY_ROGUE,
-    ENEMY_ARCHER,
-    ENEMY_SPEARMAN,
     ENEMY_WOLF,
     ENEMY_BRUTE,
+    ENEMY_GIANT_BAT,
+    ENEMY_GIANT_SPIDER,
+    ENEMY_SKELETON,
+    ENEMY_FLOATING_EYE,
     ENEMY_COUNT
 };
 
@@ -251,10 +251,10 @@ struct EnemyInfo {
     uint8_t max_hp, movement_class, attack_class, sprite_row;
 };
 
-extern EnemyInfo const PROGMEM ENEMY_INFO[ENEMY_COUNT];
+extern EnemyInfo const PROGMEM ENEMY_INFO[];
 
-// A source ID below ENEMY_COUNT indexes EnemyInfo. The high bit instead references one of the
-// saved party's four slots. Team is independent, allowing rule fixtures to use either source.
+// A source ID with the high bit clear indexes EnemyInfo. With the bit set it references one of
+// the saved party's four slots. Team is independent of the source.
 inline constexpr uint8_t BATTLE_PARTY_SOURCE = 0x80;
 static_assert(ENEMY_COUNT <= BATTLE_PARTY_SOURCE);
 

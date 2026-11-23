@@ -16,6 +16,10 @@ east of the square. The sloping north road runs toward the mine. A separate
 mine-framed entrance farther east leads to the Old Vault, which has its own
 hazards.
 
+Giant spiders wander along the orchard's northern edge. A giant bat roosts
+in Hollow Mine's western passage. A skeleton and a floating eye haunt the
+north end of the Old Vault's east wing.
+
 | Resident | Place and role |
 | --- | --- |
 | Tessa | Orchard keeper, direct and protective of her trees. Often stops in Well Square and remembers sorting apples by the old lantern. |

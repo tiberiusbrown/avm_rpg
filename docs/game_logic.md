@@ -26,10 +26,10 @@ content, persistent state, and dependencies. It contains no dialogue prose.
 
 | Area | ID | Tileset | Implemented use |
 |---|---:|---|---|
-| `AREA_OUTDOOR` | 1 | World | Millcross village, surrounding paths, outdoor wolf, mine/vault entrances, maintenance hatch |
+| `AREA_OUTDOOR` | 1 | World | Millcross village, surrounding paths, wolf and giant spiders, mine/vault entrances, maintenance hatch |
 | `AREA_INTERIORS` | 2 | House | Ten linked house/service interiors; Mara and Ada reside here |
-| `AREA_CAVE` | 3 | Cave | Hollow Mine: mechanisms, pursuit wolf, tally, chest, second exit |
-| `AREA_DUNGEON` | 4 | Dungeon | Old Vault: multi-mechanism puzzle, nonrespawning guardian, chest |
+| `AREA_CAVE` | 3 | Cave | Hollow Mine: mechanisms, pursuit wolf, giant bat, tally, chest, second exit |
+| `AREA_DUNGEON` | 4 | Dungeon | Old Vault: multi-mechanism puzzle, nonrespawning guardian, skeleton and floating eye, chest |
 
 House doors/returns are paired by `handler_impl::HOUSE_LINKS` in `src/logic/area_village.h`: `Elder`, `Cottage`, `Weaver`, `Shop`, `Bakery`, `Farm`, `Inn`, `Smithy`, `Hut`, `Fisher` (`<Name>Door` ↔ `<Name>Exit`). Facing/pressing A enters; stepping onto the exit returns outside. `CaveMouth` ↔ `CaveExit`, `CaveHole` ↔ `CaveLadder`, and `MineEntrance` ↔ `DungeonExit` are passage pairs. The outdoor `CaveHole` is **inactive until `FLAG_CAVE_BRIDGE`**, when its tile becomes a ladder and its passage handler activates.
 
@@ -97,7 +97,7 @@ The physical mechanisms retain their existing flags. All indices refer to save f
 | 42 | `FLAG_BRAM_LANTERN_MEETING` | Finish Bram's invitation after diagnosis and workshop evidence | Assigns Bram to `BramLantern` until either repair succeeds |
 
 `FLAG_ITEM_FIRST = 22`, `FLAG_ENEMY_FIRST = 26`, and `FLAG_COUNT = 43`.
-The flag set occupies six bytes. Enemy-index order is outdoor wolf, cave wolf, vault guard.
+The flag set occupies six bytes. Section 6.3 records ownership of the encounter bits.
 
 **Reward atomicity:** completion flags and reward grants must be guarded by a single successful state transition. For any optional supply payout, check stack capacity before committing or use an independently claimed reward flag; the two specified quests avoid this issue by awarding only XP and gold directly. `FLAG_LANTERN_MODERN` is set atomically with restoration for the modern branch; other branch is `RESTORED && !MODERN`. Quest completion must never clear encounter flags or force a new area load.
 
@@ -509,28 +509,29 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 
 ### 6.2 Enemy type presets
 
-| `ENEMY_ID` | Base HP | Movement | Attack | Sprite row |
-|---|---:|---|---|---:|
-| `ENEMY_FIGHTER` | 10 | Step | Strike | 2 |
-| `ENEMY_ROGUE` | 10 | Leap | Strike | 1 |
-| `ENEMY_ARCHER` | 9 | Step | Shoot | 0 |
-| `ENEMY_SPEARMAN` | 10 | Step | Reach | 3 |
-| `ENEMY_WOLF` | 9 | Charge | Rend | 17 |
-| `ENEMY_BRUTE` | 12 | Step | Impact | 25 |
-
-These six presets can be reused by multiple authored encounter spawns. Their existence in the catalog **does not** imply they all currently appear as standalone overworld enemies.
+| `ENEMY_ID` | Name | Max HP | Movement | Attack | Sprite row |
+|---|---|---:|---|---|---:|
+| `ENEMY_WOLF` | Wolf | 9 | Charge | Rend | 17 |
+| `ENEMY_BRUTE` | Brute | 12 | Step | Impact | 25 |
+| `ENEMY_GIANT_BAT` | Giant Bat | 6 | Glide | Arc | 18 |
+| `ENEMY_GIANT_SPIDER` | Giant Spider | 7 | Leap | Flank | 19 |
+| `ENEMY_SKELETON` | Skeleton | 10 | Step | Reach | 23 |
+| `ENEMY_FLOATING_EYE` | Floating Eye | 8 | Vault | Blast | 29 |
 
 ### 6.3 Authored map encounters (catalog order is save-sensitive)
 
-The catalog concatenates `VillageEnemies`, `CaveEnemies`, and `DungeonEnemies`. That order currently defines persistent `enemy_defeated_flag_at(index)` ownership. Changing existing entries' ordering changes saved meanings and requires compatibility review.
+The catalog concatenates `VillageEnemies`, `CaveEnemies`, `DungeonEnemies`, `OrchardEnemies`, `MineWestEnemies`, and `VaultEastEnemies` in that order. The list order defines persistent `enemy_defeated_flag_at(index)` ownership. New entries use the next free indices. Changing existing entries' ordering changes saved meanings and requires compatibility review.
 
 | Spawn index / logical NPC ID | Marker | Behavior | Battle roster and arena pool | Respawn | Victory and dialogue hooks |
 |---|---|---|---|---|---|
 | **0 / 9** | `GroveWolf` | `ENEMY_WANDER`, normal speed | `ENEMY_WOLF` ×1; outdoor boards | `RESPAWN_REMEMBER` | Default; optional independent wolf encounter |
 | **1 / 10** | `MineScout` | `ENEMY_CHASE`, fast speed | `ENEMY_WOLF` ×1; cave boards | `RESPAWN_REMEMBER` | Standard combat and respawn behavior |
 | **2 / 11** | `VaultGuard` | `ENEMY_ROUTE`, normal speed, `routes::VaultPatrol` | `ENEMY_BRUTE` ×2 + `ENEMY_WOLF` ×1; dungeon boards | `RESPAWN_NEVER` | Before-battle and after-victory dialogue; no additional saved story flag beyond defeat bit |
+| **3 / 12** | `OrchardSpiders` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_SPIDER` ×2; outdoor boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
+| **4 / 13** | `MineBatRoost` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_BAT` ×1; cave boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
+| **5 / 14** | `VaultEastWatch` | `ENEMY_WANDER`, normal speed | `ENEMY_SKELETON` ×1 + `ENEMY_FLOATING_EYE` ×1; dungeon boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
 
-Defeat bits are `FLAG_ENEMY_FIRST + 0/1/2` (bits **26/27/28**). These are **spawn encounter flags**, not the enemy-type IDs above. The reserve holds 16 bits (13 currently unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
+Spawns 0–5 use defeat bits **26–31** (`FLAG_ENEMY_FIRST + spawn_index`). The reserve holds 16 bits (10 unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
 
 ### 6.4 The World Remembers
 
@@ -641,7 +642,7 @@ For **new items** record ID, ownership/stack state, slot/target, exact numerical
 | Quests, journal tracking and event delivery | [`src/quests/`](../src/quests/), [`src/quest.h`](../src/quest.h), [`src/quest_runtime.cpp`](../src/quest_runtime.cpp) |
 | NPC content, village interactions and locations | [`src/logic/area_village.h`](../src/logic/area_village.h), [`src/logic/area_cave.h`](../src/logic/area_cave.h), [`src/npc_policy.h`](../src/npc_policy.h), [`generated/map_positions.h`](../generated/map_positions.h) |
 | Caves, vault, doors, mechanism and chest policy | [`src/logic/area_cave.h`](../src/logic/area_cave.h), [`src/logic/area_dungeon.h`](../src/logic/area_dungeon.h), [`src/logic/mechanisms.h`](../src/logic/mechanisms.h), [`src/logic/container_rewards.h`](../src/logic/container_rewards.h) |
-| Combat, specials, classes, enemies, battlefields | [`src/battle.h`](../src/battle.h), [`src/battle.cpp`](../src/battle.cpp), [`src/battlefields.cpp`](../src/battlefields.cpp), [`src/logic/enemy_spawn.h`](../src/logic/enemy_spawn.h), [`src/logic/enemy_catalog.h`](../src/logic/enemy_catalog.h) |
+| Combat, specials, classes, enemies, battlefields | [`src/battle.h`](../src/battle.h), [`src/battle.cpp`](../src/battle.cpp), [`src/battle_enemies.cpp`](../src/battle_enemies.cpp), [`src/battlefields.cpp`](../src/battlefields.cpp), [`src/logic/enemy_spawn.h`](../src/logic/enemy_spawn.h), [`src/logic/enemy_catalog.h`](../src/logic/enemy_catalog.h) |
 | Encounter respawns and bespoke hooks | [`src/encounter.cpp`](../src/encounter.cpp), [`src/encounter.h`](../src/encounter.h), area headers |
 | Perks and rewards | [`src/perks.def`](../src/perks.def), [`src/party_progress.cpp`](../src/party_progress.cpp), [`src/equipment.cpp`](../src/equipment.cpp), [`src/supplies.cpp`](../src/supplies.cpp), [`src/shop.cpp`](../src/shop.cpp) |
 | Current world canon and authoring requirements | [`docs/world_bible.md`](world_bible.md), [`docs/content_authoring.md`](content_authoring.md) |

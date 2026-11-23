@@ -13,6 +13,8 @@
 
 inline constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES =
     battle_encounter(ENEMY_WOLF);
+inline constexpr BattleEncounter PROGMEM BATTLE_ORCHARD_SPIDERS =
+    battle_encounter(ENEMY_GIANT_SPIDER, ENEMY_GIANT_SPIDER);
 
 inline void lantern_inn_rest() {
     if(dialogue_ask(F("Rest at the Lantern Inn?"))) {
@@ -235,6 +237,9 @@ template <> struct NpcContent<NPC_ADA> {
 
 using VillageEnemies = TypeList<
     EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17>
+>;
+using OrchardEnemies = TypeList<
+    EnemySpawn<positions::OrchardSpiders, &BATTLE_ORCHARD_SPIDERS, 19>
 >;
 
 namespace handler_impl {

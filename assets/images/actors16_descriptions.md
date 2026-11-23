@@ -53,10 +53,10 @@ south-facing idle frame (column 6).
 
 | Row | Sex | Hair | Head covering | Distinguishing detail | Used by |
 | --- | --- | --- | --- | --- | --- |
-| 0 | male | medium brown, short, fringe | none | none | player; Archer enemy |
-| 1 | male | black, short, heavy fringe | none | none | Rogue enemy |
-| 2 | male | white, short | none | thick dark brows | Orrin (`NPC_ORRIN`); Fighter enemy |
-| 3 | male | hidden by the hood | white pointed hood | strap or lacing marks | Rowan (`NPC_ROWAN`); Spearman enemy |
+| 0 | male | medium brown, short, fringe | none | none | player |
+| 1 | male | black, short, heavy fringe | none | none | unused |
+| 2 | male | white, short | none | thick dark brows | Orrin (`NPC_ORRIN`) |
+| 3 | male | hidden by the hood | white pointed hood | strap or lacing marks | Rowan (`NPC_ROWAN`) |
 | 4 | male | black, short, heavy fringe | none | black eyepatch with strap; pin at the collar | unused |
 | 5 | male | medium brown, short | white headband | none | unused |
 | 6 | male | dark brown, short, ruffled | none | strap or lacing marks | unused |
@@ -74,7 +74,7 @@ south-facing idle frame (column 6).
 
 ### Row 0: the traveler
 
-Used by the player and the `NPC_NONE` party slot, and shared with the Archer enemy.
+Used by the player and the `NPC_NONE` party slot.
 
 - **Sex:** male.
 - **Hair:** medium brown, cropped close around the head, with a straight-cut fringe
@@ -86,8 +86,6 @@ Used by the player and the `NPC_NONE` party slot, and shared with the Archer ene
 
 ### Row 1: black short hair
 
-Used by the Rogue enemy. No NPC uses it now; Tessa moved to row 9.
-
 - **Sex:** male.
 - **Hair:** black, short, falling over the forehead in a heavy fringe, with a small
   tip at the centre. The back of the head is solid black with two white glints.
@@ -97,7 +95,7 @@ Used by the Rogue enemy. No NPC uses it now; Tessa moved to row 9.
 
 ### Row 2: white short hair
 
-Used by Orrin (`NPC_ORRIN`) and shared with the Fighter enemy.
+Used by Orrin (`NPC_ORRIN`).
 
 - **Sex:** male.
 - **Hair:** white (reads as white or silver), short and smooth with two dark specks.
@@ -109,7 +107,7 @@ Used by Orrin (`NPC_ORRIN`) and shared with the Fighter enemy.
 
 ### Row 3: hooded ranger
 
-Used by Rowan (`NPC_ROWAN`, the archer) and shared with the Spearman enemy.
+Used by Rowan (`NPC_ROWAN`, the archer).
 
 - **Sex:** male.
 - **Hair:** hidden. The hood covers the whole head, so no hair colour is shown.

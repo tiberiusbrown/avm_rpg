@@ -12,6 +12,8 @@
 
 inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS =
     battle_encounter(battlefields_for_area(AREA_DUNGEON), ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE);
+inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_EAST_WATCH =
+    battle_encounter(battlefields_for_area(AREA_DUNGEON), ENEMY_SKELETON, ENEMY_FLOATING_EYE);
 
 struct VaultGuardHooks : EnemyHooks {
     static bool before_battle() {
@@ -28,6 +30,9 @@ using DungeonEnemies = TypeList<
     EnemySpawn<positions::VaultGuard, &BATTLE_VAULT_GUARDS, 25,
                ENEMY_ROUTE, SPEED_NORMAL, routes::VaultPatrol,
                RESPAWN_NEVER, VaultGuardHooks>
+>;
+using VaultEastEnemies = TypeList<
+    EnemySpawn<positions::VaultEastWatch, &BATTLE_VAULT_EAST_WATCH, 23>
 >;
 
 namespace handler_impl {

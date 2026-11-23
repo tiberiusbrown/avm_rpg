@@ -48,14 +48,14 @@ static constexpr BattleFixture PROGMEM FOUR_A_SIDE{
     BATTLEFIELD_GROVE,
     8,
     {
-        {battle_cell(1, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY},
-        {battle_cell(2, 1), 10, ENEMY_ROGUE, BATTLE_PARTY},
-        {battle_cell(1, 2), 9, ENEMY_ARCHER, BATTLE_PARTY},
-        {battle_cell(2, 3), 10, ENEMY_SPEARMAN, BATTLE_PARTY},
+        {battle_cell(1, 0), 10, BATTLE_TEST_FIGHTER, BATTLE_PARTY},
+        {battle_cell(2, 1), 10, BATTLE_TEST_ROGUE, BATTLE_PARTY},
+        {battle_cell(1, 2), 9, BATTLE_TEST_ARCHER, BATTLE_PARTY},
+        {battle_cell(2, 3), 10, BATTLE_TEST_SPEARMAN, BATTLE_PARTY},
         {battle_cell(7, 0), 9, ENEMY_WOLF, BATTLE_ENEMY},
         {battle_cell(5, 1), 12, ENEMY_BRUTE, BATTLE_ENEMY},
-        {battle_cell(6, 2), 9, ENEMY_ARCHER, BATTLE_ENEMY},
-        {battle_cell(5, 3), 10, ENEMY_FIGHTER, BATTLE_ENEMY},
+        {battle_cell(6, 2), 9, BATTLE_TEST_ARCHER, BATTLE_ENEMY},
+        {battle_cell(5, 3), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY},
     },
 };
 
@@ -194,9 +194,9 @@ extern "C" void setup() {
 
     // Many ranged options: archers on both sides and an enemy spearman.
     grove(BATTLE_ENEMY, 4);
-    scenario.units[ROGUE].id = ENEMY_ARCHER;
-    scenario.units[WOLF].id = ENEMY_ARCHER;
-    scenario.units[BRUTE].id = ENEMY_SPEARMAN;
+    scenario.units[ROGUE].id = BATTLE_TEST_ARCHER;
+    scenario.units[WOLF].id = BATTLE_TEST_ARCHER;
+    scenario.units[BRUTE].id = BATTLE_TEST_SPEARMAN;
     scenario.units[ROGUE].cell = cell(1, 0);
     scenario.units[WOLF].cell = cell(7, 0);
     measure_decision(8, scenario);

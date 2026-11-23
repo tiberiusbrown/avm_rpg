@@ -112,9 +112,9 @@ int main() {
 
     BattleState ranged = fresh();
     ranged.turn = BATTLE_ENEMY;
-    ranged.units[ROGUE].id = ENEMY_ARCHER;
-    ranged.units[WOLF].id = ENEMY_ARCHER;
-    ranged.units[BRUTE].id = ENEMY_SPEARMAN;
+    ranged.units[ROGUE].id = BATTLE_TEST_ARCHER;
+    ranged.units[WOLF].id = BATTLE_TEST_ARCHER;
+    ranged.units[BRUTE].id = BATTLE_TEST_SPEARMAN;
     place(ranged, ROGUE, 1, 0);
     place(ranged, WOLF, 7, 0);
     place(ranged, BRUTE, 5, 2);
@@ -178,10 +178,10 @@ int main() {
     BattleState four{};
     four.field = BATTLEFIELD_GROVE;
     four.unit_count = 8;
-    ENEMY_ID const party_types[4] = {ENEMY_FIGHTER, ENEMY_ROGUE,
-                                             ENEMY_ARCHER, ENEMY_SPEARMAN};
+    ENEMY_ID const party_types[4] = {BATTLE_TEST_FIGHTER, BATTLE_TEST_ROGUE,
+                                             BATTLE_TEST_ARCHER, BATTLE_TEST_SPEARMAN};
     ENEMY_ID const enemy_types[4] = {ENEMY_WOLF, ENEMY_BRUTE,
-                                             ENEMY_ARCHER, ENEMY_FIGHTER};
+                                             BATTLE_TEST_ARCHER, BATTLE_TEST_FIGHTER};
     uint8_t const party_cells[4] = {cell(1, 0), cell(2, 1), cell(1, 2), cell(2, 3)};
     uint8_t const enemy_cells[4] = {cell(7, 0), cell(5, 1), cell(6, 2), cell(5, 3)};
     uint8_t const party_hp[4] = {10, 10, 9, 10}, enemy_hp[4] = {9, 12, 9, 10};

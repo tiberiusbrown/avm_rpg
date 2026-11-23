@@ -1452,12 +1452,12 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     blocked.field = BATTLEFIELD_GROVE;
     blocked.turn = BATTLE_ENEMY;
     blocked.unit_count = 6;
-    blocked.units[0] = {battle_cell(0, 0), 2, ENEMY_ARCHER, BATTLE_ENEMY};
-    blocked.units[1] = {battle_cell(7, 3), 3, ENEMY_ARCHER, BATTLE_ENEMY};
-    blocked.units[2] = {battle_cell(1, 0), 8, ENEMY_FIGHTER, BATTLE_PARTY};
-    blocked.units[3] = {battle_cell(0, 1), 8, ENEMY_FIGHTER, BATTLE_PARTY};
-    blocked.units[4] = {battle_cell(6, 3), 8, ENEMY_FIGHTER, BATTLE_PARTY};
-    blocked.units[5] = {battle_cell(7, 2), 8, ENEMY_FIGHTER, BATTLE_PARTY};
+    blocked.units[0] = {battle_cell(0, 0), 2, BATTLE_TEST_ARCHER, BATTLE_ENEMY};
+    blocked.units[1] = {battle_cell(7, 3), 3, BATTLE_TEST_ARCHER, BATTLE_ENEMY};
+    blocked.units[2] = {battle_cell(1, 0), 8, BATTLE_TEST_FIGHTER, BATTLE_PARTY};
+    blocked.units[3] = {battle_cell(0, 1), 8, BATTLE_TEST_FIGHTER, BATTLE_PARTY};
+    blocked.units[4] = {battle_cell(6, 3), 8, BATTLE_TEST_FIGHTER, BATTLE_PARTY};
+    blocked.units[5] = {battle_cell(7, 2), 8, BATTLE_TEST_FIGHTER, BATTLE_PARTY};
     d.set_battle(blocked);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1477,7 +1477,7 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     waiting.turn = BATTLE_ENEMY;
     waiting.unit_count = 2;
     waiting.units[0] = {battle_cell(0, 0), 4, ENEMY_BRUTE, BATTLE_PARTY};
-    waiting.units[1] = {battle_cell(0, 1), 12, ENEMY_ARCHER, BATTLE_ENEMY};
+    waiting.units[1] = {battle_cell(0, 1), 12, BATTLE_TEST_ARCHER, BATTLE_ENEMY};
     d.set_battle(waiting);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1769,32 +1769,32 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         state.field = BATTLEFIELD_GROVE;
         state.turn = BATTLE_PARTY;
         state.units[0] = BattleUnit{test.actor, 15, battle_party_id(0), BATTLE_PARTY};
-        state.units[1] = BattleUnit{test.victim, 10, ENEMY_FIGHTER, BATTLE_ENEMY};
-        state.units[2] = BattleUnit{battle_cell(7, 3), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+        state.units[1] = BattleUnit{test.victim, 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
+        state.units[2] = BattleUnit{battle_cell(7, 3), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
         state.unit_count = 3;
         if(test.attack == ATTACK_SHOOT)
             state.units[2].cell = battle_cell(7, 1);
         if(test.signature && test.attack == ATTACK_SHOOT) {
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(5, 0), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+                BattleUnit{battle_cell(5, 0), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(5, 2), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+                BattleUnit{battle_cell(5, 2), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
         }
         if(test.attack == ATTACK_FLANK) {
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY};
+                BattleUnit{battle_cell(3, 0), 10, BATTLE_TEST_FIGHTER, BATTLE_PARTY};
         }
         if(test.attack == ATTACK_REACH) {
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(2, 1), 10, ENEMY_FIGHTER, BATTLE_PARTY};
+                BattleUnit{battle_cell(2, 1), 10, BATTLE_TEST_FIGHTER, BATTLE_PARTY};
         }
         if(test.attack == ATTACK_BLAST) {
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(5, 2), 1, ENEMY_FIGHTER, BATTLE_ENEMY};
+                BattleUnit{battle_cell(5, 2), 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(6, 1), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+                BattleUnit{battle_cell(6, 1), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
             state.units[state.unit_count++] =
-                BattleUnit{battle_cell(4, 2), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+                BattleUnit{battle_cell(4, 2), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
         }
         d.set_battle(state);
         for(unsigned i = 1; i < BATTLE_COLUMNS; ++i)

@@ -338,6 +338,48 @@ static void enemy_encounters() {
     }
 }
 
+static void creature_encounters() {
+    constexpr struct {
+        TilePos site;
+        uint8_t sprite_row;
+        uint8_t count;
+        ENEMY_ID roster[BATTLE_SIDE_CAPACITY];
+    } cases[] = {
+        {positions::OrchardSpiders, 19, 2, {ENEMY_GIANT_SPIDER, ENEMY_GIANT_SPIDER}},
+        {positions::MineBatRoost, 18, 1, {ENEMY_GIANT_BAT}},
+        {positions::VaultEastWatch, 23, 2, {ENEMY_SKELETON, ENEMY_FLOATING_EYE}},
+    };
+    game_new();
+    story_stub_reset(BATTLE_VICTORY);
+    for(unsigned i = 0; i < sizeof(cases) / sizeof(*cases); ++i) {
+        auto const& expected = cases[i];
+        auto id = (NPC_ID)(NPC_ENEMY_FIRST + 3 + i);
+        enter_enemy_site(expected.site, FOOT_WIDTH);
+        auto const* actor = npc_find(id);
+        CHECK(actor && npc_location(id) == expected.site);
+        CHECK(npc_definition(id)->sprite_row == expected.sprite_row);
+        CHECK(!actor_move(&game.player, WEST, 1) && encounter_run());
+        CHECK(story_stub_battles() == i + 1);
+        auto const* encounter = story_stub_event(i).encounter;
+        BattleState battle;
+        battle_begin(battle, encounter);
+        CHECK(!battle.ended && battle_living(battle, BATTLE_ENEMY) == expected.count);
+        CHECK(battlefields_for_area(expected.site.area) & battlefield_bit(battle.field));
+        for(uint8_t enemy = 0; enemy < expected.count; ++enemy) {
+            BattleUnit const& unit = battle.units[battle.unit_count - expected.count + enemy];
+            CHECK(unit.team == BATTLE_ENEMY && unit.id == expected.roster[enemy]);
+            CHECK(unit.hp == ENEMY_INFO[unit.id].max_hp);
+        }
+        CHECK(game.get_flag(enemy_defeated_flag(id)) && !npc_find(id));
+        CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES && save_restore());
+        enter_enemy_site(expected.site, FOOT_WIDTH);
+        CHECK(!npc_find(id));
+        remember_reset();
+        enter_enemy_site(expected.site, FOOT_WIDTH);
+        CHECK(npc_find(id));
+    }
+}
+
 static void saves() {
     game_new();
     CHECK(!memcmp(&game.supplies, &STARTING_SUPPLIES, sizeof(Supplies)));
@@ -758,6 +800,7 @@ int main() {
     movement();
     hostile_patrol_unloads();
     enemy_encounters();
+    creature_encounters();
     saves();
     party_statistics();
     party_progression();
