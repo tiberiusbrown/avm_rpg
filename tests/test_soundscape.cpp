@@ -54,10 +54,16 @@ constexpr bool moments_are_grain_ticks() {
 static_assert(moments_are_grain_ticks());
 
 constexpr uint64_t bit(SFX effect) {
-    return (uint64_t)1 << effect;
+    constexpr SFX ambient[] = {
+        SFX_BAT_SQUEAK, SFX_BEE_BUZZ, SFX_BIRD_CHIRP, SFX_BIRD_COO, SFX_BIRD_TRILL, SFX_BIRD_TWEET,
+        SFX_CHAIN_RATTLE, SFX_CREAK, SFX_CRYSTAL_CHIME, SFX_DRIP_A, SFX_DRIP_B, SFX_FIRE_CRACKLE,
+        SFX_RUMBLE, SFX_WATER_PLIP, SFX_WATER_SPLASH, SFX_WIND, SFX_WISP_MOAN,
+    };
+    for(unsigned i = 0; i < sizeof(ambient) / sizeof(ambient[0]); ++i)
+        if(ambient[i] == effect)
+            return UINT64_C(1) << i;
+    return UINT64_C(1) << 63; // Effects outside the ambient catalog must fail the allowed-set check.
 }
-
-static_assert(SFX_COUNT < 64, "the tests keep a set of effects in a word");
 
 constexpr uint64_t BIRDS =
     bit(SFX_BIRD_CHIRP) | bit(SFX_BIRD_COO) | bit(SFX_BIRD_TRILL) | bit(SFX_BIRD_TWEET);

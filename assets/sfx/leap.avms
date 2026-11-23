@@ -11,4 +11,4 @@ channel 1 whistle octave 5 {
     frequency_slide { delta -1200cents over 80ms }
     c':80ms
 }
-channel 3 thud octave 2 { r:160ms c:70ms }
+channel 3 thud octave 2 { r:144ms c:70ms }

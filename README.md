@@ -325,6 +325,8 @@ reports are verified by the full-LTO guest link.
 - `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle
   cursor, the destination markers, and the archer's arrow, one 16x16 frame per direction in
   north/east/south/west order.
+- `assets/images/battle_effects8.png` contains attack contact marks, focus rings, and Blast's orb
+  and shrapnel sprites.
 - `assets/images/battle_damage16.png` holds centered 16×16 damage bursts in a 10×10 grid.
   The row gives the tens digit and the column gives the ones digit, both starting at zero.
   The game exports damage values 1–99 and displays the 99 burst for larger losses.
@@ -483,6 +485,15 @@ device mode `sounds`). With current artifacts it targets a 10–20 second run. `
 guest collision matrix, full device scenarios and 8-second profiles; run it before
 collecting performance evidence. Both targets print per-stage wall times and retain
 logs/captures in a fresh `build/verification-*` directory. Compilation is additional.
+
+With full-device QA and FFmpeg available, record the battle animation and sound review after the build.
+
+```sh
+python3 tools/record_battles.py --build build --output build/battle-review
+```
+
+The review records normal game input on deterministic boards and exports chaptered MP4 reels with
+an index. The recordings isolate the in-game sound effects by muting the music.
 
 Audio uses Timer1 for output and synthesis at the selected 7,812.5 or 15,625 Hz,
 with the separate 1 kHz Timer0 clock. The optional full-device build also provides

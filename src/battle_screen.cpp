@@ -50,7 +50,11 @@ struct Cursor {
     uint8_t frames;
 };
 
-enum SCREEN_MOTION : uint8_t { MOTION_STILL, MOTION_WALK, MOTION_LEAP, MOTION_GLIDE, MOTION_SHOT };
+enum SCREEN_MOTION : uint8_t {
+    MOTION_STILL, MOTION_WALK, MOTION_LEAP, MOTION_CHARGE, MOTION_VAULT, MOTION_GLIDE, MOTION_SHOT
+};
+
+static constexpr uint8_t SLIDE_FRAMES = 8;
 
 // One blocking battle owns this fixed screen. Keeping it off the call stack leaves room for
 // full-byte HP and the AI while staying within the guest's 256-byte stack budget.
@@ -60,18 +64,21 @@ struct BattleScreen {
     // The unit drawn at an offset from its cell: a walker, or an attacker lunging at its victim.
     // BATTLE_NO_UNIT when none. Only one unit is offset at a time.
     uint8_t mover;
-    // The mover's drawn offset from its logical cell, in pixels. A walker's offset shrinks to zero
-    // as it walks. A lunging attacker's offset follows battle_lunge_pixels.
+    // The mover's drawn offset from its destination for a move, or from its animated cell for a lunge.
     int8_t mover_dx, mover_dy;
-    // What the screen is playing before any reaction: nothing, the mover's walk (or leap), or an
-    // arrow in flight. While either plays, every unit about to flash stays drawn, even one already
-    // defeated, and its flash waits. Only a walk draws the mover's walking pose; an archer stands
-    // facing its target while its arrow flies.
+    // During movement, a wind-up, or a projectile flight, units about to flash stay visible.
     uint8_t motion; // SCREEN_MOTION
     // Bit i is set for each unit flashing after damage.
     uint8_t flashing;
     // HP change by unit. An unflashed value records healing.
     uint8_t damage[BATTLE_UNIT_CAPACITY];
+    // Presentation only. The rules have already applied the whole action. Keep the original cells
+    // visible until contact, then interpolate every forced displacement together.
+    uint8_t origin[BATTLE_UNIT_CAPACITY];
+    uint8_t slide;
+    uint8_t actor, victim;
+    uint8_t attack;
+    BATTLE_ATTACK_CHOICE choice;
     // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
     // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
     // 256, which keeps the pose cycle whole.
@@ -190,7 +197,21 @@ static DIRECTION pressed_direction(uint8_t pressed) {
 static uint8_t leap_lift(BattleScreen const& screen) {
     int8_t ax = screen.mover_dx < 0 ? (int8_t)-screen.mover_dx : screen.mover_dx;
     int8_t ay = screen.mover_dy < 0 ? (int8_t)-screen.mover_dy : screen.mover_dy;
-    return battle_leap_lift((uint8_t)(ax > ay ? ax : ay));
+    uint8_t remaining = (uint8_t)(ax > ay ? ax : ay);
+    if(screen.motion == MOTION_VAULT) {
+        uint8_t left = remaining / BATTLE_LEAP_PIXELS;
+        uint8_t half = screen.ticks + left > 8 ? 6 : 4;
+        return left > half ? (uint8_t)((2 * half - left) * 2) : (uint8_t)(left * 2);
+    }
+    return battle_leap_lift(remaining);
+}
+
+static constexpr SCREEN_MOTION PROGMEM MOVE_MOTION[MOVEMENT_CLASS_COUNT] = {
+    MOTION_WALK, MOTION_LEAP, MOTION_CHARGE, MOTION_VAULT, MOTION_GLIDE,
+};
+
+static int16_t slide_pixel(int16_t from, int16_t to, uint8_t progress) {
+    return (int16_t)(from + (to - from) * progress / SLIDE_FRAMES);
 }
 
 // Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. The selected
@@ -224,16 +245,23 @@ RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected
             continue;
         // Flashes start once the mover has arrived: while it walks, every unit it is about to hurt,
         // even one already defeated, stays drawn.
-        if(flashing && screen.motion == MOTION_STILL && battle_flash_hidden(screen.ticks))
+        if(flashing && screen.motion == MOTION_STILL && screen.slide == SLIDE_FRAMES &&
+           battle_flash_hidden(screen.ticks))
             continue;
         // The mover is drawn at its cell plus the offset it still has to cover, and a leap unit is
         // raised by its arc.
         int16_t x = (int16_t)(cell_x(unit.cell) + (moving ? screen.mover_dx : 0));
         int16_t y = (int16_t)(cell_y(unit.cell) + (moving ? screen.mover_dy : 0));
-        if(moving && screen.motion == MOTION_LEAP)
+        if(screen.slide < SLIDE_FRAMES && !(i == screen.actor && screen.victim == BATTLE_NO_UNIT)) {
+            uint8_t origin = screen.origin[i];
+            x += slide_pixel(cell_x(origin), cell_x(unit.cell), screen.slide) - cell_x(unit.cell);
+            y += slide_pixel(cell_y(origin), cell_y(unit.cell), screen.slide) - cell_y(unit.cell);
+        }
+        if(moving && (screen.motion == MOTION_LEAP || screen.motion == MOTION_VAULT))
             y = (int16_t)(y - leap_lift(screen));
         Actor const pose{(uint16_t)x, (uint16_t)y, moving ? mover_facing : SOUTH,
-                         (uint8_t)(moving && screen.motion == MOTION_WALK)};
+                         (uint8_t)(moving && (screen.motion == MOTION_WALK ||
+                                              screen.motion == MOTION_CHARGE))};
         avm_draw_plus_mask(x, y, actor_frame(pose, battle_sprite_row(unit), screen.ticks));
     }
 
@@ -289,31 +317,64 @@ static int8_t toward_zero(int8_t offset, int8_t amount) {
     return (int8_t)(offset < -amount ? offset + amount : 0);
 }
 
+static void draw_fx(uint8_t frame, int16_t x, int16_t y);
+
+// Show damage to crossed enemies during the move. The board already supplies the HP changes,
+// so a contact spark can only occur on a unit this move actually hit.
+RPG_NOINLINE static void draw_walk_contacts(BattleScreen const& screen) {
+    uint8_t dest = screen.state.units[screen.actor].cell;
+    int16_t x = cell_x(dest) + screen.mover_dx;
+    int16_t y = cell_y(dest) + screen.mover_dy;
+    int8_t reach = screen.motion == MOTION_GLIDE ? 18 : 5;
+    uint8_t hits = screen.flashing & ~(1 << screen.actor);
+    for(uint8_t i = 0; hits; ++i, hits >>= 1) {
+        if(!(hits & 1))
+            continue;
+        uint8_t cell = screen.origin[i];
+        int16_t dx = cell_x(cell) - x, dy = cell_y(cell) - y;
+        if(dx >= -reach && dx <= reach && dy >= -reach && dy <= reach)
+            draw_fx(screen.motion == MOTION_VAULT ? ATTACK_IMPACT : ATTACK_STRIKE,
+                    cell_x(cell) + 8, cell_y(cell) + 6);
+    }
+}
+
 // Animates the mover from its starting offset to the authoritative destination.
 RPG_NOINLINE static void walk_unit(BattleScreen& screen) {
-    bool leap = screen.motion == MOTION_LEAP;
-    bool glide = screen.motion == MOTION_GLIDE;
+    SCREEN_MOTION motion = (SCREEN_MOTION)screen.motion;
     // The offset moves toward zero, so the walker faces the opposite way along its longer axis.
     int8_t ax = screen.mover_dx < 0 ? (int8_t)-screen.mover_dx : screen.mover_dx;
     int8_t ay = screen.mover_dy < 0 ? (int8_t)-screen.mover_dy : screen.mover_dy;
     DIRECTION facing =
         ax >= ay ? (screen.mover_dx < 0 ? EAST : WEST) : (screen.mover_dy < 0 ? SOUTH : NORTH);
-    int8_t step_x = glide ? 2 : 1, step_y = step_x;
-    if(leap) {
+    int8_t trail_dy = motion == MOTION_GLIDE ? (screen.mover_dy > 0 ? -1 : 1) : direction_dy(facing);
+    int8_t step_x = motion == MOTION_WALK ? 1 : 2, step_y = step_x;
+    if(motion == MOTION_LEAP || motion == MOTION_VAULT) {
         step_x = ax > ay ? BATTLE_LEAP_PIXELS : BATTLE_LEAP_PIXELS / 2;
         step_y = ay > ax ? BATTLE_LEAP_PIXELS : BATTLE_LEAP_PIXELS / 2;
-        // One sound covers the whole jump and its landing.
-        sfx_play(SFX_LEAP);
     }
-    uint8_t stride = 0;
+    static constexpr SFX PROGMEM sounds[] = {SFX_NONE, SFX_NONE, SFX_LEAP, SFX_CHARGE, SFX_VAULT, SFX_GLIDE};
+    sfx_play(sounds[motion]);
+    screen.ticks = 0;
     while(screen.mover_dx != 0 || screen.mover_dy != 0) {
-        if(!leap && stride++ % BATTLE_STEP_SOUND_FRAMES == 0)
+        if(motion == MOTION_WALK && screen.ticks % BATTLE_STEP_SOUND_FRAMES == 0)
             sfx_play(SFX_STEP);
-        screen.mover_dx = toward_zero(screen.mover_dx, step_x);
-        screen.mover_dy = toward_zero(screen.mover_dy, step_y);
+        int8_t boost = motion == MOTION_CHARGE && screen.ticks >= 3 ? 2 : 0;
+        screen.mover_dx = toward_zero(screen.mover_dx, (int8_t)(step_x + boost));
+        screen.mover_dy = toward_zero(screen.mover_dy, (int8_t)(step_y + boost));
         ++screen.ticks;
         // The walker is drawn over the terrain with no highlight, so only the moving actor changes.
         draw_board<false>(screen, BATTLE_NO_UNIT, facing);
+        if(motion == MOTION_GLIDE || motion == MOTION_CHARGE) {
+            uint8_t cell = screen.state.units[screen.mover].cell;
+            int16_t x = cell_x(cell) + screen.mover_dx + 7;
+            int16_t y = cell_y(cell) + screen.mover_dy + 10;
+            int8_t dx = direction_dx(facing);
+            avm_draw_filled_rect_white(x - 8 * dx, y - 8 * trail_dy, trail_dy ? 1 : 4, dx ? 1 : 4);
+            avm_draw_filled_rect_white(x - 12 * dx, y - 12 * trail_dy + 2, trail_dy ? 1 : 3,
+                                       dx ? 1 : 3);
+        }
+        if(motion == MOTION_CHARGE || motion == MOTION_VAULT || motion == MOTION_GLIDE)
+            draw_walk_contacts(screen);
         avm_display(false);
         input_wait_frame();
     }
@@ -332,6 +393,10 @@ RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
             continue;
         uint8_t cell = screen.state.units[i].cell;
         int16_t x = cell_x(cell), y = cell_y(cell);
+        if(screen.slide < SLIDE_FRAMES && i != screen.actor) {
+            x = slide_pixel(cell_x(screen.origin[i]), x, screen.slide);
+            y = slide_pixel(cell_y(screen.origin[i]), y, screen.slide);
+        }
         if(!((screen.flashing >> i) & 1)) {
             avm_draw_filled_rect_black(x + 1, y + 4, 14, 7);
             avm_draw_textf(x + (damage < 10 ? 4 : 2), y + 10, F("+%u"), damage);
@@ -349,44 +414,121 @@ RPG_NOINLINE static bool any_fallen(BattleScreen const& screen) {
     return false;
 }
 
-// The sound of a unit type's attack landing. An archer's arrow has its own sounds.
-static SFX attack_sound(uint8_t attack) {
-    switch(attack) {
-        case ATTACK_REACH:
-            return SFX_THRUST;
-        case ATTACK_REND:
-            return SFX_BITE;
-        case ATTACK_IMPACT:
-            return SFX_SMASH;
-        default:
-            return SFX_STRIKE;
+// Extra cells in battle_effects8.png after the contact glyphs.
+static constexpr uint8_t FX_ORB = ATTACK_CLASS_COUNT;
+static constexpr uint8_t FX_FOCUS = FX_ORB + 1;
+static constexpr uint8_t FX_RING = FX_ORB + 2;
+static constexpr uint8_t FX_ORB_CORE = FX_ORB + 3;
+static constexpr uint8_t FX_BLAST_RING = FX_ORB + 4;
+
+static void draw_fx(uint8_t frame, int16_t x, int16_t y) {
+    avm_set_sprite(BATTLE_FX);
+    avm_draw_plus_mask(x - 4, y - 4, frame);
+}
+
+static constexpr SFX PROGMEM ATTACK_CONTACT[ATTACK_CLASS_COUNT] = {
+    SFX_STRIKE, SFX_ARROW_HIT, SFX_THRUST, SFX_SMASH, SFX_BITE,
+    SFX_SWEEP, SFX_DRAIN, SFX_RECOIL, SFX_FLANK, SFX_BURST,
+};
+
+// A moving dot between two cells. A phase of 0 starts at the source and 8 reaches the recipient.
+static void draw_link(uint8_t from, uint8_t to, uint8_t phase) {
+    int16_t x = slide_pixel(cell_x(from), cell_x(to), phase) + 7;
+    int16_t y = slide_pixel(cell_y(from), cell_y(to), phase) + 7;
+    avm_draw_filled_rect_black(x - 1, y - 1, 5, 5);
+    avm_draw_filled_rect_white(x, y, 3, 3);
+}
+
+RPG_NOINLINE static void draw_contact(BattleScreen const& screen) {
+    uint8_t attack = screen.attack, age = screen.ticks;
+    uint8_t actor = screen.actor, victim = screen.victim;
+    if(victim == BATTLE_NO_UNIT)
+        return;
+    uint8_t from = screen.origin[actor], to = screen.origin[victim];
+
+    if(age < 16) {
+        if(attack == ATTACK_REACH || (attack == ATTACK_STRIKE && screen.choice == BATTLE_SIGNATURE) ||
+           (attack == ATTACK_REND && !battle_cells_adjacent(from, to))) {
+            draw_link(from, to, age / 2);
+            if(attack == ATTACK_REACH && screen.choice == BATTLE_SIGNATURE)
+                draw_link(to, from, age / 2);
+        }
+        if(attack == ATTACK_ARC && screen.choice == BATTLE_SIGNATURE) {
+            uint8_t quarter = age / 4;
+            int16_t x = cell_x(from) + 8 + 12 * direction_dx((DIRECTION)quarter);
+            int16_t y = cell_y(from) + 8 + 12 * direction_dy((DIRECTION)quarter);
+            draw_fx(ATTACK_ARC, x, y);
+        }
+        if(screen.flashing & (1 << actor))
+            draw_link(to, from, age / 2); // Shield Rebound.
+    }
+
+    for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
+        auto const& unit = screen.state.units[i];
+        uint8_t cell = screen.origin[i];
+        bool hit = (screen.flashing >> i) & 1;
+        if(hit && i != victim && age < 12 && screen.choice == BATTLE_SIGNATURE) {
+            if((attack == ATTACK_SHOOT || attack == ATTACK_IMPACT) && battle_cells_adjacent(cell, to) &&
+               (battle_row(from) == battle_row(to) ? battle_column(cell) == battle_column(to)
+                                                   : battle_row(cell) == battle_row(to)))
+                draw_link(to, cell, age / 2);
+            if(attack == ATTACK_BLAST && cell != unit.cell)
+                draw_link(cell, to, age / 2);
+        }
+        if(attack == ATTACK_FLANK && age < 16 && i != actor && unit.hp &&
+           unit.team == screen.state.units[actor].team && battle_cells_adjacent(cell, to)) {
+            auto rules = battle_rules(unit.id);
+            if(screen.choice != BATTLE_SIGNATURE ||
+               (rules.geometry == BATTLE_ATTACK_LINE && battle_in_attack_range(rules, 1)))
+                draw_link(cell, to, age / 2);
+        }
+        if(hit && (age < 12 || (age < 18 && (age & 2)))) {
+            int16_t x = slide_pixel(cell_x(cell), cell_x(unit.cell), screen.slide) + 8;
+            int16_t y = slide_pixel(cell_y(cell), cell_y(unit.cell), screen.slide) + 8;
+            uint8_t frame = attack;
+            if(attack == ATTACK_BLAST && (age < 4 || age >= 12))
+                frame = screen.choice == BATTLE_SIGNATURE && age < 4 ? FX_ORB_CORE : FX_BLAST_RING;
+            else if(screen.choice != BATTLE_NORMAL && age < 4)
+                frame = FX_RING;
+            draw_fx(frame, x, y - (age >= 12 ? 7 : 0));
+        } else if(attack == ATTACK_DRAIN && screen.damage[i] && !hit && age < 24) {
+            draw_link(to, cell, age < 16 ? age / 2 : 8);
+            if(age >= 16)
+                draw_fx(FX_FOCUS, cell_x(cell) + 8, cell_y(cell) + 2);
+        }
     }
 }
 
-// Plays damage and healing indicators while the attacker lunges, when present. Recoil keeps
-// its original-cell offset through the strike, then the retreat animates to the resolved cell.
+// Plays contact, displacement, and HP indicators after the move or projectile arrives.
 RPG_NOINLINE static void animate_reaction(BattleScreen& screen, uint8_t lunger, DIRECTION toward,
                                           uint8_t frames, SFX impact, int8_t diagonal_y = 0) {
     screen.mover = lunger;
     screen.motion = MOTION_STILL;
-    int8_t start_dx = screen.mover_dx, start_dy = screen.mover_dy;
+    bool attack = screen.victim != BATTLE_NO_UNIT;
     int8_t dx = direction_dx(toward), dy = diagonal_y ? diagonal_y : direction_dy(toward);
     sfx_play(impact);
     for(screen.ticks = 0; screen.ticks < frames; ++screen.ticks) {
         if(screen.ticks == BATTLE_FALL_SOUND_FRAME && any_fallen(screen))
             sfx_play(SFX_FALL);
+        if(screen.ticks >= 4 && screen.slide < SLIDE_FRAMES)
+            ++screen.slide;
         uint8_t reach = lunger == BATTLE_NO_UNIT ? 0 : battle_lunge_pixels(screen.ticks);
-        screen.mover_dx = (int8_t)(start_dx + dx * reach);
-        screen.mover_dy = (int8_t)(start_dy + dy * reach);
+        if(screen.attack == ATTACK_REACH)
+            reach *= 2;
+        screen.mover_dx = (int8_t)(dx * reach);
+        screen.mover_dy = (int8_t)(dy * reach);
         draw_board<false>(screen, BATTLE_NO_UNIT, reach ? toward : SOUTH);
-        draw_damage(screen);
+        if(attack && screen.ticks < 24)
+            draw_contact(screen);
+        if(!attack || screen.ticks >= 12)
+            draw_damage(screen);
         avm_display(false);
         input_wait_frame();
     }
     screen.mover = BATTLE_NO_UNIT;
     screen.flashing = 0;
-    screen.mover_dx = start_dx;
-    screen.mover_dy = start_dy;
+    screen.slide = SLIDE_FRAMES;
+    screen.mover_dx = screen.mover_dy = 0;
 }
 
 // Determines the motion from the acting class, then records the HP delta of each affected unit.
@@ -398,23 +540,25 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action,
     uint8_t from = unit.cell;
     DIRECTION toward = battle_direction(from, action.destination);
     screen.mover = actor;
-    if(battle_unit_at(state, action.destination) == BATTLE_NO_UNIT) {
-        auto motion = battle_rules(unit.id).movement_type;
-        if(motion == BATTLE_MOVEMENT_LEAP || motion == BATTLE_MOVEMENT_VAULT)
-            screen.motion = MOTION_LEAP;
-        else
-            screen.motion = motion == BATTLE_MOVEMENT_GLIDE ? MOTION_GLIDE : MOTION_WALK;
-    }
+    screen.actor = actor;
+    screen.victim = battle_unit_at(state, action.destination);
+    screen.attack = battle_attack_class(unit.id);
+    screen.choice = choice;
+    screen.slide = 0;
+    bool move = screen.victim == BATTLE_NO_UNIT;
+    screen.motion = move ? MOVE_MOTION[battle_movement_class(unit.id)] : MOTION_STILL;
 
     // Use the animation buffer for the pre-hit HP until the action has resolved.
-    for(uint8_t i = 0; i < state.unit_count; ++i)
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
         screen.damage[i] = state.units[i].hp;
+        screen.origin[i] = state.units[i].cell;
+    }
     if(choice == BATTLE_NORMAL)
         battle_apply(state, action);
     else
         battle_apply_special(state, action, choice);
-    screen.mover_dx = (int8_t)(cell_x(from) - cell_x(unit.cell));
-    screen.mover_dy = (int8_t)(cell_y(from) - cell_y(unit.cell));
+    screen.mover_dx = move ? (int8_t)(cell_x(from) - cell_x(unit.cell)) : 0;
+    screen.mover_dy = move ? (int8_t)(cell_y(from) - cell_y(unit.cell)) : 0;
 
     screen.flashing = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
@@ -427,15 +571,37 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action,
     return toward;
 }
 
-// Flies an archer's arrow from the archer's cell to its target's, one frame at a time, with the
-// archer facing the target. The target's flash waits until the arrow arrives, and the arrow is gone
-// by then.
-static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen, uint8_t to,
-                                                            DIRECTION toward) {
+RPG_NOINLINE static void wind_up(BattleScreen& screen, DIRECTION toward) {
     screen.motion = MOTION_SHOT;
-    // The bowstring, then the arrow's hiss, which lasts until the landing sound replaces it.
-    sfx_play(SFX_BOW);
-    uint8_t from = screen.state.units[screen.mover].cell;
+    bool signature = screen.choice == BATTLE_SIGNATURE;
+    sfx_play(signature ? SFX_SIGNATURE_CAST : SFX_SPECIAL_CAST);
+    uint8_t from = screen.origin[screen.actor];
+    for(uint8_t frame = 0; frame < (signature ? 9 : 6); ++frame) {
+        draw_board<false>(screen, BATTLE_NO_UNIT, toward);
+        draw_fx(frame < 3 || (signature && frame >= 6) ? FX_RING : FX_FOCUS,
+                cell_x(from) + 8, cell_y(from) + 7);
+        avm_display(false);
+        input_wait_frame();
+    }
+    screen.motion = MOTION_STILL;
+}
+
+// Throughshot flies down the whole hit line. Blast sends a separate, glowing projectile.
+RPG_NOINLINE static void fly_projectile(BattleScreen& screen, uint8_t to, DIRECTION toward) {
+    screen.motion = MOTION_SHOT;
+    bool orb = screen.attack == ATTACK_BLAST;
+    sfx_play(orb ? SFX_ORB : SFX_BOW);
+    uint8_t from = screen.origin[screen.actor];
+    if(!orb) {
+        for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
+            uint8_t cell = screen.origin[i];
+            if(!(screen.flashing & (1 << i)) || cell == to)
+                continue;
+            if(battle_direction(to, cell) == toward &&
+               (cell_x(from) == cell_x(cell) || cell_y(from) == cell_y(cell)))
+                to = cell;
+        }
+    }
     uint8_t cells =
         (uint8_t)(battle_column(from) == battle_column(to)
                       ? (battle_row(from) > battle_row(to) ? battle_row(from) - battle_row(to)
@@ -447,9 +613,14 @@ static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen
     for(uint8_t frame = 0; frame < frames; ++frame) {
         draw_board<false>(screen, BATTLE_NO_UNIT, toward);
         int16_t offset = battle_arrow_offset(frame);
-        avm_set_sprite(BATTLE_ARROW_SPRITES);
-        avm_draw_plus_mask((int16_t)(cell_x(from) + direction_dx(toward) * offset),
-                           (int16_t)(cell_y(from) + direction_dy(toward) * offset), toward);
+        int16_t x = (int16_t)(cell_x(from) + direction_dx(toward) * offset);
+        int16_t y = (int16_t)(cell_y(from) + direction_dy(toward) * offset);
+        if(orb)
+            draw_fx(frame & 1 ? FX_ORB : FX_ORB_CORE, x + 8, y + 8);
+        else {
+            avm_set_sprite(BATTLE_ARROW_SPRITES);
+            avm_draw_plus_mask(x, y, toward);
+        }
         avm_display(false);
         input_wait_frame();
     }
@@ -463,6 +634,8 @@ static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen
 RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action,
                                  BATTLE_ATTACK_CHOICE choice) {
     if(action.unit_index == BATTLE_NO_UNIT) {
+        screen.actor = screen.victim = BATTLE_NO_UNIT;
+        screen.slide = SLIDE_FRAMES;
         screen.flashing = 0;
         for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
             BattleUnit const& unit = screen.state.units[i];
@@ -489,19 +662,25 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action,
         screen.cursor.y = cursor_subpixel(cell_y(unit.cell));
     }
     uint8_t lunger = actor;
-    uint8_t attack = battle_attack_class(unit.id);
-    SFX impact = attack_sound(attack);
+    uint8_t attack = screen.attack;
+    SFX impact = ATTACK_CONTACT[attack];
     int8_t diagonal_y = 0;
     if(screen.motion != MOTION_STILL) {
         walk_unit(screen);
         lunger = BATTLE_NO_UNIT;
         impact = screen.flashing & ~(1 << actor) ? SFX_CLASH : SFX_PRICE;
-    } else if(attack == ATTACK_SHOOT || attack == ATTACK_BLAST) {
-        fly_arrow(screen, action.destination, toward);
-        lunger = BATTLE_NO_UNIT;
-        impact = attack == ATTACK_BLAST ? SFX_SMASH : SFX_ARROW_HIT;
-    } else if(attack == ATTACK_ARC) {
-        diagonal_y = battle_row(action.destination) < battle_row(unit.cell) ? -1 : 1;
+    } else {
+        if(attack == ATTACK_RECOIL && screen.origin[actor] == unit.cell)
+            impact = SFX_STRIKE;
+        if(choice != BATTLE_NORMAL)
+            wind_up(screen, toward);
+        if(attack == ATTACK_SHOOT || attack == ATTACK_BLAST) {
+            fly_projectile(screen, action.destination, toward);
+            lunger = BATTLE_NO_UNIT;
+        } else if(battle_row(action.destination) != battle_row(screen.origin[actor]) &&
+                  battle_column(action.destination) != battle_column(screen.origin[actor])) {
+            diagonal_y = battle_row(action.destination) < battle_row(screen.origin[actor]) ? -1 : 1;
+        }
     }
     if(screen.flashing) {
         bool price_only = screen.flashing == (1 << actor) && screen.state.units[actor].hp;
@@ -509,11 +688,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action,
                          price_only ? BATTLE_PRICE_FLASH_FRAMES : BATTLE_FLASH_FRAMES, impact,
                          diagonal_y);
     }
-    if(screen.mover_dx || screen.mover_dy) {
-        screen.mover = actor;
-        screen.motion = MOTION_GLIDE;
-        walk_unit(screen);
-    }
+    screen.slide = SLIDE_FRAMES;
 }
 
 // Handles an A press on `cell`. A friendly hero toggles its selection, replacing any other.
@@ -683,6 +858,7 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     // Battles cannot nest; reuse the one fixed screen, clearing it on every entry.
     BattleScreen& screen = active_screen;
     screen = {};
+    screen.slide = SLIDE_FRAMES;
     BattleState& state = screen.state;
     battle_begin(state, encounter);
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);

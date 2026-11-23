@@ -1,0 +1,6 @@
+// A short rising accent before a starter special.
+sfx
+volume max
+automation 8ms
+instrument focus { wave pulse duty 25% volume 9 volume_slide { to 1 over 52ms } }
+channel 1 focus octave 5 { d:44ms a:68ms }

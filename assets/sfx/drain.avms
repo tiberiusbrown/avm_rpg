@@ -1,0 +1,11 @@
+// Life leaving the victim and gathering in the recipients.
+sfx
+volume max
+automation 8ms
+instrument pull {
+    wave pulse duty 25% volume 10
+    frequency_slide { delta -1800cents over 96ms }
+    volume_slide { to 3 over 96ms }
+}
+instrument rise { wave pulse duty 12.5% volume 10 volume_slide { to 0 over 130ms } }
+channel 1 octave 5 { g:96ms@pull d:64ms@rise g:64ms@rise d':116ms@rise }

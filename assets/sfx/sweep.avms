@@ -1,0 +1,12 @@
+// A rising sweep followed by a bright rim of metal.
+sfx
+volume max
+automation 8ms
+instrument edge {
+    wave pulse duty 12.5% volume 10
+    frequency_slide { delta 850cents over 64ms }
+    volume_slide { to 0 over 136ms }
+}
+instrument rush { wave noise volume 9 volume_slide { to 0 over 144ms } }
+channel 1 edge octave 5 { d:136ms }
+channel 3 rush octave 6 { c:144ms }

@@ -21,9 +21,11 @@
 #include <filesystem>
 #include <array>
 #include <fstream>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
+#include <string_view>
 
 namespace fs = std::filesystem;
 
@@ -1976,6 +1978,8 @@ static unsigned settled_song(Device& d) {
     return audio_pointer(d, AUDIO_MUSIC_START);
 }
 
+#include "battle_recordings.inc"
+
 // Holds a direction until a walk crosses into the area.
 static void walk_to_area(Device& d, uint8_t held, uint8_t area, char const* message) {
     for(unsigned frames = 0; d.state().area != area; ++frames) {
@@ -2842,7 +2846,7 @@ int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 13,
             "device_tests package game_address marker_address serial_address "
             "output_directory "
-            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|perk-ranks|bram-meeting|"
+            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|battle-recordings|perk-ranks|bram-meeting|"
             "shop|sounds|"
             "functional|"
             "sounds-functional "
@@ -2885,12 +2889,15 @@ int main(int argc, char** argv) try {
         verify_smoke(d, package, out);
         return 0;
     }
-    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "perk-ranks" ||
+    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "battle-recordings" ||
+       std::string(argv[6]) == "perk-ranks" ||
        std::string(argv[6]) == "bram-meeting") {
         d.advance(0, 3200000);
         d.tap(BTN_A);
         d.advance(0, 3200000);
-        if(std::string(argv[6]) == "perk-ranks")
+        if(std::string(argv[6]) == "battle-recordings")
+            record_battle_review(d, out);
+        else if(std::string(argv[6]) == "perk-ranks")
             verify_consecutive_perk_ranks(d, out);
         else if(std::string(argv[6]) == "bram-meeting")
             verify_bram_meeting(d, out);

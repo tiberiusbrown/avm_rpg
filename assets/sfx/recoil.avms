@@ -1,0 +1,12 @@
+// A blunt hit followed by a quick backward skid.
+sfx
+volume max
+automation 8ms
+instrument knock {
+    wave pulse duty 50% volume 11
+    frequency_slide { delta -1100cents over 72ms }
+    volume_slide { to 0 over 104ms }
+}
+instrument scrape { wave noise volume 10 volume_slide { to 0 over 96ms } }
+channel 1 knock octave 4 { f:104ms }
+channel 3 scrape octave 4 { c:48ms r:48ms g:96ms }

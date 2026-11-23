@@ -1288,17 +1288,17 @@ def export_world(root=ROOT):
     }
 
 
-def read_sprite_sheet(name, columns, root=ROOT):
+def read_sprite_sheet(name, columns, root=ROOT, size=TILE_SIZE):
     """Read a sheet of whole rows; its height selects the row count (1..256)."""
     path = root / "assets" / "images" / name
     with Image.open(path) as image:
-        rows = image.height // TILE_SIZE
+        rows = image.height // size
         require(
             image.format == "PNG"
-            and image.size == (columns * TILE_SIZE, rows * TILE_SIZE)
+            and image.size == (columns * size, rows * size)
             and 1 <= rows <= 256,
             path,
-            f"expected a PNG {columns * TILE_SIZE} pixels wide holding 1..256 rows of {TILE_SIZE}",
+            f"expected a PNG {columns * size} pixels wide holding 1..256 rows of {size}",
         )
         pixels = image.convert("RGBA")
         require(
@@ -1313,11 +1313,11 @@ def read_sprite_sheet(name, columns, root=ROOT):
     for frame_y in range(rows):
         for frame_x in range(columns):
             bitmap, mask = [], []
-            for y in range(TILE_SIZE):
+            for y in range(size):
                 colors, opacity = "", ""
-                for x in range(TILE_SIZE):
+                for x in range(size):
                     r, _, _, a = pixels.getpixel(
-                        (frame_x * TILE_SIZE + x, frame_y * TILE_SIZE + y)
+                        (frame_x * size + x, frame_y * size + y)
                     )
                     colors += "#" if r and a else "."
                     opacity += "#" if a else "."
@@ -1780,6 +1780,7 @@ def generate(root=ROOT):
     cursor_frames, cursor_masks = read_cursor_frames(root)
     target_frames, target_masks = read_battle_target_frames(root)
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
+    fx_frames, fx_masks = read_sprite_sheet("battle_effects8.png", 15, root, size=8)
     damage_frames, damage_masks = read_battle_damage_frames(root)
     ambient_frames, ambient_masks = read_ambient_frames(root)
     title_frames, title_masks = read_title_frames(root)
@@ -1831,6 +1832,8 @@ def generate(root=ROOT):
     art.append("")
     art += sprite_lines("BATTLE_ARROW_SPRITES", arrow_frames, arrow_masks)
     art.append("")
+    art += sprite_lines("BATTLE_FX", fx_frames, fx_masks, 8)
+    art.append("")
     art += sprite_lines("BATTLE_DAMAGE_SPRITES", damage_frames, damage_masks)
     art.append("")
     art += sprite_lines("AMBIENT_SPRITES", ambient_frames, ambient_masks)
@@ -1860,6 +1863,8 @@ def generate(root=ROOT):
         '"the destination markers must match the frames in battle_targets16.png");',
         f"static_assert(BATTLE_ARROW_FRAMES == {ARROW_FRAMES}, "
         '"BATTLE_ARROW_FRAMES must match the frames in battle_arrows16.png");',
+        f"static_assert(BATTLE_FX_FRAMES == {len(fx_frames)}, "
+        '"BATTLE_FX_FRAMES must match the frames in battle_effects8.png");',
         f"static_assert(BATTLE_DAMAGE_FRAMES == {DAMAGE_FRAMES}, "
         '"BATTLE_DAMAGE_FRAMES must match the nonzero frames in battle_damage16.png");',
         f"static_assert(AMBIENT_FRAME_COUNT == {len(ambient_frames)}, "

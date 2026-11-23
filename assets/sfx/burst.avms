@@ -1,0 +1,12 @@
+// A dense explosion with a descending echo.
+sfx
+volume max
+automation 8ms
+instrument blast { wave noise volume 14 volume_slide { to 0 over 212ms } }
+instrument echo {
+    wave pulse duty 50% volume 12
+    frequency_slide { delta -2200cents over 190ms }
+    volume_slide { to 0 over 260ms }
+}
+channel 1 echo octave 4 { c:260ms }
+channel 3 blast octave 3 { c:212ms }

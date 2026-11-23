@@ -1,0 +1,12 @@
+// A soft sustained air rush with a falling whistle.
+sfx
+volume max
+automation 8ms
+instrument gust { wave noise volume 6 volume_slide { to 0 over 280ms } }
+instrument whistle {
+    wave pulse duty 12.5% volume 7
+    frequency_slide { delta -1000cents over 180ms }
+    volume_slide { to 0 over 260ms }
+}
+channel 1 whistle octave 5 { a:260ms }
+channel 3 gust octave 6 { c:280ms }

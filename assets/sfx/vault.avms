@@ -1,0 +1,12 @@
+// A short rising spring and a heavier landing.
+sfx
+volume max
+automation 8ms
+instrument spring {
+    wave pulse duty 25% volume 9
+    frequency_slide { delta 1200cents over 70ms }
+    volume_slide { to 0 over 150ms }
+}
+instrument landing { wave noise volume 12 volume_slide { to 0 over 54ms } }
+channel 1 spring octave 4 { d:150ms }
+channel 3 landing octave 2 { r:112ms c:54ms }

@@ -658,6 +658,9 @@ extern uint8_t const PROGMEM BATTLE_TARGET_SPRITES[];
 // direction is its own frame index. The generated sheet asserts the count.
 inline constexpr uint8_t BATTLE_ARROW_FRAMES = 4;
 extern uint8_t const PROGMEM BATTLE_ARROW_SPRITES[];
+// Contact frames in attack-class order, followed by projectile, focus, and burst frames.
+inline constexpr uint8_t BATTLE_FX_FRAMES = ATTACK_CLASS_COUNT + 5;
+extern uint8_t const PROGMEM BATTLE_FX[];
 // The damage indicators, battle_damage16.png: centered 16x16 plus-mask frames for 1 to 99 HP lost.
 // The last burst represents all losses of 99 HP or more.
 inline constexpr uint8_t BATTLE_DAMAGE_FRAMES = 99;

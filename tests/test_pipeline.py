@@ -135,6 +135,7 @@ class Pipeline(unittest.TestCase):
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
+            ("BATTLE_FX", "battle_effects8.png", 15, True),
             ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 99, True),
             ("AMBIENT_SPRITES", "ambient16.png", 43, True),
             ("TITLE_SPRITES", "title16.png", 33, True),
@@ -142,8 +143,9 @@ class Pipeline(unittest.TestCase):
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
             data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
-            self.assertEqual(data[:2], [16, 16])
-            stride = 64 if masked else 32
+            size = 8 if name == "BATTLE_FX" else 16
+            self.assertEqual(data[:2], [size, size])
+            stride = size * size // 8 * (2 if masked else 1)
             # A tile sheet may continue with wind frames, which test_phase_sheets_and_wind_frames
             # checks.
             if masked:
@@ -151,16 +153,16 @@ class Pipeline(unittest.TestCase):
             else:
                 self.assertGreaterEqual(len(data), 2 + frames * stride)
             image = Image.open(self.root / "assets" / "images" / file).convert("RGBA")
-            columns = image.width // 16
+            columns = image.width // size
             opaque_black, transparent = False, False
             for frame in range(frames):
                 cell = frame + (name == "BATTLE_DAMAGE_SPRITES")  # Skip the authored 0 burst.
-                for y in range(16):
-                    for x in range(16):
+                for y in range(size):
+                    for x in range(size):
                         r, g, b, a = image.getpixel(
-                            (cell % columns * 16 + x, cell // columns * 16 + y)
+                            (cell % columns * size + x, cell // columns * size + y)
                         )
-                        offset = (y // 8 * 16 + x) * (2 if masked else 1)
+                        offset = (y // 8 * size + x) * (2 if masked else 1)
                         byte = data[2 + frame * stride + offset]
                         self.assertEqual((byte >> (y % 8)) & 1, bool(r and a))
                         if masked:

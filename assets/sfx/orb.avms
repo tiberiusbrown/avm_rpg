@@ -1,0 +1,10 @@
+// A low magical warble for the Blast projectile.
+sfx
+volume max
+automation 8ms
+instrument orb {
+    wave pulse duty 25% volume 10
+    frequency_slide { delta 900cents over 145ms }
+    volume_slide { to 5 over 210ms }
+}
+channel 1 orb octave 3 { b:220ms }

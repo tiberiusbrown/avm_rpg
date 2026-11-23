@@ -1,0 +1,6 @@
+// Quickening armored footfalls followed by a hard skid.
+sfx
+volume max
+automation 8ms
+instrument step { wave noise volume 10 volume_slide { to 0 over 32ms } }
+channel 3 step octave 3 { c:32ms r:24ms e:32ms r:12ms g:32ms c,:44ms }

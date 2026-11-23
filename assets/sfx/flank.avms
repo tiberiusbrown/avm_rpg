@@ -1,0 +1,8 @@
+// Two close blade strikes, with different pitches to mark both angles of attack.
+sfx
+volume max
+automation 8ms
+instrument steel { wave pulse duty 12.5% volume 11 volume_slide { to 0 over 70ms } }
+instrument strike { wave noise volume 10 volume_slide { to 0 over 64ms } }
+channel 1 steel octave 6 { e:48ms b:72ms }
+channel 3 strike octave 5 { c:48ms g:72ms }

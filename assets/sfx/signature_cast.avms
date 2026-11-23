@@ -1,0 +1,8 @@
+// A lower pickup and a higher three-note figure before a signature.
+sfx
+volume max
+automation 8ms
+instrument focus { wave pulse duty 25% volume 11 volume_slide { to 2 over 52ms } }
+instrument swell { wave noise volume 6 volume_slide { to 0 over 170ms } }
+channel 1 focus octave 4 { g:40ms d':36ms g':40ms b':56ms }
+channel 3 swell octave 4 { c:172ms }

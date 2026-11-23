@@ -495,7 +495,12 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
   victory or defeat after all attack effects, then hand the turn to the other team if play continues.
   Ordinary actions either reduce total battle HP or eliminate at least one combatant. Life Channel
   can restore more total HP than it removes and spends 3 AP from the attacker's finite battle pool.
-- Damage bursts show actual HP lost, capped at 99 for display.
+- Battle presentation follows the resolved action. Step walks, Leap arcs high, Charge accelerates,
+  Vault springs over the crossed cells, and Glide leaves a diagonal trail. Attacks use class-specific
+  contact effects, with arrows for Shoot and an orb for Blast. Starters and signatures cue their
+  different wind-ups before contact. Damage, healing, and forced displacement animate on the units
+  actually affected, including secondary hits, reflected damage, and perk effects. Damage bursts
+  show actual HP lost, capped at 99 for display.
 - **Pass:** every living unit on that side loses **1 HP**, then battle checks for defeat. Passing is not a free defensive action.
 - Zero-HP party members do not deploy in subsequent encounters until revived/rested. Battle outcome is victory/defeat, never a draw. Defeat returns to the title screen rather than applying quest rewards.
 - Victory writes surviving and fallen party HP back to saved members; grants each roster member (including those not deployed or at 0 HP) **2 XP** and victory AP recovery; credits **3 G for each deployed enemy** subject to wallet cap.
