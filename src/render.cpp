@@ -20,6 +20,50 @@
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
 
+RPG_NOINLINE static void draw_quest_arrow(Camera shown) {
+    TilePos objective;
+    if(!quest_exploration_marker(objective))
+        return;
+
+    constexpr int16_t HEIGHT = 64;
+    constexpr uint8_t DOWN_FRAME = 6;
+    uint8_t phase = (game.ticks / 4) & 7;
+    int16_t bob = phase < 4 ? phase : 7 - phase;
+    int16_t world_x = objective.x * TILE, world_y = objective.y * TILE;
+    int16_t x = world_x - (int16_t)shown.x, y = world_y - (int16_t)shown.y;
+    if(x > -TILE && x < (int16_t)DISPLAY_WIDTH && y > -TILE && y < HEIGHT) {
+        // Keep the whole sprite visible when the objective approaches the display boundary.
+        x += TILE / 2 - QUEST_ARROW_SIZE / 2;
+        constexpr int16_t RIGHT = DISPLAY_WIDTH - QUEST_ARROW_SIZE;
+        x = x < 0 ? 0 : (x > RIGHT ? RIGHT : x);
+        constexpr int16_t MIN_Y = 3;
+        y -= QUEST_ARROW_SIZE + 2;
+        y = (y < MIN_Y ? MIN_Y : y) + bob;
+        avm_draw_sprite_plus_mask(x, y, QUEST_ARROW_SPRITES, DOWN_FRAME);
+        return;
+    }
+
+    int16_t dx = world_x - (int16_t)game.player.x;
+    int16_t dy = world_y - (int16_t)game.player.y;
+    if(!dx && !dy)
+        return;
+
+    int16_t ax = dx < 0 ? -dx : dx;
+    int16_t ay = dy < 0 ? -dy : dy;
+    int8_t edge_x = ax * 2 < ay ? 0 : (dx < 0 ? -1 : 1);
+    int8_t edge_y = ay * 2 < ax ? 0 : (dy < 0 ? -1 : 1);
+    int16_t inset = 2 + bob;
+    x = edge_x < 0 ? inset
+                   : (edge_x > 0 ? DISPLAY_WIDTH - QUEST_ARROW_SIZE - inset
+                                 : (DISPLAY_WIDTH - QUEST_ARROW_SIZE) / 2);
+    y = edge_y < 0
+            ? inset
+            : (edge_y > 0 ? HEIGHT - QUEST_ARROW_SIZE - inset : (HEIGHT - QUEST_ARROW_SIZE) / 2);
+    // The sheet follows the bearing grid in row order, skipping its center.
+    uint8_t cell = (edge_y + 1) * 3 + edge_x + 1;
+    avm_draw_sprite_plus_mask(x, y, QUEST_ARROW_SPRITES, cell - (cell > 4));
+}
+
 // Breathing crosshair: opaque black halo around every white arm, open target center.
 static constexpr auto MAP_CURSOR PROGMEM = [] {
     struct Sprite {
@@ -392,6 +436,8 @@ void rpg_render_world(uint8_t covered) {
     if(tileset_has_sky(tileset))
         draw_birds(shown);
 
+    if(!covered && quest_selected() != QUEST_NONE)
+        draw_quest_arrow(shown);
     if(game.can_interact)
         avm_draw_text(110, 7, F("A"));
 }
@@ -904,6 +950,50 @@ void render_battle_result(bool victory, uint8_t gold_gained) {
         avm_draw_text(X + 6, y + 23, F("Game Over"));
     }
     draw_menu_button(X + 6, y + (victory ? 40 : 31), MENU_BUTTON_A, F("Continue"));
+}
+
+void render_quest_notice(QuestNotice const& notice) {
+    constexpr int16_t WIDTH = 104, X = (DISPLAY_WIDTH - WIDTH) / 2, MARGIN = 6, ROW_HEIGHT = 8;
+    constexpr uint8_t MAX_LINES = 3;
+    uint8_t starts[MAX_LINES + 1];
+    bool started = notice.started != QUEST_NONE;
+    avm_set_text_font(AVM_FONT_BR5D);
+    uint8_t lines = notice.objective ? text_wrap(notice.objective, WIDTH - 2 * MARGIN,
+                                                 TextRangeWidth{}, starts, MAX_LINES)
+                                     : (uint8_t)((notice.experience != 0) + (notice.gold != 0));
+    int16_t height = 34 + ROW_HEIGHT * lines;
+    int16_t y = (64 - height) / 2;
+    draw_menu_frame(X, y, WIDTH, height);
+    draw_menu_title(X + MARGIN, started ? F("Quest Start") : F("Quest Complete"),
+                    WIDTH - 2 * MARGIN, y + 10);
+    draw_menu_rule(X, y + 13, WIDTH);
+
+    int16_t baseline = y + 22;
+    if(started) {
+        for(uint8_t row = 0; row < lines; ++row) {
+            uint8_t from = starts[row], to = starts[row + 1];
+            while(to > from && notice.objective[to - 1] == ' ')
+                --to;
+            text_draw_range(X + MARGIN, baseline, notice.objective, from, to);
+            baseline += ROW_HEIGHT;
+        }
+    } else {
+        if(notice.experience) {
+            avm_draw_textf(X + MARGIN, baseline, F("+%u XP to party"), notice.experience);
+            baseline += ROW_HEIGHT;
+        }
+        if(notice.gold)
+            avm_draw_textf(X + MARGIN, baseline, F("+%u Gold"), notice.gold);
+    }
+
+    draw_menu_rule(X, y + height - 13, WIDTH);
+    draw_menu_button(X + MARGIN, y + height - 5, MENU_BUTTON_A,
+                     started ? F("Track") : F("Continue"));
+    if(started) {
+        auto close = F("Close");
+        int16_t right = X + WIDTH - MARGIN - MENU_BUTTON_LABEL_OFFSET - avm_text_width(close);
+        draw_menu_button(right, y + height - 5, MENU_BUTTON_B, close);
+    }
 }
 
 void render_battle_offer(uint8_t attack, uint8_t rows, uint8_t choice, bool at_bottom) {

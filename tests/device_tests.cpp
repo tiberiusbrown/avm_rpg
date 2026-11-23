@@ -499,7 +499,7 @@ struct Device {
         advance(0, 8000000);
     }
 
-    void dismiss_dialogue() {
+    void dismiss_dialogue(bool resume_exploration = true) {
         for(unsigned page = 0; page < 16; ++page) {
             wait_for_prompt();
             auto current = prompt();
@@ -509,7 +509,8 @@ struct Device {
             if(current == DIALOGUE_DONE) {
                 require(prompt() == DIALOGUE_CLOSED, "dialogue did not close");
                 // Closing animation finishes before the next exploration update.
-                frame();
+                if(resume_exploration)
+                    frame();
                 return;
             }
         }
@@ -2379,6 +2380,10 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
             "Lantern Keeper did not earn a level and a perk choice");
     unsigned serial = d.serial();
     d.advance(0, 3200000);
+    require(d.serial() == serial, "quest completion panel did not wait for dismissal");
+    d.capture(out / "lantern-quest-complete.pgm");
+    d.tap(BTN_A);
+    d.advance(0, 3200000);
     require(d.serial() == serial, "quest level-up notice did not wait for dismissal");
     d.capture(out / "quest-level-up.pgm");
     d.tap(BTN_A);
@@ -2406,10 +2411,10 @@ static void verify_venlor_quests(Device& d, fs::path const& out) {
         d.set_state(fixture);
         d.frame();
     };
-    auto inspect = [&](char const* filename) {
+    auto inspect = [&](char const* filename, bool resume_exploration = true) {
         d.capture(out / filename, true);
         d.tap(BTN_A);
-        d.dismiss_dialogue();
+        d.dismiss_dialogue(resume_exploration);
     };
     auto surveyors_here = [&] {
         auto state = d.state();
@@ -2422,9 +2427,20 @@ static void verify_venlor_quests(Device& d, fs::path const& out) {
     require(d.state().get_flag(FLAG_LANTERN_RECORD_FOUND) && !d.state().get_flag(FLAG_LANTERN_STARTED),
             "reading the workshop record did not preserve early evidence");
     place(positions::SurveyorNotes, 0, 1, NORTH);
-    inspect("surveyor-notes.pgm");
+    inspect("surveyor-notes.pgm", false);
+    d.advance(0, 3200000);
     require(d.state().get_flag(FLAG_SURVEY_STARTED) && d.state().get_flag(FLAG_SURVEY_NOTES_READ),
             "the survey notes did not start the search");
+    unsigned serial = d.serial();
+    d.advance(0, 3200000);
+    require(d.serial() == serial && d.state().selected_quest == QUEST_NONE,
+            "the quest start panel did not wait for a tracking choice");
+    d.capture(out / "surveyor-quest-start.pgm");
+    d.tap(BTN_A);
+    d.frame();
+    require(d.state().selected_quest == QUEST_MISSING_SURVEYOR,
+            "Track did not select the new quest");
+    d.capture(out / "tracked-quest-arrow.pgm", true);
 
     place(positions::MineLanternRelay, 0, 1, NORTH);
     Game gate_open = d.state();
@@ -2460,13 +2476,17 @@ static void verify_venlor_quests(Device& d, fs::path const& out) {
                         d.state().gold == crossing.gold && surveyors_here() == 1,
                     "declining the rescue changed its outcome");
         } else {
-            d.dismiss_dialogue();
+            d.dismiss_dialogue(false);
+            d.advance(0, 3200000);
+            d.capture(out / "surveyor-quest-complete.pgm");
+            d.tap(BTN_A);
+            d.frame();
         }
     }
     require(d.state().get_flag(FLAG_SURVEYOR_RESCUED) && surveyors_here() == 0 &&
                 d.state().gold == crossing.gold + 15 &&
                 d.state().party.members[0].experience == 8 &&
-                !d.state().get_flag(FLAG_CAVE_CHEST),
+                d.state().selected_quest == QUEST_NONE && !d.state().get_flag(FLAG_CAVE_CHEST),
             "rescue did not retire the surveyor and award exactly 8 XP and 15 G");
     place(positions::CaveLadder, 0, 1, NORTH);
     walk_to_area(d, BTN_UP, AREA_OUTDOOR, "the rescued surveyor's ladder did not lead outside");
@@ -2494,7 +2514,16 @@ static void verify_venlor_quests(Device& d, fs::path const& out) {
     d.capture(out / "lantern-ancient-options.pgm");
     d.tap(BTN_DOWN);
     d.tap(BTN_A);
-    d.dismiss_dialogue();
+    d.dismiss_dialogue(false);
+    d.advance(0, 3200000);
+    d.tap(BTN_B); // Close the start panel. This interaction also completed the quest.
+    d.advance(0, 3200000);
+    serial = d.serial();
+    d.tap(BTN_B);
+    require(d.serial() == serial && d.state().selected_quest == QUEST_NONE,
+            "closing Quest Start did not leave Quest Complete open and tracking clear");
+    d.tap(BTN_A);
+    d.frame();
     require(d.state().get_flag(FLAG_LANTERN_RESTORED) && !d.state().get_flag(FLAG_LANTERN_MODERN) &&
                 d.state().gold == crossing.gold + 27 &&
                 d.state().party.members[0].experience == 14,

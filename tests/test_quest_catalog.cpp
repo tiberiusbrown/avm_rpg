@@ -157,7 +157,8 @@ static void starts() {
     CHECK(!quest_start(Q(7)));
     CHECK(quest_status(Q(7)) == QUEST_NOT_STARTED && quest_selected() == QUEST_NONE);
     CHECK(quest_start(Q(8)) && test_starts[8] == 1);
-    CHECK(quest_status(Q(8)) == QUEST_ACTIVE && quest_selected() == Q(8));
+    CHECK(quest_status(Q(8)) == QUEST_ACTIVE && quest_selected() == QUEST_NONE);
+    CHECK(quest_select(Q(8)));
     // Starting again is idempotent, and it does not run start() again.
     CHECK(!quest_start(Q(8)) && test_starts[8] == 1);
     // A later start keeps the tracked quest.

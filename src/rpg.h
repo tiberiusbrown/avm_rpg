@@ -626,6 +626,9 @@ inline constexpr uint8_t PROMPT_FRAME_COUNT = 4;
 extern uint8_t const PROGMEM PROMPT_SPRITES[];
 // The ambient creatures and effects, ambient16.png: 16x16 plus-mask frames that ambient.h names.
 extern uint8_t const PROGMEM AMBIENT_SPRITES[];
+// The tracked objective arrow, quest_arrows9.png, in NW, N, NE, W, E, SW, S, SE order.
+inline constexpr uint8_t QUEST_ARROW_SIZE = 9, QUEST_ARROW_FRAMES = 8;
+extern uint8_t const PROGMEM QUEST_ARROW_SPRITES[];
 // The title screen: the whole 128x64 background picture, the game's name as one plus-mask
 // sprite, and title16.png's 16x16 plus-mask frames that title.h names.
 extern uint8_t const PROGMEM TITLE_SCENE[];

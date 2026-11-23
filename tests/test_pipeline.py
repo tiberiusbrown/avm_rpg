@@ -135,6 +135,7 @@ class Pipeline(unittest.TestCase):
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
+            ("QUEST_ARROW_SPRITES", "quest_arrows9.png", 8, True),
             ("BATTLE_FX", "battle_effects8.png", 15, True),
             ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 99, True),
             ("AMBIENT_SPRITES", "ambient16.png", 43, True),
@@ -143,9 +144,9 @@ class Pipeline(unittest.TestCase):
             body = source.split(" " + name + "[] = {", 1)[1].split("};", 1)[0]
             body = re.sub(r"//[^\n]*", "", body)
             data = [int(v, 0) for v in re.findall(r"0x[0-9a-f]+|\b\d+\b", body)]
-            size = 8 if name == "BATTLE_FX" else 16
+            size = {"BATTLE_FX": 8, "QUEST_ARROW_SPRITES": 9}.get(name, 16)
             self.assertEqual(data[:2], [size, size])
-            stride = size * size // 8 * (2 if masked else 1)
+            stride = size * ((size + 7) // 8) * (2 if masked else 1)
             # A tile sheet may continue with wind frames, which test_phase_sheets_and_wind_frames
             # checks.
             if masked:

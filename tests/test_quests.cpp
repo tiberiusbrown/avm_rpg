@@ -94,7 +94,11 @@ static void lantern(bool modern, bool start_at_inn) {
         talk(NPC_MARA, 1, false);
         CHECK(quest_status(id) == QUEST_NOT_STARTED);
         talk(NPC_MARA, 1);
-        CHECK(quest_status(id) == QUEST_ACTIVE && quest_selected() == id);
+        CHECK(quest_status(id) == QUEST_ACTIVE && quest_selected() == QUEST_NONE);
+        QuestNotice notice;
+        CHECK(quest_take_notice(notice) && notice.started == id &&
+              !strcmp(notice.objective, "Ask Bram"));
+        CHECK(!quest_take_notice(notice));
         markers(id, positions::BramYard);
         talk(NPC_BRAM, 255);
         CHECK(!game.get_flag(FLAG_LANTERN_DIAGNOSED));
@@ -456,6 +460,12 @@ int main() {
     touch(positions::VillageLantern, EAST);
     CHECK(game.gold == UINT16_MAX && game.party.members[0].experience == 6 &&
           game.party.members[1].experience == 6);
+    QuestNotice notice;
+    CHECK(quest_take_notice(notice) && notice.started == QUEST_LANTERN_KEEPER &&
+          !strcmp(notice.objective, "Ask Bram"));
+    CHECK(quest_take_notice(notice) && notice.started == QUEST_NONE && notice.experience == 6 &&
+          notice.gold == 1);
+    CHECK(!quest_take_notice(notice));
     bram_meeting();
     invalid_saves();
     mine_without_combat();

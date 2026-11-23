@@ -104,8 +104,9 @@ The flag set occupies six bytes. Section 6.3 records ownership of the encounter 
 ### 1.5 Other saved fields and transient-only fields
 
 - **Saved `Game`:** save version, player actor and position, RNG seed, gold (`uint16_t`, max 65,535), world tick counter, world flags, World Remembers timer, current area, level field, party (identities/classes/current HP/AP/member level and XP/perk ranks/equipment references), supplies, area dimensions, previous tile, interaction readiness, NPC pool, audio settings, and `selected_quest`.
-- **Rebuilt/transient:** tile cache/camera/workspaces, active NPC reconstruction on area load, dialogue panels/menu navigation, pending quest flag evaluations, pending level-up notices, combat search and battle scene state, and pending encounter contacts. Save restoration validates IDs, party data, flags, positions, and quest invariants; it reconstructs the view and NPC state.
-- **Quest tracking:** only one **active** quest may be selected. Starting a quest automatically selects it if none is selected. A completed/inactive quest is automatically untracked. All started or completed quests appear in the Journal; selection does not affect quest progression.
+- **Rebuilt/transient:** tile cache/camera/workspaces, active NPC reconstruction on area load, dialogue panels/menu navigation, pending quest flag evaluations, pending quest and level-up notices, combat search and battle scene state, and pending encounter contacts. Save restoration validates IDs, party data, flags, positions, and quest invariants; it reconstructs the view and NPC state.
+- **Quest tracking:** only one **active** quest may be selected. The Quest Start panel presents the objective at the time of starting. A (Track) selects the quest if it is still active. B (Close) keeps the current selection. A completed or inactive quest is automatically untracked. All started or completed quests appear in the Journal. Selection does not affect quest progression.
+- **Exploration guidance:** the tracked quest's objective or the local exit toward it has a bobbing down arrow above its tile while visible. An animated edge arrow points toward an offscreen target. Without a tracked quest, there is no arrow.
 - **Save compatibility.** Version 22 stores the number of ranks learned on each track. Existing
   saves retain their class identifiers, learned rank counts, and unspent choices. A learned rank
   uses its current effect below. A version 22 member at Step rank 1 can load with up to 3 HP above
@@ -305,6 +306,7 @@ The shop sells these four supplies with unlimited stock at the fixed prices abov
 | Rowan's recruitment | New Step/Shoot level-1 member | once |
 
 Both quest rewards cap gold at the wallet limit. Each XP payout belongs to the first confirmed transition to completion.
+The Quest Complete panel reports party XP and gold credited after the completion dialogue, before any resulting level-up notice.
 
 ## 5. Character classes, progression and perks
 

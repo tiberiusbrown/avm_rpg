@@ -500,6 +500,21 @@ __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
     }
 }
 
+RPG_NOINLINE static void show_quest_notices() {
+    QuestNotice notice;
+    while(quest_take_notice(notice)) {
+        input_wait_frame();
+        rpg_render_world();
+        render_quest_notice(notice);
+        avm_display(false);
+        bool started = notice.started != QUEST_NONE;
+        uint8_t pressed = input_wait_press(started ? BTN_A | BTN_B : BTN_A);
+        if(started && (pressed & BTN_A))
+            quest_select(notice.started);
+        input_sync();
+    }
+}
+
 RPG_NOINLINE static void show_quest_level_ups(LevelUpNotice notice) {
     rpg_render_world();
     render_level_up_notice(F("LEVEL UP"), notice);
@@ -543,6 +558,7 @@ __attribute__((noinline)) void explore() {
 
     for(;;) {
         dialogue_close();
+        show_quest_notices();
         if(LevelUpNotice notice = quest_take_level_ups(); notice.members)
             show_quest_level_ups(notice);
         input_wait_frame();

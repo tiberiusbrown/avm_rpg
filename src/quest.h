@@ -66,7 +66,7 @@ template <QUEST_ID ID> struct Quest;
 // refuse.
 QUEST_STATUS quest_status(QUEST_ID id);
 // Starts a not-started quest that defines start(). A started, completed or failed quest is left
-// unchanged. The first start also tracks the quest if nothing else is tracked.
+// unchanged. Its start notice offers tracking.
 bool quest_start(QUEST_ID id);
 char const PROGMEM* quest_title(QUEST_ID id);
 char const PROGMEM* quest_summary(QUEST_ID id);
@@ -92,6 +92,8 @@ bool quest_select(QUEST_ID id);
 void quest_deselect();
 // The tracked quest's marker in an area. It is false when no quest is tracked.
 bool quest_map_marker(uint8_t area, TilePos& out);
+// The tracked quest's local objective, or the exit toward an objective in another area.
+bool quest_exploration_marker(TilePos& out);
 
 // Journal entries are quests that have started. They are listed in ID order, and a scan answers
 // each lookup, so no list is stored.
@@ -110,13 +112,20 @@ template <NPC_ID ID> void quest_emit(NpcTalked<ID>) {
 // Evaluates the pending quests in bounded passes. Anything left over stays pending for the next
 // settle, and the tracked quest is cleared if it is no longer active.
 void quest_settle();
-// A quest completion handler may award XP once when it records completion. The exploration
-// screen consumes any resulting level-ups after the world update and dialogue finish.
-void quest_award_experience(uint8_t experience);
-// Grants XP and credits as much gold as the wallet can hold.
+
+struct QuestNotice {
+    QUEST_ID started; // QUEST_NONE identifies a completion notice.
+    char const PROGMEM* objective;
+    uint8_t experience, gold;
+};
+
+// Grants XP, credits as much gold as the wallet can hold, and queues a completion notice.
+// Call once, after a successful completion transition.
 void quest_award_reward(uint8_t experience, uint8_t gold);
+bool quest_take_notice(QuestNotice& out);
 LevelUpNotice quest_take_level_ups();
-// Clears transient evaluation state on a new game or a loaded save.
+void render_quest_notice(QuestNotice const& notice);
+// Clears transient evaluations and notices on a new game or a loaded save.
 void quest_reset();
 // Saved quest state is valid when the selection names a defined ID and every quest is consistent.
 bool quest_saved_state_valid();

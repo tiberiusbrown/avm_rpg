@@ -65,7 +65,7 @@ checks the tracked ID and calls each quest’s `consistent()` to reject impossib
 combinations. `save_restore()` clears a selection that names an inactive quest.
 The save version and persistent-state contracts live in [game logic](game_logic.md).
 
-Computed statuses, summaries, markers, the Journal cursor and pending evaluations are not saved.
+Computed statuses, summaries, markers, the Journal cursor, pending evaluations and quest notices are not saved.
 
 ## Events
 
@@ -105,8 +105,8 @@ Tracking is separate from status and from the Journal's highlight.
 
 - Only an active quest can be tracked. `quest_select` refuses any other quest.
 - At most one quest is tracked. Selecting another replaces it.
-- A quest's first `quest_start` tracks it, but only when nothing is tracked.
-- Completion or any other end of activity clears tracking. Nothing else is selected.
+- `quest_start` queues a Quest Start panel with the starting objective. A (Track) selects it if it is still active. B (Close) keeps the current selection.
+- Completion or any other end of activity clears tracking for that quest.
 - Tracking changes no quest state.
 
 ## Journal
@@ -144,6 +144,13 @@ asset. Its position uses the same tile-to-map mapping as the player.
 The Lantern Keeper uses authored points for evidence and the eventual repair.
 `quest_fixed_marker<POS>()` copies coordinates as compile-time values. A quest
 can answer with a different position for each area.
+
+The exploration arrow uses the tracked quest's marker. It points toward the
+current room's exit when the marker is in another house or outdoors. With an
+outdoor marker and no local marker in Hollow Mine or the Old Vault, it points
+to the area's main exit. Its eight bearings use `assets/images/quest_arrows9.png`.
+A visible target has a bobbing down arrow above its tile. For an offscreen target
+the arrow bobs at the screen edge. It is hidden when there is no tracking target.
 
 ## Compile-time and runtime checks
 
@@ -183,9 +190,10 @@ A quest that reacts to a flag change should subscribe with `FlagChanged`, not po
 ## Rewards and notifications
 
 Content can call `quest_award_reward` after a confirmed completion. The runtime
-credits gold up to the wallet cap and records level-ups from awarding party XP.
-Exploration presents those notices after dialogue closes. Earned perk choices
-remain available in Party.
+credits gold up to the wallet cap, queues a Quest Complete panel with party XP
+and credited gold, and records level-ups from awarding party XP. Exploration
+presents quest panels in transition order after dialogue closes, followed by
+any level-up notice. Earned perk choices remain available in Party.
 
 ## Limitations
 

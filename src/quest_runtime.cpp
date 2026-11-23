@@ -6,6 +6,7 @@
 #define RPG_QUEST_REGISTRY_HEADER "quest_registry.h"
 #endif
 #include RPG_QUEST_REGISTRY_HEADER
+#include "logic/area_village.h"
 
 #ifndef RPG_AVM
 unsigned quest_evaluations;
@@ -22,6 +23,9 @@ constexpr uint8_t SETTLE_PASSES = 4;
 // Transient evaluation bits, one per QUEST_ID. They never reach the save.
 uint8_t pending[QUEST_BYTES];
 LevelUpNotice pending_level_ups;
+// Each quest can start and complete once per game. Keep their notices in transition order.
+QuestNotice pending_notices[2 * (QUEST_ID_LIMIT - 1)];
+uint16_t pending_notice_count;
 
 using StatusFn = QUEST_STATUS (*)();
 using TextFn = char const PROGMEM* (*)();
@@ -113,6 +117,27 @@ void validate_selection() {
         game.selected_quest = QUEST_NONE;
 }
 
+// Houses occupy separate rooms in the same area. Use the closest authored exit to identify the
+// room. Expand HOUSE_LINKS at compile time to keep the exit coordinates as immediate values.
+template <std::size_t... I> TilePos closest_house_exit(TilePos tile, std::index_sequence<I...>) {
+    TilePos exit{};
+    uint32_t best = UINT32_MAX;
+    auto consider = [&](TilePos site) {
+        int16_t dx = (int16_t)tile.x - site.x;
+        int16_t dy = (int16_t)tile.y - site.y;
+        uint32_t distance = (int32_t)dx * dx + (int32_t)dy * dy;
+        if(distance < best) {
+            best = distance;
+            exit = site;
+        }
+    };
+    (consider(handler_impl::HOUSE_LINKS[I].exit), ...);
+    return exit;
+}
+
+using Houses =
+    std::make_index_sequence<sizeof(handler_impl::HOUSE_LINKS) / sizeof(handler_impl::HouseLink)>;
+
 } // namespace
 
 // Keep table loads at these entry points so the guest linker can resolve their call targets.
@@ -126,8 +151,7 @@ bool quest_start(QUEST_ID id) {
         return false;
     if(Tables::status[id]() != QUEST_ACTIVE)
         return false;
-    if(game.selected_quest == QUEST_NONE)
-        game.selected_quest = id;
+    pending_notices[pending_notice_count++] = {id, quest_objective(id), 0, 0};
     return true;
 }
 
@@ -168,6 +192,30 @@ void quest_deselect() {
 
 bool quest_map_marker(uint8_t area, TilePos& out) {
     return quest_marker(game.selected_quest, area, out);
+}
+
+bool quest_exploration_marker(TilePos& out) {
+    if(game.selected_quest == QUEST_NONE)
+        return false;
+
+    bool local = quest_map_marker(game.area, out);
+    if(game.area == AREA_INTERIORS) {
+        TilePos player{game.area, (uint8_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
+                       (uint8_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT)};
+        TilePos exit = closest_house_exit(player, Houses{});
+        if(local && closest_house_exit(out, Houses{}) == exit)
+            return true;
+        if(!local && !quest_map_marker(AREA_OUTDOOR, out))
+            return false;
+        out = exit;
+        return true;
+    }
+    if(local)
+        return true;
+    if(game.area == AREA_OUTDOOR || !quest_map_marker(AREA_OUTDOOR, out))
+        return false;
+    return quest_fixed_marker<positions::CaveExit>(game.area, out) ||
+           quest_fixed_marker<positions::DungeonExit>(game.area, out);
 }
 
 bool quest_listed(QUEST_ID id) {
@@ -231,15 +279,23 @@ void quest_settle() {
     validate_selection();
 }
 
-void quest_award_experience(uint8_t experience) {
-    for(uint8_t i = 0; i < game.party.count; ++i)
-        pending_level_ups.award(game.party, i, experience);
-}
-
 void quest_award_reward(uint8_t experience, uint8_t gold) {
     uint16_t room = UINT16_MAX - game.gold;
-    game.gold += gold < room ? gold : room;
-    quest_award_experience(experience);
+    uint8_t credited = gold < room ? gold : (uint8_t)room;
+    game.gold += credited;
+    for(uint8_t i = 0; i < game.party.count; ++i)
+        pending_level_ups.award(game.party, i, experience);
+    pending_notices[pending_notice_count++] = {QUEST_NONE, nullptr, experience, credited};
+}
+
+bool quest_take_notice(QuestNotice& out) {
+    if(!pending_notice_count)
+        return false;
+    out = pending_notices[0];
+    --pending_notice_count;
+    for(uint16_t i = 0; i < pending_notice_count; ++i)
+        pending_notices[i] = pending_notices[i + 1];
+    return true;
 }
 
 LevelUpNotice quest_take_level_ups() {
@@ -249,6 +305,7 @@ LevelUpNotice quest_take_level_ups() {
 }
 
 void quest_reset() {
+    pending_notice_count = 0;
     pending_level_ups = {};
     for(uint8_t i = 0; i < QUEST_BYTES; ++i)
         pending[i] = 0;

@@ -1534,6 +1534,11 @@ def read_battle_arrow_frames(root=ROOT):
     return frames, masks
 
 
+# The exploration HUD shows one 9x9 plus-mask frame per compass bearing.
+QUEST_ARROW_SIZE = 9
+QUEST_ARROW_FRAMES = 8
+
+
 # The row is the tens digit and the column is the ones digit. Only cells 1 through 99 are exported.
 # Two digits share a wider black center in the same 16x16 frame, with one pixel between the glyphs.
 DAMAGE_GRID_SIZE = 10
@@ -1780,6 +1785,14 @@ def generate(root=ROOT):
     cursor_frames, cursor_masks = read_cursor_frames(root)
     target_frames, target_masks = read_battle_target_frames(root)
     arrow_frames, arrow_masks = read_battle_arrow_frames(root)
+    quest_arrow_frames, quest_arrow_masks = read_sprite_sheet(
+        "quest_arrows9.png", QUEST_ARROW_FRAMES, root, size=QUEST_ARROW_SIZE
+    )
+    require(
+        len(quest_arrow_frames) == QUEST_ARROW_FRAMES,
+        root / "assets" / "images" / "quest_arrows9.png",
+        "expected one row of eight arrows in NW, N, NE, W, E, SW, S, SE order",
+    )
     fx_frames, fx_masks = read_sprite_sheet("battle_effects8.png", 15, root, size=8)
     damage_frames, damage_masks = read_battle_damage_frames(root)
     ambient_frames, ambient_masks = read_ambient_frames(root)
@@ -1832,6 +1845,8 @@ def generate(root=ROOT):
     art.append("")
     art += sprite_lines("BATTLE_ARROW_SPRITES", arrow_frames, arrow_masks)
     art.append("")
+    art += sprite_lines("QUEST_ARROW_SPRITES", quest_arrow_frames, quest_arrow_masks, QUEST_ARROW_SIZE)
+    art.append("")
     art += sprite_lines("BATTLE_FX", fx_frames, fx_masks, 8)
     art.append("")
     art += sprite_lines("BATTLE_DAMAGE_SPRITES", damage_frames, damage_masks)
@@ -1863,6 +1878,8 @@ def generate(root=ROOT):
         '"the destination markers must match the frames in battle_targets16.png");',
         f"static_assert(BATTLE_ARROW_FRAMES == {ARROW_FRAMES}, "
         '"BATTLE_ARROW_FRAMES must match the frames in battle_arrows16.png");',
+        f"static_assert(QUEST_ARROW_SIZE == {QUEST_ARROW_SIZE} && QUEST_ARROW_FRAMES == {QUEST_ARROW_FRAMES}, "
+        '"quest arrows must match the frame size and count in quest_arrows9.png");',
         f"static_assert(BATTLE_FX_FRAMES == {len(fx_frames)}, "
         '"BATTLE_FX_FRAMES must match the frames in battle_effects8.png");',
         f"static_assert(BATTLE_DAMAGE_FRAMES == {DAMAGE_FRAMES}, "
