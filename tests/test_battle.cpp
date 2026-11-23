@@ -2636,6 +2636,15 @@ static void special_attacks() {
     ENEMY_ID member = (ENEMY_ID)battle_party_id(0);
     BattleState s = board(
         BATTLE_PARTY, {{3, 1, member, BATTLE_PARTY, 20}, {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    for(uint8_t level = 1; level < BATTLE_STARTER_LEVEL; ++level) {
+        game.party.members[0].level = level;
+        CHECK(battle_legal(s, act(0, 4, 1)));
+        CHECK(!battle_special_legal(s, act(0, 4, 1)));
+        BattleState locked = s;
+        battle_apply_special(locked, act(0, 4, 1));
+        CHECK(same_state(locked, s) && game.party.members[0].ap == 4);
+    }
+    game.party.members[0].level = BATTLE_STARTER_LEVEL;
     CHECK(battle_special_legal(s, act(0, 4, 1)) && battle_legal(s, act(0, 4, 1)));
     CHECK(!battle_special_legal(s, act(0, 3, 2))); // A move is not an attack.
     CHECK(!battle_special_legal(s, act(0, 3, 0))); // Nor is an empty cell in the attack's reach.
@@ -2702,6 +2711,176 @@ static void special_attacks() {
     battle_apply_special(thrust, act(0, 3, 1));
     CHECK(thrust.units[1].cell == cell(4, 1) && thrust.units[1].hp == 5);
     CHECK(game.party.members[0].ap == 2);
+}
+
+static void signature_attacks() {
+    game = {};
+    game.party.count = 3;
+    auto hero = (ENEMY_ID)battle_party_id(0);
+    auto ally = (ENEMY_ID)battle_party_id(1);
+    auto other = (ENEMY_ID)battle_party_id(2);
+    auto& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.members[2] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_SHOOT);
+
+    auto use_signature = [&](BattleState& state, unsigned x, unsigned y) {
+        member.ap = 4;
+        auto action = act(0, x, y);
+        CHECK(battle_special_legal(state, action, BATTLE_SIGNATURE));
+        battle_apply_special(state, action, BATTLE_SIGNATURE);
+        CHECK(member.ap == 1 && state.activations == 1);
+        CHECK(state.ended || state.turn == BATTLE_ENEMY);
+    };
+
+    BattleState breach = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 16},
+                                              {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    member.level = 4;
+    CHECK(!battle_special_legal(breach, act(0, 3, 1), BATTLE_SIGNATURE));
+    member.level = BATTLE_SIGNATURE_LEVEL;
+    member.ap = 2;
+    BattleState before = breach;
+    CHECK(!battle_special_legal(breach, act(0, 3, 1), BATTLE_SIGNATURE));
+    battle_apply_special(breach, act(0, 3, 1), BATTLE_SIGNATURE);
+    CHECK(same_state(breach, before) && member.ap == 2);
+    use_signature(breach, 3, 1);
+    CHECK(breach.units[0].cell == cell(3, 1));
+    CHECK(breach.units[1].hp == 4 && breach.units[1].cell == cell(2, 1));
+    breach = before;
+    breach.units[1].hp = 6;
+    use_signature(breach, 3, 1);
+    CHECK(breach.ended && breach.result == BATTLE_VICTORY && breach.units[0].cell == cell(3, 1));
+
+    member.level = 8;
+    member.perk_ranks = 4 << 3;
+    member.attack_class = ATTACK_SHOOT;
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    BattleState split = board(BATTLE_PARTY, {{1, 1, hero, BATTLE_PARTY, 16},
+                                            {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {5, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {5, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {7, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    use_signature(split, 5, 1);
+    CHECK(split.units[1].hp == 3 && split.units[2].hp == 3 && split.units[3].hp == 3);
+    CHECK(split.units[4].hp == 4);
+    member.equipment[SLOT_WEAPON] = 0;
+
+    member.attack_class = ATTACK_REACH;
+    BattleState hook = board(BATTLE_PARTY, {{1, 1, hero, BATTLE_PARTY, 16},
+                                           {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                           {2, 1, ally, BATTLE_PARTY, 9}});
+    use_signature(hook, 3, 1);
+    CHECK(hook.units[1].hp == 3 && hook.units[1].cell == cell(2, 1));
+    CHECK(hook.units[2].hp == 9 && hook.units[2].cell == cell(3, 1));
+    hook.turn = BATTLE_PARTY;
+    member.ap = 4;
+    CHECK(!battle_special_legal(hook, act(0, 2, 1), BATTLE_SIGNATURE));
+
+    member.attack_class = ATTACK_IMPACT;
+    BattleState slam = board(BATTLE_PARTY, {{2, 0, hero, BATTLE_PARTY, 16},
+                                           {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                           {1, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                           {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    CHECK(!battle_special_legal(slam, act(0, 2, 1), BATTLE_SIGNATURE));
+    slam.field = BATTLEFIELD_MEADOW;
+    use_signature(slam, 2, 1);
+    CHECK(slam.units[1].hp == 6 && slam.units[2].hp == 6 && slam.units[3].hp == 6);
+
+    member.attack_class = ATTACK_REND;
+    BattleState frenzy = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 16},
+                                             {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                             {0, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 4},
+                                             {3, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 4},
+                                             {2, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 5}});
+    use_signature(frenzy, 3, 1);
+    CHECK(frenzy.units[1].hp == 7 && !frenzy.units[2].hp);
+    CHECK(frenzy.units[3].hp == 4 && frenzy.units[4].hp == 5);
+
+    member.attack_class = ATTACK_ARC;
+    BattleState whirlwind = board(BATTLE_PARTY, {{3, 1, hero, BATTLE_PARTY, 16},
+                                                {2, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {4, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {2, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {2, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    uint8_t arc = battle_attack_damage(whirlwind, 0, 1);
+    uint8_t diagonal = battle_attack_damage(whirlwind, 0, 2);
+    use_signature(whirlwind, 2, 0);
+    CHECK(whirlwind.units[1].hp == 10 - arc && whirlwind.units[4].hp == 10 - arc);
+    CHECK(whirlwind.units[2].hp == 10 - diagonal && whirlwind.units[3].hp == 10 - arc);
+
+    member.attack_class = ATTACK_DRAIN;
+    BattleState channel = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 16},
+                                              {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                              {7, 3, ally, BATTLE_PARTY, 8},
+                                              {6, 3, other, BATTLE_PARTY, 18},
+                                              {4, 1, ENEMY_FIGHTER, BATTLE_PARTY, 0}});
+    BattleState channel_kill = channel;
+    channel_kill.units[1].hp = 4;
+    use_signature(channel, 3, 1);
+    CHECK(channel.units[0].hp == 16 && channel.units[1].hp == 4);
+    CHECK(channel.units[2].hp == 13 && channel.units[3].hp == 20 && !channel.units[4].hp);
+    use_signature(channel_kill, 3, 1);
+    CHECK(channel_kill.ended && channel_kill.units[0].hp == 16 && channel_kill.units[2].hp == 13);
+
+    member.attack_class = ATTACK_RECOIL;
+    BattleState sweep = board(BATTLE_PARTY, {{3, 1, hero, BATTLE_PARTY, 16},
+                                            {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {1, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                            {2, 2, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    use_signature(sweep, 4, 1);
+    CHECK(sweep.units[0].cell == cell(1, 1) && sweep.units[1].cell == cell(3, 1));
+    CHECK(sweep.units[1].hp == 4 && sweep.units[2].hp == 4 && sweep.units[3].hp == 4);
+
+    member.attack_class = ATTACK_FLANK;
+    game.party.members[1].level = 5;
+    game.party.members[1].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    BattleState arms = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 16},
+                                           {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 20},
+                                           {3, 2, ally, BATTLE_PARTY, 10},
+                                           {4, 1, other, BATTLE_PARTY, 10}});
+    CHECK(!battle_can_attack(arms, 3, 1));
+    use_signature(arms, 3, 1);
+    CHECK(arms.units[1].hp == 6 && arms.units[2].hp == 10 && arms.units[3].hp == 10);
+    CHECK(game.party.members[1].ap == 4 && game.party.members[2].ap == 4);
+
+    member.attack_class = ATTACK_BLAST;
+    BattleState implosion = board(BATTLE_PARTY, {{1, 1, hero, BATTLE_PARTY, 16},
+                                                {3, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {4, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 1},
+                                                {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
+                                                {3, 3, ENEMY_FIGHTER, BATTLE_ENEMY, 10}});
+    use_signature(implosion, 3, 1);
+    CHECK(implosion.units[1].hp == 7 && !implosion.units[2].hp);
+    CHECK(implosion.units[3].hp == 7 && implosion.units[3].cell == cell(5, 1));
+    CHECK(implosion.units[4].hp == 7 && implosion.units[4].cell == cell(3, 2));
+}
+
+static void maximum_battle_damage_frame() {
+    game = {};
+    game.party.count = PARTY_CAPACITY;
+    for(uint8_t i = 0; i < game.party.count; ++i) {
+        auto& member = game.party.members[i];
+        member = party_new_member((NPC_ID)i, MOVEMENT_STEP, ATTACK_FLANK);
+        member.level = PARTY_MAX_LEVEL;
+        member.perk_ranks = CONVERGING_BLADES_RANK << 3;
+    }
+    game.party.members[0].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    BattleState state = board(BATTLE_PARTY, {
+        {2, 1, (ENEMY_ID)battle_party_id(0), BATTLE_PARTY, 20},
+        {3, 0, (ENEMY_ID)battle_party_id(1), BATTLE_PARTY, 20},
+        {3, 2, (ENEMY_ID)battle_party_id(2), BATTLE_PARTY, 20},
+        {4, 1, (ENEMY_ID)battle_party_id(3), BATTLE_PARTY, 20},
+        {3, 1, ENEMY_BRUTE, BATTLE_ENEMY, BATTLE_MAX_HP},
+    });
+    BattleAction action = act(0, 3, 1);
+    CHECK(battle_special_legal(state, action, BATTLE_SIGNATURE));
+    battle_apply_special(state, action, BATTLE_SIGNATURE);
+    uint8_t damage = BATTLE_MAX_HP - state.units[4].hp;
+    CHECK(damage == 45 && damage <= BATTLE_DAMAGE_FRAMES);
+    CHECK(battle_damage_frame(9) == 8 && battle_damage_frame(10) == 9);
+    CHECK(battle_damage_frame(damage) == damage - 1);
+    CHECK(battle_damage_frame(98) == 97 && battle_damage_frame(99) == 98);
+    CHECK(battle_damage_frame(100) == 98 && battle_damage_frame(255) == 98);
 }
 
 static void attack_perks() {
@@ -2895,6 +3074,7 @@ static void step_and_leap_perks() {
     hit = guard;
     hit.units[0].id = battle_party_id(1);
     hit.units[1].hp = 10;
+    game.party.members[1].level = BATTLE_STARTER_LEVEL;
     battle_apply_special(hit, act(0, 2, 1));
     CHECK(hit.units[1].hp == 5);
 
@@ -3047,6 +3227,7 @@ static void new_combat_geometry() {
     game.party.count = 1;
     PartyMember& member = game.party.members[0];
     member = party_new_member(NPC_NONE, MOVEMENT_VAULT, ATTACK_ARC);
+    member.level = BATTLE_STARTER_LEVEL;
     for(uint8_t field = 0; field < BATTLEFIELD_COUNT; ++field) {
         BattleState s{};
         s.field = field;
@@ -3221,6 +3402,7 @@ static void new_direct_attacks() {
     for(auto const& test : CASES) {
         for(uint8_t rank = 0; rank <= 2; ++rank) {
             member = party_new_member(NPC_NONE, MOVEMENT_VAULT, test.attack);
+            member.level = BATTLE_STARTER_LEVEL;
             if(rank) {
                 member.level = 9;
                 member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
@@ -3275,12 +3457,13 @@ static void drain_and_recoil() {
     s = drain(17, 10);
     battle_apply(s, act(0, 3, 1));
     CHECK(s.units[0].hp == 18 && s.units[1].hp == 8);
+    member.level = BATTLE_STARTER_LEVEL;
     s = drain(17, 2);
     battle_apply_special(s, act(0, 3, 1));
     CHECK(s.ended && s.units[0].hp == 19 && member.ap == 2);
-    s = drain(19, 3);
+    s = drain(party_max_hp(member) - 1, 3);
     battle_apply_special(s, act(0, 3, 1));
-    CHECK(s.ended && s.units[0].hp == 20 && member.ap == 0);
+    CHECK(s.ended && s.units[0].hp == party_max_hp(member) && member.ap == 0);
 
     member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     s = drain(17, 10);
@@ -3422,6 +3605,7 @@ static void blast_splash_and_search() {
     auto id = (ENEMY_ID)battle_party_id(0);
     PartyMember& member = game.party.members[0];
     member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_BLAST);
+    member.level = BATTLE_STARTER_LEVEL;
     BattleState original = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 20},
                                                 {5, 1, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
                                                 {5, 0, ENEMY_FIGHTER, BATTLE_ENEMY, 10},
@@ -4037,6 +4221,8 @@ int main() {
     victory_ap_recovery();
     victory_gold();
     special_attacks();
+    signature_attacks();
+    maximum_battle_damage_frame();
     unit_definitions();
     initial_layout();
     teams_are_explicit();

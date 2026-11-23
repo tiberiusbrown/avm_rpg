@@ -135,7 +135,7 @@ class Pipeline(unittest.TestCase):
             ("ACTOR_SPRITES", "actors16.png", 384, True),
             ("BATTLE_TARGET_SPRITES", "battle_targets16.png", 8, True),
             ("BATTLE_ARROW_SPRITES", "battle_arrows16.png", 4, True),
-            ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 9, True),
+            ("BATTLE_DAMAGE_SPRITES", "battle_damage16.png", 99, True),
             ("AMBIENT_SPRITES", "ambient16.png", 43, True),
             ("TITLE_SPRITES", "title16.png", 33, True),
         ]:
@@ -154,10 +154,11 @@ class Pipeline(unittest.TestCase):
             columns = image.width // 16
             opaque_black, transparent = False, False
             for frame in range(frames):
+                cell = frame + (name == "BATTLE_DAMAGE_SPRITES")  # Skip the authored 0 burst.
                 for y in range(16):
                     for x in range(16):
                         r, g, b, a = image.getpixel(
-                            (frame % columns * 16 + x, frame // columns * 16 + y)
+                            (cell % columns * 16 + x, cell // columns * 16 + y)
                         )
                         offset = (y // 8 * 16 + x) * (2 if masked else 1)
                         byte = data[2 + frame * stride + offset]
@@ -582,46 +583,60 @@ class Pipeline(unittest.TestCase):
     def test_battle_damage_sheet_is_validated(self):
         path = self.root / "assets/images/battle_damage16.png"
         original = Image.open(path).convert("RGBA")
-        self.assertEqual(original.size, (144, 16))
+        self.assertEqual(original.size, (160, 160))
         self.assertIn(
-            "static_assert(BATTLE_DAMAGE_FRAMES == 9,", generate(self.root)["sprites.cpp"]
+            "static_assert(BATTLE_DAMAGE_FRAMES == 99,", generate(self.root)["sprites.cpp"]
         )
+
+        def cell_pixel(damage, x, y):
+            return damage % 10 * 16 + x, damage // 10 * 16 + y
+
         # Each burst is a black outline around a white outline around the black middle.
         # Row 4 is the border above the digit, so it crosses every layer and no digit pixel.
-        for frame in range(9):
+        for damage in range(100):
             runs = []
             for x in range(16):
-                layer = original.getpixel((frame * 16 + x, 4))[::3]
+                layer = original.getpixel(cell_pixel(damage, x, 4))[::3]
                 if not runs or runs[-1] != layer:
                     runs.append(layer)
             transparent, black, white = (0, 0), (0, 255), (255, 255)
             self.assertEqual(runs, [transparent, black, white, black, white, black, transparent])
-        # The first frame carries a 1 in the 3x5 cell at (6, 5).
-        one = [
-            "".join("#" if original.getpixel((6 + x, 5 + y))[0] else "." for x in range(3))
-            for y in range(5)
-        ]
-        self.assertEqual(one, [".#.", "##.", ".#.", ".#.", "###"])
-        # The one-pixel border around a digit must stay black: columns 5 and 9, rows 4 and 10.
-        for pixel in [(5, 4), (16 + 9, 10), (8 * 16 + 5, 7)]:
+
+        def glyph(damage, left):
+            return [
+                "".join(
+                    "#" if original.getpixel(cell_pixel(damage, left + x, y))[0] else "."
+                    for x in range(3)
+                )
+                for y in range(5, 10)
+            ]
+
+        digits = [glyph(d, 6) for d in range(10)]
+        self.assertEqual(digits[0], ["###", "#.#", "#.#", "#.#", "###"])
+        self.assertEqual(digits[1], [".#.", "##.", ".#.", ".#.", "###"])
+        for damage in range(10, 100):
+            self.assertEqual(glyph(damage, 4), digits[damage // 10])
+            self.assertEqual(glyph(damage, 8), digits[damage % 10])
+        # The one-pixel border and the space between two digits must stay black.
+        for damage, x, y in [(1, 5, 4), (2, 9, 10), (9, 5, 7), (99, 7, 7)]:
             edited = original.copy()
-            edited.putpixel(pixel, (255, 255, 255, 255))
+            edited.putpixel(cell_pixel(damage, x, y), (255, 255, 255, 255))
             edited.save(path)
             with self.assertRaisesRegex(ValueError, "one-pixel black border"):
                 generate(self.root)
-        # Only the digit may differ between frames, and no two frames share a digit.
+        # Only the number may differ within a burst size, and every label is unique.
         edited = original.copy()
-        edited.putpixel((3 * 16 + 7, 1), (0, 0, 0, 255))
+        edited.putpixel(cell_pixel(4, 7, 1), (0, 0, 0, 255))
         edited.save(path)
         with self.assertRaisesRegex(ValueError, "same burst in every frame"):
             generate(self.root)
         edited = original.copy()
-        edited.paste(original.crop((0, 0, 16, 16)), (16, 0))
+        edited.paste(original.crop((16, 0, 32, 16)), cell_pixel(2, 0, 0))
         edited.save(path)
         with self.assertRaisesRegex(ValueError, "its own digit"):
             generate(self.root)
-        original.crop((0, 0, 128, 16)).save(path)
-        with self.assertRaisesRegex(ValueError, "expected a PNG 144 pixels wide"):
+        original.crop((0, 0, 144, 160)).save(path)
+        with self.assertRaisesRegex(ValueError, "expected a PNG 160 pixels wide"):
             generate(self.root)
 
     def test_battle_arrows_point_in_direction_order(self):

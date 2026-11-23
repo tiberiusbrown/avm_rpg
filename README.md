@@ -30,9 +30,8 @@ directly to gameplay, and A never closes it. Party pages change without replayin
 is not drawn while the panel covers the screen.
 - The overview groups level, current/maximum HP and AP, movement and attack types, and XP above the
   category list. For parties with more than one member, chevrons flank the member counter.
-- **Specials** lists the starting special, with its AP cost, for the member's attack type. A opens its
-  details, including the cost, targeting geometry, range, and effect. The bonuses are read from the
-  battle's tables, and the description scrolls with up and down.
+- **Specials** lists the 2 AP starter from level 3 and the 3 AP signature from level 5. A opens
+  the selected special's cost, range, and effect. Up and down scroll the description.
 - **Perks** shows two ordered tracks, one for the member's movement class and one for their attack
   class. Pick **Learn Perk!**, press A to inspect either available perk, press A again to open the
   confirmation, then press A to learn it permanently or B to cancel. Each track has four ranks.
@@ -326,9 +325,9 @@ reports are verified by the full-LTO guest link.
 - `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle
   cursor, the destination markers, and the archer's arrow, one 16x16 frame per direction in
   north/east/south/west order.
-- `assets/images/battle_damage16.png`: the damage indicators, nine 16x16 frames for damage
-  values 1 through 9. Each is the same spiky burst with its own 3x5 digit in the black middle.
-  The battle screen draws two-digit values over the burst.
+- `assets/images/battle_damage16.png` holds centered 16×16 damage bursts in a 10×10 grid.
+  The row gives the tens digit and the column gives the ones digit, both starting at zero.
+  The game exports damage values 1–99 and displays the 99 burst for larger losses.
 - `src/logic/`: the handlers that the maps name, split by environment, and authored NPC
   definitions, separate from generic mechanics. `handlers.h` only includes the others.
   `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
@@ -401,12 +400,10 @@ and house tilesets. See the [battlefield authoring guide](docs/essential_npcs.md
   A on the selected hero or B cancels a selection. The selected hero has a two-pixel white border.
   An invalid confirmation does nothing, and it does not use up the turn. After a hero acts, the
   cursor returns to that hero, so it can be selected again without moving the cursor.
-  When the enemy can also take the hero's starting special, A on it opens a small titleless offer.
-  A filled bar highlights Attack first, and the special lists its AP cost. UP and DOWN choose,
-  A confirms, and B closes
-  the offer without acting, leaving the hero selected. A special needs enough AP for its cost, so a
-  hero short of AP attacks normally at once. See the [special ability catalog](docs/game_logic.md#54-starting-special-abilities)
-  for costs and damage.
+  When the hero can use a special on the enemy, A opens a small titleless offer. It lists Attack
+  first, followed by each eligible special and its AP cost. UP and DOWN choose, A confirms, and B
+  closes the offer with the hero still selected. A hero below level 3 or below 2 AP attacks immediately.
+  See the [special ability catalog](docs/game_logic.md#54-special-abilities) for costs and effects.
 - Hovering the cursor over a living actor shows its movement class, attack class and HP/MHP in a small panel on
   the opposite side of the screen. The panel disappears over empty cells.
 - Party members store uint8 current HP and AP and independent movement/attack class IDs in saved RAM.

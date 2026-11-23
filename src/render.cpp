@@ -911,24 +911,31 @@ void render_battle_result(bool victory, uint8_t gold_gained) {
     draw_menu_button(X + 6, y + (victory ? 40 : 31), MENU_BUTTON_A, F("Continue"));
 }
 
-void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom) {
-    uint16_t widest = avm_text_width(special);
+void render_battle_offer(uint8_t attack, uint8_t rows, uint8_t choice, bool at_bottom) {
+    uint16_t widest = avm_text_width(BATTLE_SPECIAL_NAMES[attack]);
     uint16_t attack_width = avm_text_width(F("Attack"));
     if(attack_width > widest)
         widest = attack_width;
+    if(rows == 3) {
+        uint16_t signature_width = avm_text_width(BATTLE_SIGNATURE_NAMES[attack]);
+        if(signature_width > widest)
+            widest = signature_width;
+    }
     uint16_t cost_width = avm_text_width(F("9 AP"));
     int16_t width = 18 + widest + cost_width;
     // Leave one interior pixel between each outer row and the frame.
-    constexpr int16_t HEIGHT = 20;
+    int16_t height = 6 + rows * 7;
     int16_t x = (DISPLAY_WIDTH - width) / 2;
-    int16_t y = at_bottom ? 64 - HEIGHT - 2 : 2;
-    draw_menu_frame(x, y, width, HEIGHT);
-    for(uint8_t row = 0; row < 2; ++row) {
+    int16_t y = at_bottom ? 64 - height - 2 : 2;
+    draw_menu_frame(x, y, width, height);
+    for(uint8_t row = 0; row < rows; ++row) {
         int16_t baseline = y + 9 + row * 7;
         begin_menu_row(x, baseline, row == choice, width - 8);
-        avm_draw_text(x + 7, baseline, row == 0 ? F("Attack") : special);
+        avm_draw_text(x + 7, baseline, row == 0 ? F("Attack")
+                                               : party_special_name(attack, (uint8_t)(row - 1)));
         if(row)
-            avm_draw_textf(x + width - 6 - cost_width, baseline, F("%u AP"), ap);
+            avm_draw_textf(x + width - 6 - cost_width, baseline, F("%u AP"),
+                           row == 1 ? SPECIAL_INFO[attack].ap : BATTLE_SIGNATURE_AP);
         avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     }
 }
@@ -1040,18 +1047,19 @@ static void render_party_specials(int16_t x, PartyUi const& ui) {
                      party_attack_name(member.attack_class));
     render_party_divider(x);
 
-    // Each row is one special. The starting special is the only one for now, so one row names it.
     uint8_t count = party_special_count(member);
+    if(!count)
+        avm_draw_textf(left, PARTY_ROW_BODY, F("First special at Lv %u"), BATTLE_STARTER_LEVEL);
     uint8_t selected = ui.selection[PARTY_PAGE_SPECIALS];
     for(uint8_t row = 0; row < count; ++row) {
         int16_t y = (int16_t)(PARTY_ROW_BODY + PARTY_ROW_STEP * row);
         begin_menu_row(x, y, row == selected, PARTY_EDGE - PARTY_MARGIN);
-        avm_draw_text((int16_t)(left + 3), y, party_special_name(member.attack_class));
+        avm_draw_text((int16_t)(left + 3), y, party_special_name(member.attack_class, row));
         avm_draw_textf((int16_t)(x + PARTY_EDGE - 24), y, F("%u AP"),
-                       SPECIAL_INFO[member.attack_class].ap);
+                       row == 0 ? SPECIAL_INFO[member.attack_class].ap : BATTLE_SIGNATURE_AP);
         avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     }
-    draw_menu_footer(x, F("Inspect"));
+    draw_menu_footer(x, count ? F("Inspect") : nullptr);
 }
 
 static void render_party_special_details(int16_t x, PartyUi const& ui) {
@@ -1059,12 +1067,14 @@ static void render_party_special_details(int16_t x, PartyUi const& ui) {
     uint8_t attack = member.attack_class;
     AttackInfo const& normal = ATTACK_INFO[attack];
     int16_t left = x + PARTY_MARGIN;
-    draw_menu_title(left, party_special_name(attack), 94);
+    draw_menu_title(left, party_special_name(attack, ui.entry), 94);
     avm_draw_textf((int16_t)(x + PARTY_EDGE - 24), 9, F("%u AP"),
-                   SPECIAL_INFO[attack].ap);
+                   ui.entry == 0 ? SPECIAL_INFO[attack].ap : BATTLE_SIGNATURE_AP);
     avm_draw_text(left, PARTY_ROW_SUBTITLE, party_attack_name(attack));
     uint8_t rank = party_attack_perk_rank(member);
-    if(attack == THROUGHSHOT_CLASS && rank >= THROUGHSHOT_RANK)
+    if(ui.entry && attack == ATTACK_REACH)
+        avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range 2"));
+    else if(attack == THROUGHSHOT_CLASS && rank >= THROUGHSHOT_RANK)
         avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range 2+"));
     else if(attack == BLOOD_HUNT_CLASS && rank >= BLOOD_HUNT_RANK)
         avm_draw_text((int16_t)(x + 64), PARTY_ROW_SUBTITLE, F("Range 1-2"));

@@ -436,7 +436,7 @@ inline constexpr uint8_t CORNER_ASSIST_PIXELS = 6;
 // Center the player in the uncovered viewport, clamped to the map.
 Camera game_camera(uint8_t view_height = 64);
 void render_battle_result(bool victory, uint8_t gold_gained);
-void render_battle_offer(char const PROGMEM* special, uint8_t ap, uint8_t choice, bool at_bottom);
+void render_battle_offer(uint8_t attack, uint8_t rows, uint8_t choice, bool at_bottom);
 void render_level_up_notice(char const PROGMEM* title, LevelUpNotice notice);
 
 // Block until acknowledged (true) or dismissed with B (false).
@@ -658,10 +658,9 @@ extern uint8_t const PROGMEM BATTLE_TARGET_SPRITES[];
 // direction is its own frame index. The generated sheet asserts the count.
 inline constexpr uint8_t BATTLE_ARROW_FRAMES = 4;
 extern uint8_t const PROGMEM BATTLE_ARROW_SPRITES[];
-// The damage indicators, battle_damage16.png: one 16x16 plus-mask frame for each loss of 1 to 9
-// HP, a spiky burst with the digit in its black middle. Frame n - 1 shows a loss of n, and a larger
-// loss shows the last frame. The generated sheet asserts the count.
-inline constexpr uint8_t BATTLE_DAMAGE_FRAMES = 9;
+// The damage indicators, battle_damage16.png: centered 16x16 plus-mask frames for 1 to 99 HP lost.
+// The last burst represents all losses of 99 HP or more.
+inline constexpr uint8_t BATTLE_DAMAGE_FRAMES = 99;
 
 constexpr uint8_t battle_damage_frame(uint8_t lost) {
     return (uint8_t)((lost > BATTLE_DAMAGE_FRAMES ? BATTLE_DAMAGE_FRAMES : lost) - 1);

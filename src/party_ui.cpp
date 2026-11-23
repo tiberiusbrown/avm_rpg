@@ -89,6 +89,8 @@ static PARTY_EVENT activate(PartyUi& ui, Party const& party) {
                 return open(ui, PARTY_PAGE_PERKS);
             return open(ui, PARTY_PAGE_EQUIPMENT);
         case PARTY_PAGE_SPECIALS:
+            if(!party_ui_entries(ui, party))
+                return PARTY_EVENT_EDGE;
             ui.entry = highlight(ui);
             return open_details(ui, PARTY_PAGE_SPECIAL_DETAILS, PARTY_PAGE_SPECIALS);
         case PARTY_PAGE_PERKS:
@@ -242,9 +244,10 @@ uint8_t party_ui_entries(PartyUi const& ui, Party const& party) {
     }
 }
 
-uint8_t party_special_count(PartyMember const&) {
-    // Only the starting special exists. Later specials will come from the member's unlocks.
-    return 1;
+uint8_t party_special_count(PartyMember const& member) {
+    if(member.level < BATTLE_STARTER_LEVEL)
+        return 0;
+    return member.level >= BATTLE_SIGNATURE_LEVEL ? 2 : 1;
 }
 
 uint8_t party_ui_row_perk(PartyUi const& ui, Party const& party, uint8_t index) {
@@ -269,6 +272,8 @@ char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party) {
     switch(ui.page) {
         case PARTY_PAGE_SPECIAL_DETAILS: {
             auto const& member = party.members[ui.member];
+            if(ui.entry)
+                return party_special_text(member.attack_class, ui.entry);
             uint8_t rank = party_attack_perk_rank(member);
             if(member.attack_class == BLOOD_HUNT_CLASS && rank >= BLOOD_HUNT_RANK)
                 return F("Adds 1 damage at full HP or 3 below full HP. Can hit at range 2 "
@@ -302,14 +307,37 @@ char const PROGMEM* party_attack_name(uint8_t attack) {
     return NAMES[attack];
 }
 
-char const PROGMEM* party_special_name(uint8_t attack) {
-    return BATTLE_SPECIAL_NAMES[attack];
+char const PROGMEM* party_special_name(uint8_t attack, uint8_t entry) {
+    return entry == 0 ? BATTLE_SPECIAL_NAMES[attack] : BATTLE_SIGNATURE_NAMES[attack];
 }
 
 // The starting specials' descriptions. Their numbers are the bonuses in SPECIAL_INFO and the
 // normal damage in ATTACK_INFO, and native tests check both against those tables. The cost and
 // range come from the tables at display time.
-char const PROGMEM* party_special_text(uint8_t attack) {
+char const PROGMEM* party_special_text(uint8_t attack, uint8_t entry) {
+    if(entry) {
+        static char const PROGMEM* const PROGMEM SIGNATURES[ATTACK_CLASS_COUNT] = {
+            F("Adds 2 damage. Take the enemy's cell and move the survivor into your old cell."),
+            F("Also hit both enemies beside the target across the shot at full normal damage."),
+            F("At range 2, adds 2 damage and pulls the survivor into the middle cell. If you hit "
+              "through an ally, the target and ally swap."),
+            F("Target an enemy backed by a wall or board edge. Both enemies beside it across the "
+              "hit take full normal damage."),
+            F("Also hit every other enemy below half HP that you can reach. Each takes its own "
+              "normal Rend damage."),
+            F("Hit every diagonally adjacent enemy for its normal Arc damage. Corner Sweep "
+              "applies at the selected target."),
+            F("Adds 2 damage. Other living allies heal HP lost, minus 1 if the target lives. "
+              "Soul Dividend heals 5 on a kill."),
+            F("Retreat as usual and deal full normal damage once to each other enemy bordering "
+              "a retreat cell."),
+            F("Every supporting ally in range adds its normal attack damage, including gear and "
+              "perk bonuses, to your hit."),
+            F("Enemies two cells straight from the target also take full normal damage and are "
+              "pulled one cell inward if open."),
+        };
+        return SIGNATURES[attack];
+    }
     static char const PROGMEM* const PROGMEM TEXTS[ATTACK_CLASS_COUNT] = {
         F("Targets an enemy in a straight line. Adds 3 damage to the normal attack against any "
           "enemy."),

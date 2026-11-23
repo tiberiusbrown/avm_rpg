@@ -199,6 +199,7 @@ static void test_member_change_clamps_highlight() {
 
 static void test_list_bounds_and_wrap() {
     Party party = make_party(2);
+    party.members[0].level = BATTLE_STARTER_LEVEL;
     PartyUi ui{};
     open_category(ui, party, CATEGORY_SPECIALS);
     // The one special leaves up and down nowhere to go.
@@ -228,6 +229,12 @@ static void test_specials_for_each_attack_class() {
         party.members[0] = make_member(NPC_NONE, MOVEMENT_STEP, attack);
         PartyUi ui{};
         open_category(ui, party, CATEGORY_SPECIALS);
+        CHECK(party_ui_entries(ui, party) == 0);
+        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE && ui.page == PARTY_PAGE_SPECIALS);
+        party.members[0].level = BATTLE_STARTER_LEVEL - 1;
+        CHECK(party_ui_entries(ui, party) == 0);
+        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE && ui.page == PARTY_PAGE_SPECIALS);
+        party.members[0].level = BATTLE_STARTER_LEVEL;
         CHECK(party_special_count(party.members[0]) == 1);
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
         CHECK(ui.page == PARTY_PAGE_SPECIAL_DETAILS && ui.scroll == 0);
@@ -269,6 +276,16 @@ static void test_specials_for_each_attack_class() {
 
         // A detail page has no action for A, and B climbs back to the list, then to the overview.
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EDGE && ui.page == PARTY_PAGE_SPECIAL_DETAILS);
+        CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_SPECIALS);
+
+        party.members[0].level = BATTLE_SIGNATURE_LEVEL - 1;
+        CHECK(party_ui_entries(ui, party) == 1);
+        party.members[0].level = BATTLE_SIGNATURE_LEVEL;
+        CHECK(party_ui_entries(ui, party) == 2);
+        CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
+        CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
+        CHECK(ui.page == PARTY_PAGE_SPECIAL_DETAILS && ui.entry == 1);
+        CHECK(party_ui_text(ui, party) == party_special_text(attack, 1));
         CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_SPECIALS);
         CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL && ui.page == PARTY_PAGE_OVERVIEW);
     }
@@ -628,8 +645,11 @@ static void test_descriptions_wrap() {
             check_wrap(party_perk_text(party_perk_code(track, rank)));
     for(uint8_t index = 0; index < ITEM_DEFINED_COUNT; ++index)
         check_wrap(party_perk_text((uint8_t)(PERK_EQUIPMENT + index)));
-    for(uint8_t attack = 0; attack < ATTACK_CLASS_COUNT; ++attack)
+    for(uint8_t attack = 0; attack < ATTACK_CLASS_COUNT; ++attack) {
         check_wrap(party_special_text(attack));
+        check_wrap(party_special_text(attack, 1));
+        CHECK(strlen(party_special_name(attack, 1)) * 6 <= ROW_TEXT_ROOM);
+    }
 }
 
 // Navigation emits requests and leaves the party unchanged.

@@ -70,18 +70,14 @@ struct BattleScreen {
     uint8_t motion; // SCREEN_MOTION
     // Bit i is set for each unit flashing after damage.
     uint8_t flashing;
-    // Damage dealt to each flashing unit, four bits per unit: unit i is in damage[i / 2], in the
-    // high half when i is odd. An unflashed value records healing.
-    uint8_t damage[BATTLE_UNIT_CAPACITY / 2];
+    // HP change by unit. An unflashed value records healing.
+    uint8_t damage[BATTLE_UNIT_CAPACITY];
     // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
     // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
     // 256, which keeps the pose cycle whole.
     uint8_t ticks;
-    // The attack offer that an A press opened: whether it is open, the enemy it targets, and the
-    // option it highlights, 0 for the normal attack and 1 for the special. Kept here rather than on
-    // the stack, so the offer is drawn fresh each frame.
-    bool offering;
-    uint8_t offer_cell, offer_choice;
+    // The enemy and highlighted option of an attack offer. Zero rows means it is closed.
+    uint8_t offer_cell, offer_choice, offer_rows;
 };
 
 #ifdef RPG_DEVICE_QA
@@ -325,34 +321,23 @@ RPG_NOINLINE static void walk_unit(BattleScreen& screen) {
     screen.motion = MOTION_STILL;
 }
 
-// The damage dealt to unit `index` by the action being played.
-static uint8_t damage_taken(BattleScreen const& screen, uint8_t index) {
-    uint8_t pair = screen.damage[index / 2];
-    return (uint8_t)(index & 1 ? pair >> 4 : pair & 0x0F);
-}
-
 // Draws a damage indicator over every flashing unit: a spiky burst on the unit's cell, with the damage
 // dealt in its black middle. It stays up for the whole flash, over the visible and the
 // hidden phases alike, and it is drawn after the board, so no neighbouring actor covers it.
 RPG_NOINLINE static void draw_damage(BattleScreen const& screen) {
     avm_set_sprite(BATTLE_DAMAGE_SPRITES);
     for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
-        uint8_t damage = damage_taken(screen, i);
+        uint8_t damage = screen.damage[i];
         if(!damage)
             continue;
         uint8_t cell = screen.state.units[i].cell;
         int16_t x = cell_x(cell), y = cell_y(cell);
         if(!((screen.flashing >> i) & 1)) {
-            avm_draw_filled_rect_black(x + 3, y + 4, 10, 7);
-            avm_draw_textf(x + 4, y + 10, F("+%u"), damage);
+            avm_draw_filled_rect_black(x + 1, y + 4, 14, 7);
+            avm_draw_textf(x + (damage < 10 ? 4 : 2), y + 10, F("+%u"), damage);
             continue;
         }
         avm_draw_plus_mask(x, y, battle_damage_frame(damage));
-        if(damage > BATTLE_DAMAGE_FRAMES) {
-            static constexpr char PROGMEM NUMBERS[][3] = {"10", "11", "12", "13", "14", "15"};
-            avm_draw_filled_rect_black(x + 4, y + 4, 8, 7);
-            avm_draw_text(x + 4, y + 10, NUMBERS[damage - 10]);
-        }
     }
 }
 
@@ -405,7 +390,8 @@ RPG_NOINLINE static void animate_reaction(BattleScreen& screen, uint8_t lunger, 
 }
 
 // Determines the motion from the acting class, then records the HP delta of each affected unit.
-RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action, bool special) {
+RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action,
+                                  BATTLE_ATTACK_CHOICE choice) {
     BattleState& state = screen.state;
     uint8_t actor = action.unit_index;
     BattleUnit const& unit = state.units[actor];
@@ -420,27 +406,23 @@ RPG_NOINLINE static DIRECTION act(BattleScreen& screen, BattleAction action, boo
             screen.motion = motion == BATTLE_MOVEMENT_GLIDE ? MOTION_GLIDE : MOTION_WALK;
     }
 
-    uint8_t before[BATTLE_UNIT_CAPACITY];
+    // Use the animation buffer for the pre-hit HP until the action has resolved.
     for(uint8_t i = 0; i < state.unit_count; ++i)
-        before[i] = state.units[i].hp;
-    if(special)
-        battle_apply_special(state, action);
-    else
+        screen.damage[i] = state.units[i].hp;
+    if(choice == BATTLE_NORMAL)
         battle_apply(state, action);
+    else
+        battle_apply_special(state, action, choice);
     screen.mover_dx = (int8_t)(cell_x(from) - cell_x(unit.cell));
     screen.mover_dy = (int8_t)(cell_y(from) - cell_y(unit.cell));
 
     screen.flashing = 0;
-    for(uint8_t& pair : screen.damage)
-        pair = 0;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         uint8_t hp = state.units[i].hp;
-        uint8_t amount = (uint8_t)(hp > before[i] ? hp - before[i] : before[i] - hp);
-        if(hp < before[i])
+        uint8_t before = screen.damage[i];
+        screen.damage[i] = (uint8_t)(hp > before ? hp - before : before - hp);
+        if(hp < before)
             screen.flashing |= (uint8_t)(1 << i);
-        if(amount > 15)
-            amount = 15;
-        screen.damage[i / 2] |= (uint8_t)(i & 1 ? amount << 4 : amount);
     }
     return toward;
 }
@@ -478,16 +460,16 @@ static inline __attribute__((always_inline)) void fly_arrow(BattleScreen& screen
 // attack flies an arrow to its victim. Any other attack lunges the attacker at its victim. Every
 // unit the action damages flashes once the motion is done, and the caller waits for the flashes to
 // end.
-RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action, bool special) {
+RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action,
+                                 BATTLE_ATTACK_CHOICE choice) {
     if(action.unit_index == BATTLE_NO_UNIT) {
         screen.flashing = 0;
-        for(uint8_t& pair : screen.damage)
-            pair = 0;
         for(uint8_t i = 0; i < screen.state.unit_count; ++i) {
             BattleUnit const& unit = screen.state.units[i];
+            screen.damage[i] = 0;
             if(unit.hp && unit.team == screen.state.turn) {
                 screen.flashing |= (uint8_t)(1 << i);
-                screen.damage[i / 2] |= (uint8_t)(1 << ((i & 1) * 4));
+                screen.damage[i] = BATTLE_MOVE_COST;
             }
         }
         battle_pass(screen.state);
@@ -497,7 +479,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action, bool
                              SFX_PRICE);
         return;
     }
-    DIRECTION toward = act(screen, action, special);
+    DIRECTION toward = act(screen, action, choice);
     uint8_t actor = action.unit_index;
     BattleUnit const& unit = screen.state.units[actor];
     if(unit.team == BATTLE_PARTY) {
@@ -551,7 +533,7 @@ RPG_NOINLINE static BattleAction press_a(BattleScreen& screen, uint8_t& selected
             if(battle_legal(state, action)) {
                 // A special can reach this enemy too, so the offer decides between the attacks.
                 if(battle_special_legal(state, action)) {
-                    screen.offering = true;
+                    screen.offer_rows = battle_special_legal(state, action, BATTLE_SIGNATURE) ? 3 : 2;
                     screen.offer_cell = cell;
                     screen.offer_choice = 0;
                     sfx_play(SFX_SELECT);
@@ -569,17 +551,21 @@ RPG_NOINLINE static BattleAction press_a(BattleScreen& screen, uint8_t& selected
 // the highlighted option, and B closes the offer without acting. The selected hero stays selected
 // either way.
 RPG_NOINLINE static BattleAction press_offer(BattleScreen& screen, uint8_t selected,
-                                             uint8_t pressed, bool& special) {
+                                             uint8_t pressed, BATTLE_ATTACK_CHOICE& choice) {
     if(pressed & BTN_B) {
         sfx_play(SFX_CANCEL);
-        screen.offering = false;
+        screen.offer_rows = 0;
     } else if(pressed & BTN_A) {
         sfx_play(SFX_SELECT);
-        screen.offering = false;
-        special = screen.offer_choice != 0;
+        screen.offer_rows = 0;
+        choice = (BATTLE_ATTACK_CHOICE)screen.offer_choice;
         return BattleAction{selected, screen.offer_cell};
     } else if(pressed & (BTN_UP | BTN_DOWN)) {
-        screen.offer_choice ^= 1;
+        if(pressed & BTN_UP)
+            screen.offer_choice = screen.offer_choice ? (uint8_t)(screen.offer_choice - 1)
+                                                     : (uint8_t)(screen.offer_rows - 1);
+        else if(++screen.offer_choice == screen.offer_rows)
+            screen.offer_choice = 0;
         sfx_menu_tick();
     }
     return BattleAction{BATTLE_NO_UNIT, 0};
@@ -591,7 +577,7 @@ RPG_NOINLINE static BattleAction press_offer(BattleScreen& screen, uint8_t selec
 // or position over the same frames later.
 RPG_NOINLINE static void draw_offer(BattleScreen const& screen, uint8_t selected) {
     uint8_t attack = battle_attack_class(screen.state.units[selected].id);
-    render_battle_offer(BATTLE_SPECIAL_NAMES[attack], SPECIAL_INFO[attack].ap, screen.offer_choice,
+    render_battle_offer(attack, screen.offer_rows, screen.offer_choice,
                         battle_row(screen.offer_cell) < BATTLE_ROWS / 2);
 }
 
@@ -602,17 +588,17 @@ RPG_NOINLINE static void draw_offer(BattleScreen const& screen, uint8_t selected
 // cancels the selection, or opens the menu. Illegal confirmations do nothing and do not consume the
 // turn. Returns the legal action the player confirms, and sets `special` when the confirmed option
 // is the special. The board, the offer, and the cursor are redrawn every frame.
-RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen, bool& special) {
+RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen, BATTLE_ATTACK_CHOICE& choice) {
     BattleState& state = screen.state;
     Cursor& cursor = screen.cursor;
     uint8_t selected = BATTLE_NO_UNIT;
-    special = false;
+    choice = BATTLE_NORMAL;
     // Presses made while the enemy acted do not count.
     input_sync();
     RPG_QA_MARK(battle_qa_ready = BATTLE_QA_INPUT);
     for(;;) {
         draw_board(screen, selected, SOUTH);
-        if(screen.offering)
+        if(screen.offer_rows)
             draw_offer(screen, selected);
         else
             draw_actor_info(state, cursor);
@@ -622,9 +608,9 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen, bool& special)
             wait_frame_presses() & (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT | BTN_A | BTN_B);
 
         BattleAction action{BATTLE_NO_UNIT, 0};
-        if(screen.offering) {
+        if(screen.offer_rows) {
             // The offer owns the input, so the cursor and the selection hold still.
-            action = press_offer(screen, selected, pressed, special);
+            action = press_offer(screen, selected, pressed, choice);
         } else {
             uint8_t next = cursor.cell;
             DIRECTION dir = pressed_direction(pressed);
@@ -723,12 +709,12 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
 
     while(!state.ended) {
         while(!state.ended && !battle_can_act(state))
-            resolve(screen, BattleAction{BATTLE_NO_UNIT, 0}, false);
+            resolve(screen, BattleAction{BATTLE_NO_UNIT, 0}, BATTLE_NORMAL);
         if(state.ended)
             break;
         if(state.turn == BATTLE_PARTY) {
-            bool special;
-            BattleAction action = party_turn(screen, special);
+            BATTLE_ATTACK_CHOICE choice;
+            BattleAction action = party_turn(screen, choice);
             if(action.unit_index == BATTLE_NO_UNIT && action.destination == BATTLE_CELLS) {
                 MENU_EXIT selected = menu_screen(&screen);
                 if(selected == MENU_AUDIO)
@@ -741,13 +727,13 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
                 if(selected != MENU_PASS)
                     continue;
                 action = BattleAction{BATTLE_NO_UNIT, 0};
-                special = false;
+                choice = BATTLE_NORMAL;
             }
-            resolve(screen, action, special);
+            resolve(screen, action, choice);
         } else {
             // The party's turn starts on the frame after the enemy's action ends, so the cursor is
             // back at once.
-            resolve(screen, enemy_turn(screen), false);
+            resolve(screen, enemy_turn(screen), BATTLE_NORMAL);
         }
     }
 

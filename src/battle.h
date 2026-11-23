@@ -226,6 +226,16 @@ inline constexpr char PROGMEM BATTLE_SPECIAL_NAMES[ATTACK_CLASS_COUNT][15] = {
     "Crescent Cut", "Siphon",       "Spring Blow",    "Pincer Strike", "Detonation",
 };
 
+inline constexpr uint8_t BATTLE_STARTER_LEVEL = 3;
+inline constexpr uint8_t BATTLE_SIGNATURE_LEVEL = 5;
+inline constexpr uint8_t BATTLE_SIGNATURE_AP = 3;
+inline constexpr char PROGMEM BATTLE_SIGNATURE_NAMES[ATTACK_CLASS_COUNT][15] = {
+    "Breach Cut", "Split Shot", "Hooking Thrust", "Wall Slam", "Feeding Frenzy",
+    "Whirlwind", "Life Channel", "Backsweep", "Combined Arms", "Implosion",
+};
+
+enum BATTLE_ATTACK_CHOICE : uint8_t { BATTLE_NORMAL, BATTLE_STARTER, BATTLE_SIGNATURE };
+
 // Enemy IDs index immutable definitions, independently of the unit's team or artwork.
 enum ENEMY_ID : uint8_t {
     ENEMY_FIGHTER,
@@ -567,13 +577,13 @@ constexpr bool battle_cells_adjacent(uint8_t a, uint8_t b) {
 // BATTLE_NO_UNIT applies a team-wide pass instead of a unit action.
 void battle_apply(BattleState& state, BattleAction action);
 
-// Whether a saved party member can make its starting special attack on the enemy the action names:
-// it is alive, belongs to the side to act, its normal attack reaches that enemy, and its AP covers
-// the special's cost. Only saved members have AP, so no other unit can.
-bool battle_special_legal(BattleState const& state, BattleAction action);
+// A living saved member on the acting side needs the special's level, AP, and a legal target.
+bool battle_special_legal(BattleState const& state, BattleAction action,
+                          BATTLE_ATTACK_CHOICE choice = BATTLE_STARTER);
 // Resolves a legal special attack the way battle_apply resolves an attack, and first spends the
 // special's AP from the saved member. An illegal action does nothing.
-void battle_apply_special(BattleState& state, BattleAction action);
+void battle_apply_special(BattleState& state, BattleAction action,
+                          BATTLE_ATTACK_CHOICE choice = BATTLE_STARTER);
 
 // Every living unit on the passing side loses BATTLE_MOVE_COST, which can defeat the whole team.
 // It counts as one activation. Player and AI may pass voluntarily; settling passes automatically

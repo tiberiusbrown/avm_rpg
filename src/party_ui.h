@@ -10,7 +10,7 @@
 // in the screen's frame and is never saved. Pressing a button reads the party but never changes it.
 enum PARTY_PAGE : uint8_t {
     PARTY_PAGE_OVERVIEW,        // the member's header and the three categories
-    PARTY_PAGE_SPECIALS,        // the member's starting specials
+    PARTY_PAGE_SPECIALS,        // the member's available specials
     PARTY_PAGE_SPECIAL_DETAILS, // one special's cost, range, and effect
     PARTY_PAGE_PERKS,        // the perk index: two tracks, equipment perks, and learning
     PARTY_PAGE_PERK_LIST,    // a movement or attack track, or the equipment perks
@@ -127,8 +127,8 @@ void party_ui_layout(PartyUi& ui, Party const& party, RangeWidth range_width) {
 // Class names and the starting special's name and description, from the battle's definitions.
 char const PROGMEM* party_movement_name(uint8_t movement);
 char const PROGMEM* party_attack_name(uint8_t attack);
-char const PROGMEM* party_special_name(uint8_t attack);
-char const PROGMEM* party_special_text(uint8_t attack);
+char const PROGMEM* party_special_name(uint8_t attack, uint8_t entry = 0);
+char const PROGMEM* party_special_text(uint8_t attack, uint8_t entry = 0);
 
 // Perk codes. An equipment perk has no track.
 char const PROGMEM* party_perk_name(uint8_t code);

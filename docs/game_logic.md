@@ -355,9 +355,19 @@ When the target survives, Drain healing is capped at one
 less than the target's actual HP loss, with a floor of zero. A finishing blow allows full Drain
 healing, even against a target at 1 HP. All Drain healing is capped at the attacker's maximum HP.
 
-### 5.4 Starting special abilities
+### 5.4 Special abilities
 
-Each party member has **exactly one currently implemented special**, determined by its `ATTACK_CLASS`. A special targets an enemy normally reachable by that attack class, costs **2 AP**, and takes one team turn. If there is enough AP, selecting an enemy opens an attack-type choice (normal vs special). The special's damage is **normal direct damage (including existing bonuses) plus the following special bonus**, chosen by whether the victim is **at full HP** or **below full HP** (separate from Rend's normal damage threshold).
+Each attack class grants a **2 AP starter at level 3** and a **3 AP signature at level 5**.
+Both use one selected enemy eligible for the normal attack, including any learned targeting
+perks. Hooking Thrust and Wall Slam also require the setup below. A on the target offers Attack
+and any unlocked, affordable, legal specials. Below level 3 or with less than 2 AP, A attacks
+normally. A special spends AP once and takes one team turn. Both unlocks use the member's saved
+level. Enemy presets use normal attacks.
+
+#### Starting specials
+
+The starter's damage is normal direct damage including bonuses, plus the following bonus based
+on whether the primary target is at full HP or below full HP.
 
 | Special | Attack class / ID | AP | Bonus vs full HP | Bonus vs below full HP | Additional effect |
 |---|---|---:|---:|---:|---|
@@ -372,12 +382,31 @@ Each party member has **exactly one currently implemented special**, determined 
 | **Pincer Strike** | `ATTACK_FLANK` | 2 | +2 | +2 | Retains conditional base damage |
 | **Detonation** | `ATTACK_BLAST` | 2 | +2 | +2 | Retains splash at the normal amount |
 
-There is **no special-ability learning/unlock progression** implemented. Specials exist from the beginning according to attack class. Enemies do not spend AP or select specials.
+#### Signature specials
+
+Determine additional victims, damage, support, and open destinations from the board before the
+hit. Signatures use their class's normal attack effects unless specified below. Full damage for
+Split Shot, Wall Slam, Backsweep, and Implosion is the primary attack's normal pre-defense
+damage, including its level, equipment, and perk bonuses. These extra hits are secondary damage.
+Apply the whole attack before deciding victory or defeat.
+
+| Signature | Attack class | Effect |
+|---|---|---|
+| **Breach Cut** | `ATTACK_STRIKE` | +2 primary damage. Occupy the target's original cell. If it survives, move it into the attacker's vacated cell. |
+| **Split Shot** | `ATTACK_SHOOT` | Deal full damage to each enemy in the two lateral cells beside the selected target, perpendicular to the firing line. Piercing Shot and Throughshot still follow that line. |
+| **Hooking Thrust** | `ATTACK_REACH` | Requires range 2. +2 primary damage. Pull the survivor into the middle cell. If Through the Ranks let the hit pass through a living ally, swap that ally and the target. |
+| **Wall Slam** | `ATTACK_IMPACT` | Requires blocked terrain or the board edge immediately behind the target along the attack line. Deal full damage to each enemy in the two lateral cells beside the target. |
+| **Feeding Frenzy** | `ATTACK_REND` | Each other enemy strictly below half maximum HP that the attacker can legally attack takes its own normal Rend damage. |
+| **Whirlwind** | `ATTACK_ARC` | Every other diagonally adjacent enemy takes its own normal Arc damage. Corner Sweep applies at the selected target only. |
+| **Life Channel** | `ATTACK_DRAIN` | +2 primary damage. Heal each other living party member for the actual HP the primary target lost, reduced by 1 if it survives. On a kill with Soul Dividend, each other living party member instead heals up to 5 HP. Healing caps at each recipient's maximum HP. |
+| **Backsweep** | `ATTACK_RECOIL` | Each other enemy orthogonally adjacent to any cell entered during the retreat takes full damage once. Dragback still applies to the surviving primary target. |
+| **Combined Arms** | `ATTACK_FLANK` | Each other living ally orthogonally adjacent to the target who can legally attack it adds their own normal primary attack damage, with level, gear, and perk bonuses, before target defenses are applied to the combined hit. |
+| **Implosion** | `ATTACK_BLAST` | Enemies exactly two cells away along the target's row or column take full damage. Each survivor moves one cell toward the primary target if that cell was open before the hit. The usual local splash retains its damage and Concussion rules. |
 
 ### 5.5 Implemented perks
 
 Learn perks through the Party menu. The implementation catalog is `src/perks.def`. Attack
-perks apply to normal attacks and starting specials. Movement damage bonuses apply to
+perks apply to normal attacks and specials. Movement damage bonuses apply to
 engagement after voluntary moves. All tracks have four learnable ranks. Rank 4 effects are
 resolved from the current board and the original target or destination, using the usual turn and AP rules.
 
@@ -464,8 +493,9 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
   attacker, using the original positions. Forced displacement requires an empty, unblocked cell inside the board and
   ignores movement class. It costs no HP and triggers no engagement or voluntary-move restriction. Check
   victory or defeat after all attack effects, then hand the turn to the other team if play continues.
-  Every action either reduces total battle HP or eliminates at least one combatant, so Drain cannot
-  sustain a loop.
+  Ordinary actions either reduce total battle HP or eliminate at least one combatant. Life Channel
+  can restore more total HP than it removes and spends 3 AP from the attacker's finite battle pool.
+- Damage bursts show actual HP lost, capped at 99 for display.
 - **Pass:** every living unit on that side loses **1 HP**, then battle checks for defeat. Passing is not a free defensive action.
 - Zero-HP party members do not deploy in subsequent encounters until revived/rested. Battle outcome is victory/defeat, never a draw. Defeat returns to the title screen rather than applying quest rewards.
 - Victory writes surviving and fallen party HP back to saved members; grants each roster member (including those not deployed or at 0 HP) **2 XP** and victory AP recovery; credits **3 G for each deployed enemy** subject to wallet cap.

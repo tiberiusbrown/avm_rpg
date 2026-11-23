@@ -1276,6 +1276,7 @@ static void verify_party_recruitment(Device& d, fs::path const& out) {
     Game combat = d.state();
     combat.party.members[0].hp = 20;
     combat.party.members[0].ap = 4;
+    combat.party.members[0].level = BATTLE_STARTER_LEVEL;
     combat.party.members[0].movement_class = MOVEMENT_LEAP;
     combat.party.members[0].attack_class = ATTACK_SHOOT;
     combat.party.members[1].hp = 17;
@@ -1714,9 +1715,15 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         uint8_t actor, target, victim, final_cell, actor_hp, victim_hp;
         bool special;
         uint8_t rank = 2;
+        bool signature = false;
+        uint8_t level = 0;
     };
 
     static constexpr Case CASES[] = {
+        {"battle_before_starter", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(2, 1), 15, 7, false, 0, false, 2},
+        {"battle_starter_unlocked", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(2, 1), 15, 4, true, 0, false, 3},
         {"battle_step", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(2, 1),
          battle_cell(3, 1), battle_cell(2, 1), 15, 9, false},
         {"battle_charge", MOVEMENT_CHARGE, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
@@ -1741,13 +1748,17 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
          battle_cell(2, 1), battle_cell(3, 1), 14, 7, false, 4},
         {"battle_throughshot", MOVEMENT_STEP, ATTACK_SHOOT, battle_cell(0, 1), battle_cell(5, 1),
          battle_cell(5, 1), battle_cell(0, 1), 15, 1, true, 4},
+        {"battle_split_shot", MOVEMENT_STEP, ATTACK_SHOOT, battle_cell(1, 1), battle_cell(5, 1),
+         battle_cell(5, 1), battle_cell(1, 1), 15, 4, true, 4, true},
+        {"battle_breach_cut", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1), battle_cell(3, 1),
+         battle_cell(3, 1), battle_cell(3, 1), 15, 0, true, 4, true},
     };
     for(auto const& test : CASES) {
         Game world = d.state();
         PartyMember& member = world.party.members[0];
         member.movement_class = test.movement;
         member.attack_class = test.attack;
-        member.level = (uint8_t)(2 * test.rank);
+        member.level = test.level ? test.level : (uint8_t)(2 * test.rank);
         member.ap = 4;
         member.perk_ranks = test.target == test.victim ? (uint8_t)(test.rank << 3) : test.rank;
         d.set_state(world);
@@ -1761,6 +1772,12 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         state.unit_count = 3;
         if(test.attack == ATTACK_SHOOT)
             state.units[2].cell = battle_cell(7, 1);
+        if(test.signature && test.attack == ATTACK_SHOOT) {
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(5, 0), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+            state.units[state.unit_count++] =
+                BattleUnit{battle_cell(5, 2), 10, ENEMY_FIGHTER, BATTLE_ENEMY};
+        }
         if(test.attack == ATTACK_FLANK) {
             state.units[state.unit_count++] =
                 BattleUnit{battle_cell(3, 0), 10, ENEMY_FIGHTER, BATTLE_PARTY};
@@ -1786,11 +1803,13 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         grove_move_cursor(d, cursor, {battle_column(test.actor), battle_row(test.actor)});
         d.tap(BTN_A);
         grove_move_cursor(d, cursor, {battle_column(test.target), battle_row(test.target)});
-        if(test.target == test.victim) {
+        if(test.target == test.victim && member.level >= BATTLE_STARTER_LEVEL) {
             d.tap(BTN_A);
             require(!d.battle_state().activations && d.state().party.members[0].ap == 4,
                     "opening the attack offer consumed the action");
-            if(test.special)
+            if(test.signature)
+                d.tap(BTN_UP); // Wrap from Attack to the third row.
+            else if(test.special)
                 d.tap(BTN_DOWN);
         }
 
@@ -1821,7 +1840,7 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
                     resolved.units[0].cell == test.final_cell &&
                     resolved.units[0].hp == test.actor_hp &&
                     resolved.units[1].hp == test.victim_hp &&
-                    d.state().party.members[0].ap == (test.special ? 2 : 4),
+                    d.state().party.members[0].ap == (test.signature ? 1 : test.special ? 2 : 4),
                 (std::string(test.name) + " did not resolve from player input").c_str());
         if(test.attack == ATTACK_REACH)
             require(resolved.units[1].cell == battle_cell(4, 1) && resolved.units[3].hp == 10,
@@ -1829,7 +1848,11 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         if(test.attack == ATTACK_BLAST)
             require(!resolved.units[3].hp && resolved.units[4].hp == 8 && resolved.units[5].hp == 9,
                     "Detonation did not apply orthogonal and diagonal splash damage");
-        if(test.attack == ATTACK_SHOOT)
+        if(test.signature && test.attack == ATTACK_SHOOT)
+            require(resolved.units[2].hp == 5 && resolved.units[3].hp == 4 &&
+                        resolved.units[4].hp == 4,
+                    "Split Shot did not apply full lateral hits and retain Throughshot");
+        else if(test.attack == ATTACK_SHOOT)
             require(resolved.units[2].hp == 1, "Throughshot did not hit beyond its selected target");
         d.wait_for_battle(1);
     }

@@ -1534,54 +1534,63 @@ def read_battle_arrow_frames(root=ROOT):
     return frames, masks
 
 
-# The damage indicators shown over a unit that loses HP: nine 16x16 plus-mask frames side by side,
-# for 1 to 9 HP. Each is the same spiky burst with its digit, 3x5 pixels in a blocky hand, drawn white
-# in the black middle with a one-pixel black border around it.
-DAMAGE_FRAMES = 9
-DAMAGE_DIGIT_LEFT, DAMAGE_DIGIT_TOP = 6, 5
+# The row is the tens digit and the column is the ones digit. Only cells 1 through 99 are exported.
+# Two digits share a wider black center in the same 16x16 frame, with one pixel between the glyphs.
+DAMAGE_GRID_SIZE = 10
+DAMAGE_FRAMES = DAMAGE_GRID_SIZE ** 2 - 1
+DAMAGE_DIGIT_TOP = 5
 DAMAGE_DIGIT_WIDTH, DAMAGE_DIGIT_HEIGHT = 3, 5
 
 
 def read_battle_damage_frames(root=ROOT):
-    """Read the damage bursts: nine 16x16 plus-mask frames, for 1 to 9 HP in order."""
+    """Read a 10x10 grid of 16x16 plus-mask frames in ascending order of damage."""
     path = root / "assets" / "images" / "battle_damage16.png"
+    size = DAMAGE_GRID_SIZE * TILE_SIZE
     with Image.open(path) as image:
         require(
-            image.format == "PNG" and image.size == (DAMAGE_FRAMES * TILE_SIZE, TILE_SIZE),
+            image.format == "PNG" and image.size == (size, size),
             path,
-            f"expected a PNG {DAMAGE_FRAMES * TILE_SIZE} pixels wide and {TILE_SIZE} pixels high "
-            f"holding {DAMAGE_FRAMES} frames: 1 to 9",
+            f"expected a PNG {size} pixels wide and {size} pixels high "
+            f"holding cells 0 to {DAMAGE_FRAMES}",
         )
-    frames, masks = read_sprite_sheet("battle_damage16.png", DAMAGE_FRAMES, root)
-    columns = range(DAMAGE_DIGIT_LEFT, DAMAGE_DIGIT_LEFT + DAMAGE_DIGIT_WIDTH)
+    frames, masks = read_sprite_sheet(path.name, DAMAGE_GRID_SIZE, root)
     rows = range(DAMAGE_DIGIT_TOP, DAMAGE_DIGIT_TOP + DAMAGE_DIGIT_HEIGHT)
-    for frame, mask in zip(frames, masks):
+    labels = []
+    for damage, (frame, mask) in enumerate(zip(frames, masks)):
+        count = len(str(damage))
+        width = count * DAMAGE_DIGIT_WIDTH + count - 1
+        left = (TILE_SIZE - width) // 2
+        right = left + width
+        glyph_columns = {
+            x for x in range(left, right) if (x - left) % (DAMAGE_DIGIT_WIDTH + 1) < DAMAGE_DIGIT_WIDTH
+        }
         require(
             all(
-                mask[y][x] == "#" and (frame[y][x] == "." or (x in columns and y in rows))
+                mask[y][x] == "#" and (frame[y][x] == "." or (x in glyph_columns and y in rows))
                 for y in range(rows.start - 1, rows.stop + 1)
-                for x in range(columns.start - 1, columns.stop + 1)
+                for x in range(left - 1, right + 1)
             ),
             path,
-            "keep each digit's cell opaque, with a one-pixel black border around it",
+            "keep the digits opaque with a one-pixel black border and separator",
         )
+        first = 0 if count == 1 else 10
         require(
             all(
-                (frame[y][x], mask[y][x]) == (frames[0][y][x], masks[0][y][x])
+                (frame[y][x], mask[y][x]) == (frames[first][y][x], masks[first][y][x])
                 for y in range(TILE_SIZE)
                 for x in range(TILE_SIZE)
-                if not (x in columns and y in rows)
+                if not (x in glyph_columns and y in rows)
             ),
             path,
-            "draw the same burst in every frame; only the digit may differ",
+            "draw the same burst in every frame of a given number width",
         )
-    digits = [tuple(frame[y][columns.start : columns.stop] for y in rows) for frame in frames]
+        labels.append(tuple(frame[y][left:right] for y in rows))
     require(
-        len(set(digits)) == DAMAGE_FRAMES and all("#" in "".join(digit) for digit in digits),
+        len(set(labels)) == len(frames) and all("#" in "".join(label) for label in labels),
         path,
-        "give every frame its own digit",
+        "give every frame its own digits",
     )
-    return frames, masks
+    return frames[1:], masks[1:]
 
 
 # The ambient creatures and effects, ambient16.png: 16x16 plus-mask frames in rows of eight.
@@ -1852,7 +1861,7 @@ def generate(root=ROOT):
         f"static_assert(BATTLE_ARROW_FRAMES == {ARROW_FRAMES}, "
         '"BATTLE_ARROW_FRAMES must match the frames in battle_arrows16.png");',
         f"static_assert(BATTLE_DAMAGE_FRAMES == {DAMAGE_FRAMES}, "
-        '"BATTLE_DAMAGE_FRAMES must match the frames in battle_damage16.png");',
+        '"BATTLE_DAMAGE_FRAMES must match the nonzero frames in battle_damage16.png");',
         f"static_assert(AMBIENT_FRAME_COUNT == {len(ambient_frames)}, "
         '"AMBIENT_FRAME_COUNT must match the frames in ambient16.png");',
         f"static_assert(TITLE_FRAME_COUNT == {len(title_frames)}, "

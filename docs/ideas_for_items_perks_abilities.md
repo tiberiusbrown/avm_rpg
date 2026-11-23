@@ -136,11 +136,11 @@ The campaign caps at level 10. Each victory grants 2 XP per member, and every ev
 
 | Level | XP to next level | Reward |
 |---:|---:|---|
-| 1 | 10 | Movement + attack class rules; first attack-class special already available |
+| 1 | 10 | Base movement and normal attack |
 | 2 | 15 | **Advance movement track OR attack track** (rank 1) |
-| 3 | 20 | +2 maximum HP |
+| 3 | 20 | +2 maximum HP and starter special |
 | 4 | 25 | **Advance movement OR attack track** (next rank) |
-| 5 | 30 | +1 normal-attack damage |
+| 5 | 30 | +1 direct attack damage and signature special |
 | 6 | 35 | **Advance movement OR attack track** (next rank) |
 | 7 | 40 | +2 maximum HP |
 | 8 | 45 | **Advance movement OR attack track** (next rank) |
@@ -566,16 +566,15 @@ A newly discovered item should make players **reconsider at least one existing c
 
 ## 7. Special abilities by **attack class**, with a first-stage set
 
-**Ownership rule:** The **attack class** owns a character's starting special and ordered attack-track unlocks. The **movement class does not change which enemy-targeted specials are available** in the first implementation, though its perks can enhance movement attacks, defense, or AP recovery. No unified Fighter/Guardian/Scout/Mage classes are assumed. Later, a special granted by equipment or a story reward may be an explicit exception.
+**Ownership rule:** The **attack class** owns a character's starter at level 3 and signature at level 5. The **movement class does not change which enemy-targeted specials are available** in the first implementation, though its perks can enhance movement attacks, defense, or AP recovery. No unified Fighter/Guardian/Scout/Mage classes are assumed. Later, a special granted by equipment or a story reward may be an explicit exception.
 
 **Action economy:** One action uses the entire party turn. A special must provide worthwhile immediate damage or a concrete attack-plus-effect, not a weak guard that does nothing before enemies respond. Specials spend AP once; AP does not regenerate midbattle, and baseline after-victory recovery is +1 per active member. Normal attacks remain free.
 
 ### A. Starting special baseline
 
-The [starting special catalog](game_logic.md#54-starting-special-abilities) records the
-shipped specials and their rules. For future specials, the baseline is one enemy selected
-through the normal attack's geometry. A special can then apply a secondary effect without
-another targeting prompt.
+The [special ability catalog](game_logic.md#54-special-abilities) records the
+shipped starters and signatures. Each uses one enemy selected through the class's current attack
+geometry and resolves its secondary effects from that choice.
 
 ### B. Target-first UI and rule compatibility
 
@@ -728,7 +727,7 @@ These are candidates for future attack-class ranks, equipment-granted techniques
 ### J. Ability implementation and balance guidelines
 
 - **Attack class determines specials**; two characters with `Shoot` attacks share the Opening Shot starting special, regardless of whether they are Step, Leap, or Charge movers. Their movement perks and gear may substantially change how well they exploit that attack style.
-- **Starting ability at level 1.** AP is available immediately. Perks modify the combat class and also carry over to its starting special.
+- **Starting ability at level 3.** Perks modify the combat class and also carry over to its starting special.
 - **One party turn per action.** Damage and immediate position changes matter more than weak buffs, guards, or purely defensive actions.
 - **AP stays persistent.** Specials cost AP in battle; each active member restores base +1 after victory, plus perk/item bonuses. Ether and safe-area recovery are out-of-battle.
 - **Future movement specials:** If a class later gains a *movement-targeted* special, activate its menu only after selecting an **empty tile** and state clearly whether engagement attacks and movement HP cost still occur. This is a distinct later UI and rules feature, not part of the first stage.
@@ -885,8 +884,8 @@ Built:
 - The game logic canon lists the shipped movement and attack classes and starting specials.
 - Party members store current HP and AP. Maximum HP uses the traveler's base of 20 or Rowan's base of 18, plus level and equipment bonuses. Maximum AP is 4.
 - A victory restores 1 AP to every saved member, or 2 with Dawn Pendant, up to maximum AP. Recovery also applies to incapacitated members.
-- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starting special with its AP cost, and its details show the cost, range and effect. Perks supports confirmation and permanent learning for the available class ranks. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
-- The attack-choice offer: when an enemy can be reached by both the normal attack and the starting special, A opens a two-option panel with Attack first. The special costs 2 AP, spent from the saved member, and inherits its class geometry and resolves the special’s effects. A unit short of AP attacks normally at once.
+- The Party panel opens on each member's overview, with current/maximum HP and AP, the movement and attack types, and the Specials, Perks and Equipment categories. Specials lists the starter from level 3 and the signature from level 5 with their AP costs. Each detail page shows the cost, range, and effect. Perks supports confirmation and permanent learning for the available class ranks. Equipment supports inspection and transfers, and equipment-granted perks reflect the selected member’s current loadout.
+- Selecting an enemy opens the attack offer when a special is affordable. Attack is first, followed by the 2 AP starter and the 3 AP signature when unlocked and legal. Specials spend the saved member's AP and resolve in one action.
 
 Future ideas include adding specials to the enemy AI's search and deriving maximum HP from class.
 
