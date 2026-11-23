@@ -26,10 +26,10 @@ content, persistent state, and dependencies. It contains no dialogue prose.
 
 | Area | ID | Tileset | Implemented use |
 |---|---:|---|---|
-| `AREA_OUTDOOR` | 1 | World | Millcross village, surrounding paths, wolf and giant spiders, mine/vault entrances, maintenance hatch |
+| `AREA_OUTDOOR` | 1 | World | Millcross village, surrounding paths and wildlife encounters, mine/vault entrances, maintenance hatch |
 | `AREA_INTERIORS` | 2 | House | Ten linked house/service interiors; Mara and Ada reside here |
-| `AREA_CAVE` | 3 | Cave | Hollow Mine: mechanisms, pursuit wolf, giant bat, tally, chest, second exit |
-| `AREA_DUNGEON` | 4 | Dungeon | Old Vault: multi-mechanism puzzle, nonrespawning guardian, skeleton and floating eye, chest |
+| `AREA_CAVE` | 3 | Cave | Hollow Mine mechanisms, creature encounters, tally, chest, second exit |
+| `AREA_DUNGEON` | 4 | Dungeon | Old Vault mechanisms, guardian and optional encounters, chest |
 
 House doors/returns are paired by `handler_impl::HOUSE_LINKS` in `src/logic/area_village.h`: `Elder`, `Cottage`, `Weaver`, `Shop`, `Bakery`, `Farm`, `Inn`, `Smithy`, `Hut`, `Fisher` (`<Name>Door` ↔ `<Name>Exit`). Facing/pressing A enters; stepping onto the exit returns outside. `CaveMouth` ↔ `CaveExit`, `CaveHole` ↔ `CaveLadder`, and `MineEntrance` ↔ `DungeonExit` are passage pairs. The outdoor `CaveHole` is **inactive until `FLAG_CAVE_BRIDGE`**, when its tile becomes a ladder and its passage handler activates.
 
@@ -528,10 +528,20 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 | `ENEMY_GIANT_SPIDER` | Giant Spider | 7 | Leap | Flank | 0 | 19 |
 | `ENEMY_SKELETON` | Skeleton | 10 | Step 2 | Reach 1 | 2 | 23 |
 | `ENEMY_FLOATING_EYE` | Floating Eye | 8 | Vault 1 | Blast 2 | 3 | 29 |
+| `ENEMY_GIANT_RAT` | Giant Rat | 5 | Step | Strike | 0 | 16 |
+| `ENEMY_GIANT_BEETLE` | Giant Beetle | 10 | Charge 1 | Impact | 0 | 20 |
+| `ENEMY_SNAKE` | Snake | 7 | Leap | Recoil 1 | 0 | 21 |
+| `ENEMY_SLIME` | Slime | 8 | Step | Drain | 0 | 22 |
+| `ENEMY_ZOMBIE` | Zombie | 12 | Step 1 | Rend 2 | 0 | 24 |
+| `ENEMY_GOBLIN` | Goblin | 8 | Leap 1 | Shoot 1 | 2 | 26 |
+| `ENEMY_GHOST` | Ghost | 11 | Glide 3 | Drain 2 | 2 | 27 |
+| `ENEMY_MUSHROOM` | Mushroom | 10 | Step 1 | Blast 1 | 2 | 28 |
+| `ENEMY_GOLEM` | Golem | 18 | Step 3 | Impact 4 | 3 | 30 |
+| `ENEMY_HOODED_CULTIST` | Hooded Cultist | 14 | Vault 2 | Shoot 4 | 5 | 31 |
 
 ### 6.3 Authored map encounters (catalog order is save-sensitive)
 
-The catalog concatenates `VillageEnemies`, `CaveEnemies`, `DungeonEnemies`, `OrchardEnemies`, `MineWestEnemies`, and `VaultEastEnemies` in that order. The list order defines persistent `enemy_defeated_flag_at(index)` ownership. New entries use the next free indices. Changing existing entries' ordering changes saved meanings and requires compatibility review.
+The catalog concatenates `VillageEnemies`, `CaveEnemies`, `DungeonEnemies`, `OrchardEnemies`, `MineWestEnemies`, `VaultEastEnemies`, `MillcrossWildlife`, `MineCreatures`, and `VaultCreatures` in that order. The list order defines persistent `enemy_defeated_flag_at(index)` ownership. New entries use the next free indices. Changing existing entries' ordering changes saved meanings and requires compatibility review.
 
 | Spawn index / logical NPC ID | Marker | Behavior | Battle roster and arena pool | Respawn | Victory and dialogue hooks |
 |---|---|---|---|---|---|
@@ -541,13 +551,21 @@ The catalog concatenates `VillageEnemies`, `CaveEnemies`, `DungeonEnemies`, `Orc
 | **3 / 12** | `OrchardSpiders` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_SPIDER` ×2; outdoor boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
 | **4 / 13** | `MineBatRoost` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_BAT` ×1; cave boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
 | **5 / 14** | `VaultEastWatch` | `ENEMY_WANDER`, normal speed | `ENEMY_SKELETON` ×1 + `ENEMY_FLOATING_EYE` ×1; dungeon boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
+| **6 / 15** | `FarmRats` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_RAT` ×2 (`MEADOW`) | `RESPAWN_REMEMBER` | Optional early fight west of the farm |
+| **7 / 16** | `EastBeetle` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_BEETLE` ×1 (`GROVE`) | `RESPAWN_REMEMBER` | Optional early fight east of Millcross |
+| **8 / 17** | `RiverSnake` | `ENEMY_WANDER`, normal speed | `ENEMY_SNAKE` ×1 (`RIVERBANK`) | `RESPAWN_REMEMBER` | Optional early fight west of the fisher's house |
+| **9 / 18** | `PoolSlime` | `ENEMY_WANDER`, normal speed | `ENEMY_SLIME` ×1 (`MINE_CHAMBER`) | `RESPAWN_REMEMBER` | Optional early fight at the grotto pool |
+| **10 / 19** | `WinchMushroom` | `ENEMY_WANDER`, zero wander range | `ENEMY_MUSHROOM` ×1 (`MINE_CROSSING`) | `RESPAWN_REMEMBER` | Optional midgame fight in the east winch room |
+| **11 / 20** | `WestAmbush` | `ENEMY_WANDER`, normal speed | `ENEMY_ZOMBIE` ×1 + `ENEMY_GOBLIN` ×1 (`VAULT_CRYPT`) | `RESPAWN_REMEMBER` | Optional midgame fight off the west cell-block corridor |
+| **12 / 21** | `ShrineGolem` | `ENEMY_WANDER`, zero wander range | `ENEMY_GOLEM` ×1 + `ENEMY_GHOST` ×1 (`VAULT_COURT`) | `RESPAWN_NEVER` | Optional late fight on the shrine's east side |
+| **13 / 22** | `VaultCultist` | `ENEMY_WANDER`, zero wander range | `ENEMY_HOODED_CULTIST` ×1 (`VAULT_HALL`) | `RESPAWN_NEVER` | Optional late fight inside the vault, east of the doorway |
 
-Spawns 0–5 use defeat bits **26–31** (`FLAG_ENEMY_FIRST + spawn_index`). The reserve holds 16 bits (10 unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
+Spawns 0–13 use defeat bits **26–39** (`FLAG_ENEMY_FIRST + spawn_index`). The reserve holds 16 bits (2 unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
 
 ### 6.4 The World Remembers
 
 - On victory against an enemy marked `RESPAWN_REMEMBER`, set its defeat bit and set `game.remember_timer = REMEMBER_DELAY_FRAMES` (**15,000 exploration frames**, 50 Hz nominal, about five minutes of simulation). A subsequent respawnable victory restarts the timer.
-- After the countdown reaches zero, the next safe opportunity triggers the World Remembers reset/cutscene. `remember_reset()` clears defeat bits **only for respawnable spawns**, allowing later ordinary re-admission. The permanent `VaultGuard` bit is not cleared.
+- After the countdown reaches zero, the next safe opportunity triggers the World Remembers reset/cutscene. `remember_reset()` clears defeat bits **only for respawnable spawns**, allowing later ordinary re-admission. `VaultGuard`, `ShrineGolem`, and `VaultCultist` retain their permanent defeat bits.
 - Do **not** clear quest evidence or story flags during the reset. The new lantern/surveyor facts and all cave/dungeon mechanism/chest flags persist.
 - Only authored, currently eligible spawns reappear through normal map activation; the reset is not a forced instant on-screen teleport of all actors.
 

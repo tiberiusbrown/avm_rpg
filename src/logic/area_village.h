@@ -15,6 +15,12 @@ inline constexpr BattleEncounter PROGMEM BATTLE_GROVE_WOLVES =
     battle_encounter(ENEMY_WOLF);
 inline constexpr BattleEncounter PROGMEM BATTLE_ORCHARD_SPIDERS =
     battle_encounter(ENEMY_GIANT_SPIDER, ENEMY_GIANT_SPIDER);
+inline constexpr BattleEncounter PROGMEM BATTLE_FARM_RATS =
+    battle_encounter(battlefields(BATTLEFIELD_MEADOW), ENEMY_GIANT_RAT, ENEMY_GIANT_RAT);
+inline constexpr BattleEncounter PROGMEM BATTLE_EAST_BEETLE =
+    battle_encounter(battlefields(BATTLEFIELD_GROVE), ENEMY_GIANT_BEETLE);
+inline constexpr BattleEncounter PROGMEM BATTLE_RIVER_SNAKE =
+    battle_encounter(battlefields(BATTLEFIELD_RIVERBANK), ENEMY_SNAKE);
 
 inline void lantern_inn_rest() {
     if(dialogue_ask(F("Rest at the Lantern Inn?"))) {
@@ -240,6 +246,11 @@ using VillageEnemies = TypeList<
 >;
 using OrchardEnemies = TypeList<
     EnemySpawn<positions::OrchardSpiders, &BATTLE_ORCHARD_SPIDERS, 19>
+>;
+using MillcrossWildlife = TypeList<
+    EnemySpawn<positions::FarmRats, &BATTLE_FARM_RATS, 16>,
+    EnemySpawn<positions::EastBeetle, &BATTLE_EAST_BEETLE, 20>,
+    EnemySpawn<positions::RiverSnake, &BATTLE_RIVER_SNAKE, 21>
 >;
 
 namespace handler_impl {

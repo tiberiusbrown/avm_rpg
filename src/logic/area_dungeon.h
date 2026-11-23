@@ -14,6 +14,12 @@ inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_GUARDS =
     battle_encounter(battlefields_for_area(AREA_DUNGEON), ENEMY_BRUTE, ENEMY_WOLF, ENEMY_BRUTE);
 inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_EAST_WATCH =
     battle_encounter(battlefields_for_area(AREA_DUNGEON), ENEMY_SKELETON, ENEMY_FLOATING_EYE);
+inline constexpr BattleEncounter PROGMEM BATTLE_WEST_AMBUSH =
+    battle_encounter(battlefields(BATTLEFIELD_VAULT_CRYPT), ENEMY_ZOMBIE, ENEMY_GOBLIN);
+inline constexpr BattleEncounter PROGMEM BATTLE_SHRINE_GOLEM =
+    battle_encounter(battlefields(BATTLEFIELD_VAULT_COURT), ENEMY_GOLEM, ENEMY_GHOST);
+inline constexpr BattleEncounter PROGMEM BATTLE_VAULT_CULTIST =
+    battle_encounter(battlefields(BATTLEFIELD_VAULT_HALL), ENEMY_HOODED_CULTIST);
 
 struct VaultGuardHooks : EnemyHooks {
     static bool before_battle() {
@@ -33,6 +39,15 @@ using DungeonEnemies = TypeList<
 >;
 using VaultEastEnemies = TypeList<
     EnemySpawn<positions::VaultEastWatch, &BATTLE_VAULT_EAST_WATCH, 23>
+>;
+
+inline constexpr EnemySettings VAULT_MINIBOSS_SETTINGS{.wander_x = 0, .wander_y = 0};
+using VaultCreatures = TypeList<
+    EnemySpawn<positions::WestAmbush, &BATTLE_WEST_AMBUSH, 24>,
+    EnemySpawn<positions::ShrineGolem, &BATTLE_SHRINE_GOLEM, 30, ENEMY_WANDER, SPEED_NORMAL, 0,
+               RESPAWN_NEVER, EnemyHooks, VAULT_MINIBOSS_SETTINGS>,
+    EnemySpawn<positions::VaultCultist, &BATTLE_VAULT_CULTIST, 31, ENEMY_WANDER, SPEED_NORMAL, 0,
+               RESPAWN_NEVER, EnemyHooks, VAULT_MINIBOSS_SETTINGS>
 >;
 
 namespace handler_impl {

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="240" height="248" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="39">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="240" height="248" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="42">
   <properties>
     <property name="area_id" type="int" value="1" />
     <property name="symbol" type="string" value="OUTDOOR" />
@@ -419,6 +419,15 @@
       <point />
     </object>
     <object id="38" name="OrchardSpiders" x="200" y="280">
+      <point />
+    </object>
+    <object id="39" name="FarmRats" x="168" y="408">
+      <point />
+    </object>
+    <object id="40" name="EastBeetle" x="728" y="248">
+      <point />
+    </object>
+    <object id="41" name="RiverSnake" x="120" y="552">
       <point />
     </object>
   </objectgroup>

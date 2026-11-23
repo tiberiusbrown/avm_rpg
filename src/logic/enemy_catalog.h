@@ -8,7 +8,8 @@
 // Catalog order determines enemy IDs and saved defeat flags. Append new spawns at the end.
 #ifndef RPG_DISABLE_ENEMY_SPAWNS
 using EnemyEntries = typename Join<VillageEnemies, CaveEnemies, DungeonEnemies,
-                                   OrchardEnemies, MineWestEnemies, VaultEastEnemies>::type;
+                                   OrchardEnemies, MineWestEnemies, VaultEastEnemies,
+                                   MillcrossWildlife, MineCreatures, VaultCreatures>::type;
 #else
 using EnemyEntries = TypeList<>;
 #endif

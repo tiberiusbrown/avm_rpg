@@ -197,6 +197,7 @@ struct OracleType {
 static OracleType oracle_type(uint8_t type) {
     switch(type) {
         case BATTLE_TEST_FIGHTER:
+        case ENEMY_GIANT_RAT:
             return {1, 1, 1, 3, 3, false};
         case BATTLE_TEST_ROGUE:
             return {0, 1, 1, 3, 3, false, false, BATTLE_MOVEMENT_LEAP};
@@ -207,6 +208,7 @@ static OracleType oracle_type(uint8_t type) {
         case ENEMY_WOLF: // Rend: 2 against a healthy victim, 4 against one below half HP.
             return {2, 1, 1, 2, 4, false};
         case ENEMY_BRUTE:
+        case ENEMY_GOLEM:
             return {1, 1, 1, 2, 2, true};
         case ENEMY_GIANT_BAT:
             return {2, 1, 1, 3, 3, false, true, BATTLE_MOVEMENT_GLIDE};
@@ -216,6 +218,22 @@ static OracleType oracle_type(uint8_t type) {
             return {1, 1, 2, 3, 3, false};
         case ENEMY_FLOATING_EYE:
             return {2, 2, 3, 2, 2, false, false, BATTLE_MOVEMENT_VAULT};
+        case ENEMY_GIANT_BEETLE:
+            return {2, 1, 1, 2, 2, true};
+        case ENEMY_SNAKE:
+            return {0, 1, 1, 3, 3, false, false, BATTLE_MOVEMENT_LEAP};
+        case ENEMY_SLIME:
+            return {1, 1, 1, 2, 2, false};
+        case ENEMY_ZOMBIE:
+            return {1, 1, 1, 2, 4, false};
+        case ENEMY_GOBLIN:
+            return {0, 2, 4, 3, 3, false, false, BATTLE_MOVEMENT_LEAP};
+        case ENEMY_GHOST:
+            return {2, 1, 1, 2, 2, false, false, BATTLE_MOVEMENT_GLIDE};
+        case ENEMY_MUSHROOM:
+            return {1, 2, 3, 2, 2, false};
+        case ENEMY_HOODED_CULTIST:
+            return {2, 2, 4, 3, 3, false, false, BATTLE_MOVEMENT_VAULT};
         default:
             abort();
     }
@@ -296,7 +314,8 @@ static bool oracle_legal(BattleState const& s, uint8_t unit, uint8_t destination
         return false;
     if(rules.diagonal)
         return abs(dx) == 1 && abs(dy) == 1;
-    if(!straight || distance < rules.attack_min || distance > rules.attack_max)
+    int attack_max = actor.id == ENEMY_HOODED_CULTIST ? BATTLE_COLUMNS - 1 : rules.attack_max;
+    if(!straight || distance < rules.attack_min || distance > attack_max)
         return false;
     if(member && member->attack_class == ATTACK_REACH && distance == 2 &&
        party_attack_perk_rank(*member) == 3) {
@@ -312,6 +331,7 @@ static bool oracle_legal(BattleState const& s, uint8_t unit, uint8_t destination
 // --- Data ----------------------------------------------------------------------------------
 
 static void unit_definitions() {
+    uint32_t creature_rows = 0;
     for(uint8_t t = 0; t < BATTLE_TEST_SOURCE_COUNT; ++t) {
         EnemyInfo const& info = ENEMY_INFO[t];
         BattleUnitRules const& type = battle_rules(t);
@@ -323,10 +343,13 @@ static void unit_definitions() {
         CHECK((type.effect == BATTLE_EFFECT_KNOCKBACK) == rules.knockback);
         CHECK((type.geometry == BATTLE_ATTACK_DIAGONAL) == rules.diagonal);
         CHECK(info.sprite_row < ACTOR_ROW_COUNT);
+        if(t < ENEMY_COUNT)
+            creature_rows |= uint32_t(1) << info.sprite_row;
         // Each archetype has artwork of its own.
         for(uint8_t u = 0; u < t; ++u)
             CHECK(ENEMY_INFO[u].sprite_row != info.sprite_row);
     }
+    CHECK(creature_rows == 0xffff0000u);
     // The human rows belong to test fixtures.
     CHECK(ENEMY_INFO[ENEMY_WOLF].sprite_row == 17);
     CHECK(ENEMY_INFO[ENEMY_BRUTE].sprite_row == 25);
@@ -1335,6 +1358,10 @@ static void check_enumeration(BattleState const& s, bool use_base_oracle = true)
 
 static void legal_action_enumeration() {
     check_enumeration(fresh());
+    BattleState cultist = board(BATTLE_ENEMY, {{1, 1, ENEMY_HOODED_CULTIST, BATTLE_ENEMY, 14},
+                                              {7, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 10}});
+    check_enumeration(cultist);
+    CHECK(battle_legal(cultist, act(0, 7, 1)));
     BattleState enemy = fresh();
     enemy.turn = BATTLE_ENEMY;
     check_enumeration(enemy);

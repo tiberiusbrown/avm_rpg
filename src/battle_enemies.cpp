@@ -11,6 +11,16 @@ constexpr EnemyInfo PROGMEM ENEMY_INFO[] = {
     {7, MOVEMENT_LEAP, ATTACK_FLANK, 19},
     {10, MOVEMENT_STEP, ATTACK_REACH, 23, 2, 1, 2},
     {8, MOVEMENT_VAULT, ATTACK_BLAST, 29, 1, 2, 3},
+    {5, MOVEMENT_STEP, ATTACK_STRIKE, 16},
+    {10, MOVEMENT_CHARGE, ATTACK_IMPACT, 20, 1},
+    {7, MOVEMENT_LEAP, ATTACK_RECOIL, 21, 0, 1},
+    {8, MOVEMENT_STEP, ATTACK_DRAIN, 22},
+    {12, MOVEMENT_STEP, ATTACK_REND, 24, 1, 2},
+    {8, MOVEMENT_LEAP, ATTACK_SHOOT, 26, 1, 1, 2},
+    {11, MOVEMENT_GLIDE, ATTACK_DRAIN, 27, 3, 2, 2},
+    {10, MOVEMENT_STEP, ATTACK_BLAST, 28, 1, 1, 2},
+    {18, MOVEMENT_STEP, ATTACK_IMPACT, 30, 3, 4, 3},
+    {14, MOVEMENT_VAULT, ATTACK_SHOOT, 31, 2, 4, 5},
 #ifdef RPG_BATTLE_FIXTURES
     {10, MOVEMENT_STEP, ATTACK_STRIKE, 2},
     {10, MOVEMENT_LEAP, ATTACK_STRIKE, 1},
@@ -38,6 +48,8 @@ static_assert([] {
 char const PROGMEM* battle_enemy_name(uint8_t id) {
     static constexpr char const PROGMEM* const PROGMEM NAMES[] = {
         F("Wolf"), F("Brute"), F("Giant Bat"), F("Giant Spider"), F("Skeleton"), F("Floating Eye"),
+        F("Giant Rat"), F("Giant Beetle"), F("Snake"), F("Slime"), F("Zombie"), F("Goblin"),
+        F("Ghost"), F("Mushroom"), F("Golem"), F("Hooded Cultist"),
 #ifdef RPG_BATTLE_FIXTURES
         F("Fighter"), F("Rogue"), F("Archer"), F("Spearman"),
 #endif

@@ -16,9 +16,14 @@ east of the square. The sloping north road runs toward the mine. A separate
 mine-framed entrance farther east leads to the Old Vault, which has its own
 hazards.
 
-Giant spiders wander along the orchard's northern edge. A giant bat roosts
-in Hollow Mine's western passage. A skeleton and a floating eye haunt the
-north end of the Old Vault's east wing.
+Giant spiders wander along the orchard's northern edge. Rats roam west of
+the farm, a giant beetle forages east of Millcross, and a snake lurks near the
+fisher's house. A giant bat roosts in Hollow Mine's western passage. A slime
+lives by the grotto pool and a giant mushroom has taken root in the winch room.
+
+A zombie and goblin prowl the Old Vault's west cell block. A skeleton and
+floating eye haunt the east wing. A golem and ghost keep to one side of the
+shrine, and a hooded cultist waits in the vault itself.
 
 | Resident | Place and role |
 | --- | --- |

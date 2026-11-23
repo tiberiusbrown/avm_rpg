@@ -16,6 +16,10 @@ inline constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS =
     battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF);
 inline constexpr BattleEncounter PROGMEM BATTLE_MINE_BAT =
     battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_GIANT_BAT);
+inline constexpr BattleEncounter PROGMEM BATTLE_POOL_SLIME =
+    battle_encounter(battlefields(BATTLEFIELD_MINE_CHAMBER), ENEMY_SLIME);
+inline constexpr BattleEncounter PROGMEM BATTLE_WINCH_MUSHROOM =
+    battle_encounter(battlefields(BATTLEFIELD_MINE_CROSSING), ENEMY_MUSHROOM);
 
 using CaveEnemies = TypeList<
     EnemySpawn<positions::MineScout, &BATTLE_MINE_SCOUTS, 17, ENEMY_CHASE, SPEED_FAST, 0,
@@ -23,6 +27,11 @@ using CaveEnemies = TypeList<
 >;
 using MineWestEnemies = TypeList<
     EnemySpawn<positions::MineBatRoost, &BATTLE_MINE_BAT, 18>
+>;
+using MineCreatures = TypeList<
+    EnemySpawn<positions::PoolSlime, &BATTLE_POOL_SLIME, 22>,
+    EnemySpawn<positions::WinchMushroom, &BATTLE_WINCH_MUSHROOM, 28, ENEMY_WANDER, SPEED_NORMAL, 0,
+               RESPAWN_REMEMBER, EnemyHooks, EnemySettings{.wander_x = 0, .wander_y = 0}>
 >;
 
 #ifndef RPG_NPC_POLICY_HEADER

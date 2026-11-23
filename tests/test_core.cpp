@@ -344,10 +344,19 @@ static void creature_encounters() {
         uint8_t sprite_row;
         uint8_t count;
         ENEMY_ID roster[BATTLE_SIDE_CAPACITY];
+        bool respawns = true;
     } cases[] = {
         {positions::OrchardSpiders, 19, 2, {ENEMY_GIANT_SPIDER, ENEMY_GIANT_SPIDER}},
         {positions::MineBatRoost, 18, 1, {ENEMY_GIANT_BAT}},
         {positions::VaultEastWatch, 23, 2, {ENEMY_SKELETON, ENEMY_FLOATING_EYE}},
+        {positions::FarmRats, 16, 2, {ENEMY_GIANT_RAT, ENEMY_GIANT_RAT}},
+        {positions::EastBeetle, 20, 1, {ENEMY_GIANT_BEETLE}},
+        {positions::RiverSnake, 21, 1, {ENEMY_SNAKE}},
+        {positions::PoolSlime, 22, 1, {ENEMY_SLIME}},
+        {positions::WinchMushroom, 28, 1, {ENEMY_MUSHROOM}},
+        {positions::WestAmbush, 24, 2, {ENEMY_ZOMBIE, ENEMY_GOBLIN}},
+        {positions::ShrineGolem, 30, 2, {ENEMY_GOLEM, ENEMY_GHOST}, false},
+        {positions::VaultCultist, 31, 1, {ENEMY_HOODED_CULTIST}, false},
     };
     game_new();
     story_stub_reset(BATTLE_VICTORY);
@@ -372,12 +381,13 @@ static void creature_encounters() {
             CHECK(battle_ap(unit) == ENEMY_INFO[unit.id].starting_ap);
         }
         CHECK(game.get_flag(enemy_defeated_flag(id)) && !npc_find(id));
-        CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES && save_restore());
+        CHECK(game.remember_timer == (expected.respawns ? REMEMBER_DELAY_FRAMES : 0));
+        CHECK(save_restore());
         enter_enemy_site(expected.site, FOOT_WIDTH);
         CHECK(!npc_find(id));
         remember_reset();
         enter_enemy_site(expected.site, FOOT_WIDTH);
-        CHECK(npc_find(id));
+        CHECK((npc_find(id) != nullptr) == expected.respawns);
     }
 }
 
