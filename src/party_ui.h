@@ -124,6 +124,8 @@ void party_ui_layout(PartyUi& ui, Party const& party, RangeWidth range_width) {
         text ? text_wrap(text, PARTY_TEXT_WIDTH, range_width, ui.starts, PARTY_TEXT_LINES) : 0;
 }
 
+char const PROGMEM* party_member_name(PartyMember const& member);
+
 // Class names and the starting special's name and description, from the battle's definitions.
 char const PROGMEM* party_movement_name(uint8_t movement);
 char const PROGMEM* party_attack_name(uint8_t attack);

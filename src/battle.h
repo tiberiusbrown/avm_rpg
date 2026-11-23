@@ -255,6 +255,7 @@ struct EnemyInfo {
 };
 
 extern EnemyInfo const PROGMEM ENEMY_INFO[];
+char const PROGMEM* battle_enemy_name(uint8_t id);
 
 // A source ID with the high bit clear indexes EnemyInfo. With the bit set it references one of
 // the saved party's four slots. Team is independent of the source.

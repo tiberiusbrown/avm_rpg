@@ -505,6 +505,9 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
   different wind-ups before contact. Damage, healing, and forced displacement animate on the units
   actually affected, including secondary hits, reflected damage, and perk effects. Damage bursts
   show actual HP lost, capped at 99 for display.
+- During an attack, a centered banner reads `<actor> attacks <victim>!` or `<actor> uses <ability>!`
+  for a starter or signature. The banner fits the measured text and uses the edge with fewer units
+  involved in the action, favoring the edge farther from the target when both are equally clear.
 - **Pass:** every living unit on that side loses **1 HP**, then battle checks for defeat. Passing is not a free defensive action.
 - Hovering over a living unit shows its movement and attack class names above its current and
   maximum HP. Ranks 1–4 follow the class name, as in `Step 2 / Strike 3`. Rank 0 uses the name

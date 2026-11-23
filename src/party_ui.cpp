@@ -1,6 +1,7 @@
 #include "party_ui.h"
 
 #include "battle.h"
+#include "npc.h"
 
 // Each choice row is a track's next rank: the member's movement track, then its attack track.
 static constexpr uint8_t PERK_CHOICE_COUNT = 2;
@@ -290,6 +291,11 @@ char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party) {
         default:
             return nullptr;
     }
+}
+
+char const PROGMEM* party_member_name(PartyMember const& member) {
+    auto name = npc_name(member.id);
+    return name ? name : F("Alden");
 }
 
 char const PROGMEM* party_movement_name(uint8_t movement) {

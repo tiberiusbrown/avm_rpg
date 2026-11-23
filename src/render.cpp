@@ -881,11 +881,6 @@ static void draw_label_value(int16_t x, int16_t baseline, char const PROGMEM* la
     avm_draw_text((int16_t)(end + avm_text_width(F(" "))), baseline, value);
 }
 
-static char const PROGMEM* party_member_name(PartyMember const& member) {
-    auto name = npc_name(member.id);
-    return name ? name : F("Alden");
-}
-
 static constexpr int16_t PARTY_ROW_SUBTITLE = 18;
 static constexpr int16_t PARTY_ROW_BODY = 29;
 static constexpr int16_t PARTY_ROW_STEP = 7;

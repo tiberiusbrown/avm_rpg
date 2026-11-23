@@ -80,6 +80,8 @@ struct BattleScreen {
     uint8_t actor, victim;
     uint8_t attack;
     BATTLE_ATTACK_CHOICE choice;
+    char attack_banner[40];
+    uint8_t banner_width, banner_y;
     // Animation clock in frames. A walk advances it for the walking pose, and a flash counts it for
     // the flash phase. A walk and a flash never run together, so one clock serves both. It wraps at
     // 256, which keeps the pose cycle whole.
@@ -107,6 +109,51 @@ static inline __attribute__((always_inline)) void draw_panel(int16_t x, int16_t 
     avm_draw_filled_rect_black(x - 1, y - 1, width + 2, height + 2);
     avm_draw_filled_rect_white(x, y, width, height);
     avm_draw_filled_rect_black(x + 1, y + 1, width - 2, height - 2);
+}
+
+static char const PROGMEM* battle_unit_name(BattleUnit const& unit) {
+    return unit.id & BATTLE_PARTY_SOURCE
+               ? party_member_name(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE])
+               : battle_enemy_name(unit.id);
+}
+
+static constexpr uint8_t ATTACK_BANNER_HEIGHT = 10;
+
+RPG_NOINLINE static void prepare_attack_banner(BattleScreen& screen) {
+    auto const& state = screen.state;
+    auto actor = battle_unit_name(state.units[screen.actor]);
+    if(screen.choice == BATTLE_NORMAL) {
+        auto victim = battle_unit_name(state.units[screen.victim]);
+        snprintf_P(screen.attack_banner, sizeof(screen.attack_banner), F("%S attacks %S!"),
+                   actor, victim);
+    } else {
+        auto ability = party_special_name(screen.attack, screen.choice == BATTLE_SIGNATURE);
+        snprintf_P(screen.attack_banner, sizeof(screen.attack_banner), F("%S uses %S!"),
+                   actor, ability);
+    }
+    screen.banner_width = avm_text_width(screen.attack_banner) + 6;
+
+    // Prefer the edge with fewer affected units. When both edges are equally clear, keep the
+    // banner farther from the primary target.
+    uint8_t top = 0, bottom = 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        auto const& unit = state.units[i];
+        if(i != screen.actor && i != screen.victim && !screen.damage[i] &&
+           unit.cell == screen.origin[i])
+            continue;
+        uint8_t from = battle_row(screen.origin[i]), to = battle_row(unit.cell);
+        top += from == 0 || to == 0;
+        bottom += from == BATTLE_ROWS - 1 || to == BATTLE_ROWS - 1;
+    }
+    bool at_bottom = top > bottom ||
+                     (top == bottom && battle_row(screen.origin[screen.victim]) < BATTLE_ROWS / 2);
+    screen.banner_y = at_bottom ? BATTLE_ROWS * TILE - ATTACK_BANNER_HEIGHT - 1 : 1;
+}
+
+RPG_NOINLINE static void draw_attack_banner(BattleScreen const& screen) {
+    int16_t x = (BATTLE_COLUMNS * TILE - screen.banner_width) / 2;
+    draw_panel(x, screen.banner_y, screen.banner_width, ATTACK_BANNER_HEIGHT);
+    avm_draw_text(x + 3, screen.banner_y + 7, screen.attack_banner);
 }
 
 // The sprite is drawn at the cell's origin minus the margin, so its interior lands on the cell.
@@ -545,6 +592,8 @@ RPG_NOINLINE static void animate_reaction(BattleScreen& screen, uint8_t lunger, 
             draw_contact(screen);
         if(!attack || screen.ticks >= 12)
             draw_damage(screen);
+        if(attack)
+            draw_attack_banner(screen);
         avm_display(false);
         input_wait_frame();
     }
@@ -603,6 +652,7 @@ RPG_NOINLINE static void wind_up(BattleScreen& screen, DIRECTION toward) {
         draw_board<false>(screen, BATTLE_NO_UNIT, toward);
         draw_fx(frame < 3 || (signature && frame >= 6) ? FX_RING : FX_FOCUS,
                 cell_x(from) + 8, cell_y(from) + 7);
+        draw_attack_banner(screen);
         avm_display(false);
         input_wait_frame();
     }
@@ -644,6 +694,7 @@ RPG_NOINLINE static void fly_projectile(BattleScreen& screen, uint8_t to, DIRECT
             avm_set_sprite(BATTLE_ARROW_SPRITES);
             avm_draw_plus_mask(x, y, toward);
         }
+        draw_attack_banner(screen);
         avm_display(false);
         input_wait_frame();
     }
@@ -693,6 +744,7 @@ RPG_NOINLINE static void resolve(BattleScreen& screen, BattleAction action,
         lunger = BATTLE_NO_UNIT;
         impact = screen.flashing & ~(1 << actor) ? SFX_CLASH : SFX_PRICE;
     } else {
+        prepare_attack_banner(screen);
         if(attack == ATTACK_RECOIL && screen.origin[actor] == unit.cell)
             impact = SFX_STRIKE;
         if(choice != BATTLE_NORMAL)

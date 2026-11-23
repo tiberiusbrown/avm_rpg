@@ -34,3 +34,14 @@ static_assert([] {
             return false;
     return true;
 }());
+
+char const PROGMEM* battle_enemy_name(uint8_t id) {
+    static constexpr char const PROGMEM* const PROGMEM NAMES[] = {
+        F("Wolf"), F("Brute"), F("Giant Bat"), F("Giant Spider"), F("Skeleton"), F("Floating Eye"),
+#ifdef RPG_BATTLE_FIXTURES
+        F("Fighter"), F("Rogue"), F("Archer"), F("Spearman"),
+#endif
+    };
+    static_assert(sizeof(NAMES) / sizeof(*NAMES) == ENEMY_INFO_COUNT);
+    return NAMES[id];
+}
