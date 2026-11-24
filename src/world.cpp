@@ -190,16 +190,30 @@ void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimen
 
 void reload_tile_cache() {
     camera = game_camera();
-    if(foot_cache.tiles_edited) {
+    bool const edited = foot_cache.tiles_edited;
+    if(edited) {
         npc_feet_unknown();
         foot_cache.known = false;
         foot_cache.tiles_edited = false;
     }
+    // Every change to the window goes through set_tile, which flags it, so a window that is not
+    // flagged and sits where this reload would put it already holds exactly what a reload builds.
+    uint8_t view_tx = (uint8_t)(camera.x >> TILE_SHIFT),
+            view_ty = (uint8_t)(camera.y >> TILE_SHIFT);
+    if(!edited && tile_area == game.area &&
+       cache.origin_tx == (view_tx >= CACHE_MARGIN ? (uint8_t)(view_tx - CACHE_MARGIN) : 0) &&
+       cache.origin_ty == (view_ty >= CACHE_MARGIN ? (uint8_t)(view_ty - CACHE_MARGIN) : 0))
+        return;
+    tile_area = game.area;
     reload_tile_window_clamped(cache, world_area(game.area)->tiles, game.dimensions, camera);
 }
 
 void world_reclaim_workspace() {
-    // A battle overwrote the window, the camera and the foot cache, so none of their answers hold.
+    // A battle overwrote the window, the camera, the foot cache and the chunk plan, so none of
+    // their answers hold. The plan comes first: the tile pass below runs from it. Clearing the
+    // window's area makes the reload below load it.
+    chunk_plan.area = 0;
+    tile_area = 0;
     foot_cache.known = false;
     foot_cache.tiles_edited = false;
     npc_feet_unknown();
@@ -550,6 +564,10 @@ bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     Area const PROGMEM* a = world_area(area);
     if(!a)
         return false;
+    // A new world starts from nothing the workspace kept, which a lost battle may have overwritten
+    // without returning through world_reclaim_workspace.
+    chunk_plan.area = 0;
+    tile_area = 0;
     foot_cache.known = false;
     game.area = area;
     encounter_restore();

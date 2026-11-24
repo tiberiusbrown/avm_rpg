@@ -31,7 +31,8 @@ namespace fs = std::filesystem;
 
 // Functional diagnostics may continue past measured timing failures. The
 // default device suite still enforces every existing frame budget.
-static bool check_timing = true;
+// RPG_NO_TIMING_CHECK keeps a manual measurement going past a frame that exceeds its budget.
+static bool check_timing = std::getenv("RPG_NO_TIMING_CHECK") == nullptr;
 static uint64_t worst_exploration_cycles;
 
 static_assert(sizeof(Game) == 23 + sizeof(Party) + sizeof(Supplies) + WorldFlags::BYTE_COUNT + sizeof(NpcPool) + sizeof(AudioOptions) + sizeof(QUEST_ID),
@@ -172,7 +173,8 @@ struct FrameTrace {
         }
         frames << "]}\n";
         if(instruction_profile && exploration &&
-           (cost.total > worst || cost.total >= 310000 || serial == 74 || serial == 180)) {
+           (cost.total > worst || cost.total >= 310000 || serial == 74 || serial == 180 ||
+            std::getenv("RPG_FRAME_ALL"))) {
             std::ofstream out(directory / ("pcs-" + std::to_string(instance) + "-" +
                                            std::to_string(sequence) + ".csv"));
             out << "pc,cycles\n";

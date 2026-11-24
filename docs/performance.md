@@ -799,3 +799,231 @@ budget is 320,000 cycles at 50 FPS.
 
 The full FX and FX-C gameplay replays peaked at 313,383 exploration cycles.
 The separate audio timing replay stopped on a 321,620-cycle exploration frame.
+
+## Exploration optimization round (2026-11-24)
+
+Starting point: RPG HEAD `35fd00d` with the installed AVM compiler rebuilt from the workspace
+sources (`-O2 -flto=full`, RelWithDebInfo). Goal: cut exploration frame cost without changing
+behavior or static RAM. The baseline was already at the budget: the strict main replay peaked at
+319,995 of 320,000 cycles, 126 of 1,419 frames were above 300,000, and the audio timing replay
+stopped on an over-budget frame (320,345 at serial 388).
+
+### Method
+
+`tools/profile_frames.py` replays the device scenarios with per-instruction attribution. Two
+opt-in environment switches were added to `tests/device_tests.cpp`: `RPG_FRAME_ALL=1` keeps the PC
+histogram of every exploration frame (otherwise only the worst frames, serial 74 and 180), which
+allows an average per-function and per-line profile over a whole replay, and
+`RPG_NO_TIMING_CHECK=1` lets a manual measurement run past an over-budget frame.
+Interrupt time lands on whichever guest instruction it interrupts, so a single instruction can
+show a spike; averages over all frames are the reliable view. Baseline cost by region, averaged over
+1,126 frames of the main scenario (250,639 cycles per frame):
+
+| Region | Cycles | Share |
+| --- | ---: | ---: |
+| Terrain drawing (45 `draw_overwrite` calls, about 1,100 cycles each) | 67,716 | 27% |
+| Overlay passes (gusts, birds, ambient creatures) | 27,839 | 11% |
+| Display submission | 23,215 | 9% |
+| Chunk stage traversal and handlers (gameplay, tiles, dialogue, NPC dispatch) | 48,545 | 19% |
+| Tile window reload | 12,961 | 5% |
+| NPC begin, update, movement, interaction | 29,497 | 12% |
+| Actor drawing | 11,601 | 5% |
+
+The chunk traversal was the largest guest-controlled cost. Every frame, each of the four stages
+recomputed the window's chunk bounds, read two row-span bytes per row from program memory, and read
+a 24-bit function pointer for every chunk in the span, empty or not. A program-memory read costs
+about 300 cycles and an ordinary instruction about 40.
+
+### Changes
+
+1. **Chunk plan** (`src/chunk_dispatch.cpp`, `src/runtime_workspace.h`). The runtime workspace now
+   holds a `ChunkPlan`: per stage, the window's chunks that have a handler, as byte distances from
+   the window's first chunk. It is keyed by area and cache origin and rebuilt only when that key
+   changes (and the chunks differ). The rebuild reads one 8-byte record of four 9-bit occupancy
+   masks per block (compile time, per chunk) and one 7-byte ordered list per occupied stage.
+   Handlers are still read from the dense ROM function tables by index, in the same chunk order,
+   with the same teleport short-circuiting.
+2. **Tile window reload skip** (`src/world.cpp`). `reload_tile_cache` keeps the window when no
+   `set_tile` edit has been flagged since the last reload, the area is unchanged, and the origin
+   is where the reload would put it. A one-byte `tile_area` in the workspace records the window's
+   area. Every window change goes through `set_tile`, so the skipped reload would have produced
+   identical bytes.
+3. **`game_new` out of line** (`src/game.cpp`). The plan code changed the inlined frame of
+   `update_visible_world` by two bytes, which pushed the battle probe guest `m17_battle_probe`
+   (whose `setup` inlined `game_new`) from 254 to 258 bytes of stack. Outlining `game_new` brings
+   that probe to 240.
+
+Both caches are exploration-lifetime state in the workspace. A battle overwrites the workspace,
+so `world_reclaim_workspace` and `world_place` clear `chunk_plan.area` and `tile_area` before any
+traversal or reload (a lost battle returns to the title and re-enters through `world_place`,
+not through reclaim).
+
+### Results
+
+Static RAM is unchanged: the exploration share of the 270-byte workspace grows from 131 to 166
+bytes (104 bytes remain free for exploration-only state) and the union stays the battle search's
+size.
+
+| Resource (shipping guest) | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Static RAM (saved 265 + ordinary 456) | 721 B | 721 B | 0 |
+| `.text` | 128,893 B | 129,531 B | +638 B |
+| `.rodata` | 384,463 B | 414,387 B | +29,924 B |
+| Complete stack bound | 254 B | 254 B (complete) | 0 |
+| `m17_battle_probe` stack bound | 254 B | 240 B | -14 B |
+
+The `.rodata` growth is the compile-time chunk tables: 8 bytes of occupancy per chunk
+(2,033 chunks, 16.3 KB) and one 512-entry list table per area (3.6 KB each, 14.3 KB).
+`rpg.arduboy` grows from 274,494 to 280,787 bytes.
+
+Exploration frames, main device replay, ordinary stepping (cycles; budget 320,000):
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Mean | 258,394 | 223,147 |
+| Median | 274,316 | 236,656 |
+| 95th percentile | 307,602 | 268,427 |
+| 99th percentile | 312,460 | 284,873 |
+| Maximum | 319,995 | 307,658 |
+| Frames above 300,000 | 126 | 2 |
+| Frames above 310,000 | 35 | 0 |
+
+FXC stepping gives the same distribution (mean 223,133, maximum 307,658). Over 1,418 frames with
+identical area, player, camera and actors the mean saving is 35,337 cycles per frame, and the
+mean render cost differs by 247 cycles, so the saving is not from different content.
+Strict (asserting) replays: main 319,995 to 307,658 for both normal and FXC, sounds replay
+317,498 to 298,945. The audio timing replay no longer stops on an over-budget frame during its
+40-second idle phase (before: 320,345 at serial 388). It still fails afterwards with "Orrin did not
+open his topics", which also happens on the baseline when the budget check is disabled.
+
+Device workload rows (average / worst cycles, normal; FXC is within a few cycles):
+
+| Workload | Before | After |
+| --- | ---: | ---: |
+| idle_grove | 288,710 / 303,353 | 249,152 / 263,511 |
+| pixel_scroll | 273,909 / 281,975 | 239,599 / 246,701 |
+| dense_collision | 278,504 / 290,740 | 235,883 / 259,297 |
+| millcross_well | 253,782 / 266,638 | 223,167 / 245,964 |
+| millcross_orchard | 235,786 / 249,343 | 217,214 / 235,539 |
+| millcross_smithy | 235,067 / 240,885 | 196,785 / 201,124 |
+| hollow_mine_mouth | 220,892 / 226,335 | 180,576 / 183,684 |
+| hollow_mine_camp | 209,169 / 227,246 | 171,299 / 176,376 |
+| cave_music | 200,379 / 205,322 | 164,446 / 171,273 |
+
+The orchard row also shows 10,000 more render cycles than before: the workload's frames land on a
+different animation phase, which the matched-frame comparison above separates out.
+Average region costs: tile reload 12,961 to 4,231, gameplay stage 15,497 to 7,757, tile stage
+8,643 to 2,887, dialogue stage 11,366 to 4,839, NPC dispatch 13,039 to 6,440.
+Fade, battle-transition and pause intervals (320,500 to 329,000 cycles) did not change: they are
+50 Hz presentation intervals with jitter, checked against 336,000, and `pause_open` (328,968) is
+the one that overruns the period.
+
+The remaining worst frames (307,658 at serial 540, 306,032 at 1,037) are the harness's own
+jumps: the frame that moves the player, so the chunk plan rebuilds (about 9,000 cycles), the window
+reloads (about 13,500), the player is ejected from terrain and an NPC retires and is cast in the
+same update (the NPC work alone is about 85,000). Steady frames now peak near 287,000.
+
+### Equivalence evidence
+
+* All 27 native tests pass, including the chunk-window trace test and the 16,120-frame
+  NPC continuity run.
+* `rpg_integration_full` passes (normal and FXC strict replays, sounds, battle, shop, persistence,
+  geometry), run twice on the changed code.
+* A host golden-trace probe (kept in the session scratchpad, not in the tree) drives
+  `game_update` with seeded random walks, A presses, area jumps to map edges and tile edits, and
+  hashes all simulation state (`Game`, camera, tile window, admission list, foot cache) after every
+  frame. Six configurations (up to 600,000 frames, 3,039 distinct windows, 4.3% of frames with
+  edited tiles, and a variant that overwrites the whole workspace with junk and calls
+  `world_reclaim_workspace` as a battle exit would) give identical hash streams on the baseline
+  tree and the changed tree.
+* The guest's allocated sections were compared byte for byte before and after the final formatting
+  pass, and the stack bound is complete (0 analysis gaps) in every guest link. The final build removes
+one change that measured neutral (a `memmove` in `retire_slot`: the slot scan, not the copy,
+dominates a retirement); the full device, native and golden checks were repeated without it.
+
+### Experiments that failed
+
+* Caching the 24-bit handler pointers in the workspace made the link-time stack bound
+  incomplete ("unresolved indirect call target", 15 gaps): the analysis proves indirect calls only
+  through immutable tables. Byte-offset reads from the table fail the same way. The plan therefore
+  stores chunk distances and keeps reading the tables.
+* The first plan rebuilds cost far more than the traversal they replaced: a four-stage append loop
+  took about 35,000 cycles, a per-row mask walk about 33,000, per-stage pointer passes about
+  50,000. The generated code spends about 40 cycles on each of the hundreds of instructions that
+  nested bounded loops compile to. Precomputing the per-block masks and ordered lists at compile
+  time makes the rebuild about 9,000 cycles.
+
+### Opportunities not taken
+
+Needing RAM in the exploration share of the workspace (104 bytes free, no static RAM growth):
+
+* A per-slot copy of the NPC definition fields that run every frame (sprite row, period, pause,
+  walk, leash, talkable; about 64 bytes, keyed by identity). The definitions live in program
+  memory, so each lookup is a pointer read plus a field read, about 650 cycles. Drawing, updating
+  and `leashed` perform them every frame for every NPC; estimated saving 4,000 to 6,000 cycles in
+  busy windows. It needs the slot index in `leashed`/`step` and invalidation when slots compact.
+* A per-window flag that the visible tiles contain no `TILE_OUTSIDE` (1 byte), invalidated by
+  `set_tile`, so `draw_tiles` can skip the sentinel compare and branch for 45 tiles: about 3,000
+  cycles. Maps are not guaranteed to be fully painted (the generator fills unpainted cells with
+  255), so the flag has to be computed, not assumed.
+* The ambient creature pick per visible chunk (about 4 bytes each): about 2,000 cycles.
+* The tileset id of the current area (1 byte), which saves the area compare chain at about ten
+  call sites: about 1,400 cycles, but it must follow every write of `game.area`, including the
+  device harness's.
+
+Needing new static RAM in the saved `Game`: the definition cache above as fields of `Npc` would be
+eight bytes per slot (64 bytes), which only matters if the 104 workspace bytes are needed
+elsewhere.
+
+Needing no RAM:
+
+* Scroll the tile window by one row or column when the origin moves one tile, instead of
+  reloading all 77 bytes: about 8,000 cycles on tile-crossing frames.
+* Use the workspace camera in `protected_view` instead of calling `game_camera()` for every
+  enemy and every offer (about 1,500 to 2,000 cycles each). It requires proving the camera is
+  current at every call, and several native tests set the player without a reload.
+* Link-time support for proving a RAM function-pointer array (a callee-set annotation) would let
+  the plan hold handler pointers: about 5,000 cycles per frame in flash reads and index arithmetic.
+* Shrink the new tables: sharing one list table across areas with row and column kept in one byte
+  saves 10.8 KB of flash for about 1,300 cycles per frame; packing the four masks into 5 bytes per
+  chunk saves 6 KB.
+* NPC lifecycle events (see below). `plan_yield` and `player_can_detour` never ran in any
+  replay, so their cost is not measured.
+
+### NPC lifecycle frames
+
+Measured on the replays (per-instruction traces of every lifecycle frame) and a host census of
+1.8 million random-walk frames:
+
+* Retiring one NPC adds about 7,300 to 9,500 cycles to the NPC begin region: the out-of-cache
+  decision path (cache, protected-view and policy checks) plus `retire_slot` itself, about 2,200
+  with its occupied-prefix scan (about 1,100) and slot compaction.
+* Admitting one NPC adds about 17,000 to 20,000: `offer_candidate` 7,500 to 10,800 (a
+  `game_camera()` call, the definition reads, two collision checks and the sorted insert) plus
+  `cast_npc` 9,300 to 9,700, plus the new actor's first update.
+* The worst replay frames (serials 540, 493, 253, 708, 911) retire two or three NPCs at once
+  because the harness moves the player more than 100 tiles inside one area without `npc_reset`.
+  With the plan rebuild (about 9,000), window reload (about 13,000) and overlap repair (about
+  15,000) they reach 280,000 to 309,000. A real teleport clears the pool with `npc_reset` (no
+  compaction) behind a fade, and walking moves the window at most one tile per frame.
+* Walking frames: 0.42% have a lifecycle event, 68 of 1.8 million (0.004%) have two or more, and
+  none has four. The busiest steady window peaks near 287,000, so one admission leaves it near
+  307,000, an admission with a retirement near 316,000, and two admissions would exceed 320,000.
+  Scene entry admits every candidate in one update on purpose, behind a black screen.
+
+Options: capping casts at one per frame outside scene entry (and, if wanted, retirements)
+bounds the multi-event frames at the price of a one-frame delay in appearance or removal and
+changed tick-level timing; it leaves the single-event cost alone. Behavior-neutral savings are
+about 1,000 to 2,000 per event: one 11-byte definition read instead of several field reads, a
+pointer walk for the occupied-prefix scan, and the workspace camera instead of `game_camera()`.
+
+### Reproduce
+
+```sh
+cmake --build projects/avm_rpg/build --parallel
+python3 projects/avm_rpg/tools/profile_frames.py --artifacts projects/avm_rpg/build/artifacts \
+  --build projects/avm_rpg/build --sdk build/avm-sdk-install \
+  --dwarfdump build/llvm-build/bin/llvm-dwarfdump --output <fresh dir> --mode normal --frame-only
+RPG_FRAME_ALL=1 python3 projects/avm_rpg/tools/profile_frames.py ... --mode normal   # all-frame profile
+```
+

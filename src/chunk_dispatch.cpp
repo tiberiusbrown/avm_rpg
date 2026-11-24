@@ -1,14 +1,13 @@
 #include "map_handler_catalog.h"
 #include "runtime_workspace.h"
 #include "logic/enemy_catalog.h"
+#include <string.h>
 #ifdef RPG_NPC_POLICY_HEADER
 #include RPG_NPC_POLICY_HEADER
 #endif
 
 using EssentialSites = typename PolicyCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>::sites;
 using AllNpcSites = typename Join<EssentialSites, AuthoredEnemies::sites>::type;
-
-using ChunkFunction = void (*)();
 
 template <unsigned A, unsigned INDEX, HandlerStage STAGE> struct StaticChunk {
     static constexpr auto area = STATIC_AREAS[A];
@@ -32,34 +31,32 @@ template <unsigned A, HandlerStage STAGE, std::size_t... I>
 struct ChunkTable<A, STAGE, std::index_sequence<I...>> {
     static constexpr ChunkFunction PROGMEM functions[] = {StaticChunk<A, I, STAGE>::function()...};
 
-    struct RowSpan {
-        uint8_t first, end;
-    };
-
-    static constexpr auto rows PROGMEM = [] {
-        struct Rows {
-            RowSpan span[STATIC_AREAS[A].rows];
-        } result{};
-        constexpr bool entries[] = {StaticChunk<A, I, STAGE>::Work::occupied...};
-        constexpr auto area = STATIC_AREAS[A];
-        for(unsigned y = 0; y < area.rows; ++y) {
-            uint8_t first = area.columns, end = 0;
-            for(uint8_t x = 0; x < area.columns; ++x)
-                if(entries[y * area.columns + x]) {
-                    if(first == area.columns)
-                        first = x;
-                    end = x + 1;
-                }
-            result.span[y] = {first, end};
-        }
-        return result;
-    }();
     static constexpr bool occupied = [] {
         constexpr bool entries[] = {StaticChunk<A, I, STAGE>::Work::occupied...};
         for(bool entry : entries)
             if(entry)
                 return true;
         return false;
+    }();
+
+    // The most chunks with a handler that a window of three chunk columns and three chunk rows
+    // holds. A cache window intersects at most that many chunks, wherever it starts.
+    static constexpr unsigned most_per_window = [] {
+        constexpr bool entries[] = {StaticChunk<A, I, STAGE>::Work::occupied...};
+        constexpr auto area = STATIC_AREAS[A];
+        unsigned most = 0;
+        for(unsigned top = 0; top < area.rows; ++top) {
+            for(unsigned left = 0; left < area.columns; ++left) {
+                unsigned count = 0;
+                for(unsigned cy = top; cy < top + 3 && cy < area.rows; ++cy)
+                    for(unsigned cx = left; cx < left + 3 && cx < area.columns; ++cx)
+                        if(entries[cy * area.columns + cx])
+                            ++count;
+                if(count > most)
+                    most = count;
+            }
+        }
+        return most;
     }();
 };
 
@@ -68,6 +65,63 @@ using AreaTable =
     ChunkTable<A, STAGE,
                std::make_index_sequence<(unsigned)STATIC_AREAS[A].columns * STATIC_AREAS[A].rows>>;
 
+// Which of the nine chunks of a window have a handler, per stage. A window's chunks are the
+// three-by-three block that starts at its first chunk, less a third column or row that it does not
+// reach. Bit three times the row plus the column of the block is set for a chunk with a handler;
+// chunks past the end of the area are never set. Rebuilding a window reads one record, the
+// block's four stage masks, rather than visiting its chunks.
+template <unsigned A, typename SEQUENCE> struct ChunkBlocks;
+
+template <unsigned A, std::size_t... I> struct ChunkBlocks<A, std::index_sequence<I...>> {
+    static constexpr auto occupancy PROGMEM = [] {
+        constexpr auto area = STATIC_AREAS[A];
+        constexpr bool has[4][sizeof...(I)] = {
+            {StaticChunk<A, I, STAGE_GAMEPLAY>::Work::occupied...},
+            {StaticChunk<A, I, STAGE_TILES>::Work::occupied...},
+            {StaticChunk<A, I, STAGE_DIALOGUE>::Work::occupied...},
+            {StaticChunk<A, I, STAGE_NPCS>::Work::occupied...}};
+        struct Table {
+            uint16_t block[sizeof...(I)][4];
+        } table{};
+        for(unsigned index = 0; index < sizeof...(I); ++index)
+            for(unsigned stage = 0; stage < 4; ++stage) {
+                unsigned bits = 0;
+                for(unsigned row = 0; row < 3; ++row)
+                    for(unsigned column = 0; column < 3; ++column)
+                        if(index % area.columns + column < area.columns &&
+                           index / area.columns + row < area.rows &&
+                           has[stage][index + row * area.columns + column])
+                            bits |= 1u << (row * 3 + column);
+                table.block[index][stage] = (uint16_t)bits;
+            }
+        return table;
+    }();
+
+    // For every set of chunks in a block, their distances from the block's first chunk in the
+    // area's chunk table, in chunk order. No set that a window can have holds more than
+    // CHUNK_PLAN_CAPACITY chunks.
+    static constexpr auto lists PROGMEM = [] {
+        constexpr auto area = STATIC_AREAS[A];
+        static_assert(2 * area.columns + 2 <= 255, "chunk distances fit in a byte");
+        struct Table {
+            ChunkStageList list[512];
+        } table{};
+        for(unsigned bits = 0; bits < 512; ++bits)
+            for(unsigned row = 0; row < 3; ++row)
+                for(unsigned column = 0; column < 3; ++column)
+                    if((bits >> (row * 3 + column) & 1) &&
+                       table.list[bits].count < CHUNK_PLAN_CAPACITY)
+                        table.list[bits].offset[table.list[bits].count++] =
+                            (uint8_t)(row * area.columns + column);
+        return table;
+    }();
+};
+
+template <unsigned A>
+using AreaBlocks =
+    ChunkBlocks<A,
+                std::make_index_sequence<(unsigned)STATIC_AREAS[A].columns * STATIC_AREAS[A].rows>>;
+
 // The hot traversal selects its area once. Chunk lookups then need only the
 // dense table offset, without repeated area selection and coordinate validation.
 #ifdef _MSC_VER
@@ -75,6 +129,83 @@ using AreaTable =
 #else
 #define CHUNK_INLINE inline __attribute__((always_inline))
 #endif
+
+#ifndef RPG_AVM
+// The chunks that a cache window with this origin intersects: columns from left_chunk up to
+// end_chunk, and rows top_chunk through bottom_chunk. A cache window past a map edge still fits in
+// byte-sized coordinates.
+struct ChunkWindow {
+    uint8_t left_chunk, end_chunk, top_chunk, bottom_chunk;
+};
+
+template <unsigned A> static ChunkWindow chunk_window(uint8_t left, uint8_t top) {
+    constexpr auto area = STATIC_AREAS[A];
+    static_assert(MAX_MAP_WIDTH + CACHE_WIDTH <= 256 && MAX_MAP_HEIGHT + CACHE_HEIGHT <= 256);
+    uint8_t right = (uint8_t)(left + CACHE_WIDTH - 1);
+    uint8_t bottom = (uint8_t)(top + CACHE_HEIGHT - 1);
+    if(right >= area.width)
+        right = area.width - 1;
+    if(bottom >= area.height)
+        bottom = area.height - 1;
+    return {(uint8_t)(left / CHUNK_WIDTH), (uint8_t)(right / CHUNK_WIDTH + 1),
+            (uint8_t)(top / CHUNK_HEIGHT), (uint8_t)(bottom / CHUNK_HEIGHT)};
+}
+#endif
+
+// A window reaches a second chunk column and row wherever it starts, and a third column or row
+// when its first tile is far enough into its own chunk: for the 11 by 7 window and 8 by 4 chunks,
+// from the sixth tile of a chunk's eight columns and the third of its four rows.
+static constexpr uint8_t THIRD_COLUMN_FROM = 2 * CHUNK_WIDTH - (CACHE_WIDTH - 1);
+static constexpr uint8_t THIRD_ROW_FROM = 2 * CHUNK_HEIGHT - (CACHE_HEIGHT - 1);
+static_assert(CACHE_WIDTH - 1 >= CHUNK_WIDTH && CACHE_HEIGHT - 1 >= CHUNK_HEIGHT &&
+                  CHUNK_WIDTH - 1 + CACHE_WIDTH - 1 < 3 * CHUNK_WIDTH &&
+                  CHUNK_HEIGHT - 1 + CACHE_HEIGHT - 1 < 3 * CHUNK_HEIGHT,
+              "chunk plans assume windows of two or three chunks each way");
+
+// Lists the chunks of the window that have a handler, per stage in chunk order: the order that
+// the stages have always visited them in. Only the chunk's distance is kept. The handler itself is
+// still read from its table when it runs, which is what lets the link prove its stack use.
+template <unsigned A> RPG_NOINLINE static void plan_window(uint8_t left, uint8_t top) {
+    constexpr auto area = STATIC_AREAS[A];
+    static_assert(AreaTable<A, STAGE_GAMEPLAY>::most_per_window <= CHUNK_PLAN_CAPACITY &&
+                      AreaTable<A, STAGE_TILES>::most_per_window <= CHUNK_PLAN_CAPACITY &&
+                      AreaTable<A, STAGE_DIALOGUE>::most_per_window <= CHUNK_PLAN_CAPACITY &&
+                      AreaTable<A, STAGE_NPCS>::most_per_window <= CHUNK_PLAN_CAPACITY,
+                  "a window collects more handlers than the chunk plan holds");
+    ChunkPlan& plan = chunk_plan;
+    uint8_t const chunk_left = (uint8_t)(left / CHUNK_WIDTH);
+    uint8_t const chunk_top = (uint8_t)(top / CHUNK_HEIGHT);
+    uint8_t const extent = (uint8_t)((left % CHUNK_WIDTH >= THIRD_COLUMN_FROM ? 1 : 0) |
+                                     (top % CHUNK_HEIGHT >= THIRD_ROW_FROM ? 2 : 0));
+    bool const same_chunks = plan.area == area.id && plan.chunk_left == chunk_left &&
+                             plan.chunk_top == chunk_top && plan.extent == extent;
+    plan.area = area.id;
+    plan.left = left;
+    plan.top = top;
+    // The camera usually moves within the same chunks, which keep the lists they have.
+    if(same_chunks)
+        return;
+    plan.chunk_left = chunk_left;
+    plan.chunk_top = chunk_top;
+    plan.extent = extent;
+    // The block's chunks that the window reaches.
+    uint16_t keep = 0x1FF;
+    if(!(extent & 1))
+        keep &= (uint16_t)~0x124; // The third column.
+    if(!(extent & 2))
+        keep &= (uint16_t)~0x1C0; // The third row.
+    uint16_t block[4];
+    memcpy_P(block,
+             &AreaBlocks<A>::occupancy.block[(uint16_t)chunk_top * area.columns + chunk_left],
+             sizeof(block));
+    for(uint8_t stage = 0; stage < 4; ++stage) {
+        uint16_t bits = block[stage] & keep;
+        if(bits)
+            memcpy_P(&plan.stage[stage], &AreaBlocks<A>::lists.list[bits], sizeof(ChunkStageList));
+        else
+            plan.stage[stage].count = 0;
+    }
+}
 
 template <unsigned A, HandlerStage STAGE> static CHUNK_INLINE void process_area() {
     constexpr auto area = STATIC_AREAS[A];
@@ -94,40 +225,26 @@ template <unsigned A, HandlerStage STAGE> static CHUNK_INLINE void process_area(
         left = cache.origin_tx;
         top = cache.origin_ty;
     }
-    // A cache window past a map edge still fits in byte-sized coordinates.
-    static_assert(MAX_MAP_WIDTH + CACHE_WIDTH <= 256 && MAX_MAP_HEIGHT + CACHE_HEIGHT <= 256);
-    uint8_t right = (uint8_t)(left + CACHE_WIDTH - 1);
-    uint8_t bottom = (uint8_t)(top + CACHE_HEIGHT - 1);
-    if(right >= area.width)
-        right = area.width - 1;
-    if(bottom >= area.height)
-        bottom = area.height - 1;
-    uint8_t left_chunk = left / CHUNK_WIDTH, end_chunk = (uint8_t)(right / CHUNK_WIDTH + 1);
-    for(uint8_t cy = (uint8_t)(top / CHUNK_HEIGHT); cy <= bottom / CHUNK_HEIGHT; ++cy) {
-        uint16_t row = (uint16_t)cy * area.columns;
-        uint8_t first = left_chunk, end = end_chunk;
 #ifndef RPG_AVM
-        // Native instrumentation describes the requested cache window, including
-        // empty chunks, independently of the immutable empty-entry optimization.
-        for(uint8_t cx = first; cx < end; ++cx)
+    // Native instrumentation describes the requested cache window, including empty chunks.
+    ChunkWindow window = chunk_window<A>(left, top);
+    for(uint8_t cy = window.top_chunk; cy <= window.bottom_chunk; ++cy)
+        for(uint8_t cx = window.left_chunk; cx < window.end_chunk; ++cx)
             if(chunk_trace_count[STAGE] < CHUNK_TRACE_CAPACITY)
-                chunk_trace[STAGE][chunk_trace_count[STAGE]++] = row + cx;
+                chunk_trace[STAGE][chunk_trace_count[STAGE]++] = (uint16_t)cy * area.columns + cx;
 #endif
-        // Immutable per-stage row bounds skip only compile-time empty entries.
-        // Dense function tables and cached-chunk ordering remain unchanged.
-        auto const& span = AreaTable<A, STAGE>::rows.span[cy];
-        if(first < span.first)
-            first = span.first;
-        if(end > span.end)
-            end = span.end;
-        for(uint8_t cx = first; cx < end; ++cx) {
-            uint16_t index = row + cx;
-            if(auto function = AreaTable<A, STAGE>::functions[index])
-                function();
-            if constexpr(STAGE == STAGE_GAMEPLAY || STAGE == STAGE_DIALOGUE)
-                if(teleported)
-                    return;
-        }
+    ChunkPlan& plan = chunk_plan;
+    if(plan.area != area.id || plan.left != left || plan.top != top)
+        plan_window<A>(left, top);
+    // The list depends only on the window. A handler edits tiles and flags but does not move the
+    // window and then refresh it before this stage ends, so the list outlasts the calls. The loop
+    // keeps only its index across a call, which holds this function's frame to what it was.
+    uint16_t const first = (uint16_t)plan.chunk_top * area.columns + plan.chunk_left;
+    for(uint8_t i = 0; i < plan.stage[STAGE].count; ++i) {
+        AreaTable<A, STAGE>::functions[first + plan.stage[STAGE].offset[i]]();
+        if constexpr(STAGE == STAGE_GAMEPLAY || STAGE == STAGE_DIALOGUE)
+            if(teleported)
+                return;
     }
 }
 

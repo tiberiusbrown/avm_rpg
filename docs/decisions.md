@@ -695,3 +695,26 @@ can still draw it.
 
 The device harness reads the view through the runtime workspace address, passed as its thirteenth
 argument. Saves from before this change are rejected (SAVE_VERSION 13).
+
+## Exploration keeps its chunk plan and window validity in the workspace (2026-11-24)
+
+Two things that exploration used to recompute every frame now live in its share of the runtime
+workspace, which grows from 131 to 166 bytes. The share stays within the 270 bytes that the battle
+search sizes, so static RAM is unchanged at 721 bytes.
+
+`ChunkPlan` lists, per stage, the chunks of the cache window that have a handler, in chunk order. It
+is keyed by the area and the cache origin, and rebuilt from compile-time per-block occupancy masks
+only when the camera moves into different chunks. Each stage still reads its handler from the
+dense ROM function table by chunk index. The plan stores indices, not pointers, on purpose: the
+link-time stack analysis proves indirect calls only through immutable pointer tables, and a RAM
+array of function pointers (or a byte-offset read from the table) leaves the bound incomplete.
+
+`tile_area` records the area whose tiles the window holds. A reload is skipped when the window is
+unflagged by `set_tile`, in the same area, and at the origin the reload would use. Every change to
+the window goes through `set_tile`, so the skipped reload would have rebuilt identical bytes.
+
+A battle takes the whole workspace. `world_reclaim_workspace` and `world_place` clear both keys
+before any traversal or reload, because a lost battle returns to the title, not through reclaim.
+The plan is only a cache of what the chunk tables say: any stale or cleared plan rebuilds to the
+same lists, which the host golden traces check by clobbering the workspace between frames.
+

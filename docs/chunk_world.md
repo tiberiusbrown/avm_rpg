@@ -82,6 +82,17 @@ player camera. Tile, NPC, and dialogue stages use the loaded cache origin. Telep
 clear the NPC pool and rebuild destination tiles and the full NPC stage; destination gameplay begins
 on the next update. Save/load uses the same cache-based terrain repair.
 
+The window's chunks do not change from frame to frame, so each stage does not walk them. The
+`ChunkPlan` in the runtime workspace lists, per stage and in chunk order, the window's chunks that
+have a handler. It is keyed by area and cache origin, and `plan_window` rebuilds it when the key
+changes: one read of the block's four occupancy masks (compile-time, per chunk, covering that chunk
+and the eight after it) and one read of the matching ordered list per occupied stage. A window
+reaches a third chunk column from its sixth tile of a chunk and a third row from its third, which
+selects the masks that apply. A stage then calls `functions[first + offset]` for each listed chunk,
+so the order, teleport short-circuiting and handler tables are unchanged. The lists hold at most
+`CHUNK_PLAN_CAPACITY` (6) chunks per stage, checked at compile time against every window of every
+area. Native builds still record the requested window's chunks, empty ones included, for tests.
+
 ## Encounter and save boundary
 
 Enemy catalog sites join essential NPC policy sites in the compile-time NPC stage. Active

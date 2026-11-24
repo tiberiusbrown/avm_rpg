@@ -58,7 +58,9 @@ void game_start() {
     world_place(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);
 }
 
-void game_new() {
+// Out of line: a probe that starts a game from its setup would otherwise carry the world update's
+// whole frame in its own, on top of whatever deep path it measures.
+RPG_NOINLINE void game_new() {
     game_start();
     update_visible_world(0, false);
 }

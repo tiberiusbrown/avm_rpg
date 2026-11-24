@@ -27,6 +27,34 @@ struct FootCache {
     bool tiles_edited; // A tile edit since the last reload, which discards the edit.
 };
 
+// A function that runs one chunk's handlers for one stage.
+using ChunkFunction = void (*)();
+
+// The most chunks with a handler for one stage that any cache window can intersect. The window is
+// 11x7 tiles and chunks are 8x4, so it touches at most nine chunks, and the authored handlers fill
+// at most five of them. chunk_dispatch.cpp checks that they never fill more than this.
+inline constexpr uint8_t CHUNK_PLAN_CAPACITY = 6;
+
+// One stage's chunks within a window, in chunk order: each is the distance in the area's chunk
+// table from the window's first chunk.
+struct ChunkStageList {
+    uint8_t count;
+    uint8_t offset[CHUNK_PLAN_CAPACITY];
+};
+
+// The chunks of one cache window that have a handler, per stage. A walk reruns the same window
+// every frame until the camera crosses a tile, so the window is resolved against the chunk tables
+// once and each stage then visits its list. The lists hold nothing the chunk tables do not, so
+// they can be dropped at any time: area 0 marks them as empty.
+struct ChunkPlan {
+    // The cache window the lists were built for: the area and the cache origin.
+    uint8_t area, left, top;
+    // The chunks that window intersects: the first one's column and row, and whether the window
+    // reaches a third column and a third row. A different origin often intersects the same chunks.
+    uint8_t chunk_left, chunk_top, extent;
+    ChunkStageList stage[4];
+};
+
 // Camera comes first, so every member starts at the same offset on the host and on the AVM. A host
 // copy of the workspace then differs from the guest's only in its trailing padding.
 struct ExplorationWorkspace {
@@ -35,6 +63,10 @@ struct ExplorationWorkspace {
     NpcCandidate candidates[NPC_CAPACITY];
     uint8_t candidate_count;
     FootCache foot;
+    ChunkPlan plan;
+    // The area whose tiles the window holds, or 0 when the window must be loaded. The window is
+    // exactly the assets' tiles at its origin, until a tile edit or a battle changes it.
+    uint8_t tile_area;
 };
 
 // Each ply keeps its alpha and the next and end indices of its ordered actions in the shared action
@@ -71,6 +103,8 @@ inline constexpr Camera& camera = runtime_workspace.explore.camera;
 inline constexpr NpcCandidate (&candidates)[NPC_CAPACITY] = runtime_workspace.explore.candidates;
 inline constexpr uint8_t& candidate_count = runtime_workspace.explore.candidate_count;
 inline constexpr FootCache& foot_cache = runtime_workspace.explore.foot;
+inline constexpr ChunkPlan& chunk_plan = runtime_workspace.explore.plan;
+inline constexpr uint8_t& tile_area = runtime_workspace.explore.tile_area;
 inline constexpr BattleState (&ply_state)[BATTLE_AI_DEPTH] = runtime_workspace.battle.ply_state;
 inline constexpr SearchPly (&plies)[BATTLE_AI_DEPTH] = runtime_workspace.battle.plies;
 inline constexpr uint8_t (&killers)[BATTLE_AI_DEPTH] = runtime_workspace.battle.killers;
@@ -79,7 +113,11 @@ inline constexpr uint8_t (&battle_action_scratch)[BATTLE_ACTION_SCRATCH_CAPACITY
 
 static_assert(sizeof(RuntimeWorkspace) == 270, "the battle search is the larger of the two shares");
 #ifdef RPG_AVM
-static_assert(sizeof(ExplorationWorkspace) == 131, "tile window, camera, admission and foot cache");
+static_assert(sizeof(ChunkPlan) == 6 + 4 * (1 + CHUNK_PLAN_CAPACITY), "byte-sized plan entries");
+static_assert(sizeof(ExplorationWorkspace) == 131 + sizeof(ChunkPlan) + 1,
+              "tile window, camera, admission, foot cache and chunk plan");
+static_assert(sizeof(ExplorationWorkspace) <= sizeof(BattleWorkspace),
+              "exploration must fit in the share that the battle search sizes");
 #endif
 
 #endif
