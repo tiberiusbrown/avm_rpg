@@ -1013,9 +1013,30 @@ Measured on the replays (per-instruction traces of every lifecycle frame) and a 
 
 Options: capping casts at one per frame outside scene entry (and, if wanted, retirements)
 bounds the multi-event frames at the price of a one-frame delay in appearance or removal and
-changed tick-level timing; it leaves the single-event cost alone. Behavior-neutral savings are
-about 1,000 to 2,000 per event: one 11-byte definition read instead of several field reads, a
-pointer walk for the occupied-prefix scan, and the workspace camera instead of `game_camera()`.
+changed tick-level timing; it leaves the single-event cost alone.
+
+#### Behavior-neutral savings (measured)
+
+Three candidate savings were implemented and measured on the all-frame instruction traces
+(RPG_FRAME_ALL, 1,125 frames of the main scenario):
+
+| Change | Effect | Kept |
+| --- | --- | --- |
+| `cast_npc` reads the `NpcDefinition` once (`memcpy_P` of 11 bytes) instead of one program-memory read per field | `npc_end` per admission 7,241 to 6,778 cycles (-463); jump frames -442; `.text` -70 B | yes |
+| `retire_slot` with a pointer scan, one `memmove` and a `memset` | single-retire frames +1,072 cycles in the NPC begin region (measured together with the camera key below, which can only lower that region) | no |
+| `protected_view` uses the workspace camera when a key (player position and map size) shows it is current | `cache_reload` +791 per frame to store the key; `npc_stage_begin` unchanged (`protected_view` ran in only about 7% of frames); mean +1,288 per frame with the retire change | no |
+
+The workspace camera alone is not exact: `repair_player_overlap` ejects the player after the
+reload without refreshing it, and native tests move the player directly, so a plain "camera is
+current" flag failed `npc_index`; the key version is exact but costs more than it saves. The
+retire rewrite is slower because the SYS block moves and the record-sized pointer steps cost
+more than the field copies they replace for the one- or two-slot shifts that occur.
+
+With the cast change alone the main replay's mean is 223,147 to 223,032, its worst frame
+307,658 to 306,628 (both within the noise from interrupt alignment), strict sounds 298,945
+unchanged, static RAM 721 B unchanged, stack bound 254 B. An admission's NPC cost is still about
+17,000 to 19,000 cycles: the remaining time is spread over many small lines (the free-slot scan,
+the offer's collision checks, the sorted insert) with no further single saving above 500 cycles.
 
 ### Reproduce
 

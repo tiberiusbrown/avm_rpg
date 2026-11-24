@@ -169,21 +169,24 @@ static bool cast_npc(NPC_ID id, TilePos home, bool revalidate) {
         saturate(pool.activation_deferrals);
         return false;
     }
-    auto def = npc_definition(id);
-    if(!def)
+    auto stored = npc_definition(id);
+    if(!stored)
         return false;
+    // One read of the definition, which would otherwise cost a program-memory read per field.
+    NpcDefinition def;
+    memcpy_P(&def, stored, sizeof(def));
     uint16_t x = (uint16_t)home.x * TILE, y = (uint16_t)home.y * TILE;
     *slot = {};
     slot->id = id;
     slot->assigned_site = home;
     slot->policy_pending = (npc_location_is_fixed(id) ? 2 : 0) | 4;
-    slot->actor = {x, y, def->facing, 0};
-    slot->behavior = def->behavior;
+    slot->actor = {x, y, def.facing, 0};
+    slot->behavior = def.behavior;
     if(slot->behavior == NPC_CHASE) {
         slot->behavior = NPC_WANDER;
         slot->policy_pending |= PURSUIT_ENABLED;
     }
-    slot->route = def->route;
+    slot->route = def.route;
     npc_on_activate(*slot);
     if(slot->behavior == NPC_ROUTE)
         slot->state |= NPC_ROUTE_PENDING;
