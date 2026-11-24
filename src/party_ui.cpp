@@ -119,13 +119,14 @@ static PARTY_EVENT activate(PartyUi& ui, Party const& party) {
             return open(ui, PARTY_PAGE_ITEM_LIST);
         case PARTY_PAGE_ITEM_LIST:
             if(!highlight(ui))
-                return PARTY_EVENT_UNEQUIP;
+                return equipment_can_change(ui.member) ? PARTY_EVENT_UNEQUIP : PARTY_EVENT_EDGE;
             ui.entry = party_ui_row_item(ui, highlight(ui));
             if(ui.entry == ITEM_NONE)
                 return PARTY_EVENT_EDGE;
             return open_details(ui, PARTY_PAGE_ITEM_DETAILS, PARTY_PAGE_ITEM_LIST);
         case PARTY_PAGE_ITEM_DETAILS:
-            return PARTY_EVENT_EQUIP;
+            return equipment_can_equip(ui.member, (ITEM_ID)ui.entry) ? PARTY_EVENT_EQUIP
+                                                                     : PARTY_EVENT_EDGE;
         default:
             return PARTY_EVENT_EDGE;
     }

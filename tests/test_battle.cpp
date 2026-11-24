@@ -2864,16 +2864,14 @@ static void signature_attacks() {
     member.level = 8;
     member.perk_ranks = 4 << 3;
     member.attack_class = ATTACK_SHOOT;
-    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     BattleState split = board(BATTLE_PARTY, {{1, 1, hero, BATTLE_PARTY, 16},
                                             {5, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
                                             {5, 0, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
                                             {5, 2, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
                                             {7, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10}});
     use_signature(split, 5, 1);
-    CHECK(split.units[1].hp == 3 && split.units[2].hp == 3 && split.units[3].hp == 3);
-    CHECK(split.units[4].hp == 4);
-    member.equipment[SLOT_WEAPON] = 0;
+    CHECK(split.units[1].hp == 4 && split.units[2].hp == 4 && split.units[3].hp == 4);
+    CHECK(split.units[4].hp == 5);
 
     member.attack_class = ATTACK_REACH;
     BattleState hook = board(BATTLE_PARTY, {{1, 1, hero, BATTLE_PARTY, 16},
@@ -2943,14 +2941,13 @@ static void signature_attacks() {
 
     member.attack_class = ATTACK_FLANK;
     game.party.members[1].level = 5;
-    game.party.members[1].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     BattleState arms = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 16},
                                            {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 20},
                                            {3, 2, ally, BATTLE_PARTY, 10},
                                            {4, 1, other, BATTLE_PARTY, 10}});
     CHECK(!battle_can_attack(arms, 3, 1));
     use_signature(arms, 3, 1);
-    CHECK(arms.units[1].hp == 6 && arms.units[2].hp == 10 && arms.units[3].hp == 10);
+    CHECK(arms.units[1].hp == 7 && arms.units[2].hp == 10 && arms.units[3].hp == 10);
     CHECK(game.party.members[1].ap == 4 && game.party.members[2].ap == 4);
 
     member.attack_class = ATTACK_BLAST;
@@ -2974,7 +2971,6 @@ static void maximum_battle_damage_frame() {
         member.level = PARTY_MAX_LEVEL;
         member.perk_ranks = CONVERGING_BLADES_RANK << 3;
     }
-    game.party.members[0].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     BattleState state = board(BATTLE_PARTY, {
         {2, 1, (ENEMY_ID)battle_party_id(0), BATTLE_PARTY, 20},
         {3, 0, (ENEMY_ID)battle_party_id(1), BATTLE_PARTY, 20},
@@ -2986,7 +2982,7 @@ static void maximum_battle_damage_frame() {
     CHECK(battle_special_legal(state, action, BATTLE_SIGNATURE));
     battle_apply_special(state, action, BATTLE_SIGNATURE);
     uint8_t damage = BATTLE_MAX_HP - state.units[4].hp;
-    CHECK(damage == 45 && damage <= BATTLE_DAMAGE_FRAMES);
+    CHECK(damage == 44 && damage <= BATTLE_DAMAGE_FRAMES);
     CHECK(battle_damage_frame(9) == 8 && battle_damage_frame(10) == 9);
     CHECK(battle_damage_frame(damage) == damage - 1);
     CHECK(battle_damage_frame(98) == 97 && battle_damage_frame(99) == 98);
@@ -3038,11 +3034,6 @@ static void attack_perks() {
         BattleState step = board(BATTLE_PARTY, {{1, 1, (ENEMY_ID)attacker.id, BATTLE_PARTY, 20},
                                                 {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10}});
         CHECK(battle_engagement(step, 0, cell(2, 1)).damage == 1);
-        member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
-        CHECK(damage_in_duel(attacker, victim) == test.normal + bonus + 3);
-        CHECK(damage_in_duel(attacker, victim, true) == special + bonus + 3);
-        CHECK(battle_engagement(step, 0, cell(2, 1)).damage == 1);
-        CHECK(damage_in_duel(victim, attacker) == 3);
     }
 
     // Exercise an exact three-quarter boundary, plus an odd maximum with a fractional threshold.
@@ -3076,17 +3067,12 @@ static void perk_victory_recovery() {
     battle_finish(victory);
     CHECK(game.party.members[0].ap == 1 && game.party.members[1].ap == 1);
     CHECK(game.party.members[0].hp == 0);
-    game.party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_DAWN_PENDANT);
-    game.party.members[0].ap = 0;
+    game.party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_MOON_SHARD);
+    game.party.members[0].ap = 4;
+    game.party.members[1].ap = 4;
     battle_finish(victory);
-    CHECK(game.party.members[0].ap == 2 && game.party.members[0].hp == 0);
-    game.party.members[0].equipment[SLOT_RELIC] = 0;
-    game.party.members[1].equipment[SLOT_RELIC] = equipment_encode(ITEM_DAWN_PENDANT);
-    game.party.members[1].ap = 0;
-    battle_finish(victory);
-    CHECK(game.party.members[0].ap == 3 && game.party.members[1].ap == 2);
-    battle_finish(victory);
-    CHECK(game.party.members[0].ap == 4 && game.party.members[1].ap == 4);
+    CHECK(game.party.members[0].ap == 5 && game.party.members[1].ap == 4);
+    CHECK(game.party.members[0].hp == 0);
 }
 
 static void perk_winning_action(BattleState const& state, BattleAction action, bool wins) {
@@ -3515,7 +3501,6 @@ static void new_direct_attacks() {
             member.level = BATTLE_STARTER_LEVEL;
             if(rank) {
                 member.level = 9;
-                member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
                 for(uint8_t learned = 0; learned < rank; ++learned)
                     CHECK(party_learn_perk(member, PERK_ATTACK));
             }
@@ -3531,7 +3516,7 @@ static void new_direct_attacks() {
                 else
                     battle_apply(s, action);
                 CHECK(s.units[1].hp == 12 - test.base - (special ? test.bonus : 0) -
-                                           (rank ? 3 + test.rank_one : 0) -
+                                           (rank ? 2 + test.rank_one : 0) -
                                            (rank == 2 ? test.rank_two : 0));
                 CHECK(s.units[1].cell == action.destination);
                 CHECK(s.units[0].cell == (test.attack == ATTACK_RECOIL ? cell(2, 1) : cell(3, 1)));
@@ -3575,11 +3560,6 @@ static void drain_and_recoil() {
     battle_apply_special(s, act(0, 3, 1));
     CHECK(s.ended && s.units[0].hp == party_max_hp(member) && member.ap == 0);
 
-    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
-    s = drain(17, 10);
-    battle_apply(s, act(0, 3, 1));
-    CHECK(s.units[0].hp == 19 && s.units[1].hp == 7);
-    member.equipment[SLOT_WEAPON] = 0;
     member.level = 4;
     CHECK(party_learn_perk(member, PERK_ATTACK));
     s = drain(17, 10);
@@ -3664,7 +3644,6 @@ static void flank_formation() {
     PartyMember& member = game.party.members[0];
     member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_FLANK);
     member.level = 9;
-    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     CHECK(party_learn_perk(member, PERK_ATTACK));
     BattleState original = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 20},
                                                 {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
@@ -3686,23 +3665,22 @@ static void flank_formation() {
                 s.units[2].team = BATTLE_ENEMY;
         }
         bool supported = formation == 1 || formation == 2;
+        CHECK(battle_attack_damage(s, 0, 1) == (supported ? 7 : 4));
+        CHECK(battle_attack_damage(s, 0, 1, true) == (supported ? 9 : 6));
+        CHECK(party_learn_perk(member, PERK_ATTACK));
         CHECK(battle_attack_damage(s, 0, 1) == (supported ? 8 : 5));
         CHECK(battle_attack_damage(s, 0, 1, true) == (supported ? 10 : 7));
-        CHECK(party_learn_perk(member, PERK_ATTACK));
-        CHECK(battle_attack_damage(s, 0, 1) == (supported ? 9 : 6));
-        CHECK(battle_attack_damage(s, 0, 1, true) == (supported ? 11 : 8));
         member.perk_ranks = 1 << 3;
         perk_winning_action(s, act(0, 3, 1), false);
         BattleState normal = s;
         battle_apply(normal, act(0, 3, 1));
-        CHECK(normal.units[1].hp == (supported ? 2 : 5));
+        CHECK(normal.units[1].hp == (supported ? 3 : 6));
         member.ap = 4;
         battle_apply_special(s, act(0, 3, 1));
-        CHECK(s.units[1].hp == (supported ? 0 : 3) && member.ap == 2);
+        CHECK(s.units[1].hp == (supported ? 1 : 4) && member.ap == 2);
     }
     member.perk_ranks = 0;
     member.level = 1;
-    member.equipment[SLOT_WEAPON] = 0;
     CHECK(battle_attack_damage(original, 0, 1) == 4);
     original.units[2].hp = 0;
     original.units[3].hp = 0;
@@ -3736,7 +3714,6 @@ static void blast_splash_and_search() {
     CHECK(member.ap == 2 && s.turn == BATTLE_ENEMY && s.activations == 1);
 
     member.level = 9;
-    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
     CHECK(party_learn_perk(member, PERK_ATTACK));
     for(uint8_t rank = 1; rank <= 2; ++rank) {
         if(rank == 2)
@@ -3748,7 +3725,7 @@ static void blast_splash_and_search() {
                 battle_apply_special(s, blast);
             else
                 battle_apply(s, blast);
-            CHECK(s.units[1].hp == (special ? 2 : 4));
+            CHECK(s.units[1].hp == (special ? 3 : 5));
             CHECK(s.units[2].hp == 10 - rank && s.units[3].hp == 10 - rank &&
                   s.units[4].hp == 10 - rank);
             CHECK(member.ap == (special ? 2 : 4));
@@ -3756,13 +3733,13 @@ static void blast_splash_and_search() {
         s = original;
         s.units[2].team = BATTLE_PARTY;
         s.units[3].hp = 0;
-        CHECK(battle_attack_damage(s, 0, 1) == 5);
+        CHECK(battle_attack_damage(s, 0, 1) == 4);
         s.units[2].team = BATTLE_ENEMY;
-        CHECK(battle_attack_damage(s, 0, 1) == 6);
+        CHECK(battle_attack_damage(s, 0, 1) == 5);
     }
 
     s = original;
-    s.units[1].hp = 7; // The three splash victims fall but the primary survives.
+    s.units[1].hp = 6; // The three splash victims fall but the primary survives.
     for(uint8_t i = 2; i < s.unit_count; ++i)
         s.units[i].hp = 2;
     CHECK(battle_attack_impact(s, 0, 1).kills == 3);
@@ -3770,7 +3747,7 @@ static void blast_splash_and_search() {
     BattleState partial = s;
     battle_apply(partial, blast);
     CHECK(!partial.ended && partial.units[1].hp == 1 && battle_living(partial, BATTLE_ENEMY) == 1);
-    s.units[1].hp = 6;
+    s.units[1].hp = 5;
     perk_winning_action(s, blast, true);
     CHECK(same_action(battle_search(s, 2).action, blast));
     CHECK(same_action(battle_greedy_action(s), blast));
@@ -4318,7 +4295,204 @@ static void new_classes_in_search() {
     }
 }
 
+static void equipment_attacks() {
+    game = {};
+    game.party.count = 2;
+    auto& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    auto hero = (ENEMY_ID)battle_party_id(0);
+    auto ally = (ENEMY_ID)battle_party_id(1);
+    BattleState original = board(BATTLE_PARTY, {
+                                                   {2, 1, hero, BATTLE_PARTY, 20},
+                                                   {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
+                                                   {2, 2, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
+                                                   {3, 2, ally, BATTLE_PARTY, 20},
+                                               });
+    for(ITEM_ID item : {ITEM_FIRSTSTRIKE_SWORD, ITEM_HUNTERS_BLADE, ITEM_NEEDLE_SPEAR,
+                        ITEM_CRACKED_SABER, ITEM_BRASS_KNUCKLE, ITEM_STONEBREAKER, ITEM_WOLF_FANG,
+                        ITEM_WOODCUT_AXE, ITEM_MUD_SLING, ITEM_BARN_FORK}) {
+        auto state = original;
+        member.equipment[SLOT_WEAPON] = equipment_encode(item);
+        member.attack_class = ATTACK_STRIKE;
+        uint8_t bonus = 1;
+        bool once = false;
+        switch(item) {
+            case ITEM_FIRSTSTRIKE_SWORD:
+                bonus = 2;
+                once = true;
+                break;
+            case ITEM_HUNTERS_BLADE:
+                state.units[1].hp = 9;
+                bonus = 3;
+                once = true;
+                break;
+            case ITEM_CRACKED_SABER:
+                state.units[0].hp = 8;
+                bonus = 3;
+                once = true;
+                break;
+            case ITEM_STONEBREAKER:
+                place(state, 0, 4, 2);
+                place(state, 1, 4, 1);
+                break;
+            case ITEM_WOODCUT_AXE:
+                place(state, 1, 2, 0);
+                break;
+            case ITEM_MUD_SLING:
+                place(state, 0, 4, 1);
+                place(state, 1, 7, 1);
+                member.attack_class = ATTACK_SHOOT;
+                bonus = 2;
+                break;
+            default:
+                break;
+        }
+        BattleAction action{0, state.units[1].cell};
+        CHECK(battle_legal(state, action));
+        CHECK(battle_attack_damage(state, 0, 1) == 3 + bonus);
+        CHECK(battle_attack_impact(state, 0, 1).damage == 3 + bonus);
+        CHECK(state.units[0].equipment_used() == 0);
+        uint8_t hp = state.units[1].hp;
+        battle_apply(state, action);
+        CHECK(state.units[1].hp == hp - (3 + bonus));
+        CHECK(state.units[0].equipment_used() == (once ? 1 << SLOT_WEAPON : 0));
+        if(once)
+            CHECK(battle_attack_damage(state, 0, 1) == (item == ITEM_CRACKED_SABER ? 4 : 3));
+    }
+
+    member.level = BATTLE_STARTER_LEVEL;
+    member.attack_class = ATTACK_BLAST;
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_FIRSTSTRIKE_SWORD);
+    member.equipment[SLOT_RELIC] = equipment_encode(ITEM_GRAVE_TOKEN);
+    BattleState blast = board(BATTLE_PARTY, {
+                                                {1, 1, hero, BATTLE_PARTY, 1},
+                                                {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
+                                                {3, 2, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
+                                            });
+    CHECK(battle_attack_impact(blast, 0, 1).damage == 11);
+    BattleState special = blast;
+    battle_apply_special(special, act(0, 3, 1), BATTLE_STARTER);
+    CHECK(special.units[1].hp == 3 && special.units[2].hp == 6);
+    CHECK(special.units[0].equipment_used() == 0);
+    battle_apply(blast, act(0, 3, 1));
+    CHECK(blast.units[1].hp == 3 && blast.units[2].hp == 6);
+    CHECK(battle_attack_damage(blast, 0, 1) == 5);
+}
+
+static void equipment_moves_and_guards() {
+    game = {};
+    game.party.count = 2;
+    auto& member = game.party.members[0];
+    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    auto hero = (ENEMY_ID)battle_party_id(0);
+    auto ally = (ENEMY_ID)battle_party_id(1);
+    auto move = board(BATTLE_PARTY, {
+                                        {4, 1, hero, BATTLE_PARTY, 10},
+                                        {3, 0, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 5},
+                                        {3, 2, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 4},
+                                    });
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_THORN_PIKE);
+    auto thorn = battle_engagement(move, 0, cell(3, 1));
+    CHECK(thorn.damage == 3 && thorn.kills == 0);
+    member.equipment[SLOT_WEAPON] = equipment_encode(ITEM_PATHFINDERS_KNIFE);
+    member.equipment[SLOT_ARMOR] = equipment_encode(ITEM_SCOUT_SANDALS);
+    member.equipment[SLOT_RELIC] = equipment_encode(ITEM_THORN_RING);
+    auto engagement = battle_engagement(move, 0, cell(3, 1));
+    CHECK(engagement.damage == 6 && engagement.kills == 1);
+    CHECK(battle_move_cost(move.units[0], true) == 0 && !move.units[0].equipment_used());
+    CHECK(battle_action_kind(move, act(0, 3, 1)) == BATTLE_ACTION_KILL);
+    auto simulated = move;
+    battle_simulate_action(simulated, act(0, 3, 1));
+    CHECK(simulated.units[0].equipment_used() == 7 && move.units[0].equipment_used() == 0);
+    battle_apply(move, act(0, 3, 1));
+    CHECK(same_state(simulated, move));
+    CHECK(move.units[0].hp == 10 && move.units[1].hp == 3 && move.units[2].hp == 0);
+    CHECK(battle_move_cost(move.units[0], true) == 1);
+    static constexpr auto encounter = battle_encounter(ENEMY_WOLF);
+    battle_begin(move, &encounter);
+    CHECK(move.units[0].equipment_used() == 0 && battle_move_cost(move.units[0], true) == 0);
+
+    member.equipment[SLOT_ARMOR] = equipment_encode(ITEM_ASH_CLOAK);
+    move = board(BATTLE_PARTY, {
+                                   {2, 1, hero, BATTLE_PARTY, 10},
+                                   {7, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 9},
+                               });
+    CHECK(battle_move_cost(move.units[0], true) == 1);
+    battle_apply(move, act(0, 3, 1));
+    CHECK(move.units[0].hp == 10 && battle_move_cost(move.units[0], false) == 1);
+    member.equipment[SLOT_ARMOR] = equipment_encode(ITEM_LEAD_BOOTS);
+    member.level = 4;
+    member.perk_ranks = FOOTWORK_RANK;
+    CHECK(battle_move_cost(move.units[0], false) == 2);
+    CHECK(battle_move_cost(move.units[0], true) == 1);
+    member.perk_ranks = 0;
+
+    auto guard = board(BATTLE_ENEMY, {
+                                         {2, 1, hero, BATTLE_PARTY, 10},
+                                         {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
+                                         {2, 0, ally, BATTLE_PARTY, 20},
+                                     });
+    for(ITEM_ID item : {ITEM_GUARD_VEST, ITEM_OAK_SHIELD, ITEM_REED_ARMOR, ITEM_RIVER_CLOAK,
+                        ITEM_PADDED_SHAWL, ITEM_LEAD_BOOTS, ITEM_TURNSHOE}) {
+        auto state = guard;
+        member.equipment[SLOT_ARMOR] = equipment_encode(item);
+        if(item == ITEM_REED_ARMOR)
+            state.units[2].hp = 0;
+        if(item == ITEM_TURNSHOE)
+            place(state, 0, 3, 0);
+        if(item == ITEM_RIVER_CLOAK) {
+            state.units[1].id = BATTLE_TEST_ARCHER;
+            place(state, 1, 6, 1);
+        }
+        bool once = item != ITEM_OAK_SHIELD && item != ITEM_LEAD_BOOTS;
+        CHECK(battle_attack_damage(state, 1, 0) == (once ? 1 : 2));
+        CHECK(!state.units[0].equipment_used());
+        battle_apply(state, {1, state.units[0].cell});
+        CHECK(state.units[0].hp == (once ? 9 : 8));
+        CHECK(state.units[0].equipment_used() == (once ? 1 << SLOT_ARMOR : 0));
+        CHECK(battle_attack_damage(state, 1, 0) == (once ? 3 : 2));
+    }
+
+    member.equipment[SLOT_ARMOR] = equipment_encode(ITEM_GUARD_VEST);
+    CHECK(equipment_acquire(ITEM_LANTERN_WICK));
+    game.party.members[1].equipment[SLOT_RELIC] = equipment_encode(ITEM_LANTERN_WICK);
+    CHECK(battle_attack_damage(guard, 1, 0) == 1 && !guard.units[2].equipment_used());
+    battle_apply(guard, act(1, 2, 1));
+    CHECK(guard.units[0].hp == 9 && guard.units[0].equipment_used() == 1 << SLOT_ARMOR);
+    CHECK(guard.units[2].equipment_used() == 1 << SLOT_RELIC);
+    CHECK(battle_attack_damage(guard, 1, 0) == 3);
+}
+
+static void equipment_victory_rewards() {
+    game = {};
+    game.party.count = PARTY_CAPACITY;
+    for(auto& member : game.party.members)
+        member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_FERRY_BEAD);
+    game.party.members[1].equipment[SLOT_RELIC] = equipment_encode(ITEM_SPLIT_BUTTON);
+    game.party.members[2].equipment[SLOT_RELIC] = equipment_encode(ITEM_SURVIVORS_RIBBON);
+    game.party.members[3].equipment[SLOT_RELIC] = equipment_encode(ITEM_SLUICE_TALLY);
+    auto victory = board(BATTLE_PARTY, {
+                                           {2, 1, (ENEMY_ID)battle_party_id(0), BATTLE_PARTY, 18},
+                                           {3, 1, (ENEMY_ID)battle_party_id(2), BATTLE_PARTY, 1},
+                                           {1, 1, (ENEMY_ID)battle_party_id(1), BATTLE_PARTY, 1},
+                                           {5, 1, (ENEMY_ID)battle_party_id(3), BATTLE_PARTY, 0},
+                                           {6, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 0},
+                                       });
+    victory.ended = true;
+    victory.result = BATTLE_VICTORY;
+    CHECK(battle_finish(victory).gold_gained == 4);
+    CHECK(game.gold == 4 && game.party.members[3].hp == 0);
+    CHECK(game.party.members[0].hp == 18);
+    CHECK(game.party.members[1].hp == 7 && game.party.members[2].hp == 2);
+    game.gold = UINT16_MAX - 1;
+    CHECK(battle_finish(victory).gold_gained == 1 && game.gold == UINT16_MAX);
+}
+
 int main() {
+    equipment_attacks();
+    equipment_moves_and_guards();
+    equipment_victory_rewards();
     attack_perks();
     perk_victory_recovery();
     charge_perks();

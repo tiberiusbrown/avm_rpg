@@ -42,7 +42,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 22;
+inline constexpr uint8_t SAVE_VERSION = 23;
 
 enum {
     BTN_B = 4,
@@ -261,12 +261,23 @@ inline constexpr uint8_t PARTY_BASE_AP = 4;
 // 2 at level 3, 2 more at level 7, and any equipped HP bonuses.
 constexpr uint8_t party_max_hp(PartyMember const& member) {
     uint8_t base = member.id == NPC_ROWAN ? 18 : 20;
-    uint8_t boots = equipment_get(member, SLOT_ARMOR) == ITEM_TRAVELERS_BOOTS
-                        ? TRAVELERS_BOOTS_HP : 0;
-    uint8_t pendant = equipment_get(member, SLOT_RELIC) == ITEM_VITAL_PENDANT
-                          ? VITAL_PENDANT_HP : 0;
-    return (uint8_t)(boots + pendant + base + (member.level >= 3 ? 2 : 0) +
-                     (member.level >= 7 ? 2 : 0));
+    switch(equipment_get(member, SLOT_ARMOR)) {
+        case ITEM_LEATHER_JERKIN:
+            base += 3;
+            break;
+        case ITEM_ASH_CLOAK:
+        case ITEM_SCOUT_SANDALS:
+        case ITEM_HOPPER_VEST:
+            ++base;
+            break;
+        default:
+            break;
+    }
+    if(equipment_get(member, SLOT_WEAPON) == ITEM_CRACKED_SABER)
+        base -= 3;
+    if(equipment_get(member, SLOT_RELIC) == ITEM_TESSAS_ROSETTE)
+        ++base;
+    return (uint8_t)(base + (member.level >= 3 ? 2 : 0) + (member.level >= 7 ? 2 : 0));
 }
 
 // The normal-attack damage a party member adds: 1 at level 5 and 1 more at level 9.
@@ -274,17 +285,12 @@ constexpr uint8_t party_attack_bonus(PartyMember const& member) {
     return (uint8_t)((member.level >= 5 ? 1 : 0) + (member.level >= 9 ? 1 : 0));
 }
 
-constexpr uint8_t party_max_ap(PartyMember const&) {
-    return PARTY_BASE_AP;
+constexpr uint8_t party_max_ap(PartyMember const& member) {
+    return PARTY_BASE_AP + (equipment_get(member, SLOT_RELIC) == ITEM_MOON_SHARD);
 }
 
 // Base AP recovery after each victory, capped at the member's maximum.
 inline constexpr uint8_t PARTY_VICTORY_AP = 1;
-
-constexpr uint8_t party_victory_ap(PartyMember const& member) {
-    uint8_t dawn = equipment_get(member, SLOT_RELIC) == ITEM_DAWN_PENDANT ? DAWN_PENDANT_AP : 0;
-    return PARTY_VICTORY_AP + dawn;
-}
 
 // A member at full HP and AP, level 1 with no experience, as the traveler and new recruits join.
 PartyMember party_new_member(NPC_ID id, MOVEMENT_CLASS movement, ATTACK_CLASS attack);

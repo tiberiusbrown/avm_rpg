@@ -2577,9 +2577,9 @@ static void verify_millcross_views(Device& d, fs::path const& out) {
 
 static void verify_equipment(Device& d, fs::path const& out) {
     Game fixture = d.state();
-    require(fixture.get_flag(equipment_flag(ITEM_IRON_FANG)) &&
-                equipment_get(fixture.party.members[0], SLOT_WEAPON) == ITEM_NONE,
-            "new game did not start with Iron Fang owned and unequipped");
+    for(uint8_t id = 0; id < ITEM_DEFINED_COUNT; ++id)
+        require(!fixture.get_flag(equipment_flag(id)), "new game starts with owned equipment");
+    fixture.flags.set_flag(equipment_flag(ITEM_FIRSTSTRIKE_SWORD));
     fixture.party.members[1] = {18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0, 0, {}};
     fixture.party.count = 2;
     d.set_state(fixture);
@@ -2594,13 +2594,13 @@ static void verify_equipment(Device& d, fs::path const& out) {
     d.tap(BTN_A); // Equipment
     d.tap(BTN_RIGHT); // Rowan
     d.tap(BTN_A); // Weapon picker
-    d.tap(BTN_DOWN); // Iron Fang
+    d.tap(BTN_DOWN); // Firststrike Sword
     d.tap(BTN_A); // Details
     d.capture(out / "equipment-details.pgm");
     d.tap(BTN_A); // Equip
     Game equipped = d.state();
-    require(equipment_get(equipped.party.members[1], SLOT_WEAPON) == ITEM_IRON_FANG,
-            "Party did not equip Iron Fang");
+    require(equipment_get(equipped.party.members[1], SLOT_WEAPON) == ITEM_FIRSTSTRIKE_SWORD,
+            "Party did not equip Firststrike Sword");
     d.tap(BTN_B);
     d.tap(BTN_B);
     d.tap(BTN_LEFT); // Traveler
@@ -2610,15 +2610,15 @@ static void verify_equipment(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     d.tap(BTN_A); // Transfer
     Game transferred = d.state();
-    require(equipment_get(transferred.party.members[0], SLOT_WEAPON) == ITEM_IRON_FANG &&
+    require(equipment_get(transferred.party.members[0], SLOT_WEAPON) == ITEM_FIRSTSTRIKE_SWORD &&
                 equipment_get(transferred.party.members[1], SLOT_WEAPON) == ITEM_NONE,
-            "Party did not transfer Iron Fang to the traveler");
+            "Party did not transfer Firststrike Sword to the traveler");
     d.tap(BTN_B);
     d.tap(BTN_UP); // Unequip
     d.tap(BTN_A);
     Game unequipped = d.state();
     require(equipment_get(unequipped.party.members[0], SLOT_WEAPON) == ITEM_NONE &&
-                unequipped.get_flag(equipment_flag(ITEM_IRON_FANG)),
+                unequipped.get_flag(equipment_flag(ITEM_FIRSTSTRIKE_SWORD)),
             "Party unequip did not preserve ownership");
     d.tap(BTN_DOWN);
     d.tap(BTN_A);
@@ -2800,8 +2800,8 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
                 loaded.supplies.quantity[SUPPLY_ELIXIR] == 0,
             "smoke restart did not restore used supplies");
     PartyMember const& member = loaded.party.members[0];
-    require(loaded.get_flag(equipment_flag(ITEM_IRON_FANG)) &&
-                equipment_get(member, SLOT_WEAPON) == ITEM_IRON_FANG &&
+    require(loaded.get_flag(equipment_flag(ITEM_FIRSTSTRIKE_SWORD)) &&
+                equipment_get(member, SLOT_WEAPON) == ITEM_FIRSTSTRIKE_SWORD &&
                 equipment_get(loaded.party.members[1], SLOT_WEAPON) == ITEM_NONE,
             "smoke restart did not restore equipment ownership and slots");
     require(party_movement_perk_rank(member) == 1 && member.hp == 16 &&
@@ -2901,14 +2901,14 @@ int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 13,
             "device_tests package game_address marker_address serial_address "
             "output_directory "
-            "normal|fxc|proof|smoke|millcross|pause|battle|battle-classes|battle-recordings|perk-ranks|bram-meeting|"
+            "normal|fxc|proof|smoke|smoke-functional|millcross|pause|battle|battle-classes|battle-recordings|perk-ranks|bram-meeting|"
             "shop|sounds|"
             "functional|"
             "sounds-functional "
             "dialogue_address phase_address "
             "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
     // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
-    check_timing = std::string(argv[6]) != "functional" &&
+    check_timing = std::string(argv[6]) != "functional" && std::string(argv[6]) != "smoke-functional" &&
                    std::string(argv[6]) != "sounds-functional" && std::string(argv[6]) != "journal";
     if(!check_timing)
         std::cout << "{\"timing_checks_enforced\":false,\"mode\":\"" << argv[6] << "\"}\n";
@@ -2940,7 +2940,7 @@ int main(int argc, char** argv) try {
         return 0;
     }
 
-    if(std::string(argv[6]) == "smoke") {
+    if(std::string(argv[6]) == "smoke" || std::string(argv[6]) == "smoke-functional") {
         verify_smoke(d, package, out);
         return 0;
     }

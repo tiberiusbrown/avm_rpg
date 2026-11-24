@@ -1335,7 +1335,7 @@ static void render_party_equipment(int16_t x, PartyUi const& ui) {
         begin_menu_row(x, y, slot == selected, PARTY_EDGE - PARTY_MARGIN);
         avm_draw_text(left + 3, y, party_slot_name(slot));
         char const PROGMEM* equipped = party_equipped(member, slot);
-        avm_draw_text(x + 46, y, equipped);
+        text_draw_clipped(x + 46, y, equipped, PARTY_EDGE - 46);
         avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     }
     draw_menu_footer(x, F("Open"));
@@ -1368,7 +1368,11 @@ static void render_party_item_list(int16_t x, PartyUi const& ui) {
     }
     draw_menu_scroll(x, PARTY_ROW_BODY, PARTY_ROW_BODY + PARTY_ROW_STEP * 3, first,
                      first + VISIBLE < count);
-    draw_menu_footer(x, selected ? F("Inspect") : F("Unequip"));
+    draw_menu_footer(x, selected                          ? F("Inspect")
+                        : equipment_can_change(ui.member) ? F("Unequip")
+                                                          : nullptr);
+    if(!selected && !equipment_can_change(ui.member))
+        avm_draw_text(left, MENU_FOOTER, F("Unconscious"));
 }
 
 static void render_party_item_details(int16_t x, PartyUi const& ui) {
@@ -1387,12 +1391,16 @@ static void render_party_item_details(int16_t x, PartyUi const& ui) {
     render_party_divider(x);
     render_party_text(x, ui);
 
-    draw_menu_footer(x, wearer == ui.member ? nullptr :
-                        wearer == PARTY_CAPACITY ? F("Equip") : F("Transfer"));
+    draw_menu_footer(x, !equipment_can_equip(ui.member, item) ? nullptr
+                        : wearer == PARTY_CAPACITY            ? F("Equip")
+                                                              : F("Transfer"));
     if(wearer == ui.member)
         avm_draw_text(left, MENU_FOOTER,
                       ui.equipment_feedback == PartyUi::TRANSFERRED ? F("Transferred") :
                                                                     F("Equipped"));
+    else if(!equipment_can_change(ui.member) ||
+            (wearer != PARTY_CAPACITY && !equipment_can_change(wearer)))
+        avm_draw_text(left, MENU_FOOTER, F("Unconscious"));
 }
 
 // The sliding background and the panel render in sequence, so their temporary frames can be

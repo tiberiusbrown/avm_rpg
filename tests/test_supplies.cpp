@@ -78,6 +78,26 @@ static void supplies_model() {
     CHECK(third.hp == 0 && third.ap == party_max_ap(third));
 }
 
+static void equipment_supply_modifiers() {
+    Supplies supplies = STARTING_SUPPLIES;
+    Party party = make_party();
+    auto& target = party.members[0];
+    auto& cup = party.members[1];
+    auto& vest = party.members[2];
+    target.equipment[SLOT_ARMOR] = equipment_encode(ITEM_SOFT_BANDAGES);
+    cup.equipment[SLOT_RELIC] = equipment_encode(ITEM_SHARED_CUP);
+    vest.equipment[SLOT_ARMOR] = equipment_encode(ITEM_HOPPER_VEST);
+    target.hp = 1;
+    cup.hp = 2;
+    vest.hp = 1;
+    CHECK(supply_use(supplies, party, SUPPLY_POTION, 0));
+    CHECK(target.hp == 11 && cup.hp == 3);
+    CHECK(supply_use(supplies, party, SUPPLY_POTION, 1));
+    CHECK(cup.hp == 11);
+    CHECK(supply_use(supplies, party, SUPPLY_ELIXIR, SUPPLY_NO_TARGET));
+    CHECK(target.hp == 15 && cup.hp == 15 && vest.hp == 6 && party_max_hp(vest) == 21);
+}
+
 static void recovery() {
     Party party = make_party();
     for(uint8_t i = 0; i < party.count; ++i) {
@@ -258,6 +278,7 @@ int main() {
     shop_transactions();
     shop_navigation();
     supplies_model();
+    equipment_supply_modifiers();
     recovery();
     supplies_navigation();
     pause_navigation();

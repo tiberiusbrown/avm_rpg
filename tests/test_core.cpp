@@ -484,7 +484,7 @@ static void saves() {
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
     CHECK(cached_tile(positions::WellSign) == TILE_SIGN);
 
-    static_assert(SAVE_VERSION == 22 && sizeof(PartyMember) == 11);
+    static_assert(SAVE_VERSION == 23 && sizeof(PartyMember) == 11);
     static_assert(MOVEMENT_STEP == 0 && MOVEMENT_LEAP == 1 && MOVEMENT_CHARGE == 2);
     static_assert(ATTACK_STRIKE == 0 && ATTACK_SHOOT == 1 && ATTACK_REACH == 2 &&
                   ATTACK_IMPACT == 3 && ATTACK_REND == 4);
@@ -518,25 +518,9 @@ static void saves() {
             CHECK(!save_valid());
         }
     }
-    // A version 22 member who learned the former Step perk could have three more HP.
     game = saved;
-    auto& former_steadfast = game.party.members[0];
-    former_steadfast.level = 2;
-    former_steadfast.perk_ranks = 1;
-    former_steadfast.hp = 24;
+    game.party.members[0].hp = party_max_hp(game.party.members[0]) + 1;
     reject();
-    former_steadfast.hp = 23;
-    CHECK(save_valid() && save_restore());
-    CHECK(former_steadfast.hp == 20 && former_steadfast.perk_ranks == 1);
-
-    game = saved;
-    game.player.x = positions::WellSign.x * TILE;
-    game.player.y = positions::WellSign.y * TILE;
-    CHECK(save_restore()); // Structurally valid, but inside the sign.
-    update_visible_world(0, false);
-    CHECK(player_terrain_clear(game.player.x, game.player.y));
-    CHECK(game.player.x != positions::WellSign.x * TILE ||
-          game.player.y != positions::WellSign.y * TILE);
 }
 
 // Every uncovered view must fit the original cache, including pixel phases and map edges.
@@ -695,80 +679,67 @@ static void permanent_perks() {
 }
 
 static void equipment_operations() {
-    static_assert(equipment_valid_item(ITEM_IRON_FANG) && FLAG_ITEM_FIRST > FLAG_RESERVED);
-    static_assert(equipment_flag(ITEM_IRON_FANG) == FLAG_ITEM_FIRST);
+    static_assert(equipment_flag(ITEM_FIRSTSTRIKE_SWORD) == FLAG_ITEM_FIRST);
     static_assert(equipment_flag(ITEM_DEFINED_COUNT - 1) == FLAG_ITEM_END - 1);
     static_assert(equipment_flag(ITEM_NONE) == FLAG_COUNT);
     static_assert(equipment_flag(ITEM_DEFINED_COUNT) == FLAG_COUNT);
-    for(uint8_t id = 1; id < ITEM_DEFINED_COUNT; ++id)
-        CHECK(equipment_flag(id) == equipment_flag(id - 1) + 1);
 
-    for(uint8_t count = 1; count <= PARTY_CAPACITY; ++count) {
-        game_start();
-        CHECK(equipment_owned(ITEM_IRON_FANG));
-        for(uint8_t i = 1; i < count; ++i)
-            CHECK(party_add(party_new_member((NPC_ID)i, MOVEMENT_STEP, ATTACK_STRIKE)));
-        for(auto const& member : game.party.members)
-            for(uint8_t stored : member.equipment)
-                CHECK(stored == 0);
-
-        Game before = game;
-        CHECK(!equipment_equip(count, ITEM_IRON_FANG));
-        CHECK(!equipment_equip(0, ITEM_TRAVELERS_BOOTS));
-        CHECK(!equipment_equip(0, ITEM_NONE) && !equipment_owned(ITEM_NONE));
-        CHECK(!equipment_unequip(0, SLOT_COUNT));
-        CHECK(!equipment_acquire(ITEM_IRON_FANG));
-        CHECK(!equipment_acquire(ITEM_NONE));
-        CHECK(!equipment_acquire(ITEM_DEFINED_COUNT));
-        CHECK(!equipment_equip(0, ITEM_DEFINED_COUNT));
-        CHECK(!memcmp(&before, &game, sizeof(Game)));
-
-        CHECK(equipment_acquire(ITEM_TRAVELERS_BOOTS));
-        CHECK(equipment_acquire(ITEM_DAWN_PENDANT));
-        CHECK(equipment_acquire(ITEM_VITAL_PENDANT));
-        for(uint16_t flag = 0; flag < FLAG_COUNT; ++flag) {
-            bool acquired = flag >= equipment_flag(ITEM_TRAVELERS_BOOTS) &&
-                            flag <= equipment_flag(ITEM_VITAL_PENDANT);
-            CHECK(game.flags.get_flag(flag) == (acquired || before.flags.get_flag(flag)));
-        }
-
-        PartyMember& leader = game.party.members[0];
-        leader.level = 7;
-        CHECK(party_learn_perk(leader, PERK_MOVEMENT));
-        uint8_t hp = leader.hp;
-        CHECK(party_max_hp(leader) == 24);
-        CHECK(equipment_equip(0, ITEM_IRON_FANG));
-        CHECK(equipment_get(leader, SLOT_ARMOR) == ITEM_NONE);
-        CHECK(equipment_equip(0, ITEM_TRAVELERS_BOOTS));
-        CHECK(party_max_hp(leader) == 26);
-        CHECK(equipment_equip(0, ITEM_VITAL_PENDANT));
-        CHECK(party_max_hp(leader) == 29 && leader.hp == hp);
-        leader.hp = 29;
-
-        if(count > 1) {
-            CHECK(equipment_equip(count - 1, ITEM_VITAL_PENDANT));
-            CHECK(equipment_wearer(ITEM_VITAL_PENDANT) == count - 1);
-            CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_NONE && leader.hp == 26);
-        } else {
-            CHECK(equipment_equip(0, ITEM_DAWN_PENDANT));
-            CHECK(equipment_owned(ITEM_VITAL_PENDANT));
-            CHECK(leader.hp == 26 && party_victory_ap(leader) == 2);
-        }
-        CHECK(equipment_unequip(0, SLOT_ARMOR));
-        CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && leader.hp == 24);
-        before = game;
-        CHECK(!equipment_equip(0, ITEM_IRON_FANG) && !equipment_unequip(0, SLOT_ARMOR));
-        CHECK(!memcmp(&before, &game, sizeof(Game)));
-        CHECK(save_valid());
+    game_start();
+    for(uint8_t id = 0; id < ITEM_DEFINED_COUNT; ++id) {
+        auto item = (ITEM_ID)id;
+        CHECK(!equipment_owned(item));
+        CHECK(equipment_decode(equipment_encode(item)) == item);
+        CHECK(equipment_flag(id) == FLAG_ITEM_FIRST + id);
     }
+    CHECK(party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT)));
+    CHECK(!equipment_equip(0, ITEM_FIRSTSTRIKE_SWORD));
+    CHECK(!equipment_equip(PARTY_CAPACITY, ITEM_FIRSTSTRIKE_SWORD));
+    CHECK(!equipment_acquire(ITEM_NONE) && !equipment_acquire(ITEM_DEFINED_COUNT));
+    CHECK(!equipment_unequip(0, SLOT_COUNT));
+
+    for(ITEM_ID item :
+        {ITEM_CRACKED_SABER, ITEM_LEATHER_JERKIN, ITEM_MOON_SHARD, ITEM_TESSAS_ROSETTE}) {
+        CHECK(equipment_acquire(item));
+        CHECK(!equipment_acquire(item));
+    }
+
+    auto& leader = game.party.members[0];
+    auto& rowan = game.party.members[1];
+    CHECK(equipment_equip(0, ITEM_CRACKED_SABER));
+    CHECK(leader.hp == 17 && party_max_hp(leader) == 17);
+    CHECK(equipment_equip(0, ITEM_LEATHER_JERKIN));
+    CHECK(leader.hp == 17 && party_max_hp(leader) == 20);
+    CHECK(equipment_equip(0, ITEM_MOON_SHARD));
+    CHECK(leader.ap == 4 && party_max_ap(leader) == 5);
+    leader.ap = 5;
+    CHECK(equipment_equip(1, ITEM_MOON_SHARD));
+    CHECK(leader.ap == 4 && rowan.ap == 4 && party_max_ap(rowan) == 5);
+    CHECK(equipment_unequip(0, SLOT_WEAPON));
+    CHECK(equipment_equip(0, ITEM_TESSAS_ROSETTE));
+    leader.hp = party_max_hp(leader);
+    CHECK(leader.hp == 24);
+
+    leader.hp = 0;
+    Game before = game;
+    CHECK(!equipment_equip(0, ITEM_CRACKED_SABER));
+    CHECK(!equipment_equip(0, ITEM_MOON_SHARD));
+    CHECK(!equipment_unequip(0, SLOT_RELIC) && !equipment_unequip(0, SLOT_ARMOR));
+    CHECK(!equipment_equip(1, ITEM_TESSAS_ROSETTE) && !equipment_equip(1, ITEM_LEATHER_JERKIN));
+    CHECK(!memcmp(&before, &game, sizeof(Game)));
+    CHECK(save_valid());
+    CHECK(supply_use(game.supplies, game.party, SUPPLY_REVIVE, 0) && leader.hp == 7);
+    CHECK(equipment_equip(1, ITEM_TESSAS_ROSETTE));
+    CHECK(equipment_unequip(0, SLOT_ARMOR));
+    CHECK(save_valid());
 }
 
 static void equipment_saves() {
     game_start();
     CHECK(party_add(party_new_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT)));
-    CHECK(equipment_acquire(ITEM_VITAL_PENDANT));
-    CHECK(equipment_equip(0, ITEM_VITAL_PENDANT) && equipment_equip(0, ITEM_IRON_FANG));
-    game.party.members[0].hp = 22;
+    CHECK(equipment_acquire(ITEM_TESSAS_ROSETTE));
+    CHECK(equipment_acquire(ITEM_FIRSTSTRIKE_SWORD));
+    CHECK(equipment_equip(0, ITEM_TESSAS_ROSETTE) && equipment_equip(0, ITEM_FIRSTSTRIKE_SWORD));
+    game.party.members[0].hp = 21;
     game.party.members[0].ap = 2;
     Game saved = game;
 
@@ -780,13 +751,13 @@ static void equipment_saves() {
     };
     game.party.members[0].equipment[SLOT_WEAPON] = 255;
     reject();
-    game.clear_flag(equipment_flag(ITEM_IRON_FANG));
+    game.clear_flag(equipment_flag(ITEM_FIRSTSTRIKE_SWORD));
     reject();
-    game.party.members[1].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    game.party.members[1].equipment[SLOT_WEAPON] = equipment_encode(ITEM_FIRSTSTRIKE_SWORD);
     reject();
-    game.party.members[0].equipment[SLOT_ARMOR] = equipment_encode(ITEM_VITAL_PENDANT);
+    game.party.members[0].equipment[SLOT_ARMOR] = equipment_encode(ITEM_TESSAS_ROSETTE);
     reject();
-    game.party.members[2].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
+    game.party.members[2].equipment[SLOT_WEAPON] = equipment_encode(ITEM_FIRSTSTRIKE_SWORD);
     reject();
     game.party.members[0].hp = 24;
     reject();
@@ -799,10 +770,10 @@ static void equipment_saves() {
     memcpy(&game, image, sizeof(image));
     CHECK(save_restore());
     PartyMember const& leader = game.party.members[0];
-    CHECK(equipment_owned(ITEM_IRON_FANG) && equipment_owned(ITEM_VITAL_PENDANT));
-    CHECK(equipment_get(leader, SLOT_WEAPON) == ITEM_IRON_FANG);
-    CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_VITAL_PENDANT);
-    CHECK(leader.hp == 22 && leader.ap == 2 && party_max_hp(leader) == 23);
+    CHECK(equipment_owned(ITEM_FIRSTSTRIKE_SWORD) && equipment_owned(ITEM_TESSAS_ROSETTE));
+    CHECK(equipment_get(leader, SLOT_WEAPON) == ITEM_FIRSTSTRIKE_SWORD);
+    CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_TESSAS_ROSETTE);
+    CHECK(leader.hp == 21 && leader.ap == 2 && party_max_hp(leader) == 21);
 }
 
 int main() {

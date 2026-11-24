@@ -92,7 +92,7 @@ template <> struct AreaMechanisms<AREA_CAVE> {
 };
 
 template <>
-struct ChestReward<positions::CaveChest> : ContainerReward<25, {ITEM_TRAVELERS_BOOTS}, {SUPPLY_POTION, 1}, {SUPPLY_ETHER, 1}> {
+struct ChestReward<positions::CaveChest> : ContainerReward<25, {}, {SUPPLY_POTION, 1}, {SUPPLY_ETHER, 1}> {
     static constexpr auto MESSAGE = F("You find 25 gold, a Potion, an Ether, and Traveler's Boots.");
 };
 

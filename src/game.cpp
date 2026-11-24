@@ -1,5 +1,4 @@
 #include "rpg.h"
-#include "equipment.h"
 #include "map_positions.h"
 #include "npc.h"
 #include "quest.h"
@@ -49,7 +48,6 @@ void game_start() {
     game.save_version = SAVE_VERSION;
     game.rng = 0xbabe;
     quest_reset();
-    equipment_acquire(ITEM_IRON_FANG);
     // The traveler occupies the first slot from the start. Recruitment is for NPCs.
     game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.count = 1;

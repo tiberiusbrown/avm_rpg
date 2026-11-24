@@ -44,6 +44,7 @@ is not drawn while the panel covers the screen.
   members. Press A on a slot to see compatible owned items, who wears them, and the **Unequip**
   action. Press A on an item to inspect it, then A again to equip or transfer it. B returns to
   the picker at the same item. Replacing or removing equipment keeps it available to the party.
+  Unconscious members can inspect gear and must recover before changing or transferring it.
   Equipment changes preserve current HP and AP, clamping either value if its maximum falls.
 
 Equipment ownership uses the item flag range. Member slots store zero for empty
@@ -292,8 +293,8 @@ into the Old Vault. Walk into either to enter. Both are built around mechanisms:
 gates that draw down into the floor, pressure plates, spikes, sinking blocks, a bridge over a
 chasm and a steam vent that blows by the clock. Repairing the mine's bridge opens a two-way maintenance hatch on the west ridge. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build requires save version 22.** The map, NPC identity, and
-world flag changes make older saves incompatible. The live, pointer-free
+**This development build requires save version 23.** The expanded equipment IDs and
+ownership flags change the saved layout. The live, pointer-free
 `Game` struct is saved directly from AVM's `.saved` prefix, including 16 defeated-enemy
 bits and the shared two-byte respawn countdown. Validation checks the countdown,
 unused flag bits, equipment ownership, slot categories, unique wearers and adjusted HP/AP. Supply quantities are validated against the limit of 15.

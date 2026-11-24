@@ -29,9 +29,11 @@ template <uint16_t GOLD, ItemReward ITEMS, SupplyReward... STACKS> struct Contai
             dialogue_show(F("You cannot carry all the gold."));
             return false;
         }
-        if(equipment_owned(ITEMS.first) || equipment_owned(ITEMS.second)) {
-            dialogue_show(F("You already own equipment in this chest."));
-            return false;
+        if constexpr(ITEMS.first != ITEM_NONE || ITEMS.second != ITEM_NONE) {
+            if(equipment_owned(ITEMS.first) || equipment_owned(ITEMS.second)) {
+                dialogue_show(F("You already own equipment in this chest."));
+                return false;
+            }
         }
 
         game.supplies = next;

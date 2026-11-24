@@ -81,7 +81,7 @@ template <> struct AreaMechanisms<AREA_DUNGEON> {
 };
 
 template <>
-struct ChestReward<positions::DungeonChest> : ContainerReward<25, {ITEM_DAWN_PENDANT, ITEM_VITAL_PENDANT}, {SUPPLY_ELIXIR, 1}, {SUPPLY_REVIVE, 1}> {
+struct ChestReward<positions::DungeonChest> : ContainerReward<25, {}, {SUPPLY_ELIXIR, 1}, {SUPPLY_REVIVE, 1}> {
     static constexpr auto MESSAGE = F("You find 25 gold, an Elixir, a Revive, a Dawn Pendant, and a Vital Pendant.");
 };
 

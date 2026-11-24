@@ -52,15 +52,28 @@ bool supply_use(Supplies& supplies, Party& party, SUPPLY_ID id, uint8_t target) 
     if(id == SUPPLY_ELIXIR) {
         for(uint8_t i = 0; i < party.count; ++i) {
             PartyMember& member = party.members[i];
-            if(injured(member))
-                member.hp = restore(member.hp, party_max_hp(member), 4);
+            if(injured(member)) {
+                uint8_t bonus = equipment_get(member, SLOT_ARMOR) == ITEM_HOPPER_VEST;
+                member.hp = restore(member.hp, party_max_hp(member), 4 + bonus);
+            }
         }
     } else {
         PartyMember& member = party.members[target];
         if(id == SUPPLY_ETHER)
             member.ap = restore(member.ap, party_max_ap(member), 3);
-        else
-            member.hp = restore(member.hp, party_max_hp(member), id == SUPPLY_POTION ? 8 : 5);
+        else if(id == SUPPLY_REVIVE) {
+            uint8_t amount = equipment_get(member, SLOT_RELIC) == ITEM_TESSAS_ROSETTE ? 7 : 5;
+            member.hp = restore(member.hp, party_max_hp(member), amount);
+        } else {
+            uint8_t bonus = equipment_get(member, SLOT_ARMOR) == ITEM_SOFT_BANDAGES ? 2 : 0;
+            member.hp = restore(member.hp, party_max_hp(member), 8 + bonus);
+            for(uint8_t i = 0; i < party.count; ++i) {
+                PartyMember& other = party.members[i];
+                if(i != target && injured(other) &&
+                   equipment_get(other, SLOT_RELIC) == ITEM_SHARED_CUP)
+                    ++other.hp;
+            }
+        }
     }
     --supplies.quantity[id];
     return true;

@@ -16,6 +16,8 @@ bool equipment_acquire(ITEM_ID item);
 
 // PARTY_CAPACITY means the item has no wearer.
 uint8_t equipment_wearer(ITEM_ID item);
+bool equipment_can_change(uint8_t member);
+bool equipment_can_equip(uint8_t member, ITEM_ID item);
 bool equipment_equip(uint8_t member, ITEM_ID item);
 bool equipment_unequip(uint8_t member, EQUIPMENT_SLOT slot);
 bool equipment_saved_state_valid();

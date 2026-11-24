@@ -1,6 +1,7 @@
 # Venlor — Game Logic Canon
 
-**Save format:** `SAVE_VERSION = 22`  
+**Save format:** `SAVE_VERSION = 23`
+
 **Implemented quests:** The Lantern Keeper and The Missing Surveyor.
 
 ## 0. Purpose and authority
@@ -66,7 +67,7 @@ registry. Status, tracking and map markers use the compiled quest framework.
 
 ### 1.4 Persistent flag ledger
 
-The physical mechanisms retain their existing flags. All indices refer to save format 22.
+The physical mechanisms retain their existing flags. All indices refer to save format 23.
 
 | Bit | Flag | Set by | Read by / invariant |
 |---:|---|---|---|
@@ -92,12 +93,12 @@ The physical mechanisms retain their existing flags. All indices refer to save f
 | 19 | `FLAG_SURVEY_TRAIL_FOUND` | Trace survey markers / find overlooked entrance clue | Optional alternative navigation clue; not a hard rescue gate |
 | 20 | `FLAG_SURVEYOR_FOUND` | First talk to trapped surveyor | Requires the search to have started by then; persists across reload |
 | 21 | `FLAG_SURVEYOR_RESCUED` | Confirm help to surveyor **after `FLAG_CAVE_BRIDGE`**, with safe return available | Completion, NPC relocation, XP + gold once; bridge/hatch are already permanently opened |
-| 22–25 | `FLAG_ITEM_FIRST + ITEM_ID` | Equipment acquisition | Four existing equipment ownership bits |
-| 26–41 | `FLAG_ENEMY_FIRST + spawn_index` | Victory against authored map enemy | 16 defeat slots; only authored respawnable bits reset |
-| 42 | `FLAG_BRAM_LANTERN_MEETING` | Finish Bram's invitation after diagnosis and workshop evidence | Assigns Bram to `BramLantern` until either repair succeeds |
+| 22–55 | `FLAG_ITEM_FIRST + ITEM_ID` | Equipment acquisition | One ownership bit for each of the 34 early-game items |
+| 56–71 | `FLAG_ENEMY_FIRST + spawn_index` | Victory against authored map enemy | 16 defeat slots; only authored respawnable bits reset |
+| 72 | `FLAG_BRAM_LANTERN_MEETING` | Finish Bram's invitation after diagnosis and workshop evidence | Assigns Bram to `BramLantern` until either repair succeeds |
 
-`FLAG_ITEM_FIRST = 22`, `FLAG_ENEMY_FIRST = 26`, and `FLAG_COUNT = 43`.
-The flag set occupies six bytes. Section 6.3 records ownership of the encounter bits.
+`FLAG_ITEM_FIRST = 22`, `FLAG_ENEMY_FIRST = 56`, and `FLAG_COUNT = 73`.
+The flag set occupies ten bytes. Section 6.3 records ownership of the encounter bits.
 
 **Reward atomicity:** completion flags and reward grants must be guarded by a single successful state transition. For any optional supply payout, check stack capacity before committing or use an independently claimed reward flag; the two specified quests avoid this issue by awarding only XP and gold directly. `FLAG_LANTERN_MODERN` is set atomically with restoration for the modern branch; other branch is `RESTORED && !MODERN`. Quest completion must never clear encounter flags or force a new area load.
 
@@ -107,11 +108,8 @@ The flag set occupies six bytes. Section 6.3 records ownership of the encounter 
 - **Rebuilt/transient:** tile cache/camera/workspaces, active NPC reconstruction on area load, dialogue panels/menu navigation, pending quest flag evaluations, pending quest and level-up notices, combat search and battle scene state, and pending encounter contacts. Save restoration validates IDs, party data, flags, positions, and quest invariants; it reconstructs the view and NPC state.
 - **Quest tracking:** only one **active** quest may be selected. The Quest Start panel presents the objective at the time of starting. A (Track) selects the quest if it is still active. B (Close) keeps the current selection. A completed or inactive quest is automatically untracked. All started or completed quests appear in the Journal. Selection does not affect quest progression.
 - **Exploration guidance:** the tracked quest's objective or the local exit toward it has a bobbing down arrow above its tile while visible. For an offscreen target, the arrow slides along the screen edge with the player's bearing and points in one of eight directions. Without a tracked quest, there is no arrow.
-- **Save compatibility.** Version 22 stores the number of ranks learned on each track. Existing
-  saves retain their class identifiers, learned rank counts, and unspent choices. A learned rank
-  uses its current effect below. A version 22 member at Step rank 1 can load with up to 3 HP above
-  the current maximum from the former Steadfast perk. Loading clamps that HP to the current maximum.
-  Earlier development save versions are rejected.
+- **Save compatibility.** Version 23 assigns new equipment IDs and expands the ownership
+  flag range. Earlier development saves are rejected.
 
 ## 2. Implemented quests
 
@@ -260,16 +258,86 @@ They leave quest and reward state unchanged.
 
 ### 4.1 Equipment item catalog
 
-Ownership is one persistent bit per `ITEM_ID` (`FLAG_ITEM_FIRST + ID`). A party member's equipment slots store **item ID + 1** or zero for empty. One globally owned copy of an item may be equipped by at most one member at a time. Transferring it from another member unequips its previous wearer. Unavailable/unequipped items remain owned.
+Ownership is one persistent bit per `ITEM_ID` (`FLAG_ITEM_FIRST + ID`). Each member has
+one weapon, armor, and relic slot. A slot stores zero for empty or the item ID plus one.
+Each owned item has at most one wearer. A transfer clears the previous wearer's slot.
+Both members must be conscious for a transfer. Equipping and unequipping also require a
+conscious member. When an equipment change lowers maximum HP or AP, clamp the current
+value to the new maximum.
 
-| `ITEM_ID` | Numeric ID | Slot | Implemented effect | Acquisition |
-|---|---:|---|---|---|
-| `ITEM_IRON_FANG` | 0 | `SLOT_WEAPON` | +1 direct normal and special attack damage; **does not** affect movement engagement damage | Owned on new game; starts unequipped |
-| `ITEM_TRAVELERS_BOOTS` | 1 | `SLOT_ARMOR` | +2 maximum HP while equipped | `CaveChest` |
-| `ITEM_DAWN_PENDANT` | 2 | `SLOT_RELIC` | +1 AP recovery per **victory**, while equipped (not +1 max AP) | `DungeonChest` |
-| `ITEM_VITAL_PENDANT` | 3 | `SLOT_RELIC` | +3 maximum HP while equipped | `DungeonChest` |
+A deployed party member has one transient used bit for each slot in `BattleUnit`.
+These share the byte holding enemy AP. All three clear at deployment, and each battle
+simulation copy has its own bits. Previews leave the bits untouched.
 
-`ITEM_DEFINED_COUNT = 4`; `ITEM_NONE = 0xff`. A member can wear one weapon, one armor item, and one relic. Because both pendants use `SLOT_RELIC`, they cannot be simultaneously equipped on the same member. Changing equipment clamps current HP/AP down to a reduced maximum; it does **not** heal or replenish those statistics. There is no implemented item selling or equipment purchasing service.
+#### Early game
+
+All 34 entries below have engine support. New games start with no equipment owned.
+The world, chests, quests, and shops currently grant none of the entries.
+
+| `ITEM_ID` | ID | Slot | Implemented effect |
+|---|---:|---|---|
+| `ITEM_FIRSTSTRIKE_SWORD` | 0 | Weapon | The first normal attack each battle deals +2 damage. |
+| `ITEM_HUNTERS_BLADE` | 1 | Weapon | The first normal hit against a previously injured target deals +3 damage. |
+| `ITEM_NEEDLE_SPEAR` | 2 | Weapon | Normal hits against enemies at full HP deal +1 damage. |
+| `ITEM_CRACKED_SABER` | 3 | Weapon | Normal hits deal +1 damage. The first normal hit made while the wielder is at or below half HP deals +3 damage instead. The wielder has 3 less maximum HP. |
+| `ITEM_BRASS_KNUCKLE` | 4 | Weapon | Normal hits deal +1 damage while at least two enemies are adjacent to the wielder. |
+| `ITEM_STONEBREAKER` | 5 | Weapon | Normal hits deal +1 damage if the target is adjacent to a solid obstacle. |
+| `ITEM_WOLF_FANG` | 6 | Weapon | Normal hits deal +1 damage if another living party member is adjacent to the target. |
+| `ITEM_THORN_PIKE` | 7 | Weapon | Each move deals +1 engagement damage to one adjacent enemy. |
+| `ITEM_PATHFINDERS_KNIFE` | 8 | Weapon | On the first move that leaves cover and engages, deal +2 engagement damage to one adjacent enemy. Start next to a solid obstacle and land next to none. |
+| `ITEM_WOODCUT_AXE` | 9 | Weapon | Normal hits deal +1 damage to a target on the battle board's outer edge. |
+| `ITEM_MUD_SLING` | 10 | Weapon | A normal hit from three or more cells away deals +2 damage if the wielder stands adjacent to a solid obstacle. |
+| `ITEM_BARN_FORK` | 11 | Weapon | Normal hits deal +1 damage while the wielder is at full HP. |
+| `ITEM_GUARD_VEST` | 12 | Armor | Reduce the first enemy hit each battle by 2 damage. |
+| `ITEM_LEATHER_JERKIN` | 13 | Armor | +3 maximum HP. |
+| `ITEM_OAK_SHIELD` | 14 | Armor | Reduce enemy hits by 1 damage while the wearer is at or below half HP. |
+| `ITEM_REED_ARMOR` | 15 | Armor | While the wearer has no adjacent ally, reduce the first enemy hit that would deal at least 3 damage by 2. |
+| `ITEM_RIVER_CLOAK` | 16 | Armor | The first enemy hit from at least three cells away deals 3 less damage. |
+| `ITEM_ASH_CLOAK` | 17 | Armor | +1 maximum HP. The first move without engagement costs 1 less HP. |
+| `ITEM_SCOUT_SANDALS` | 18 | Armor | +1 maximum HP. The first move that ends with engagement costs 1 less HP. |
+| `ITEM_SOFT_BANDAGES` | 19 | Armor | Potions heal the wearer for up to 2 extra HP. |
+| `ITEM_PADDED_SHAWL` | 20 | Armor | The first enemy hit taken while adjacent to a living ally deals 3 less damage. |
+| `ITEM_LEAD_BOOTS` | 21 | Armor | Reduce enemy hits by 1 damage and increase each move's HP cost by 1. |
+| `ITEM_TURNSHOE` | 22 | Armor | Reduce the first enemy hit taken on a board edge each battle by 3 damage. |
+| `ITEM_HOPPER_VEST` | 23 | Armor | +1 maximum HP. Elixirs heal the wearer for up to 1 extra HP. |
+| `ITEM_MOON_SHARD` | 24 | Relic | +1 maximum AP. |
+| `ITEM_SURVIVORS_RIBBON` | 25 | Relic | Restore 1 HP to the conscious wearer after each victory. |
+| `ITEM_FERRY_BEAD` | 26 | Relic | At victory, heal an adjacent conscious ally for 2 HP if the wearer is still conscious. Pick the ally with the most missing HP, breaking ties by party order. |
+| `ITEM_THORN_RING` | 27 | Relic | The first move that engages at least two enemies deals +1 damage to each adjacent enemy. |
+| `ITEM_GRAVE_TOKEN` | 28 | Relic | At exactly 1 HP, each hit on the wearer's action deals +3 damage, including engagement and secondary hits. |
+| `ITEM_SLUICE_TALLY` | 29 | Relic | Gain 1 extra G after every victory while equipped, up to wallet capacity. |
+| `ITEM_SHARED_CUP` | 30 | Relic | When the party uses a Potion on another member, the conscious wearer also heals up to 1 HP. |
+| `ITEM_LANTERN_WICK` | 31 | Relic | The first enemy hit against a conscious ally adjacent to the wearer deals 2 less damage, once per battle. |
+| `ITEM_TESSAS_ROSETTE` | 32 | Relic | +1 maximum HP. A Revive used on the wearer returns them to up to 7 HP. |
+| `ITEM_SPLIT_BUTTON` | 33 | Relic | If the wearer finishes a victory at exactly 1 HP, restore 4 HP to them. |
+
+Normal weapon effects modify the selected normal attack target. Range for equipment checks
+counts orthogonal grid steps. Cover means sharing an edge with blocked terrain. For a
+single engagement target, use the lowest pre-hit HP among adjacent enemies, breaking ties by
+battle-unit index. Scout Sandals and Ash Cloak spend their activation only when the move
+would cost HP and battle continues after engagement. Lead Boots add 1 HP to the final
+movement cost, including when Footwork waives the base cost.
+
+Primary enemy hits apply movement-rank protection first, followed by armor and Lantern Wick.
+Reed Armor tests the damage remaining after movement-rank protection. Armor and the wick can
+both activate on the same hit, with a floor of 1 damage. The first-hit triggers are spent on
+their first qualifying hit. Lantern Wick requires a living adjacent wearer and protects only
+another party member. Victory healing uses the final board and HP snapshot before recovery and
+XP awards. Sluice Tally contributes 1 G to the party's victory reward whenever equipped,
+including on a fallen wearer, subject to wallet capacity.
+
+#### Midgame
+
+Ideas only. Iron Fang, Traveler's Boots, Dawn Pendant, and Vital Pendant are listed in the
+[midgame proposals](ideas_for_items_perks_abilities.md#midgame).
+
+#### Late game
+
+Ideas only. See the [late-game proposals](ideas_for_items_perks_abilities.md#late-game).
+
+#### Endgame
+
+Ideas only. See the [endgame proposals](ideas_for_items_perks_abilities.md#endgame).
 
 ### 4.2 Consumable supplies and shop
 
@@ -282,22 +350,22 @@ A supply is an owned **stack quantity**, not an equipment flag. Each has a maxim
 | `SUPPLY_REVIVE` | 1 | Set a fallen member to up to **5 HP** | One member at 0 HP | 30 G |
 | `SUPPLY_ETHER` | 1 | Restore up to **3 AP** | One member below max AP, including one at 0 HP | 18 G |
 
-The shop sells these four supplies with unlimited stock at the fixed prices above. Each confirmed purchase consumes gold and adds **one** supply if enough money and capacity remain. No price changes, selling, stock depletion, merchant reputation, or inventory weight system is implemented. `party_rest` via the inn refills every member's derived max HP and max AP, including those at 0 HP, **free of charge**.
+The shop sells these four supplies with unlimited stock at the fixed prices above. Equipment modifiers for these supplies are listed above. Each confirmed purchase consumes gold and adds **one** supply if enough money and capacity remain. No price changes, selling, stock depletion, merchant reputation, or inventory weight system is implemented. `party_rest` via the inn refills every member's derived max HP and max AP, including those at 0 HP, **free of charge**.
 
 ### 4.3 Chest rewards and payment semantics
 
 | Container | Requirement | Successful payout | Persistence |
 |---|---|---|---|
-| `positions::CaveChest` | Access cave chest, `!FLAG_CAVE_CHEST`; enough room for **all** supplies; enough gold capacity; equipment not already owned | **25 G**, `ITEM_TRAVELERS_BOOTS`, **1 Potion**, **1 Ether** | Sets `FLAG_CAVE_CHEST` once; opened tile thereafter |
-| `positions::DungeonChest` | Access vault chest, `!FLAG_DUNGEON_CHEST`; enough room for **all** supplies; enough gold capacity; equipment not already owned | **25 G**, `ITEM_DAWN_PENDANT`, `ITEM_VITAL_PENDANT`, **1 Elixir**, **1 Revive** | Sets `FLAG_DUNGEON_CHEST` once; opened tile thereafter |
+| `positions::CaveChest` | Access cave chest, `!FLAG_CAVE_CHEST`; enough room for **all** supplies; enough gold capacity | **25 G**, **1 Potion**, **1 Ether** | Sets `FLAG_CAVE_CHEST` once; opened tile thereafter |
+| `positions::DungeonChest` | Access vault chest, `!FLAG_DUNGEON_CHEST`; enough room for **all** supplies; enough gold capacity | **25 G**, **1 Elixir**, **1 Revive** | Sets `FLAG_DUNGEON_CHEST` once; opened tile thereafter |
 
-`ContainerReward::claim()` is **all-or-nothing**. Failed capacity/ownership validation leaves supplies, gold, equipment and chest flag unchanged. Chests are authored at locations; the reward policy is **not** automatically a reward of any quest. The player can revisit an unclaimed chest after freeing space.
+`ContainerReward::claim()` is **all-or-nothing**. Failed capacity validation leaves supplies, gold and the chest flag unchanged. Chests are authored at locations; the reward policy is **not** automatically a reward of any quest. The player can revisit an unclaimed chest after freeing space.
 
 ### 4.4 Rewards and replay
 
 | Source | Effect | Status / replay |
 |---|---|---|
-| Any victorious battle | 2 XP to each roster member, 3 G per deployed enemy, eligible AP recovery | repeatable if enemy respawns |
+| Any victorious battle | 2 XP to each roster member, 3 G per deployed enemy, eligible equipment rewards, and AP recovery | repeatable if enemy respawns |
 | Lantern Keeper final repair | **6 XP/member + 12 G**, permanent village lantern repair and branch-specific reactions | Once, guarded by `FLAG_LANTERN_RESTORED` |
 | Missing Surveyor rescue | **8 XP/member + 15 G**, surveyor moves to village | Once, guarded by `FLAG_SURVEYOR_RESCUED` |
 | Mine bridge pressure plate | Permanent bridge/hatch access | Permanent mechanism used in Missing Surveyor |
@@ -312,13 +380,13 @@ The Quest Complete panel reports party XP and gold credited after the completion
 
 ### 5.1 Starting party and base progression
 
-- New game: one traveler (`NPC_NONE`), `MOVEMENT_STEP`, `ATTACK_STRIKE`, **level 1**, **20/20 HP**, **4/4 AP**, no equipped items, **0 G**, Iron Fang owned but unequipped, and the supply counts above. Rowan is an optional recruit: `MOVEMENT_STEP` / `ATTACK_SHOOT`, **18/18 HP**, **4/4 AP**, level 1.
+- New game: one traveler (`NPC_NONE`), `MOVEMENT_STEP`, `ATTACK_STRIKE`, **level 1**, **20/20 HP**, **4/4 AP**, no owned equipment, **0 G**, and the supply counts above. Rowan is an optional recruit: `MOVEMENT_STEP` / `ATTACK_SHOOT`, **18/18 HP**, **4/4 AP**, level 1.
 - Party capacity: **4**. Identity cannot be duplicated. New recruits begin at full derived HP/AP and level 1; recruiting never resets existing members' progress.
 - Party member levels: **1–10**. XP to next level from current level `L`: `5 × (L + 1)` (e.g. 10 at level 1, 15 at level 2). XP is the amount **toward** the next level, not cumulative; overflow carries across level-ups, and XP at level 10 is discarded.
 - Base maximum HP: **20**, except Rowan **18**. Add **+2 at level 3**, **+2 more at level 7** and equipped HP bonuses. Leveling does **not** itself restore current HP.
 - Normal/special **direct attack base damage** gains **+1 at level 5** and **+1 more at level 9**. Engagement and secondary attack damage use their own base damage and perks.
-- Max AP: **4** for all current members. No rank/item currently increases maximum AP.
-- Victory AP recovery: **1 baseline**, plus any `ITEM_DAWN_PENDANT` bonus, capped at 4. AP is not automatically restored on turn changes or within combat.
+- Max AP: **4** at baseline. Moon Shard adds **1** while equipped.
+- Victory AP recovery: **1** per member, capped at that member’s maximum AP. AP is not automatically restored on turn changes or within combat.
 - Perk choices: one at **levels 2, 4, 6, 8, and 10**, derived as `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement perk track and one attack perk track. Ranks are learned in order and their effects stack. Each track has four learnable ranks. Spending the first four choices on one track unlocks its capstone at level 8. Unspent choices remain available until used.
 
 ### 5.2 Battle movement classes
@@ -488,19 +556,20 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 - Combat board is **8×4 cells**. Up to **four** deployed party units and **four** enemies; battlefield selection chooses among the allowed map/tileset boards. Initial positions are randomized within designated deployment rectangles, respecting blocked cells.
 - One **unit action** (move, normal attack, special) consumes **the whole acting side's turn**. Sides alternate; a team may also pass. Automatic pass occurs if no legal action exists.
 - **Move sequence:** Move to the destination, deal **1 base engagement damage** to every
-  orthogonally adjacent living enemy, then apply movement perk effects. Overrun pushes a surviving
-  forward enemy after engagement damage. The mover pays **1 HP** unless Footwork waives it.
+  orthogonally adjacent living enemy, then apply movement perk and equipment effects. Overrun pushes a surviving
+  forward enemy after engagement damage. The mover pays **1 HP** before any Footwork or equipment adjustment.
   Actors with **1 HP may move** and may fall from the movement price. If engagement kills the
   last opponent, victory is decided **before** movement HP is paid.
 - **Attack sequence:** Spend AP once for a special. Determine primary damage, positional bonuses,
   and secondary victims from the original position. Apply Hold Together and Shield Wall to the
-  primary hit if the target has learned them and is supported. Apply all primary and secondary
+  primary hit if the target has learned them and is supported, then apply equipment protection. Apply all primary and secondary
   damage, then any Drain healing. Resolve knockback for a surviving victim or retreat for the
   attacker, using the original positions. Forced displacement requires an empty, unblocked cell inside the board and
   ignores movement class. It costs no HP and triggers no engagement or voluntary-move restriction. Check
   victory or defeat after all attack effects, then hand the turn to the other team if play continues.
-  Ordinary actions either reduce total battle HP or eliminate at least one combatant. Life Channel
-  can restore more total HP than it removes and spends 3 AP from the attacker's finite battle pool.
+  Ordinary damaging actions remove at least 1 HP from an opponent. Ash Cloak can waive the
+  cost of one quiet move. Life Channel can restore more total HP than it removes and spends
+  3 AP from the attacker's finite battle pool.
 - Battle presentation follows the resolved action. Step walks, Leap arcs high, Charge accelerates,
   Vault springs over the crossed cells, and Glide leaves a diagonal trail. Attacks use class-specific
   contact effects, with arrows for Shoot and an orb for Blast. Starters and signatures cue their
@@ -516,7 +585,7 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
   alone. Enemy panels show AP while the unit has AP remaining. Party panels show AP from level 3,
   including 0 AP. The panel fits the wider rendered line.
 - Zero-HP party members do not deploy in subsequent encounters until revived/rested. Battle outcome is victory/defeat, never a draw. Defeat returns to the title screen rather than applying quest rewards.
-- Victory writes surviving and fallen party HP back to saved members; grants each roster member (including those not deployed or at 0 HP) **2 XP** and victory AP recovery; credits **3 G for each deployed enemy** subject to wallet cap.
+- Victory writes surviving and fallen party HP back to saved members; grants each roster member (including those not deployed or at 0 HP) **2 XP** and victory AP recovery; credits **3 G for each deployed enemy** plus any equipment gold bonus, subject to wallet cap.
 
 **Existing battlefield IDs:** outdoor (`BATTLEFIELD_GROVE`, `MEADOW`, `RIVERBANK`); cave (`MINE_GALLERY`, `MINE_CROSSING`, `MINE_CHAMBER`); dungeon (`VAULT_HALL`, `VAULT_CRYPT`, `VAULT_COURT`); interiors (`HOUSE_TAVERN`, `HOUSE_STORE`, `HOUSE_HALL`). The four tileset selections choose from their corresponding three boards. Geometry/obstacles reside in `src/battlefields.cpp`.
 
@@ -562,7 +631,7 @@ The catalog concatenates `VillageEnemies`, `CaveEnemies`, `DungeonEnemies`, `Orc
 | **12 / 21** | `ShrineGolem` | `ENEMY_WANDER`, zero wander range | `ENEMY_GOLEM` ×1 + `ENEMY_GHOST` ×1 (`VAULT_COURT`) | `RESPAWN_NEVER` | Optional late fight on the shrine's east side |
 | **13 / 22** | `VaultCultist` | `ENEMY_WANDER`, zero wander range | `ENEMY_HOODED_CULTIST` ×1 (`VAULT_HALL`) | `RESPAWN_NEVER` | Optional late fight inside the vault, east of the doorway |
 
-Spawns 0–13 use defeat bits **26–39** (`FLAG_ENEMY_FIRST + spawn_index`). The reserve holds 16 bits (2 unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
+Spawns 0–13 use defeat bits **56–69** (`FLAG_ENEMY_FIRST + spawn_index`). The reserve holds 16 bits (2 unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
 
 ### 6.4 The World Remembers
 
@@ -631,13 +700,13 @@ No `QUEST_ID` currently governs Old Vault progression; access, switches, chest a
 2. **Missing Surveyor:** `RESCUED => FOUND && STARTED && CAVE_BRIDGE`; `FOUND => STARTED`; note/trail clues are optional. Surveyor is in the cave before rescue and village afterward. Rescue awards exactly once.
 3. **Independence:** neither quest may require completion, item, branch, or special event from the other. The cave can be explored and bridge opened before either quest is accepted.
 4. **Enemy flags:** defeat flag meaning follows spawn-index order; permanent guardian never returns. World Remembers cannot erase new quest facts or permanent mechanisms.
-5. **Equipment:** a globally owned item has at most one wearer; a compatible owned item or empty occupies each slot; removing max-HP equipment clamps current HP.
+5. **Equipment:** a globally owned item has at most one wearer; a compatible owned item or empty occupies each slot; changing equipment requires conscious wearers and clamps current HP/AP.
 6. **Consumables/chests:** prevent capacity overflow and underflow; container rewards are all-or-nothing and single-claim.
 7. **Party/perks:** no duplicate recruits; party size ≤ 4; ranks constrained by implementation and earned milestones; current HP/AP ≤ derived maxima.
 8. **Quests:** status, journal objectives and markers are read-only state derivations; cancellation must not mutate completion flags; loads must not replay rewards.
 9. **No softlocks:** mine crossing, both mine exits, house returns, cave mechanisms, NPC sites and vault all retain viable escape/recovery paths.
 10. **Defeat:** player returns to the title screen; no quest-success flags or rewards are granted by a lost encounter.
-11. **Quest catalog:** the Journal registry consists of `QUEST_LANTERN_KEEPER` and `QUEST_MISSING_SURVEYOR`. Quest identities and the flag layout belong to save format 22.
+11. **Quest catalog:** the Journal registry consists of `QUEST_LANTERN_KEEPER` and `QUEST_MISSING_SURVEYOR`. Quest identities and the flag layout belong to save format 23.
 
 ### 8.2 Future content entry template
 

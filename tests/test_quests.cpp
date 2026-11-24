@@ -16,8 +16,8 @@
 #include <string.h>
 
 static_assert(NPC_SURVEYOR == 8 && NPC_ENEMY_FIRST == 9);
-static_assert(FLAG_ITEM_FIRST == 22 && FLAG_ENEMY_FIRST == 26 && FLAG_BRAM_LANTERN_MEETING == 42 &&
-              FLAG_COUNT == 43);
+static_assert(FLAG_ITEM_FIRST == 22 && FLAG_ENEMY_FIRST == 56 && FLAG_BRAM_LANTERN_MEETING == 72 &&
+              FLAG_COUNT == 73);
 
 static unsigned checks;
 #define CHECK(value)                                                                               \
@@ -463,7 +463,7 @@ int main() {
     survey(NOTES);
     journal_completed();
     touch(positions::CaveChest);
-    CHECK(equipment_owned(ITEM_TRAVELERS_BOOTS) && game.gold == 52);
+    CHECK(game.gold == 52);
     reload();
     touch(positions::CaveChest);
     CHECK(game.gold == 52);

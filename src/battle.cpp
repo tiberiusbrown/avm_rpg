@@ -15,6 +15,16 @@ bool battle_blocked(uint8_t field, uint8_t cell) {
     return (BATTLEFIELDS[field].blocked[battle_row(cell)] >> battle_column(cell)) & 1;
 }
 
+static ITEM_ID battle_equipment(BattleUnit const& unit, EQUIPMENT_SLOT slot) {
+    if(unit.id & BATTLE_PARTY_SOURCE)
+        return equipment_get(game.party.members[unit.id & ~BATTLE_PARTY_SOURCE], slot);
+    return ITEM_NONE;
+}
+
+static constexpr uint8_t slot_bit(EQUIPMENT_SLOT slot) {
+    return (uint8_t)(1 << slot);
+}
+
 // Check every independent class combination, including those not used by an enemy preset.
 constexpr bool battle_classes_fit() {
     for(auto const& rules : BATTLE_RULES.classes) {
@@ -105,6 +115,32 @@ void battle_begin(BattleState& state, BattleEncounter const PROGMEM* encounter) 
         state.ended = true;
 }
 
+static void victory_heal(PartyMember& member, uint8_t amount) {
+    uint8_t maximum = party_max_hp(member);
+    uint16_t healed = (uint16_t)member.hp + amount;
+    member.hp = healed < maximum ? (uint8_t)healed : maximum;
+}
+
+RPG_NOINLINE static void ferry_bead_heal(BattleState const& state, BattleUnit const& wearer) {
+    uint8_t target = PARTY_CAPACITY;
+    uint8_t missing = 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        auto const& ally = state.units[i];
+        if(!ally.hp || ally.team != wearer.team || !(ally.id & BATTLE_PARTY_SOURCE) ||
+           !battle_cells_adjacent(ally.cell, wearer.cell))
+            continue;
+        uint8_t slot = ally.id & ~BATTLE_PARTY_SOURCE;
+        uint8_t maximum = party_max_hp(game.party.members[slot]);
+        uint8_t deficit = ally.hp < maximum ? maximum - ally.hp : 0;
+        if(deficit > missing || (deficit && deficit == missing && slot < target)) {
+            missing = deficit;
+            target = slot;
+        }
+    }
+    if(target < PARTY_CAPACITY)
+        victory_heal(game.party.members[target], 2);
+}
+
 BattleRewards battle_finish(BattleState const& state) {
     BattleRewards rewards;
     static_assert(BATTLE_UNIT_CAPACITY * 3 <= UINT8_MAX);
@@ -119,13 +155,35 @@ BattleRewards battle_finish(BattleState const& state) {
     }
     if(!state.ended || state.result != BATTLE_VICTORY)
         return rewards;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        auto const& unit = state.units[i];
+        if(!unit.hp || unit.team != BATTLE_PARTY || !(unit.id & BATTLE_PARTY_SOURCE))
+            continue;
+        auto& member = game.party.members[unit.id & ~BATTLE_PARTY_SOURCE];
+        switch(equipment_get(member, SLOT_RELIC)) {
+            case ITEM_SURVIVORS_RIBBON:
+                victory_heal(member, 1);
+                break;
+            case ITEM_FERRY_BEAD:
+                ferry_bead_heal(state, unit);
+                break;
+            case ITEM_SPLIT_BUTTON:
+                if(unit.hp == 1)
+                    victory_heal(member, 4);
+                break;
+            default:
+                break;
+        }
+    }
+    for(uint8_t i = 0; i < game.party.count; ++i)
+        gold += equipment_get(game.party.members[i], SLOT_RELIC) == ITEM_SLUICE_TALLY;
     uint16_t wallet_room = UINT16_MAX - game.gold;
     rewards.gold_gained = gold < wallet_room ? gold : (uint8_t)wallet_room;
     game.gold += rewards.gold_gained;
     // Every member recovers and earns experience, including one that fell or did not deploy.
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember& member = game.party.members[i];
-        uint16_t ap = member.ap + party_victory_ap(member);
+        uint16_t ap = member.ap + PARTY_VICTORY_AP;
         uint8_t maximum = party_max_ap(member);
         member.ap = ap < maximum ? (uint8_t)ap : maximum;
         rewards.levels.award(game.party, i, party_victory_experience(member));
@@ -319,12 +377,8 @@ RPG_NOINLINE static uint8_t primary_damage(BattleState const& state, uint8_t att
     }
     if(attack == ATTACK_FLANK && position)
         damage += 2;
-    if(attacker.id & BATTLE_PARTY_SOURCE) {
-        PartyMember const& member = game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE];
-        damage += party_attack_bonus(member);
-        if(equipment_get(member, SLOT_WEAPON) == ITEM_IRON_FANG)
-            damage += IRON_FANG_DAMAGE;
-    }
+    if(attacker.id & BATTLE_PARTY_SOURCE)
+        damage += party_attack_bonus(game.party.members[attacker.id & ~BATTLE_PARTY_SOURCE]);
     if(rank) {
         switch(attack) {
             case ATTACK_STRIKE:
@@ -428,13 +482,166 @@ RPG_NOINLINE static uint8_t guarded_damage(BattleState const& state, uint8_t vic
     return damage;
 }
 
+static bool board_edge(uint8_t cell) {
+    uint8_t x = battle_column(cell), y = battle_row(cell);
+    return !x || x == BATTLE_COLUMNS - 1 || !y || y == BATTLE_ROWS - 1;
+}
+
+static uint8_t cell_distance(uint8_t from, uint8_t to) {
+    uint8_t ax = battle_column(from), ay = battle_row(from);
+    uint8_t bx = battle_column(to), by = battle_row(to);
+    return (ax > bx ? ax - bx : bx - ax) + (ay > by ? ay - by : by - ay);
+}
+
+RPG_NOINLINE static bool beside_cover(uint8_t field, uint8_t cell) {
+    for(uint8_t dir = NORTH; dir <= WEST; ++dir) {
+        uint8_t neighbor;
+        if(battle_neighbor(cell, (DIRECTION)dir, neighbor) && battle_blocked(field, neighbor))
+            return true;
+    }
+    return false;
+}
+
+static bool at_half_hp(BattleUnit const& unit) {
+    return unit.hp <= battle_max_hp(unit) / 2;
+}
+
+struct WeaponHit {
+    uint8_t bonus = 0;
+    bool spend = false;
+};
+
+RPG_NOINLINE static WeaponHit weapon_hit(BattleState const& state, uint8_t attacker,
+                                         uint8_t victim) {
+    auto const& actor = state.units[attacker];
+    auto const& target = state.units[victim];
+    bool ready = !(actor.equipment_used() & slot_bit(SLOT_WEAPON));
+    switch(battle_equipment(actor, SLOT_WEAPON)) {
+        case ITEM_FIRSTSTRIKE_SWORD:
+            return ready ? WeaponHit{2, true} : WeaponHit{};
+        case ITEM_HUNTERS_BLADE:
+            return ready && target.hp < battle_max_hp(target) ? WeaponHit{3, true} : WeaponHit{};
+        case ITEM_NEEDLE_SPEAR:
+            return {(uint8_t)(target.hp == battle_max_hp(target))};
+        case ITEM_CRACKED_SABER:
+            return ready && at_half_hp(actor) ? WeaponHit{3, true} : WeaponHit{1};
+        case ITEM_BRASS_KNUCKLE:
+            return {(uint8_t)(adjacent_allies(state, victim, actor.cell, false) +
+                                  battle_cells_adjacent(actor.cell, target.cell) >=
+                              2)};
+        case ITEM_STONEBREAKER:
+            return {(uint8_t)beside_cover(state.field, target.cell)};
+        case ITEM_WOLF_FANG:
+            return {(uint8_t)adjacent_allies(state, attacker, target.cell, true)};
+        case ITEM_WOODCUT_AXE:
+            return {(uint8_t)board_edge(target.cell)};
+        case ITEM_MUD_SLING:
+            return {(uint8_t)(cell_distance(actor.cell, target.cell) >= 3 &&
+                                      beside_cover(state.field, actor.cell)
+                                  ? 2
+                                  : 0)};
+        case ITEM_BARN_FORK:
+            return {(uint8_t)(actor.hp == battle_max_hp(actor))};
+        default:
+            return {};
+    }
+}
+
+static uint8_t grave_token_bonus(BattleUnit const& actor) {
+    return actor.hp == 1 && battle_equipment(actor, SLOT_RELIC) == ITEM_GRAVE_TOKEN ? 3 : 0;
+}
+
+struct ArmorGuard {
+    uint8_t reduction = 0;
+    bool spend = false;
+};
+
+BATTLE_ALWAYS_INLINE static inline ArmorGuard
+armor_guard(BattleState const& state, uint8_t attacker, uint8_t victim, uint8_t damage) {
+    auto const& target = state.units[victim];
+    ITEM_ID armor = battle_equipment(target, SLOT_ARMOR);
+    if(armor == ITEM_LEAD_BOOTS || (armor == ITEM_OAK_SHIELD && at_half_hp(target)))
+        return {1};
+    if(target.equipment_used() & slot_bit(SLOT_ARMOR))
+        return {};
+    switch(armor) {
+        case ITEM_GUARD_VEST:
+            return {2, true};
+        case ITEM_REED_ARMOR:
+            if(damage >= 3 && !adjacent_allies(state, victim, target.cell, true))
+                return {2, true};
+            break;
+        case ITEM_RIVER_CLOAK:
+            if(cell_distance(state.units[attacker].cell, target.cell) >= 3)
+                return {3, true};
+            break;
+        case ITEM_PADDED_SHAWL:
+            if(adjacent_allies(state, victim, target.cell, true))
+                return {3, true};
+            break;
+        case ITEM_TURNSHOE:
+            if(board_edge(target.cell))
+                return {3, true};
+            break;
+        default:
+            break;
+    }
+    return {};
+}
+
+struct HitGuard {
+    uint8_t damage;
+    uint8_t reflected = 0;
+    uint8_t wick : 4 = BATTLE_NO_UNIT;
+    bool spend_armor : 1 = false;
+};
+
+RPG_NOINLINE static uint8_t lantern_wick(BattleState const& state, BattleUnit const& target) {
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        auto const& ally = state.units[i];
+        if(ally.hp && ally.team == target.team && battle_cells_adjacent(ally.cell, target.cell) &&
+           !(ally.equipment_used() & slot_bit(SLOT_RELIC)) &&
+           battle_equipment(ally, SLOT_RELIC) == ITEM_LANTERN_WICK)
+            return i;
+    }
+    return BATTLE_NO_UNIT;
+}
+
+RPG_NOINLINE static HitGuard equipment_guard(BattleState const& state, uint8_t attacker,
+                                             uint8_t victim, uint8_t damage) {
+    HitGuard guard{damage};
+    ArmorGuard armor = armor_guard(state, attacker, victim, damage);
+    guard.spend_armor = armor.spend;
+    uint8_t reduction = armor.reduction;
+    if(game.get_flag(equipment_flag(ITEM_LANTERN_WICK))) {
+        guard.wick = lantern_wick(state, state.units[victim]);
+        if(guard.wick < BATTLE_NO_UNIT)
+            reduction += 2;
+    }
+    guard.damage = guard.damage > reduction ? guard.damage - reduction : 1;
+    return guard;
+}
+
+BATTLE_ALWAYS_INLINE static inline HitGuard defend_hit(BattleState const& state, uint8_t attacker,
+                                                       uint8_t victim, uint8_t damage) {
+    uint8_t reflected = 0;
+    damage = guarded_damage(state, victim, damage, reflected);
+    HitGuard guard = state.units[victim].id & BATTLE_PARTY_SOURCE && damage
+                         ? equipment_guard(state, attacker, victim, damage)
+                         : HitGuard{damage};
+    guard.reflected = reflected;
+    return guard;
+}
+
 uint8_t battle_attack_damage(BattleState const& state, uint8_t attacker, uint8_t victim,
                              bool special) {
     uint8_t attack = battle_attack_class(state.units[attacker].id);
-    uint8_t reflected = 0;
     uint8_t damage = raw_attack_damage(state, attacker, victim, attack,
                                        attack_position(state, attacker, victim, attack), special);
-    return guarded_damage(state, victim, damage, reflected);
+    if(!special)
+        damage += weapon_hit(state, attacker, victim).bonus;
+    damage += grave_token_bonus(state.units[attacker]);
+    return defend_hit(state, attacker, victim, damage).damage;
 }
 
 RPG_NOINLINE uint8_t battle_splash_targets(BattleState const& state, uint8_t attacker,
@@ -556,15 +763,18 @@ RPG_NOINLINE BattleAttackImpact battle_attack_impact(BattleState const& state, u
     uint8_t secondary = attack_position(state, attacker, victim, attack);
     uint8_t raw = primary_damage(state, attacker, victim, attack, secondary);
     SecondaryDamage splash = attack_splash(state, attacker, victim, secondary, raw, false);
-    uint8_t reflected = 0;
-    uint8_t damage = guarded_damage(state, victim, raw, reflected);
+    uint8_t relic = grave_token_bonus(state.units[attacker]);
+    HitGuard guard = defend_hit(state, attacker, victim,
+                                raw + weapon_hit(state, attacker, victim).bonus + relic);
+    uint8_t damage = guard.damage;
     uint8_t hp = state.units[victim].hp;
-    BattleAttackImpact impact{(uint8_t)(hp <= damage), hp < damage ? hp : damage, reflected};
+    BattleAttackImpact impact{(uint8_t)(hp <= damage), hp < damage ? hp : damage, guard.reflected};
     for(uint8_t i = 0; splash.targets; ++i, splash.targets >>= 1) {
         if(splash.targets & 1) {
             hp = state.units[i].hp;
             damage = splash_damage(state, splash, state.units[attacker].cell,
-                                   state.units[victim].cell, i);
+                                   state.units[victim].cell, i) +
+                     relic;
             impact.kills += hp <= damage;
             impact.damage += hp < damage ? hp : damage;
         }
@@ -1036,6 +1246,9 @@ struct EngagementDamage {
     uint8_t bonus_cell = BATTLE_CELLS;
     uint8_t crossed_cell = BATTLE_CELLS;
     uint8_t extra = PASSING_CUT_BONUS;
+    uint8_t item_cell = BATTLE_CELLS;
+    uint8_t item_bonus = 0;
+    uint8_t spend = 0;
 
     uint8_t at(uint8_t cell, bool beside_landing) const {
         static_assert(SPEARHEAD_BONUS == VAULT_STRIKE_BONUS);
@@ -1044,12 +1257,13 @@ struct EngagementDamage {
         if(!beside_landing)
             return extra;
         return (uint8_t)(adjacent +
-                         ((cell == bonus_cell || cell == crossed_cell) ? VAULT_STRIKE_BONUS : 0));
+                         ((cell == bonus_cell || cell == crossed_cell) ? VAULT_STRIKE_BONUS : 0) +
+                         (cell == item_cell ? item_bonus : 0));
     }
 };
 
-static EngagementDamage engagement_damage(BattleUnit const& actor, uint8_t destination,
-                                          uint8_t engaged) {
+static EngagementDamage base_engagement_damage(BattleUnit const& actor, uint8_t destination,
+                                               uint8_t engaged) {
     EngagementDamage damage;
     uint8_t rank = battle_movement_rank(actor);
     if(!rank)
@@ -1095,11 +1309,74 @@ static EngagementDamage engagement_damage(BattleUnit const& actor, uint8_t desti
     return damage;
 }
 
+RPG_NOINLINE static void engagement_equipment(EngagementDamage& damage, BattleState const& state,
+                                              BattleUnit const& actor, uint8_t destination,
+                                              uint8_t engaged) {
+    uint8_t relic_bonus = grave_token_bonus(actor);
+    damage.adjacent += relic_bonus;
+    damage.extra += relic_bonus;
+    if(!engaged)
+        return;
+    if((engaged & (engaged - 1)) && !(actor.equipment_used() & slot_bit(SLOT_RELIC)) &&
+       battle_equipment(actor, SLOT_RELIC) == ITEM_THORN_RING) {
+        ++damage.adjacent;
+        damage.spend |= slot_bit(SLOT_RELIC);
+    }
+
+    ITEM_ID weapon = battle_equipment(actor, SLOT_WEAPON);
+    if(weapon == ITEM_THORN_PIKE) {
+        damage.item_bonus = 1;
+    } else if(weapon == ITEM_PATHFINDERS_KNIFE && !(actor.equipment_used() & slot_bit(SLOT_WEAPON)) &&
+              beside_cover(state.field, actor.cell) && !beside_cover(state.field, destination)) {
+        damage.item_bonus = 2;
+        damage.spend |= slot_bit(SLOT_WEAPON);
+    } else {
+        return;
+    }
+    uint8_t lowest_hp = 0;
+    for(uint8_t i = 0; engaged; ++i, engaged >>= 1) {
+        auto const& target = state.units[i];
+        if((engaged & 1) && (!lowest_hp || target.hp < lowest_hp)) {
+            lowest_hp = target.hp;
+            damage.item_cell = target.cell;
+        }
+    }
+}
+
+struct MoveCost {
+    uint8_t hp;
+    bool spend_armor = false;
+};
+
+static MoveCost move_cost(BattleUnit const& actor, bool engages) {
+    uint8_t cost = engages && battle_movement_class(actor.id) == FOOTWORK_CLASS &&
+                           battle_movement_rank(actor) >= FOOTWORK_RANK
+                       ? FOOTWORK_BONUS
+                       : BATTLE_MOVE_COST;
+    ITEM_ID armor = battle_equipment(actor, SLOT_ARMOR);
+    if(armor == ITEM_LEAD_BOOTS)
+        return {(uint8_t)(cost + 1)};
+    if(cost && !(actor.equipment_used() & slot_bit(SLOT_ARMOR)) &&
+       armor == (engages ? ITEM_SCOUT_SANDALS : ITEM_ASH_CLOAK))
+        return {(uint8_t)(cost - 1), true};
+    return {cost};
+}
+
 uint8_t battle_move_cost(BattleUnit const& actor, bool engages) {
-    if(engages && battle_movement_class(actor.id) == FOOTWORK_CLASS &&
-       battle_movement_rank(actor) >= FOOTWORK_RANK)
-        return FOOTWORK_BONUS;
-    return BATTLE_MOVE_COST;
+    return move_cost(actor, engages).hp;
+}
+
+uint8_t battle_engagement_equipment_bonus(BattleUnit const& actor) {
+    uint8_t bonus = grave_token_bonus(actor);
+    if(!(actor.equipment_used() & slot_bit(SLOT_RELIC)) &&
+       battle_equipment(actor, SLOT_RELIC) == ITEM_THORN_RING)
+        ++bonus;
+    ITEM_ID weapon = battle_equipment(actor, SLOT_WEAPON);
+    if(weapon == ITEM_THORN_PIKE)
+        ++bonus;
+    else if(weapon == ITEM_PATHFINDERS_KNIFE && !(actor.equipment_used() & slot_bit(SLOT_WEAPON)))
+        bonus += 2;
+    return bonus;
 }
 
 // Damage away from the orthogonal landing neighbors stays separate from the landing bonuses.
@@ -1153,7 +1430,9 @@ RPG_NOINLINE BattleEngagement battle_engagement(BattleState const& state, uint8_
     uint8_t engaged = landing_targets(state, actor, destination);
     if(!(engaged | extra))
         return engagement;
-    EngagementDamage damage = engagement_damage(actor, destination, engaged);
+    EngagementDamage damage = base_engagement_damage(actor, destination, engaged);
+    if(actor.id & BATTLE_PARTY_SOURCE)
+        engagement_equipment(damage, state, actor, destination, engaged);
     for(uint8_t i = 0; engaged | extra; ++i, engaged >>= 1, extra >>= 1) {
         if(!((engaged | extra) & 1))
             continue;
@@ -1254,11 +1533,13 @@ RPG_NOINLINE static bool apply_secondary_damage(BattleState& state, uint8_t atta
                                                 SecondaryDamage const& splash, uint8_t center,
                                                 uint8_t push) {
     bool fell = false;
+    uint8_t relic = grave_token_bonus(state.units[attacker]);
     for(uint8_t i = 0, targets = splash.targets; targets; ++i, targets >>= 1, push >>= 1) {
         if(!(targets & 1))
             continue;
         auto& unit = state.units[i];
-        if(battle_damage(unit, splash_damage(state, splash, state.units[attacker].cell, center, i)))
+        if(battle_damage(unit, splash_damage(state, splash, state.units[attacker].cell, center, i) +
+                                   relic))
             fell = true;
         else if(push & 1)
             unit.cell = concussion_landing(center, unit.cell);
@@ -1328,8 +1609,20 @@ RPG_NOINLINE static bool battle_resolve_attack(BattleState& state, uint8_t attac
     uint8_t raw = raw_attack_damage(state, attacker, victim, attack, position, special);
     if constexpr(signature)
         raw += bonus;
-    uint8_t reflected = 0;
-    uint8_t primary = guarded_damage(state, victim, raw, reflected);
+    WeaponHit weapon;
+    if constexpr(!signature) {
+        if(!special)
+            weapon = weapon_hit(state, attacker, victim);
+        if(weapon.spend)
+            actor.spend_equipment(slot_bit(SLOT_WEAPON));
+    }
+    HitGuard guard =
+        defend_hit(state, attacker, victim, raw + weapon.bonus + grave_token_bonus(actor));
+    if(guard.spend_armor)
+        target.spend_equipment(slot_bit(SLOT_ARMOR));
+    if(guard.wick < BATTLE_NO_UNIT)
+        state.units[guard.wick].spend_equipment(slot_bit(SLOT_RELIC));
+    uint8_t primary = guard.damage;
     SecondaryDamage splash = attack_splash(state, attacker, victim, position, raw, special);
     uint8_t push = attack == ATTACK_BLAST && rank >= CONCUSSION_RANK
                        ? concussion_targets(state, target.cell, splash.targets) : 0;
@@ -1337,8 +1630,8 @@ RPG_NOINLINE static bool battle_resolve_attack(BattleState& state, uint8_t attac
     bool fell = battle_damage(target, primary);
     if(splash.targets)
         fell = apply_secondary_damage(state, attacker, splash, target.cell, push) || fell;
-    if(reflected)
-        fell = battle_damage(actor, reflected) || fell;
+    if(guard.reflected)
+        fell = battle_damage(actor, guard.reflected) || fell;
 
     BATTLE_ATTACK_EFFECT effect = ATTACK_INFO[attack].effect;
     if(effect == BATTLE_EFFECT_DRAIN && hp_lost) {
@@ -1467,6 +1760,7 @@ RPG_NOINLINE static void plan_signature(BattleState const& state, uint8_t attack
     bool individual = attack == ATTACK_ARC || attack == ATTACK_REND;
     uint8_t full = individual ? 0 : primary_damage(state, attacker, victim, attack,
                                                      attack_position(state, attacker, victim, attack));
+    uint8_t relic = grave_token_bonus(state.units[attacker]);
     uint8_t center = state.units[victim].cell;
     for(uint8_t i = 0; targets; ++i, targets >>= 1) {
         if(!(targets & 1))
@@ -1474,6 +1768,7 @@ RPG_NOINLINE static void plan_signature(BattleState const& state, uint8_t attack
         plan.damage[i] = individual ? primary_damage(state, attacker, i, attack,
                                                        attack_position(state, attacker, i, attack))
                                     : full;
+        plan.damage[i] += relic;
         if(attack == ATTACK_BLAST &&
            battle_open_cell(state, (uint8_t)((center + state.units[i].cell) / 2)))
             plan.pull |= (uint8_t)(1 << i);
@@ -1516,9 +1811,14 @@ RPG_NOINLINE static bool battle_resolve_move(BattleState& state, BattleUnit& act
     uint8_t engaged = landing_targets(state, actor, destination);
     uint8_t extra = battle_extra_engagement(state, actor, destination);
     EngagementDamage damage;
-    if(engaged | extra)
-        damage = engagement_damage(actor, destination, engaged);
-    uint8_t move_cost = battle_move_cost(actor, (engaged | extra) != 0);
+    if(engaged | extra) {
+        damage = base_engagement_damage(actor, destination, engaged);
+        if(actor.id & BATTLE_PARTY_SOURCE) {
+            engagement_equipment(damage, state, actor, destination, engaged);
+            actor.spend_equipment(damage.spend);
+        }
+    }
+    MoveCost cost = move_cost(actor, (engaged | extra) != 0);
     uint8_t origin = actor.cell;
     bool skyhook = engaged && !(engaged & (engaged - 1)) &&
                    battle_movement_rank(actor) >= SKYHOOK_RANK &&
@@ -1550,7 +1850,9 @@ RPG_NOINLINE static bool battle_resolve_move(BattleState& state, BattleUnit& act
     // Victory from engagement takes precedence over the movement cost.
     if(fell && battle_check(state, actor.team))
         return false;
-    return battle_damage(actor, move_cost) || fell;
+    if(cost.spend_armor)
+        actor.spend_equipment(slot_bit(SLOT_ARMOR));
+    return battle_damage(actor, cost.hp) || fell;
 }
 
 // Resolves a unit's move or attack. A special attack, which the caller has checked and paid for,
@@ -1631,13 +1933,15 @@ void battle_apply_special(BattleState& state, BattleAction action, BATTLE_ATTACK
     if(!battle_special_legal(state, action, choice))
         return;
     auto& actor = state.units[action.unit_index];
-    uint8_t& ap = actor.id & BATTLE_PARTY_SOURCE
-                      ? game.party.members[actor.id & ~BATTLE_PARTY_SOURCE].ap : actor.ap;
+    uint8_t cost = choice == BATTLE_SIGNATURE ? BATTLE_SIGNATURE_AP
+                                              : SPECIAL_INFO[battle_attack_class(actor.id)].ap;
+    if(actor.id & BATTLE_PARTY_SOURCE)
+        game.party.members[actor.id & ~BATTLE_PARTY_SOURCE].ap -= cost;
+    else
+        actor.ap -= cost;
     if(choice == BATTLE_SIGNATURE) {
-        ap -= BATTLE_SIGNATURE_AP;
         battle_apply_signature(state, action);
     } else {
-        ap -= SPECIAL_INFO[battle_attack_class(actor.id)].ap;
         battle_act(state, action, true);
     }
 }

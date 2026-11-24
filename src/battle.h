@@ -328,7 +328,8 @@ constexpr bool battle_in_attack_range(BattleUnitRules const& rules, uint8_t dist
     return distance >= rules.attack_min && distance <= rules.attack_max;
 }
 
-// Battle copies carry each enemy's remaining AP. Party sources use the saved member's AP.
+// Party sources use the saved member's AP, freeing the low three bits of the local AP byte
+// for spent equipment slots. Battle copies carry those flags and deployment resets them.
 struct BattleUnit {
     uint8_t cell : 5;
     BATTLE_TEAM team : 1;
@@ -340,9 +341,18 @@ struct BattleUnit {
 
     constexpr BattleUnit(uint8_t cell, uint8_t hp, uint8_t id, BATTLE_TEAM team, uint8_t ap = 0)
         : cell(cell), team(team), hp(hp), id(id), ap(ap) {}
+
+    uint8_t equipment_used() const {
+        return id & BATTLE_PARTY_SOURCE ? ap : 0;
+    }
+
+    void spend_equipment(uint8_t slots) {
+        ap |= slots;
+    }
 };
 
 static_assert(sizeof(BattleUnit) == 4, "placement, HP, source ID and enemy AP");
+static_assert(SLOT_COUNT == 3, "one use flag per equipment slot");
 static_assert(sizeof(EnemyInfo) == 6, "enemy statistics and artwork stay in ROM");
 
 inline uint8_t battle_movement_rank(BattleUnit const& unit) {
@@ -559,6 +569,7 @@ BATTLE_ACTION_KIND battle_action_kind(BattleState const& state, BattleAction act
 
 // HP cost of a voluntary move if battle continues after engagement.
 uint8_t battle_move_cost(BattleUnit const& actor, bool engages);
+uint8_t battle_engagement_equipment_bonus(BattleUnit const& actor);
 
 // Unit bits for engagement away from the orthogonal landing neighbors.
 uint8_t battle_extra_engagement(BattleState const& state, BattleUnit const& actor,

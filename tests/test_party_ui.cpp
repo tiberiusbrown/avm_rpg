@@ -324,8 +324,8 @@ static void test_perk_tracks_follow_classes() {
 
 static void test_perk_index_keeps_rows_on_return() {
     Party party = make_party(1);
-    party.members[0].equipment[SLOT_WEAPON] = equipment_encode(ITEM_IRON_FANG);
-    party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_VITAL_PENDANT);
+    party.members[0].equipment[SLOT_WEAPON] = equipment_encode(ITEM_FIRSTSTRIKE_SWORD);
+    party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_TESSAS_ROSETTE);
     PartyUi ui{};
     open_perk_row(ui, party, PERK_ROW_EQUIPMENT);
     CHECK(ui.page == PARTY_PAGE_PERK_LIST);
@@ -333,7 +333,7 @@ static void test_perk_index_keeps_rows_on_return() {
     CHECK(ui.selection[PARTY_PAGE_PERK_LIST] == 1);
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
     CHECK(ui.page == PARTY_PAGE_PERK_DETAILS && ui.back == PARTY_PAGE_PERK_LIST);
-    CHECK(ui.entry == PERK_EQUIPMENT + ITEM_VITAL_PENDANT);
+    CHECK(ui.entry == PERK_EQUIPMENT + ITEM_TESSAS_ROSETTE);
     CHECK(party_perk_track(ui.entry) == PARTY_NO_TRACK);
     CHECK(party_perk_source(ui.entry) != nullptr);
     // Returning from the details keeps the entry, and returning from the list keeps the row.
@@ -422,6 +422,7 @@ static void test_perk_selection() {
 static void test_equipment_flow() {
     game_start();
     game.party = make_party(2);
+    CHECK(equipment_acquire(ITEM_FIRSTSTRIKE_SWORD));
     Party const& party = game.party;
     PartyUi ui{};
     open_category(ui, party, CATEGORY_EQUIPMENT);
@@ -442,15 +443,15 @@ static void test_equipment_flow() {
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
         CHECK(party_ui_entries(ui, party) == 2);
         CHECK(party_ui_row_item(ui, 0) == ITEM_NONE);
-        CHECK(party_ui_row_item(ui, 1) == ITEM_IRON_FANG);
+        CHECK(party_ui_row_item(ui, 1) == ITEM_FIRSTSTRIKE_SWORD);
         CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
-        CHECK(ui.page == PARTY_PAGE_ITEM_DETAILS && ui.entry == ITEM_IRON_FANG);
-        CHECK(strstr(party_ui_text(ui, party), "+1 damage"));
+        CHECK(ui.page == PARTY_PAGE_ITEM_DETAILS && ui.entry == ITEM_FIRSTSTRIKE_SWORD);
+        CHECK(strstr(party_ui_text(ui, party), "+2 damage"));
         CHECK(press(ui, party, BTN_A) == PARTY_EVENT_EQUIP);
         CHECK(equipment_equip(ui.member, (ITEM_ID)ui.entry));
-        CHECK(equipment_wearer(ITEM_IRON_FANG) == member);
-        CHECK(strcmp(party_equipped(party.members[member], SLOT_WEAPON), "Iron Fang") == 0);
+        CHECK(equipment_wearer(ITEM_FIRSTSTRIKE_SWORD) == member);
+        CHECK(strcmp(party_equipped(party.members[member], SLOT_WEAPON), "Firststrike Sword") == 0);
         CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
         CHECK(ui.selection[PARTY_PAGE_ITEM_LIST] == 1);
         CHECK(press(ui, party, BTN_B) == PARTY_EVENT_CANCEL);
@@ -465,7 +466,7 @@ static void test_equipment_flow() {
     CHECK(press(ui, party, BTN_DOWN) == PARTY_EVENT_TICK);
     CHECK(press(ui, party, BTN_A) == PARTY_EVENT_SELECT);
     CHECK(party_ui_entries(ui, party) == 1);
-    CHECK(party_ui_row_perk(ui, party, 0) == PERK_EQUIPMENT + ITEM_IRON_FANG);
+    CHECK(party_ui_row_perk(ui, party, 0) == PERK_EQUIPMENT + ITEM_FIRSTSTRIKE_SWORD);
     CHECK(equipment_unequip(ui.member, SLOT_WEAPON));
     CHECK(party_ui_entries(ui, party) == 0);
 }

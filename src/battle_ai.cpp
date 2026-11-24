@@ -525,6 +525,15 @@ RPG_NOINLINE static MovementOrder order_movement(BattleState const& state, uint8
     uint8_t* rows = runtime_workspace.battle.order_rows;
     for(uint8_t i = 0; i < 3 * BATTLE_ROWS; ++i)
         rows[i] = 0;
+    uint8_t gear_bonus = 0;
+    for(uint8_t i = 0; i < state.unit_count; ++i) {
+        auto const& actor = state.units[i];
+        if(actor.hp && actor.team == state.turn && (actor.id & BATTLE_PARTY_SOURCE)) {
+            uint8_t bonus = battle_engagement_equipment_bonus(actor);
+            if(bonus > gear_bonus)
+                gear_bonus = bonus;
+        }
+    }
     bool fragile = false, boosted_target = false;
     for(uint8_t i = 0; i < state.unit_count; ++i) {
         BattleUnit const& unit = state.units[i];
@@ -534,7 +543,7 @@ RPG_NOINLINE static MovementOrder order_movement(BattleState const& state, uint8
         if(unit.hp <= BATTLE_ENGAGEMENT_DAMAGE) {
             mark_neighbors(rows + BATTLE_ROWS, unit.cell);
             fragile = true;
-        } else if(unit.hp <= battle_max_engagement_damage()) {
+        } else if(unit.hp <= battle_max_engagement_damage() + gear_bonus) {
             mark_neighbors(rows + 2 * BATTLE_ROWS, unit.cell);
             boosted_target = true;
         }
@@ -551,10 +560,11 @@ RPG_NOINLINE static MovementOrder order_movement(BattleState const& state, uint8
                                     BattleAction action = battle_unpack(packed);
                                     BattleUnit const& actor = state.units[action.unit_index];
                                     uint8_t rank = battle_movement_rank(actor);
-                                    if(!rank)
-                                        return false;
                                     bool boosted = boosted_target &&
                                                    in_rows(rows + 2 * BATTLE_ROWS, packed);
+                                    if(!rank && !(boosted && gear_bonus &&
+                                                  battle_engagement_equipment_bonus(actor)))
+                                        return false;
                                     bool diamond = rank >= DIAMOND_WAKE_RANK &&
                                                    battle_movement_class(actor.id) == DIAMOND_WAKE_CLASS;
                                     if(!boosted && !fragile && !diamond)
