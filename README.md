@@ -462,9 +462,10 @@ Map tiles are stored in contiguous rows without padding. Handler chunks cover
 8x4 tiles; a 9x5 cache supports smooth scrolling and uses 108 fewer
 RAM bytes than the previous 17x9 cache.
 
-The installed SDK must include `bin/avm/interp.fxc.hex`, independent music/SFX
-attenuation, and the `avm_audio_get_music` / volume getters. Update an older SDK
-with the AVM checkout's `avm_sdk_install` CMake target before building.
+The installed SDK must include `bin/avm/interp.fxc.hex`, tilemap drawing in
+`avm/tilemap.h` and both interpreters, independent music/SFX attenuation, and the
+`avm_audio_get_music` / volume getters. Update an older SDK with the AVM
+checkout's `avm_sdk_install` CMake target before building.
 
 For map and story changes, follow the [content authoring guide](docs/content_authoring.md).
 The advisory review can run with `python tools/review_content_density.py`.

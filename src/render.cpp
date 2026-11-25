@@ -390,22 +390,12 @@ RPG_NOINLINE static void draw_birds(Camera camera) {
 // The terrain. Each phase of the tile cycle has its own sheet, so every animated tile shows its
 // current frame at the cost of selecting that sheet.
 RPG_NOINLINE static void draw_tiles(Camera camera, uint8_t height) {
+    static_assert(TILE_OUTSIDE == UINT8_MAX);
     View view = world_view(camera);
-    uint8_t const* tiles = view.tiles;
+    uint8_t rows = (uint8_t)((height - view.top + TILE - 1) >> TILE_SHIFT);
     avm_set_sprite(tileset_phase_sprites(area_tileset(game.area), tile_phase(game.ticks)));
-    for(int16_t y = view.top; y < height; y += TILE) {
-        // A fixed row span preserves unrolling. Native drawing clips the
-        // extra column when the camera is tile-aligned.
-        uint8_t const* row_end = tiles + VIEW_SPAN_WIDTH;
-        for(int16_t x = view.left; tiles != row_end; x += TILE) {
-            uint8_t tile = *tiles++;
-            if(tile == TILE_OUTSIDE)
-                continue;
-            avm_draw_overwrite(x, y, tile);
-        }
-        if(y + TILE < height)
-            tiles += CACHE_WIDTH - VIEW_SPAN_WIDTH;
-    }
+    avm_draw_tilemap_u8_overwrite_skip(
+        view.left, view.top, view.tiles, VIEW_SPAN_WIDTH, rows, CACHE_WIDTH);
 }
 
 // Actors in ascending foot order, so a lower actor covers a higher one.

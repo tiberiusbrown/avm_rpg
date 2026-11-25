@@ -9,6 +9,7 @@
 
 #include <avm.h>
 #include <stdio.h>
+#include <string.h>
 
 // Frames at 50 Hz. The party's result stays on screen for this long before the enemy chooses.
 static constexpr uint8_t RESULT_FRAMES = 25;
@@ -284,6 +285,14 @@ static int16_t slide_pixel(int16_t from, int16_t to, uint8_t progress) {
     return (int16_t)(from + (to - from) * progress / SLIDE_FRAMES);
 }
 
+RPG_NOINLINE static void draw_battle_terrain(uint8_t field_id) {
+    auto const& field = BATTLEFIELDS[field_id];
+    uint8_t tiles[BATTLE_CELLS];
+    memcpy_P(tiles, field.tiles, sizeof(tiles));
+    avm_set_sprite(tileset_sprites(field.tileset));
+    avm_draw_tilemap_u8_overwrite(0, 0, tiles, BATTLE_COLUMNS, BATTLE_ROWS, BATTLE_COLUMNS);
+}
+
 // Draws the whole board. Terrain covers every pixel, so nothing needs clearing first. The selected
 // unit gets its white border before the actors. The destination markers come after the actors, so
 // they stay visible over the terrain and the unit art. The cursor is drawn separately, after the
@@ -295,13 +304,7 @@ template <bool MARKERS = true>
 RPG_NOINLINE static void draw_board(BattleScreen const& screen, uint8_t selected,
                                     DIRECTION mover_facing) {
     BattleState const& state = screen.state;
-    avm_set_sprite(tileset_sprites(BATTLEFIELDS[state.field].tileset));
-    for(uint8_t row = 0; row < BATTLE_ROWS; ++row) {
-        for(uint8_t column = 0; column < BATTLE_COLUMNS; ++column) {
-            uint8_t cell = (uint8_t)(row * BATTLE_COLUMNS + column);
-            avm_draw_overwrite(cell_x(cell), cell_y(cell), BATTLEFIELDS[state.field].tiles[cell]);
-        }
-    }
+    draw_battle_terrain(state.field);
 
     if(selected != BATTLE_NO_UNIT && state.units[selected].hp)
         draw_selection(cell_x(state.units[selected].cell), cell_y(state.units[selected].cell));
