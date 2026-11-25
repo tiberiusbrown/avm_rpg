@@ -977,8 +977,6 @@ elsewhere.
 
 Needing no RAM:
 
-* Scroll the tile window by one row or column when the origin moves one tile, instead of
-  reloading all 77 bytes: about 8,000 cycles on tile-crossing frames.
 * Use the workspace camera in `protected_view` instead of calling `game_camera()` for every
   enemy and every offer (about 1,500 to 2,000 cycles each). It requires proving the camera is
   current at every call, and several native tests set the player without a reload.
@@ -1037,6 +1035,45 @@ With the cast change alone the main replay's mean is 223,147 to 223,032, its wor
 unchanged, static RAM 721 B unchanged, stack bound 254 B. An admission's NPC cost is still about
 17,000 to 19,000 cycles: the remaining time is spread over many small lines (the free-slot scan,
 the offer's collision checks, the sorted insert) with no further single saving above 500 cycles.
+
+### Tile window scrolling: doesn't work (2026-11-24)
+
+Result: **doesn't work**, reverted. The idea was to keep six of the window's seven rows when the
+origin moves one tile up or down (one `memmove` of 66 bytes and one 11-byte row read) instead of
+reloading all seven rows. It was exact: a native test compared the window with a full reload after
+every pixel of walks in all eight directions along every map edge (1.2 million checks, and three
+different broken versions of the scroll each failed it), the host golden traces were identical,
+and all 27 native tests, the strict replays and the stack bound were unchanged.
+
+It did not pay for itself:
+
+* Only vertical steps can scroll. A sideways step needs a program-memory read per new tile, seven
+  of them, which costs as much as rereading the rows, so it reloads in full.
+* A vertical crossing frame's reload fell from about 14,200 to 10,850 cycles, not the 8,000
+  hoped for: the camera, the area lookup and the setup code stay.
+* The extra code in `reload_tile_cache` raised the cost of every unchanged frame by 160 to 700
+  cycles depending on how it was written. The version that avoided that moved the loading out of
+  line; that also made the unchanged frame cheaper than before (4,177 to 3,877), but it added about
+  900 to 1,500 cycles to each sideways crossing frame, because the call and a second check are
+  paid on top of the same reload.
+
+Final measurements (device walks of 96 frames, 6 tile crossings; cycles, before / after):
+
+| Workload | Average | Median | Worst |
+| --- | ---: | ---: | ---: |
+| walk_north | 228,629 / 228,119 | 226,263 / 225,601 | 292,899 / 289,564 |
+| walk_south | 235,566 / 235,040 | 230,795 / 230,471 | 272,078 / 271,596 |
+| walk_east | 262,391 / 262,178 | 263,929 / 263,337 | 292,911 / 294,454 |
+| walk_west | 240,318 / 240,059 | 238,756 / 238,505 | 281,345 / 282,293 |
+| pixel_scroll | 239,599 / 239,043 | 239,655 / 239,344 | 246,701 / 246,205 |
+| Whole main replay (1,804 frames) | 227,012 / 226,472 | 237,606 / 237,032 | 306,628 / 307,322 |
+
+Strict replays: main 307,322 (was 306,628), sounds 300,066 (was 298,945). The average and
+median gains (0.1 to 0.25%) come mostly from moving the loading code out of the hot function, not
+from scrolling, and the whole-replay worst frame and the horizontal walks' worst frames got
+slightly worse. The change also added 294 bytes of `.text`. The walking workloads and a median column
+for the workload summary were added to the device harness for this measurement and were reverted
+with the rest; they are worth re-adding if scrolling is revisited.
 
 ### Reproduce
 
