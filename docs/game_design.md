@@ -95,7 +95,7 @@ A first-time player begins in a recognizable settlement or nearby wilderness, me
 | Battle | Navigate command/target | Execute/confirm | Cancel to previous step |
 | Map/journal | Scroll or navigate | Select detail | Return |
 
-Where ambiguous, display a small contextual prompt when near a person or interactable tile. Avoid requiring button chords; if a secondary shortcut is helpful, add it only after usability tests.
+In exploration, face a person or an interactable tile and press A. Avoid requiring button chords; if a secondary shortcut is helpful, add it only after usability tests.
 
 ### 4.2 Screen layout
 
@@ -109,7 +109,7 @@ Where ambiguous, display a small contextual prompt when near a person or interac
 ### 4.3 Usability requirements
 
 - No player-critical information should require audio.
-- Every interactable needs a discoverable affordance: facing, A prompt, distinctive tile, or NPC feedback.
+- Every interactable needs a discoverable affordance such as a distinctive tile or NPC feedback.
 - Menu navigation must remain predictable with two action buttons.
 - The game must tolerate save/reload from any safe out-of-combat location and must never strand the player behind a quest-locked entrance.
 - Prefer a concise journal with **objective, place, and clues**, rather than a long transcript.

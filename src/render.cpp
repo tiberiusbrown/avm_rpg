@@ -20,7 +20,6 @@
 #include <string.h>
 
 static constexpr uint16_t DISPLAY_WIDTH = 128;
-static constexpr int16_t INTERACT_PROMPT_X = 110, INTERACT_PROMPT_Y = 7;
 
 static uint8_t quest_arrow_bob() {
     uint8_t phase = (game.ticks / 4) & 7;
@@ -28,26 +27,23 @@ static uint8_t quest_arrow_bob() {
 }
 
 // Keep the projection's frame off the stack while resolving the quest marker.
-RPG_NOINLINE static bool draw_quest_edge(int16_t world_x, int16_t world_y) {
+RPG_NOINLINE static void draw_quest_edge(int16_t world_x, int16_t world_y) {
     int16_t player_x = (int16_t)game.player.x;
     int16_t player_y = (int16_t)game.player.y;
     int16_t dx = world_x - player_x;
     int16_t dy = world_y - player_y;
     if(!dx && !dy)
-        return false;
+        return;
 
     QuestArrowPlacement arrow = quest_arrow_at_edge(
         player_x - (int16_t)camera.x, player_y - (int16_t)camera.y, dx, dy, 2 + quest_arrow_bob());
     avm_draw_sprite_plus_mask(arrow.x, arrow.y, QUEST_ARROW_SPRITES, arrow.frame);
-    // The sliding sprite can cross the interaction prompt's top-right position.
-    return arrow.y <= INTERACT_PROMPT_Y && arrow.x < INTERACT_PROMPT_X + 5 &&
-           arrow.x + QUEST_ARROW_SIZE > INTERACT_PROMPT_X;
 }
 
-RPG_NOINLINE static bool draw_quest_arrow() {
+RPG_NOINLINE static void draw_quest_arrow() {
     TilePos objective;
     if(!quest_exploration_marker(objective))
-        return false;
+        return;
 
     constexpr int16_t HEIGHT = 64;
     constexpr uint8_t DOWN_FRAME = 6;
@@ -62,10 +58,10 @@ RPG_NOINLINE static bool draw_quest_arrow() {
         y -= (QUEST_ARROW_SIZE - 2);
         y = (y < MIN_Y ? MIN_Y : y) + quest_arrow_bob();
         avm_draw_sprite_plus_mask(x, y, QUEST_ARROW_SPRITES, DOWN_FRAME);
-        return false;
+        return;
     }
 
-    return draw_quest_edge(world_x, world_y);
+    draw_quest_edge(world_x, world_y);
 }
 
 // Breathing crosshair: opaque black halo around every white arm, open target center.
@@ -430,9 +426,8 @@ void rpg_render_world(uint8_t covered) {
     if(tileset_has_sky(tileset))
         draw_birds(shown);
 
-    bool arrow_at_prompt = !covered && quest_selected() != QUEST_NONE && draw_quest_arrow();
-    if(game.can_interact)
-        avm_draw_text(INTERACT_PROMPT_X, arrow_at_prompt ? 20 : INTERACT_PROMPT_Y, F("A"));
+    if(!covered && quest_selected() != QUEST_NONE)
+        draw_quest_arrow();
 }
 
 // Rebuild the outgoing image: exploration and dialogue normally clear the framebuffer after
