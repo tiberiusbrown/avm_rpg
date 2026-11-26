@@ -387,7 +387,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
         render_menu((uint8_t)cursor_pixel(revealed), width, view, feedback, action, battle);
         PAUSE_ITEM selection = pause_item(view, view.selected);
         if(confirmation)
-            render_menu_confirmation(selection);
+            render_confirmation(selection == PAUSE_PASS ? F("Pass turn?") : F("Resign?"));
         avm_display(true);
         uint8_t pressed = input_pressed();
 

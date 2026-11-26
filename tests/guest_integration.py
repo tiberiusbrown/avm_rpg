@@ -222,6 +222,7 @@ def main():
                 cases.append((f"{mode}-perk-ranks", "perk-ranks"))
                 cases.append((f"{mode}-bram-meeting", "bram-meeting"))
                 cases.append((f"{mode}-battle-classes", "battle-classes"))
+                cases.append((f"{mode}-battle-formation", "battle-formation"))
                 if args.full:
                     cases.append((f"{mode}-millcross", "millcross"))
 

@@ -400,13 +400,18 @@ struct Device {
             step();
     }
 
-    void wait_for_battle(unsigned previous_activations = 256) {
+    BATTLE_QA_PHASE battle_phase() const {
+        return (BATTLE_QA_PHASE)ab->core_state.cpu.data[battle_ready_addr];
+    }
+
+    void wait_for_battle(unsigned previous_activations = 256, bool formation = false) {
         require(battle_ready_addr, "missing battle QA readiness address");
         buttons = 0;
         uint64_t deadline = ab->core_state.cpu.cycle_count + 120000000;
         for(;;) {
-            auto phase = ab->core_state.cpu.data[battle_ready_addr];
-            if(phase != BATTLE_QA_BUSY &&
+            auto phase = battle_phase();
+            if((formation ? phase == BATTLE_QA_FORMATION
+                          : phase == BATTLE_QA_INPUT || phase == BATTLE_QA_RESULT) &&
                (previous_activations == 256 || battle_state().activations != previous_activations))
                 return;
             if(ab->core_state.cpu.cycle_count >= deadline) {
@@ -484,6 +489,13 @@ struct Device {
         advance(0);
         advance(held);
         advance(0, 1600000);
+    }
+
+    void accept_formation() {
+        wait_for_battle(256, true);
+        tap(BTN_B);
+        tap(BTN_A);
+        wait_for_battle();
     }
 
     void open_title() {
@@ -1686,8 +1698,102 @@ static void place_grove_contact(Device& d) {
 static void start_grove_contact(Device& d) {
     place_grove_contact(d);
     d.tap(BTN_LEFT);
-    d.wait_for_battle();
+    d.accept_formation();
 }
+
+#ifndef RPG_DEVICE_TEST_LIBRARY
+static void verify_battle_formation(Device& d, fs::path const& out) {
+    Game world = d.state();
+    world.party.count = 2;
+    world.party.members[1] = world.party.members[0];
+    world.party.members[1].id = NPC_ROWAN;
+    world.party.members[1].hp = 17;
+    world.party.members[1].attack_class = ATTACK_SHOOT;
+    d.set_state(world);
+    place_grove_contact(d);
+    d.tap(BTN_LEFT);
+    d.wait_for_battle(256, true);
+    BattleState initial = d.battle_state();
+    require(initial.unit_count == 3, "formation fixture did not deploy two allies and an enemy");
+    auto const& field = BATTLEFIELDS[initial.field];
+    uint8_t hero = initial.units[0].cell, ally = initial.units[1].cell;
+    uint8_t enemy = initial.units[2].cell;
+    uint8_t empty = BATTLE_CELLS, blocked = BATTLE_CELLS;
+    for(uint8_t y = field.party_area.y; y < field.party_area.y + field.party_area.height; ++y)
+        for(uint8_t x = field.party_area.x; x < field.party_area.x + field.party_area.width; ++x) {
+            uint8_t cell = battle_cell(x, y);
+            if((field.blocked[y] >> x) & 1)
+                blocked = cell;
+            else if(cell != hero && cell != ally && cell != enemy)
+                empty = cell;
+        }
+    require(empty != BATTLE_CELLS, "formation fixture has no empty starting cell");
+    GroveCell cursor{battle_column(hero), battle_row(hero)};
+    auto move_to = [&](uint8_t cell) {
+        grove_move_cursor(d, cursor, {battle_column(cell), battle_row(cell)});
+    };
+    auto capture_transfer = [&](char const* name) {
+        d.advance(BTN_A, 1280000);
+        d.capture(out / name);
+        d.advance(0, 3200000);
+    };
+    auto verify_positions = [&](uint8_t first, uint8_t second) {
+        BattleState state = d.battle_state();
+        require(!state.ended && !state.activations && state.turn == BATTLE_PARTY,
+                "formation input started or consumed a turn");
+        require(state.units[0].cell == first && state.units[1].cell == second &&
+                    state.units[2].cell == enemy,
+                "formation placed a unit in the wrong cell");
+        for(uint8_t i = 0; i < state.unit_count; ++i)
+            require(state.units[i].hp == initial.units[i].hp &&
+                        state.units[i].id == initial.units[i].id &&
+                        state.units[i].ap == initial.units[i].ap,
+                    "formation changed deployed unit statistics or identity");
+        auto party = d.state().party;
+        require(!memcmp(&world.party, &party, sizeof(Party)), "formation changed the saved party");
+    };
+
+    d.capture(out / "formation.pgm", true);
+    d.tap(BTN_A);
+    if(blocked != BATTLE_CELLS) {
+        move_to(blocked);
+        d.tap(BTN_A);
+        verify_positions(hero, ally);
+    }
+    move_to(enemy);
+    d.capture(out / "formation-enemy-info.pgm");
+    d.tap(BTN_A);
+    verify_positions(hero, ally);
+    move_to(battle_cell(4, 1));
+    d.tap(BTN_A);
+    verify_positions(hero, ally);
+    move_to(empty);
+    capture_transfer("formation-moving.pgm");
+    verify_positions(empty, ally);
+
+    d.tap(BTN_A);
+    move_to(ally);
+    d.capture(out / "formation-swap.pgm");
+    capture_transfer("formation-swapping.pgm");
+    verify_positions(ally, empty);
+    d.tap(BTN_A);
+    d.tap(BTN_B);
+    verify_positions(ally, empty);
+
+    d.tap(BTN_B | BTN_A);
+    require(d.battle_phase() == BATTLE_QA_FORMATION, "opening confirmation also accepted it");
+    d.capture(out / "formation-confirm.pgm");
+    d.tap(BTN_B);
+    verify_positions(ally, empty);
+    d.tap(BTN_B);
+    d.tap(BTN_A);
+    d.wait_for_battle();
+    require(d.battle_phase() == BATTLE_QA_INPUT, "accepting formation did not open the first turn");
+    verify_positions(ally, empty);
+    d.capture(out / "formation-first-turn.pgm");
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"battle formation through player input\"}\n";
+}
+#endif
 
 static void verify_consecutive_perk_ranks(Device& d, fs::path const& out) {
     Game training = d.state();
@@ -2951,7 +3057,7 @@ int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 13,
             "device_tests package game_address marker_address serial_address "
             "output_directory "
-            "normal|fxc|proof|smoke|smoke-functional|millcross|pause|battle|battle-classes|battle-recordings|perk-ranks|bram-meeting|"
+            "normal|fxc|proof|smoke|smoke-functional|millcross|pause|battle|battle-classes|battle-formation|battle-recordings|perk-ranks|bram-meeting|"
             "shop|sounds|"
             "functional|"
             "sounds-functional "
@@ -2994,7 +3100,8 @@ int main(int argc, char** argv) try {
         verify_smoke(d, package, out);
         return 0;
     }
-    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "battle-recordings" ||
+    if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "battle-formation" ||
+       std::string(argv[6]) == "battle-recordings" ||
        std::string(argv[6]) == "perk-ranks" ||
        std::string(argv[6]) == "bram-meeting") {
         d.open_title();
@@ -3006,6 +3113,8 @@ int main(int argc, char** argv) try {
             verify_consecutive_perk_ranks(d, out);
         else if(std::string(argv[6]) == "bram-meeting")
             verify_bram_meeting(d, out);
+        else if(std::string(argv[6]) == "battle-formation")
+            verify_battle_formation(d, out);
         else
             verify_battle_classes(d, out);
         return 0;
@@ -3178,7 +3287,7 @@ int main(int argc, char** argv) try {
         Npc after = scout();
         require(after.actor.x == before.actor.x + 20 && after.actor.y == before.actor.y,
                 "Mine Scout did not move one pixel per frame");
-        d.wait_for_battle();
+        d.accept_formation();
         auto battle = d.battle_state();
         require((BATTLEFIELDS_CAVE & battlefield_bit(battle.field)) &&
                     battle.unit_count == d.state().party.count + 1,
@@ -3250,6 +3359,7 @@ int main(int argc, char** argv) try {
         press_with_music_fade(d);
         trace.verify("battle_entry");
     }
+    d.accept_formation();
     {
         Game current = d.state();
         BattleState deployed = d.battle_state();

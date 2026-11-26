@@ -74,8 +74,8 @@ struct BattleScreen {
     uint8_t flashing;
     // HP change by unit. An unflashed value records healing.
     uint8_t damage[BATTLE_UNIT_CAPACITY];
-    // Presentation only. The rules have already applied the whole action. Keep the original cells
-    // visible until contact, then interpolate every forced displacement together.
+    // Presentation only. Keep the original cells visible until contact, then interpolate every
+    // forced displacement together. Formation moves and swaps also slide from these cells.
     uint8_t origin[BATTLE_UNIT_CAPACITY];
     uint8_t slide;
     uint8_t actor, victim;
@@ -263,6 +263,17 @@ static DIRECTION pressed_direction(uint8_t pressed) {
     return STILL;
 }
 
+static void move_cursor(Cursor& cursor, uint8_t pressed) {
+    DIRECTION dir = pressed_direction(pressed);
+    if(dir == STILL)
+        return;
+    uint8_t next = cursor.cell;
+    bool moved = battle_neighbor(cursor.cell, dir, next);
+    if(moved)
+        cursor.cell = next;
+    sfx_play(moved ? SFX_CURSOR_MOVE : SFX_CURSOR_EDGE);
+}
+
 // A leap unit's height above its straight path, from the offset it still has to cover along the long
 // axis.
 static uint8_t leap_lift(BattleScreen const& screen) {
@@ -380,6 +391,115 @@ RPG_NOINLINE static void fade_battle_in(BattleScreen const& screen) {
     for(uint8_t step = FADE_STEPS; step--;) {
         draw_board<false>(screen, BATTLE_NO_UNIT, SOUTH);
         show_fade(step);
+    }
+}
+
+// Four steady white corner ticks with a black surround, packed as interleaved pixels and masks.
+static constexpr uint8_t PROGMEM FORMATION_MARKER[] = {
+    16, 16,
+    0x00, 0x00, 0x00, 0x3e, 0x1c, 0x3e, 0x04, 0x3e,
+    0x04, 0x0e, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x04, 0x0e,
+    0x04, 0x3e, 0x1c, 0x3e, 0x00, 0x3e, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x7c, 0x38, 0x7c, 0x20, 0x7c,
+    0x20, 0x70, 0x00, 0x70, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0x20, 0x70,
+    0x20, 0x7c, 0x38, 0x7c, 0x00, 0x7c, 0x00, 0x00,
+};
+
+RPG_NOINLINE static void draw_formation_board(BattleScreen const& screen, BattleRect area,
+                                             uint8_t selected) {
+    draw_board<false>(screen, selected, SOUTH);
+    avm_set_sprite(FORMATION_MARKER);
+    for(uint8_t y = area.y; y < area.y + area.height; ++y)
+        for(uint8_t x = area.x; x < area.x + area.width; ++x) {
+            uint8_t cell = battle_cell(x, y);
+            if(!battle_blocked(screen.state.field, cell))
+                avm_draw_plus_mask(cell_x(cell), cell_y(cell), 0);
+        }
+    draw_cursor(screen.cursor);
+}
+
+RPG_NOINLINE static void arrange_party(BattleScreen& screen) {
+    BattleState& state = screen.state;
+    Cursor& cursor = screen.cursor;
+    auto const& party = BATTLEFIELDS[state.field].party_area;
+    BattleRect area{party.x, party.y, party.width, party.height};
+    int16_t panel_x = (area.x + area.width) * TILE + 2;
+
+    uint8_t selected = BATTLE_NO_UNIT;
+    bool confirming = false;
+    screen.actor = BATTLE_NO_UNIT;
+    input_sync();
+    RPG_QA_MARK(battle_qa_ready = BATTLE_QA_FORMATION);
+    for(;;) {
+        bool sliding = screen.slide < SLIDE_FRAMES;
+        uint8_t target = battle_unit_at(state, cursor.cell);
+        bool ally = target != BATTLE_NO_UNIT && state.units[target].team == BATTLE_PARTY;
+        bool legal_cell = area.contains(battle_column(cursor.cell), battle_row(cursor.cell)) &&
+                          !battle_blocked(state.field, cursor.cell);
+        char const PROGMEM* action = nullptr;
+        if(selected == BATTLE_NO_UNIT) {
+            if(ally)
+                action = F("Select");
+        } else if(legal_cell && target != selected && (ally || target == BATTLE_NO_UNIT)) {
+            action = ally ? F("Swap") : F("Place");
+        }
+
+        draw_formation_board(screen, area, selected);
+        if(confirming) {
+            render_confirmation(F("Accept formation?"));
+        } else {
+            if(!sliding)
+                draw_actor_info(state, cursor);
+            // The actor info uses the opposite half, leaving room for both panels.
+            if(legal_cell)
+                render_formation_banner(panel_x, battle_row(cursor.cell) >= BATTLE_ROWS / 2,
+                                        action, selected != BATTLE_NO_UNIT);
+        }
+        avm_display(false);
+        uint8_t pressed = wait_frame_presses();
+
+        if(sliding) {
+            ++screen.slide;
+        } else if(confirming) {
+            if(pressed & BTN_B) {
+                confirming = false;
+                sfx_play(SFX_CANCEL);
+            } else if(pressed & BTN_A) {
+                RPG_QA_MARK(battle_qa_ready = BATTLE_QA_BUSY);
+                input_wait_release(BTN_A | BTN_B);
+                return;
+            }
+        } else if(pressed & BTN_B) {
+            if(selected == BATTLE_NO_UNIT) {
+                confirming = true;
+                sfx_play(SFX_SELECT);
+            } else {
+                selected = BATTLE_NO_UNIT;
+                sfx_play(SFX_CANCEL);
+            }
+        } else if(pressed & BTN_A) {
+            if(!action) {
+                sfx_play(SFX_ERROR);
+            } else {
+                if(selected == BATTLE_NO_UNIT) {
+                    selected = target;
+                } else {
+                    for(uint8_t i = 0; i < state.unit_count; ++i)
+                        screen.origin[i] = state.units[i].cell;
+                    if(ally)
+                        state.units[target].cell = state.units[selected].cell;
+                    state.units[selected].cell = cursor.cell;
+                    screen.slide = 0;
+                    selected = BATTLE_NO_UNIT;
+                }
+                sfx_play(SFX_SELECT);
+            }
+        } else {
+            move_cursor(cursor, pressed);
+        }
+        animate_cursor(cursor);
     }
 }
 
@@ -865,15 +985,7 @@ RPG_NOINLINE static BattleAction party_turn(BattleScreen& screen, BATTLE_ATTACK_
             // The offer owns the input, so the cursor and the selection hold still.
             action = press_offer(screen, selected, pressed, choice);
         } else {
-            uint8_t next = cursor.cell;
-            DIRECTION dir = pressed_direction(pressed);
-            if(dir != STILL) {
-                // A press against the edge of the board bumps instead of ticking.
-                bool moved = battle_neighbor(cursor.cell, dir, next);
-                if(moved)
-                    cursor.cell = next;
-                sfx_play(moved ? SFX_CURSOR_MOVE : SFX_CURSOR_EDGE);
-            }
+            move_cursor(cursor, pressed);
             if(pressed & BTN_B) {
                 if(selected != BATTLE_NO_UNIT) {
                     sfx_play(SFX_CANCEL);
@@ -959,7 +1071,10 @@ BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
     fade_world_out();
     battle_running = true;
     fade_battle_in(screen);
-    sfx_play(SFX_BATTLE_START);
+    if(!state.ended) {
+        arrange_party(screen);
+        sfx_play(SFX_BATTLE_START);
+    }
 
     while(!state.ended) {
         while(!state.ended && !battle_can_act(state))

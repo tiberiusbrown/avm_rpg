@@ -571,7 +571,8 @@ uint8_t menu_width(PauseMenuView const& view);
 void render_menu(uint8_t revealed, uint8_t width, PauseMenuView const& view,
                  char const PROGMEM* feedback, MENU_EXIT action,
                  BattleScreen const* battle = nullptr);
-void render_menu_confirmation(PAUSE_ITEM selection);
+void render_confirmation(char const PROGMEM* title);
+void render_formation_banner(int16_t x, bool at_bottom, char const PROGMEM* action, bool selected);
 void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
                   BattleScreen const* battle = nullptr);
 uint8_t option_level(OPTION_ITEM item);

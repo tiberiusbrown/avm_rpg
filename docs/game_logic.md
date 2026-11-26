@@ -556,6 +556,8 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 ### 6.1 Tactical combat core
 
 - Combat board is **8×4 cells**. Up to **four** deployed party units and **four** enemies; battlefield selection chooses among the allowed map/tileset boards. Initial positions are randomized within designated deployment rectangles, respecting blocked cells.
+- **Formation:** Before the first turn, the player may select a deployed party member and place them on any unblocked cell in the party's deployment rectangle. Choosing another party member swaps their cells. Formation changes only the starting positions for this encounter and costs no HP, AP or turn. B clears a pending selection or opens the confirmation. Canceling the confirmation keeps the current arrangement, and accepting it starts combat.
+- The Formation panel appears while the cursor is on a legal starting cell. Hovering over a deployed party member or enemy shows the same actor information as in combat. Moved and swapped party members slide to their new cells together.
 - One **unit action** (move, normal attack, special) consumes **the whole acting side's turn**. Sides alternate; a team may also pass. Automatic pass occurs if no legal action exists.
 - **Move sequence:** Move to the destination, deal **1 base engagement damage** to every
   orthogonally adjacent living enemy, then apply movement perk and equipment effects. Overrun pushes a surviving

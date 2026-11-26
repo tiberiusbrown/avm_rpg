@@ -727,13 +727,16 @@ void render_menu(uint8_t revealed, uint8_t width, PauseMenuView const& view,
         avm_draw_text(width + 4, 58, feedback);
 }
 
-void render_menu_confirmation(PAUSE_ITEM selection) {
+void render_confirmation(char const PROGMEM* title) {
     char const PROGMEM* accept = F("Accept");
     char const PROGMEM* cancel = F("Cancel");
-    char const PROGMEM* title = selection == PAUSE_PASS ? F("Pass turn?") : F("Resign?");
     int16_t accept_width = MENU_BUTTON_LABEL_OFFSET + avm_text_width(accept);
     int16_t cancel_width = MENU_BUTTON_LABEL_OFFSET + avm_text_width(cancel);
     int16_t width = 12 + accept_width + 8 + cancel_width;
+    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
+    int16_t title_width = avm_text_width(title) + 12;
+    if(title_width > width)
+        width = title_width;
     int16_t x = (DISPLAY_WIDTH - width) / 2;
     constexpr uint8_t Y = 18, HEIGHT = 28;
     draw_menu_frame(x, Y, width, HEIGHT);
@@ -741,6 +744,24 @@ void render_menu_confirmation(PAUSE_ITEM selection) {
     draw_menu_rule(x, Y + 13, width);
     draw_menu_button(x + 6, Y + 23, MENU_BUTTON_A, accept);
     draw_menu_button(x + width - 6 - cancel_width, Y + 23, MENU_BUTTON_B, cancel);
+}
+
+void render_formation_banner(int16_t x, bool at_bottom, char const PROGMEM* action, bool selected) {
+    char const PROGMEM* title = F("Formation");
+    char const PROGMEM* start = F("Start Battle");
+    int16_t width = MENU_BUTTON_LABEL_OFFSET + avm_text_width(start) + 12;
+    avm_set_text_font(AVM_FONT_PIXELOIDSANSBOLD);
+    int16_t title_width = avm_text_width(title) + 12;
+    if(title_width > width)
+        width = title_width;
+    constexpr int16_t HEIGHT = 32;
+    int16_t y = at_bottom ? DISPLAY_HEIGHT - HEIGHT : 0;
+    draw_menu_frame(x, y, width, HEIGHT);
+    draw_menu_title(x + 6, title, width - 12, y + 10);
+    draw_menu_rule(x, y + 12, width);
+    if(action)
+        draw_menu_button(x + 6, y + 20, MENU_BUTTON_A, action);
+    draw_menu_button(x + 6, y + 28, MENU_BUTTON_B, selected ? F("Cancel") : start);
 }
 
 void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,

@@ -46,7 +46,9 @@ enum BATTLE_TEAM : uint8_t { BATTLE_PARTY, BATTLE_ENEMY };
 enum BATTLE_RESULT : uint8_t { BATTLE_VICTORY, BATTLE_DEFEAT };
 
 // Marker values used only by the instrumented device-QA guest.
-enum BATTLE_QA_PHASE : uint8_t { BATTLE_QA_BUSY, BATTLE_QA_INPUT, BATTLE_QA_RESULT };
+enum BATTLE_QA_PHASE : uint8_t {
+    BATTLE_QA_BUSY, BATTLE_QA_INPUT, BATTLE_QA_RESULT, BATTLE_QA_FORMATION
+};
 
 struct BattleRect {
     uint8_t x, y, width, height;
