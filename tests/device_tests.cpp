@@ -20,6 +20,7 @@
 
 #include <filesystem>
 #include <array>
+#include <bit>
 #include <fstream>
 #include <initializer_list>
 #include <iostream>
@@ -483,6 +484,12 @@ struct Device {
         advance(0);
         advance(held);
         advance(0, 1600000);
+    }
+
+    void open_title() {
+        advance(0, 3200000);
+        tap(BTN_A);
+        advance(0, 8000000);
     }
 
     // Lets letters finish typing until the overlay reaches a prompt.
@@ -2760,12 +2767,48 @@ static void verify_shop(Device& d, fs::path const& out) {
     d.advance(0, 1600000);
 }
 
+static void enter_exploration_with_fade(Device& d, uint8_t button) {
+    auto serial = d.serial();
+    FadeTrace trace(d);
+    d.advance(button, (FADE_STEPS + 2) * 320000);
+    require(d.serial() == serial, "exploration advanced during the title transition");
+    d.frame();
+
+    auto lit_pixels = [](FadeTrace::Frame const& frame) {
+        return std::accumulate(frame.pixels.begin(), frame.pixels.end(), 0,
+                               [](int total, uint8_t pixels) { return total + std::popcount(pixels); });
+    };
+    auto black = std::find_if(trace.frames.begin() + 1, trace.frames.end(),
+                              [&](FadeTrace::Frame const& frame) { return !lit_pixels(frame); });
+    require(black - trace.frames.begin() >= 3 && trace.frames.end() - black > 3,
+            "the title transition did not present black between the scenes");
+    require(lit_pixels(*(black - 3)) > lit_pixels(*(black - 1)) &&
+                lit_pixels(*(black + 1)) < lit_pixels(*(black + 3)),
+            "the title transition did not fade out and back in");
+}
+
 static void verify_smoke(Device& d, fs::path const& package, fs::path const& out) {
     d.advance(0, 3200000);
-    require(d.serial() == 0 && d.music_enabled(), "smoke boot did not reach the title");
+    require(d.serial() == 0 && !d.state().options.disabled && !d.music_enabled(),
+            "audio started before the title");
+    d.capture(out / "pre-title.pgm");
+    d.tap(BTN_B);
+    require(d.state().options.disabled && !d.music_enabled(), "B did not mute from pre-title");
+    d.capture(out / "pre-title-muted.pgm");
+    d.tap(BTN_B);
+    require(!d.state().options.disabled && !d.music_enabled(),
+            "choosing enabled audio started playback before the title");
+    d.advance(BTN_A, 2500000);
+    require(!d.music_enabled(), "music started while the logo was moving");
+    d.capture(out / "pre-title-moving.pgm");
+    d.advance(BTN_A, 4000000);
+    require(!d.music_enabled(), "music started while the title scene was fading in");
+    d.capture(out / "pre-title-fade-in.pgm");
+    d.advance(BTN_A, 6300000);
+    require(d.serial() == 0 && d.music_enabled(), "held A skipped the animated title");
+    d.advance(0);
     d.capture(out / "title.pgm");
-    d.tap(BTN_A);
-    d.frame();
+    enter_exploration_with_fade(d, BTN_A);
     auto initial = d.state();
     require(d.serial() != 0 && initial.ticks != 0 && initial.area == AREA_OUTDOOR,
             "smoke new game did not reach exploration");
@@ -2796,7 +2839,7 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     Device restarted(package, d.game_addr, d.marker_addr, d.serial_addr, d.dialogue_addr);
     restarted.phase_addr = d.phase_addr;
     restarted.import_sector(sector);
-    restarted.advance(0, 3200000);
+    restarted.open_title();
     restarted.tap(BTN_A);
     restarted.frame();
     auto loaded = restarted.state();
@@ -2941,7 +2984,7 @@ int main(int argc, char** argv) try {
         return 0;
     }
     if(std::string(argv[6]) == "idle-long") {
-        d.advance(0, 3200000);
+        d.open_title();
         d.tap(BTN_A);
         summary("idle_long", d, 550);
         return 0;
@@ -2954,7 +2997,7 @@ int main(int argc, char** argv) try {
     if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "battle-recordings" ||
        std::string(argv[6]) == "perk-ranks" ||
        std::string(argv[6]) == "bram-meeting") {
-        d.advance(0, 3200000);
+        d.open_title();
         d.tap(BTN_A);
         d.advance(0, 3200000);
         if(std::string(argv[6]) == "battle-recordings")
@@ -2969,7 +3012,7 @@ int main(int argc, char** argv) try {
     }
 
     if(std::string(argv[6]) == "shop") {
-        d.advance(0, 3200000);
+        d.open_title();
         d.tap(BTN_A);
         d.advance(0, 3200000);
         verify_shop(d, out);
@@ -2985,7 +3028,7 @@ int main(int argc, char** argv) try {
         Device restarted(package, g, m, s, q);
         restarted.phase_addr = d.phase_addr;
         restarted.import_sector(sector);
-        restarted.advance(0, 3200000);
+        restarted.open_title();
         restarted.tap(BTN_A);
         restarted.frame();
         auto loaded = restarted.state();
@@ -2996,7 +3039,7 @@ int main(int argc, char** argv) try {
         return 0;
     }
 
-    d.advance(0, 3200000);
+    d.open_title();
     require(d.serial() == 0, "title unexpectedly advanced exploration");
     require(d.music_enabled(), "the title has no music");
     unsigned title_song = audio_pointer(d, AUDIO_MUSIC_START);
@@ -3011,6 +3054,7 @@ int main(int argc, char** argv) try {
         require(d.serial() == 0, "animated title advanced exploration");
     }
     d.tap(BTN_A);
+    d.frame();
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
     // The title song fades out and the area's song takes over; the fade lowers the music
     // attenuation while it runs, so the audio checks wait for it.
@@ -3051,7 +3095,14 @@ int main(int argc, char** argv) try {
         muted.import_sector(sector);
         muted.advance(0, 3200000);
         require(muted.state().options.disabled && !muted.music_enabled(),
-                "a saved disabled setting did not silence the title");
+                "pre-title did not load the saved disabled setting");
+        muted.tap(BTN_B);
+        require(!muted.state().options.disabled && !muted.music_enabled(),
+                "enabling audio on the pre-title did not stay silent");
+        muted.tap(BTN_B);
+        muted.open_title();
+        require(muted.state().options.disabled && !muted.music_enabled(),
+                "muting on the pre-title did not silence the title");
         muted.tap(BTN_A);
         muted.frame();
         require(!muted.music_enabled(), "Continue re-enabled muted audio");
@@ -3066,7 +3117,7 @@ int main(int argc, char** argv) try {
         sector[options + 1] = 20;
         Device legacy(package, g, m, s, q);
         legacy.import_sector(sector);
-        legacy.advance(0, 3200000);
+        legacy.open_title();
         require(!legacy.state().options.disabled && legacy.music_enabled(),
                 "legacy save did not default to enabled audio");
         verify_audio_options(legacy, 255, 255);
@@ -3385,7 +3436,7 @@ int main(int argc, char** argv) try {
     Device restarted(package, g, m, s, q);
     restarted.phase_addr = d.phase_addr;
     restarted.import_sector(sector);
-    restarted.advance(0, 3200000);
+    restarted.open_title();
     require(restarted.state().gold == 0, "startup validation did not restore new-game defaults");
     require(restarted.state().options.music == 12 && restarted.state().options.sfx == 10,
             "startup did not load saved options");
@@ -3413,8 +3464,8 @@ int main(int argc, char** argv) try {
     // B continues a saved game from the title just as A does.
     Device continued(package, g, m, s, q);
     continued.import_sector(sector);
-    continued.advance(0, 3200000);
-    continued.tap(BTN_B);
+    continued.open_title();
+    enter_exploration_with_fade(continued, BTN_B);
     auto resumed = continued.state();
     require(continued.serial() != 0 && resumed.area == saved.area &&
                 resumed.player.x == saved.player.x && resumed.player.y == saved.player.y &&
@@ -3438,9 +3489,10 @@ int main(int argc, char** argv) try {
     sector[2] ^= 0x40; // Invalid Game layout version; there is no checksum.
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
-    corrupt.advance(0, 3200000);
+    corrupt.open_title();
     verify_audio_options(corrupt, 255, 255);
     corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
+    corrupt.frame();
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);
     corrupt.tap(BTN_UP); // With Load hidden, the last action is Audio.
@@ -3454,8 +3506,9 @@ int main(int argc, char** argv) try {
     // With no valid save, B starts a new game as A does.
     Device invalid_continue(package, g, m, s, q);
     invalid_continue.import_sector(sector);
-    invalid_continue.advance(0, 3200000);
+    invalid_continue.open_title();
     invalid_continue.tap(BTN_B);
+    invalid_continue.frame();
     require(invalid_continue.serial() != 0 && invalid_continue.state().gold == 0,
             "B on the title did not start a new game over a corrupt save");
     require(invalid_continue.music_enabled(), "new game after a corrupt save has no music");

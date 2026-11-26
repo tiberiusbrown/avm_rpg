@@ -144,10 +144,14 @@ flags and RNG survive transitions; NPC scratch does not.
 `title_screen`, `explore`, `menu_screen`, and `status_screen` own their input,
 rendering, and display loops. Exploration calls the menu, which calls status;
 returning resumes the caller. Selections, animation position and feedback are local variables.
+Startup opens a silent pre-title with the Venlor logo and developer credit centered as a group. B toggles
+the same audio setting as the Audio panel. A moves the logo to its title position with
+smoothstep while the credit and audio hint fade away. The title scene then fades in under
+the logo. The title song starts after the transition if audio is enabled.
 The title has no menu: it animates a scene (`src/title.h`, stateless rules of a local frame
-counter) under the name Venlor, while Call of Venlor (`MUSIC_TITLE`) plays, until A or B, then
-continues the saved game if `save_exists` is set and starts a new game otherwise. The area's song
-fades in over the title's. A new game over an existing save is not offered.
+counter) under the name Venlor until A or B. The title fades to black, then the game loads the
+save if `save_exists` is set or starts a new game. Exploration fades in after the destination
+cache is ready, and the area's song takes over through a music fade.
 The pause panel eases halfway in from the left each frame while the world fades to 50% black;
 closing reverses both effects. Up/down selects Resume, Save, Party, Journal, Map, Audio or Load. Map is
 visible only in the overworld; Load uses the global `save_exists` flag. Party calls status;

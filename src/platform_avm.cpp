@@ -198,19 +198,22 @@ extern "C" void setup() {
 }
 
 extern "C" void loop() {
-    // The title plays its own song. Starting or continuing a game fades it into the area's song.
+    pre_title_screen();
+
     avm_audio_rate(AVM_AUDIO_RATE_16KHZ);
     avm_audio_music_loop(1);
-    music_play(MUSIC_TITLE);
 
-    title_screen();
-    // The title screen only places the player. Refreshing the world here keeps the refresh
-    // out of the title screen's frame.
-    update_visible_world(0, false);
+    for(;;) {
+        music_play(MUSIC_TITLE);
+        title_screen();
+        // Prepare the destination while the OLED stays black. A teleport reveals its own scene.
+        bool teleported = update_visible_world(0, false);
+        music_play_area();
+        if(!teleported)
+            fade_world_in();
 
-    music_play_area();
-
-    explore();
-    sfx_waiting = 0;
-    avm_audio_stop_sfx();
+        explore();
+        sfx_waiting = 0;
+        avm_audio_stop_sfx();
+    }
 }

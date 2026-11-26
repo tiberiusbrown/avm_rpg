@@ -16,6 +16,34 @@
 
 #include <avm.h>
 
+__attribute__((noinline)) void pre_title_screen() {
+    input_sync();
+    render_pre_title(0);
+    avm_display(false);
+    for(;;) {
+        input_wait_frame();
+        uint8_t pressed = input_pressed();
+        if(pressed & BTN_A)
+            break;
+        if(pressed & BTN_B) {
+            game.options.disabled ^= 1;
+            render_pre_title(0);
+            avm_display(false);
+        }
+    }
+
+    for(uint8_t step = 1; step <= PRE_TITLE_MOVE_STEPS; ++step) {
+        input_wait_frame();
+        render_pre_title(step);
+        avm_display(false);
+    }
+    for(uint8_t fade = FADE_STEPS; --fade;) {
+        input_wait_frame();
+        render_title(0, fade);
+        avm_display(false);
+    }
+}
+
 // A or B continues the saved game when there is one, and starts a new game otherwise.
 __attribute__((noinline)) void title_screen() {
     uint16_t ticks = 0;
@@ -32,8 +60,8 @@ __attribute__((noinline)) void title_screen() {
             break;
     }
 
-    // Exploration expects the cleared buffer that its own frames leave behind.
-    avm_draw_filled_rect_black(0, 0, 128, 64);
+    fade_to_black();
+
     // A load that fails prepares a new game itself.
     if(save_exists)
         game_load();

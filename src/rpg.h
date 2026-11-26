@@ -527,7 +527,8 @@ void fade_world_out();
 // Requires the destination cache, tiles and actors to be ready. Consumes transition button presses.
 void fade_world_in();
 // One frame of the title screen. `ticks` counts frames and wraps at TITLE_CYCLE.
-void render_title(uint16_t ticks);
+void render_title(uint16_t ticks, uint8_t fade = 0);
+void render_pre_title(uint8_t step);
 
 enum PAUSE_ITEM : uint8_t {
     PAUSE_RESUME,
@@ -598,6 +599,7 @@ uint8_t input_wait_press(uint8_t mask = BTN_ALL);
 void input_wait_frame();
 
 void title_screen();
+void pre_title_screen();
 void explore();
 // Return to the caller before opening Audio/Party or performing an action, keeping modal frames
 // shallow.

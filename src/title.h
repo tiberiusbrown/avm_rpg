@@ -58,6 +58,7 @@ enum TITLE_FRAME : uint8_t {
 // sky between the flag and the right pine.
 inline constexpr uint8_t TITLE_LOGO_WIDTH = 45, TITLE_LOGO_HEIGHT = 13;
 inline constexpr int16_t TITLE_LOGO_X = 64, TITLE_LOGO_Y = 6;
+inline constexpr uint8_t PRE_TITLE_MOVE_STEPS = 16;
 
 // A frame of the sheet and where its 16x16 cell goes. A single pixel uses only the position.
 struct TitleSprite {

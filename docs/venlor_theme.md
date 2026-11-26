@@ -504,7 +504,7 @@ check needs.
 
 ## Playback notes (title song)
 
-- The game enables 16 kHz audio and music looping before the title screen starts, then calls
+- After the silent pre-title transition, the game configures 16 kHz audio and music looping, then calls
   `music_play(MUSIC_TITLE)`. When A or B ends the title, `music_play_area()` fades the title
   song out and the area's song in through the normal song-change fade.
 - The compiled score is about 22.9 KB and sends at most five events in any 20 ms frame, in line

@@ -215,13 +215,14 @@ gain before starting the queued song (1.02 seconds at gain 255). Input, display
 and gameplay continue during the fade. Shared master gain stays at its interpreter default of 128 and
 SFX is unaffected. Runtime getters read the existing music start pointer and gain bytes directly
 from RAM. While audio is disabled, the game records the requested song for re-enabling playback.
-When audio is enabled, the title plays its own song at 16 kHz with looping, and
-the area's song replaces it through the fade; dialogue and menus let playback continue. The Audio
+Startup waits at a silent pre-title screen where B toggles the current audio setting.
+When audio is enabled, the title plays its own song at 16 kHz with looping after the pre-title
+transition. The area's song replaces it through the fade. Dialogue and menus let playback continue. The Audio
 panel adjusts Music and SFX attenuation independently in 16 positions from zero to full volume.
 The Enable toggle stops playback when turned off. Turning it back on starts the song currently
 requested by the game using the selected Music and SFX levels.
-Settings live in the saved `Game`, are loaded once at startup and are changed only in Audio
-thereafter; saving writes them alongside progress.
+Settings live in the saved `Game` and are loaded at startup. The pre-title changes the Enable
+setting, and the Audio panel also adjusts the slider levels. Saving writes them alongside progress.
 Full-device integration checks song switching, PWM output, and exploration with music enabled.
 Listening on physical speakers remains **Unverified**.
 

@@ -19,7 +19,7 @@
 #include <avm.h>
 #include <string.h>
 
-static constexpr uint16_t DISPLAY_WIDTH = 128;
+static constexpr uint16_t DISPLAY_WIDTH = 128, DISPLAY_HEIGHT = 64;
 
 static uint8_t quest_arrow_bob() {
     uint8_t phase = (game.ticks / 4) & 7;
@@ -466,7 +466,7 @@ static void draw_title_tree(TitleTree const& tree, uint8_t const PROGMEM* bands,
 // The background covers the whole screen, so the frame needs no clearing. Everything else goes
 // on top from the far sky forward: the layers of the foreground hide whatever was drawn before
 // them, which is how a creature comes out from behind a tree. The name goes on last.
-void render_title(uint16_t ticks) {
+void render_title(uint16_t ticks, uint8_t fade) {
     avm_draw_sprite_overwrite(0, 0, TITLE_SCENE, 0);
     avm_set_sprite(TITLE_SPRITES);
 
@@ -507,6 +507,7 @@ void render_title(uint16_t ticks) {
             avm_draw_filled_rect_white(dust.x, dust.y, MOTE_LENGTH, 1);
     }
 
+    draw_fade(fade);
     avm_draw_sprite_plus_mask(TITLE_LOGO_X, TITLE_LOGO_Y, TITLE_LOGO, 0);
 }
 
@@ -543,6 +544,50 @@ static constexpr uint8_t MENU_BUTTON_SPRITES[] PROGMEM = {
     0x3e, 0x7f, 0x43, 0x75, 0x43, 0x7f, 0x3e, // A
     0x3e, 0x7f, 0x41, 0x55, 0x6b, 0x7f, 0x3e, // B
 };
+
+static constexpr uint8_t SPEAKER_SPRITES[] PROGMEM = {
+    10, 7,
+    0x1c, 0x1c, 0x3e, 0x7f, 0x00, 0x22, 0x1c, 0x41, 0x22, 0x1c, // Waves
+    0x1c, 0x1c, 0x3e, 0x7f, 0x00, 0x22, 0x14, 0x08, 0x14, 0x22, // Muted
+};
+
+void render_pre_title(uint8_t step) {
+    constexpr int16_t LOGO_LEFT = (DISPLAY_WIDTH - TITLE_LOGO_WIDTH) / 2;
+    constexpr int16_t CREDIT_BASELINE_OFFSET = TITLE_LOGO_HEIGHT + 9;
+    constexpr int16_t GROUP_HEIGHT = CREDIT_BASELINE_OFFSET + 1;
+    constexpr int16_t LOGO_TOP = (DISPLAY_HEIGHT - GROUP_HEIGHT) / 2;
+    // Precompute smoothstep, 3t² − 2t³, for both display coordinates.
+    static constexpr auto LOGO_POSITIONS PROGMEM = [] {
+        struct Positions {
+            uint8_t x[PRE_TITLE_MOVE_STEPS + 1], y[PRE_TITLE_MOVE_STEPS + 1];
+        } positions{};
+        constexpr uint32_t N = PRE_TITLE_MOVE_STEPS;
+        constexpr uint32_t DENOMINATOR = N * N * N;
+        for(uint32_t i = 0; i <= N; ++i) {
+            uint32_t smooth = i * i * (3 * N - 2 * i);
+            positions.x[i] = LOGO_LEFT +
+                ((TITLE_LOGO_X - LOGO_LEFT) * smooth + DENOMINATOR / 2) / DENOMINATOR;
+            positions.y[i] = LOGO_TOP -
+                ((LOGO_TOP - TITLE_LOGO_Y) * smooth + DENOMINATOR / 2) / DENOMINATOR;
+        }
+        return positions;
+    }();
+
+    avm_draw_filled_rect_black(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    if(step < PRE_TITLE_MOVE_STEPS) {
+        auto credit = F("by brow1067");
+        avm_set_text_font(AVM_FONT_BR5D);
+        int16_t credit_x = (DISPLAY_WIDTH - avm_text_width(credit)) / 2;
+        avm_draw_text(credit_x, LOGO_TOP + CREDIT_BASELINE_OFFSET, credit);
+
+        constexpr int16_t ICON_X = DISPLAY_WIDTH - 13;
+        constexpr int16_t ICON_Y = DISPLAY_HEIGHT - 10;
+        avm_draw_sprite_overwrite(ICON_X - 10, ICON_Y, MENU_BUTTON_SPRITES, MENU_BUTTON_B);
+        avm_draw_sprite_self_masked(ICON_X, ICON_Y, SPEAKER_SPRITES, game.options.disabled);
+        draw_fade(step * FADE_STEPS / PRE_TITLE_MOVE_STEPS);
+    }
+    avm_draw_sprite_plus_mask(LOGO_POSITIONS.x[step], LOGO_POSITIONS.y[step], TITLE_LOGO, 0);
+}
 
 static constexpr int16_t MENU_BUTTON_LABEL_OFFSET = 10;
 static constexpr int16_t MENU_LEFT_EDGE = 4;

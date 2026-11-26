@@ -239,7 +239,8 @@ starts to blow, which warns that it is about to bar the way. Standing still, the
 eight sounds a minute outdoors (a third of them wind), five in the cave, three in the dungeon and
 two in a house. Ambient effects are quieter than the ones that answer the player.
 
-Playback starts with Call of Venlor on the title screen. Starting or continuing a game fades it into the
+The pre-title is silent while you choose whether to enable audio with B. If enabled, Call of Venlor
+starts when the animated title appears. Starting or continuing a game fades it into the
 area's song: Morning in the Meadow outdoors, in the interiors and in the dungeon, and Stone and Shadow in the
 cave. Battles switch to Steel at Dawn and return to
 Morning in the Meadow when A dismisses the result screen. Music continues through dialogue and menus.
@@ -302,8 +303,8 @@ Each member stores both perk ranks in a single byte, with three bits
 per rank and two reserved zero bits. Unspent choices are derived as half the level rounded down
 minus the two ranks. Save validation checks the implemented rank limit and the number of choices
 earned. Startup loads and validates that state to initialize the global
-`save_exists` flag, then prepares a new game for the title screen. The title shows an animated
-scene under the game's name and no menu, with Call of Venlor playing: A or B continues the saved game when the flag is set
+`save_exists` flag, then prepares a new game for the title screen. Press A on the developer credit
+screen to reveal the animated title. A or B on the title continues the saved game when the flag is set
 and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
 saved world. NPC casts, the tile cache and the animation
 tick are rebuilt from quest-derived policies when a save is loaded. Resource and stack

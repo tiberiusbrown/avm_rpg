@@ -204,8 +204,9 @@ int main(int argc, char** argv) try {
     d.battle_pointer_addr = std::stoul(argv[8]);
     d.battle_ready_addr = std::stoul(argv[9]);
     d.workspace_addr = std::stoul(argv[10]);
-    d.advance(0, 3200000);
+    d.open_title();
     d.tap(BTN_A);
+    d.frame();
     require(d.music_enabled(), "RPG did not enable music");
     while(!d.ab->core_state.cpu.active ||
           !(d.ab->core_state.cpu.data[absim::reg::addr::SREG] & 128) ||
