@@ -182,15 +182,15 @@ checksum. The version byte is the first payload byte. The native host's `sizeof(
 is not the guest format; device QA reads the packed AVM layout.
 
 Startup calls `avm_load()` and validates the loaded version, area, pixel bounds, facing,
-stats, defined flag bits, quest flags and the two audio slider levels. The result initializes the ordinary global
+stats, defined flag bits, quest flags and the audio slider levels. The result initializes the ordinary global
 `save_exists` flag before new-game defaults are prepared for the title screen. Starting a
 new game preserves that flag and the current audio options. Save calls `avm_save()` and sets the flag to true, without
 readback or validation; the UI reports `Saved`. The title and pause menu use the cached
 flag without loading or checking storage again. On the title, A or B continues the saved game
 when the flag is set and starts a new game otherwise. Continuing and Load explicitly load and
 validate the object, reset NPC casts and animation ticks, refresh the area cache and repair
-blocked player positions. Audio options are initialized and applied at startup (native
-music/SFX gains 128, displayed as 100%; filter off unless a valid save supplies other values). Later loads retain
+blocked player positions. Audio options are initialized and applied at startup, defaulting to
+enabled with native Music and SFX attenuation values of 255. Later loads retain
 the current options instead of replacing them with the record's values. A rejected load clears the flag and prepares new-game defaults.
 The absence of a checksum means corruption that passes these field checks is not detected.
 
@@ -212,14 +212,14 @@ switches to Steel at Dawn for battles, and returns to Morning in the Meadow at t
 song alone or queues a different song with `avm_audio_play_fade`. The interpreter
 lowers music attenuation by one every 4 ms and restores the request's captured
 gain before starting the queued song (1.02 seconds at gain 255). Input, display
-and gameplay continue during the fade. Shared master gain stays 255 and
-SFX is unaffected. Runtime getters read the existing music start pointer and
-gain bytes directly from RAM; the RPG stores no duplicate song selection.
-The title plays its own song, enabled before the first title frame at 16 kHz with looping, and
+and gameplay continue during the fade. Shared master gain stays at its interpreter default of 128 and
+SFX is unaffected. Runtime getters read the existing music start pointer and gain bytes directly
+from RAM. While audio is disabled, the game records the requested song for re-enabling playback.
+When audio is enabled, the title plays its own song at 16 kHz with looping, and
 the area's song replaces it through the fade; dialogue and menus let playback continue. The Audio
-panel adjusts music and SFX attenuation independently in 31 positions, from 0–200%,
-leaving shared gain unchanged. Defaults are native 128 (100%); the maximum is native 255
-(200%). Stored level 15 remains 100%, preserving previous saved slider percentages.
+panel adjusts Music and SFX attenuation independently in 16 positions from zero to full volume.
+The Enable toggle stops playback when turned off. Turning it back on starts the song currently
+requested by the game using the selected Music and SFX levels.
 Settings live in the saved `Game`, are loaded once at startup and are changed only in Audio
 thereafter; saving writes them alongside progress.
 Full-device integration checks song switching, PWM output, and exploration with music enabled.

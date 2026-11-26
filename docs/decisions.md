@@ -157,12 +157,12 @@ saved world while hidden, keeping that work off the menu's stack. The restored w
 completely back in before simulation resumes.
 Audio returns from the pause loop after its panel eases off the left edge, then enters
 its own loop with an 88-pixel panel easing in from the right. Both use the battle cursor's
-half-distance easing, with a steady half-faded world during handoff. Music and SFX each
-have independent 0..30 volume sliders displayed as 0–200%, mapped to native attenuation
-0..255. Both default to level 15 (100%, native 128), with shared master gain at its maximum
-255. The stored levels retain their prior percentage meaning. Up/down selects; left/right adjusts and repeats
-while held. B closes Audio directly to gameplay, easing the world back to full brightness.
-The two levels live in `Game::options` and are saved with progress. Startup applies valid
+half-distance easing, with a steady half-faded world during handoff. Enable sits above the Music
+and SFX rows. A toggles it, stopping playback or restarting the requested song. Up and down select
+rows. Left and right adjust the selected slider and repeat while held. The graphical sliders span
+levels 0–15, mapping to native attenuation 0–255. Both default to 15 (100%), with the native master
+gain at its default of 128. B closes Audio directly to gameplay, easing the world back to full
+brightness. The toggle and slider levels live in `Game::options` and are saved with progress. Startup applies valid
 saved values or defaults; a new game and later loads preserve the current values. Finishing
 an outstanding song fade before a music-volume edit prevents its saved gain undoing the edit.
 

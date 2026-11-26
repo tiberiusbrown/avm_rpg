@@ -445,7 +445,7 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
 }
 
 __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
-    OPTION_ITEM selection = OPTION_MUSIC;
+    OPTION_ITEM selection = OPTION_ENABLE;
     int16_t revealed = 0;
     bool closing = false;
     uint8_t horizontal = 0, repeat = 0;
@@ -473,6 +473,14 @@ __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
                 (OPTION_ITEM)((selection + (pressed & BTN_DOWN ? 1 : OPTION_ITEM_COUNT - 1)) %
                               OPTION_ITEM_COUNT);
             horizontal = 0;
+        }
+
+        if(selection == OPTION_ENABLE) {
+            if(pressed & BTN_A) {
+                option_toggle_audio();
+                sfx_menu_tick();
+            }
+            continue;
         }
 
         uint8_t held = input_held() & (BTN_LEFT | BTN_RIGHT);

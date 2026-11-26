@@ -109,7 +109,9 @@ The flag set occupies ten bytes. Section 6.3 records ownership of the encounter 
 - **Quest tracking:** only one **active** quest may be selected. The Quest Start panel presents the objective at the time of starting. A (Track) selects the quest if it is still active. B (Close) keeps the current selection. A completed or inactive quest is automatically untracked. All started or completed quests appear in the Journal. Selection does not affect quest progression.
 - **Exploration guidance:** the tracked quest's objective or the local exit toward it has a bobbing down arrow above its tile while visible. For an offscreen target, the arrow slides along the screen edge with the player's bearing and points in one of eight directions. Without a tracked quest, there is no arrow.
 - **Save compatibility.** Version 23 assigns new equipment IDs and expands the ownership
-  flag range. Earlier development saves are rejected.
+  flag range. Earlier development saves are rejected. The high bit of the saved SFX level now
+  marks audio as disabled. Existing version 23 saves have this bit clear and load with audio
+  enabled. Saved Music and SFX levels above 15 are capped at 15 on startup.
 
 ## 2. Implemented quests
 

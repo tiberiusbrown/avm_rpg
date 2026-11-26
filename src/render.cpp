@@ -714,35 +714,40 @@ void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
     draw_menu_title(x + 4, F("Audio"), AUDIO_WIDTH - 8);
     draw_menu_rule(x, 13, AUDIO_WIDTH);
     draw_menu_rule(x, 52, AUDIO_WIDTH);
+    if(selection == OPTION_ENABLE)
+        draw_menu_button(x + 4, MENU_FOOTER, MENU_BUTTON_A, F("Toggle"));
     draw_menu_button(x + 53, MENU_FOOTER, MENU_BUTTON_B, F("Back"));
 
+    constexpr uint8_t FIRST_BASELINE = 23;
+    constexpr uint8_t ROW_STEP = 11;
+    begin_menu_row(x, FIRST_BASELINE, selection == OPTION_ENABLE, AUDIO_WIDTH - 8);
+    avm_draw_text(x + 7, FIRST_BASELINE, F("Enable"));
+    avm_draw_text(x + 40, FIRST_BASELINE, game.options.disabled ? F("Off") : F("On"));
+    avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+
     static char const PROGMEM* const PROGMEM LABELS[] = {F("Music"), F("SFX")};
-    for(uint8_t item = 0; item < OPTION_ITEM_COUNT; ++item) {
-        uint8_t y = 22 + item * 16;
+    for(uint8_t item = OPTION_MUSIC; item <= OPTION_SFX; ++item) {
+        uint8_t y = FIRST_BASELINE + item * ROW_STEP;
         uint8_t level = option_level((OPTION_ITEM)item);
         bool selected = item == selection;
         begin_menu_row(x, y, selected, AUDIO_WIDTH - 8);
-        avm_draw_text(x + 7, y, LABELS[item]);
-        if(!level)
-            avm_draw_text(x + 63, y, F("Off"));
-        else
-            avm_draw_textf(x + 63, y, F("%u%%"),
-                           (level * 100 + OPTION_SLIDER_MAX / 2) / OPTION_SLIDER_MAX);
-
-        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+        avm_draw_text(x + 7, y, LABELS[item - OPTION_MUSIC]);
         if(selected) {
             if(level)
-                avm_draw_sprite_self_masked(x + 5, y + 3, MENU_ICONS, MENU_LEFT);
+                avm_draw_sprite_erase(x + 34, y - 5, MENU_ICONS, MENU_LEFT);
             if(level < OPTION_VOLUME_MAX)
-                avm_draw_sprite_self_masked(x + AUDIO_WIDTH - 9, y + 3, MENU_ICONS, MENU_RIGHT);
+                avm_draw_sprite_erase(x + 80, y - 5, MENU_ICONS, MENU_RIGHT);
         }
-        constexpr uint8_t TRACK_WIDTH = AUDIO_WIDTH - 20;
-        avm_draw_filled_rect_white(x + 10, y + 5, TRACK_WIDTH, 1);
-        avm_draw_filled_rect_white(x + 10, y + 3, 1, 5);
-        avm_draw_filled_rect_white(x + 10 + TRACK_WIDTH - 1, y + 3, 1, 5);
-        int16_t knob = x + 10 + (uint16_t)level * (TRACK_WIDTH - 3) / OPTION_VOLUME_MAX;
-        avm_draw_filled_rect_black(knob - 1, y + 1, 5, 9);
-        avm_draw_filled_rect_white(knob, y + 2, 3, 7);
+        constexpr uint8_t TRACK_LEFT = 40, TRACK_WIDTH = 38;
+        int16_t knob = x + TRACK_LEFT + level * (TRACK_WIDTH - 3) / OPTION_VOLUME_MAX;
+        if(selected) {
+            avm_draw_filled_rect_black(x + TRACK_LEFT, y - 3, TRACK_WIDTH, 1);
+            avm_draw_filled_rect_black(knob, y - 5, 3, 5);
+        } else {
+            avm_draw_filled_rect_white(x + TRACK_LEFT, y - 3, TRACK_WIDTH, 1);
+            avm_draw_filled_rect_white(knob, y - 5, 3, 5);
+        }
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
     }
 }
 

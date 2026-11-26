@@ -6,7 +6,8 @@
 #include <string.h>
 
 bool save_valid() {
-    if(game.options.music > OPTION_VOLUME_MAX || game.options.sfx > OPTION_VOLUME_MAX)
+    constexpr uint8_t LEGACY_VOLUME_MAX = 30;
+    if(game.options.music > LEGACY_VOLUME_MAX || game.options.sfx > LEGACY_VOLUME_MAX)
         return false;
     if(game.save_version != SAVE_VERSION || game.player.facing > WEST || !game.level || !game.rng)
         return false;

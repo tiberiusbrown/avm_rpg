@@ -90,13 +90,15 @@ struct Camera {
     uint16_t x, y;
 };
 
-inline constexpr uint8_t OPTION_SLIDER_MAX = 15;
-inline constexpr uint8_t OPTION_VOLUME_MAX = OPTION_SLIDER_MAX * 2;
+inline constexpr uint8_t OPTION_VOLUME_MAX = 15;
 
 struct AudioOptions {
-    uint8_t music = OPTION_SLIDER_MAX;
-    uint8_t sfx = OPTION_SLIDER_MAX;
+    uint8_t music = OPTION_VOLUME_MAX;
+    // Older saves used levels 0–30 and left this high bit clear.
+    uint8_t sfx : 7 = OPTION_VOLUME_MAX;
+    uint8_t disabled : 1 = 0;
 };
+static_assert(sizeof(AudioOptions) == 2);
 
 inline constexpr uint8_t PARTY_CAPACITY = 4;
 
@@ -557,7 +559,7 @@ constexpr bool menu_opens_screen(MENU_EXIT action) {
     return action >= MENU_AUDIO && action <= MENU_MAP;
 }
 
-enum OPTION_ITEM : uint8_t { OPTION_MUSIC, OPTION_SFX, OPTION_ITEM_COUNT };
+enum OPTION_ITEM : uint8_t { OPTION_ENABLE, OPTION_MUSIC, OPTION_SFX, OPTION_ITEM_COUNT };
 
 inline constexpr uint8_t AUDIO_WIDTH = 88;
 
@@ -572,7 +574,7 @@ void render_menu_confirmation(PAUSE_ITEM selection);
 void render_audio(uint8_t revealed, OPTION_ITEM selection, bool closing,
                   BattleScreen const* battle = nullptr);
 uint8_t option_level(OPTION_ITEM item);
-void options_apply();
+void option_toggle_audio();
 void option_adjust(OPTION_ITEM item, bool increase);
 inline constexpr uint8_t PARTY_WIDTH = 128;
 struct PartyUi;

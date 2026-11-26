@@ -463,15 +463,15 @@ static void saves() {
     game.flags.bytes[WorldFlags::BYTE_COUNT - 1] |= 0x80;
     reject();
     game = saved;
-    game.options.music = OPTION_VOLUME_MAX + 1;
+    game.options.music = 31;
     reject();
     game = saved;
-    game.options.sfx = OPTION_VOLUME_MAX + 1;
+    game.options.sfx = 31;
     reject();
 
-    game.options = {4, 8};
+    game.options = {4, 8, 1};
     game_new();
-    CHECK(game.options.music == 4 && game.options.sfx == 8);
+    CHECK(game.options.music == 4 && game.options.sfx == 8 && game.options.disabled);
     game = saved; // AVM load replaces this live object directly, without a staging buffer.
     game.ticks = 100;
     game.player.walking = 1;

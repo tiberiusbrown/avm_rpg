@@ -959,13 +959,14 @@ static void verify_audio_options(Device const& d, unsigned music, unsigned sfx) 
     auto const& ram = d.ab->core_state.cpu.data;
     require(ram[0xa71] == music && ram[0xa72] == sfx,
             "Audio did not apply independent audio settings");
-    require(ram[0xa17] == 255, "Audio changed the shared master gain");
+    require(ram[0xa17] == 128, "Audio changed the default shared master gain");
 }
 
 static void verify_options(Device& d, fs::path const& out) {
-    require(d.state().options.music == 15 && d.state().options.sfx == 15,
+    require(d.state().options.music == 15 && d.state().options.sfx == 15 &&
+                !d.state().options.disabled,
             "new game did not initialize audio defaults");
-    verify_audio_options(d, 128, 128);
+    verify_audio_options(d, 255, 255);
     d.tap(BTN_B);
     d.advance(0, 1600000);
     d.tap(BTN_UP);
@@ -979,51 +980,53 @@ static void verify_options(Device& d, fs::path const& out) {
         verify_options_handoff(trace);
     }
     d.capture(out / "options.pgm");
+    require(d.music_enabled(), "opening Audio toggled its Enable setting");
+    d.tap(BTN_A);
+    require(d.state().options.disabled && !d.music_enabled(),
+            "disabling audio did not stop playback");
+    verify_audio_options(d, 255, 255);
+    d.capture(out / "options-disabled.pgm");
+    d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 119, 128);
-    auto pixels = pause_frame(d).pixels;
-    int knob = 128 - AUDIO_WIDTH + 10 + 14 * (AUDIO_WIDTH - 23) / 30;
-    for(int x = 50; x < 118; ++x)
-        require((pixels[3 * 128 + x] & 1) == (x >= knob && x < knob + 3), // Row y = 24, the knob
-                "music slider thumb did not move with its volume");
+    verify_audio_options(d, 238, 255);
+    require(!d.music_enabled(), "adjusting a slider re-enabled audio");
+    d.tap(BTN_UP);
+    d.tap(BTN_A);
+    require(!d.state().options.disabled && d.music_enabled(),
+            "enabling audio did not bring back playback");
+    verify_audio_options(d, 238, 255);
+    d.tap(BTN_DOWN);
     for(unsigned i = 0; i < 17; ++i)
         d.tap(BTN_LEFT);
-    verify_audio_options(d, 0, 128);
+    verify_audio_options(d, 0, 255);
     d.capture(out / "options-music-muted.pgm");
     d.advance(BTN_RIGHT, 32000000);
     d.advance(0, 800000);
-    verify_audio_options(d, 255, 128);
-    require(d.state().options.music == 30, "music did not reach 200 percent");
+    verify_audio_options(d, 255, 255);
+    require(d.state().options.music == 15, "music did not reach 100 percent");
     d.tap(BTN_RIGHT);
-    verify_audio_options(d, 255, 128);
-    d.capture(out / "options-music-200.pgm");
+    verify_audio_options(d, 255, 255);
+    d.capture(out / "options-music-100.pgm");
 
     d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 255, 111);
+    verify_audio_options(d, 255, 221);
     for(unsigned i = 0; i < 17; ++i)
         d.tap(BTN_LEFT);
     verify_audio_options(d, 255, 0);
     d.advance(BTN_RIGHT, 32000000);
     d.advance(0, 800000);
     verify_audio_options(d, 255, 255);
-    require(d.state().options.sfx == 30, "SFX did not reach 200 percent");
-
-    d.tap(BTN_DOWN); // Wrap to Music.
-    d.tap(BTN_LEFT);
-    verify_audio_options(d, 247, 255);
+    require(d.state().options.sfx == 15, "SFX did not reach 100 percent");
     d.tap(BTN_RIGHT);
-    d.tap(BTN_UP); // Wrap back to SFX.
-    d.tap(BTN_DOWN); // And forward to Music again.
+    verify_audio_options(d, 255, 255);
 
-    // Restore the half-scale native defaults (100 percent on the expanded sliders).
-    for(unsigned i = 0; i < 15; ++i)
-        d.tap(BTN_LEFT);
-    d.tap(BTN_DOWN);
-    for(unsigned i = 0; i < 15; ++i)
-        d.tap(BTN_LEFT);
-    verify_audio_options(d, 128, 128);
+    d.tap(BTN_DOWN); // Wrap to Enable.
+    d.tap(BTN_UP); // Wrap back to SFX.
+    d.tap(BTN_LEFT);
+    verify_audio_options(d, 255, 238);
+    d.tap(BTN_RIGHT);
     d.tap(BTN_A);
     auto paused = d.state();
     require(d.serial() == serial && !memcmp(&paused, &frozen, sizeof(Game)),
@@ -1035,12 +1038,13 @@ static void verify_options(Device& d, fs::path const& out) {
 
 static void set_test_options(Device& d) {
     open_audio(d);
+    d.tap(BTN_DOWN);
     for(unsigned i = 0; i < 3; ++i)
         d.tap(BTN_LEFT);
     d.tap(BTN_DOWN);
     for(unsigned i = 0; i < 5; ++i)
         d.tap(BTN_LEFT);
-    verify_audio_options(d, 102, 85);
+    verify_audio_options(d, 204, 170);
     d.tap(BTN_B);
     d.frame();
 }
@@ -1406,8 +1410,9 @@ static void verify_battle_menu(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     d.advance(0, 9600000);
     d.capture(out / "battle-audio.pgm");
+    d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 119, 128);
+    verify_audio_options(d, 238, 255);
     d.tap(BTN_RIGHT);
     paused = d.battle_state();
     require(!memcmp(&initial, &paused, sizeof(initial)) && d.serial() == serial,
@@ -2234,10 +2239,10 @@ static void press_with_music_fade(Device& d) {
     struct Trace {
         Device& device;
         std::vector<uint8_t> levels;
-        uint8_t previous = 128;
+        uint8_t previous;
         void (*observer)(void*, bool);
         void* observer_context;
-    } trace{d, {}, 128, d.cycle_observer, d.observer_context};
+    } trace{d, {}, 255, d.cycle_observer, d.observer_context};
 
     d.observer_context = &trace;
     d.cycle_observer = [](void* context, bool after) {
@@ -2252,7 +2257,7 @@ static void press_with_music_fade(Device& d) {
             trace.levels.push_back(level);
             trace.previous = level;
         }
-        require(ram[0xa17] == 255 && ram[0xa72] == 128, "music fade changed master or SFX gain");
+        require(ram[0xa17] == 128 && ram[0xa72] == 255, "music fade changed master or SFX gain");
     };
     d.advance(BTN_LEFT, 800000);
     // Let the battle entry finish while the longer audio fade is still running.
@@ -2267,7 +2272,7 @@ static void press_with_music_fade(Device& d) {
     d.advance(0, 16000000);
     d.cycle_observer = trace.observer;
     d.observer_context = trace.observer_context;
-    require(trace.levels.size() > 40 && trace.levels.back() == 128 &&
+    require(trace.levels.size() > 40 && trace.levels.back() == 255 &&
                 d.ab->core_state.cpu.data[0xa73] == 0,
             "song switch did not complete its fade and restore the configured volume");
     for(unsigned i = 1; i + 1 < trace.levels.size(); ++i)
@@ -3032,6 +3037,60 @@ int main(int argc, char** argv) try {
     verify_perk_choice(d, out);
     d.set_state(before_perk);
     if(std::string(argv[6]) == "pause") {
+        open_audio(d);
+        d.tap(BTN_A);
+        d.tap(BTN_B);
+        d.frame();
+        d.tap(BTN_B);
+        d.advance(0, 1600000);
+        d.tap(BTN_DOWN); // Save
+        d.tap(BTN_A);
+        auto sector = d.sector();
+
+        Device muted(package, g, m, s, q);
+        muted.import_sector(sector);
+        muted.advance(0, 3200000);
+        require(muted.state().options.disabled && !muted.music_enabled(),
+                "a saved disabled setting did not silence the title");
+        muted.tap(BTN_A);
+        muted.frame();
+        require(!muted.music_enabled(), "Continue re-enabled muted audio");
+        open_audio(muted, true);
+        muted.tap(BTN_A);
+        require(!muted.state().options.disabled && muted.music_enabled(),
+                "re-enabling audio did not start the area's music");
+
+        // The previous save format stored two plain bytes with levels of up to 30.
+        size_t options = 2 + offsetof(Game, options);
+        sector[options] = 30;
+        sector[options + 1] = 20;
+        Device legacy(package, g, m, s, q);
+        legacy.import_sector(sector);
+        legacy.advance(0, 3200000);
+        require(!legacy.state().options.disabled && legacy.music_enabled(),
+                "legacy save did not default to enabled audio");
+        verify_audio_options(legacy, 255, 255);
+        legacy.tap(BTN_A);
+        legacy.frame();
+        require(legacy.state().gold == before_perk.gold && legacy.state().options.music == 15 &&
+                    legacy.state().options.sfx == 15,
+                "legacy save did not retain progress and cap both audio levels");
+        // Open Audio before the title-to-area fade finishes.
+        for(uint8_t button : {BTN_B, BTN_UP, BTN_UP, BTN_A}) {
+            legacy.advance(button, 640000);
+            legacy.advance(0, 1600000);
+        }
+        auto const& ram = legacy.ab->core_state.cpu.data;
+        require(ram[AUDIO_FADE_VOLUME] && ram[AUDIO_MUSIC_VOLUME] < 255,
+                "audio toggle fixture did not reach the fade");
+        unsigned queued = audio_pointer(legacy, AUDIO_FADE_SONG);
+        legacy.tap(BTN_A);
+        require(!legacy.music_enabled(), "disabling audio left the fading song playing");
+        legacy.tap(BTN_A);
+        require(legacy.music_enabled() && audio_pointer(legacy, AUDIO_MUSIC_START) == queued,
+                "enabling audio did not start the queued song");
+        verify_audio_options(legacy, 255, 255);
+
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"Audio and pause redraw\"}\n";
         return 0;
     }
@@ -3292,10 +3351,11 @@ int main(int argc, char** argv) try {
     d.advance(0, 4800000);
     require(d.state().area == AREA_INTERIORS, "load fixture did not enter the house");
     open_audio(d, true);
+    d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
     d.tap(BTN_DOWN);
     d.tap(BTN_LEFT);
-    verify_audio_options(d, 94, 77);
+    verify_audio_options(d, 187, 153);
     d.tap(BTN_B);
     d.frame();
     d.tap(BTN_B);
@@ -3319,7 +3379,7 @@ int main(int argc, char** argv) try {
             "pause Load did not restore the saved world");
     require(menu_loaded.options.music == 11 && menu_loaded.options.sfx == 9,
             "Load overwrote options edited during this session");
-    verify_audio_options(d, 94, 77);
+    verify_audio_options(d, 187, 153);
     d.capture(out / "menu-loaded.pgm");
 
     Device restarted(package, g, m, s, q);
@@ -3329,7 +3389,7 @@ int main(int argc, char** argv) try {
     require(restarted.state().gold == 0, "startup validation did not restore new-game defaults");
     require(restarted.state().options.music == 12 && restarted.state().options.sfx == 10,
             "startup did not load saved options");
-    verify_audio_options(restarted, 102, 85);
+    verify_audio_options(restarted, 204, 170);
     require(restarted.serial() == 0, "restart did not show title");
     require(restarted.music_enabled(), "the continue title has no music");
     unsigned continue_title_song = audio_pointer(restarted, AUDIO_MUSIC_START);
@@ -3363,7 +3423,7 @@ int main(int argc, char** argv) try {
     require(resumed.options.music == 12 && resumed.options.sfx == 10,
             "Continue reset startup options");
     settled_song(continued);
-    verify_audio_options(continued, 102, 85);
+    verify_audio_options(continued, 204, 170);
     continued.tap(BTN_B);
     continued.advance(0, 1600000);
     Game changed_continue = continued.state();
@@ -3379,7 +3439,7 @@ int main(int argc, char** argv) try {
     Device corrupt(package, g, m, s, q);
     corrupt.import_sector(sector);
     corrupt.advance(0, 3200000);
-    verify_audio_options(corrupt, 128, 128);
+    verify_audio_options(corrupt, 255, 255);
     corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);
