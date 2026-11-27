@@ -27,7 +27,7 @@ content, persistent state, and dependencies. It contains no dialogue prose.
 
 | Area | ID | Tileset | Implemented use |
 |---|---:|---|---|
-| `AREA_OUTDOOR` | 1 | World | The forest clearing, the boulder gate east of it, and the village with its river bridge (64x32) |
+| `AREA_OUTDOOR` | 1 | World | The starting clearing with the boulder gate to its east, a fenced southern clearing, and the village with its river bridge (64x32) |
 | `AREA_INTERIORS` | 2 | House | Alden's home, Eliza's home, the Shop and the Inn (76x11) |
 
 The cave and dungeon tilesets and battlefields remain for later areas. No map uses them.
@@ -82,7 +82,7 @@ All indices refer to save format 25.
 | 0 | `FLAG_RESERVED` | Never | Sentinel |
 | 1 | `FLAG_INTRO_SHOWN` | The first simulated frame of a new game | The waking line is spoken once |
 | 2 | `FLAG_HOME_STARTED` | Leaving `NapAreaRegion` | Go Home active until `FLAG_HOME_REACHED` |
-| 3 | `FLAG_BOULDERS_NOTICED` | Entering `ClearingEastRegion` while Go Home is active and unfinished and the clearing has not been left | Go Home objective; requires `HOME_STARTED` |
+| 3 | `FLAG_BOULDERS_NOTICED` | Entering `BoulderSightRegion` while Go Home is active and unfinished and the clearing has not been left | Go Home objective; requires `HOME_STARTED` |
 | 4 | `FLAG_LEFT_CLEARING` | Entering `PathEastRegion` | Go Home objective and marker; requires `HOME_STARTED` |
 | 5 | `FLAG_HOME_REACHED` | Standing inside `AldenRoomsRegion` | Completes Go Home; opens Eliza's story; requires `HOME_STARTED` |
 | 6 | `FLAG_ELIZA_GREETED` | Eliza's greeting inside Alden's home, or talking to her first | Requires `HOME_REACHED` |
@@ -156,7 +156,7 @@ On the first simulated frame Alden, facing south at `PlayerStart`, speaks once
 |---|---|---|
 | Start | Outdoors and outside `NapAreaRegion` | One line, then `quest_start` and `quest_select`; the Quest Start panel |
 | Journal hint | The frame after the start | Set `FLAG_MENU_JOURNAL` and explain the pause menu |
-| Gate noticed | In `ClearingEastRegion`, gate not yet left | Set `FLAG_BOULDERS_NOTICED`; two lines, one explaining A |
+| Gate noticed | In `BoulderSightRegion` (the gate mouth, where a boulder shows beside the dialogue), gate not yet left | Set `FLAG_BOULDERS_NOTICED`; two lines, one explaining A |
 | Clearing left | In `PathEastRegion` | Set `FLAG_LEFT_CLEARING` |
 | Completion | In `AldenRoomsRegion` | Set `FLAG_HOME_REACHED`; reward |
 
@@ -596,10 +596,15 @@ and four boulders are the only barrier between the clearing and the village.
   trap the player: every reachable arrangement can still reach the village. The content test
   checks both properties.
 
-### 7.2 Village barriers
+### 7.2 Barriers and clearings
 
-Cliffs, water, forest, rocks and fences surround the clearing and the village. The only exit from
-the village is the bridge south, which Bram holds.
+Cliffs, water, forest and rocks surround the clearings and the village. The only exit from the
+village is the bridge south, which Bram holds.
+
+Each clearing has its own way to the village, and neither leads to the other. The starting
+clearing is reached through the boulder gate. A path along the south of the lake leads to the
+southern clearing (`SouthClearingRegion`), and the fence in `SouthClearingFenceRegion` closes it.
+No flag or interaction opens that fence yet.
 
 ### 7.3 Mechanism support
 

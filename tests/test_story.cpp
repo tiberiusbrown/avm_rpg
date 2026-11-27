@@ -149,8 +149,13 @@ static void way_home() {
     CHECK(story_locked_menu_items() == (1u << PAUSE_PARTY | 1u << PAUSE_SUPPLIES));
     CHECK(!strcmp(quest_objective(QUEST_GO_HOME), "Leave the clearing"));
 
+    // Nothing is said while the boulders are still out of view.
+    stand(tile(AREA_OUTDOOR, positions::GateMouth.x - 5, positions::GateMouth.y));
+    quiet_frames(3);
+    CHECK(!line_count && !game.get_flag(FLAG_BOULDERS_NOTICED));
+
     // The blocked way out is noticed once.
-    stand(tile(AREA_OUTDOOR, 20, 14));
+    stand(positions::GateMouth);
     line_count = 0;
     frame();
     CHECK(line_count == 2 && said(0, NPC_ALDEN, "Hey! Those boulders"));

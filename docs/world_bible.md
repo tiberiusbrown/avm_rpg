@@ -5,15 +5,20 @@ revision should update the affected conversations, maps, quests, and this guide.
 
 ## The village
 
-A small village of a few homes and buildings, joined by roads and marked with signs: Alden's
-home, Eliza's home, Bram's home (locked), a shop, an inn, and a few other houses and buildings
-whose purposes are still open. Cliffs, a river, fences, forest and rocks surround it. The only
-way out is the bridge south, and at the start of the story the watchman keeps it closed.
+A small village of a few homes and buildings, set at uneven distances along winding roads and
+marked with signs: Alden's home, Eliza's home, Bram's home (locked), a shop, an inn, and a few
+other houses and buildings whose purposes are still open. Cliffs, a river, forest and rocks
+surround it. The only way out is the bridge south, and at the start of the story the watchman
+keeps it closed.
 
-## The forest clearing
+## The forest clearings
 
-A large clearing a short walk west of the village, walled by forest, rock, cliff and water. Its one opening faces east toward the village. While Alden slept
-there, boulders rolled into that opening.
+Two clearings lie a short walk west of the village, walled by forest, rock, cliff and water. Each
+opens only toward the village.
+
+- The northern clearing is where the story begins. While Alden slept there, boulders rolled into
+  its opening.
+- The southern clearing is reached by a path along the lake, which a fence closes.
 
 ## Residents
 
@@ -34,3 +39,4 @@ mechanics and dependencies, [game logic](game_logic.md).
 
 - Why the watchman keeps the village closed, and what lies beyond the bridge.
 - Who will live in the other houses, and what the shop and inn will offer.
+- Why the path to the southern clearing is fenced.

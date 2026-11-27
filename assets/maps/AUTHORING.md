@@ -549,9 +549,18 @@ Rules for fences:
   of a vertical piece are walkable grass. The right-hand column of a pen holds its fence on
   the left half, so the right half of those cells lies outside the pen. The player's head
   overlaps a horizontal fence from behind, as it should in this view.
+- **A fence must close something that nothing else closes.** Do not run one beside a cliff,
+  water, forest, rocks or a wall. No fence runs more than two cells with a solid cell along one
+  side. The exception is a vertical run west of a barrier: it stands on the left of its cells, so
+  ground shows between them. The content test rejects the rest.
+- **An end piece leaves half a cell open.** The top half of `FENCE_END_NORTH` and the left
+  half of `FENCE_END_WEST` are walkable. Where a fence closes a path, put a rock or other full
+  cell beside that half, and check that nothing slips past.
+- **A locked area is listed.** Ground that a fence closes off until later takes a region for the
+  area and one for the fence, and the content test checks both the shut and the opened state.
 - **Leave a gap.** A fence has no gate piece. End the run on both sides of the opening.
   A pen with fully walkable cells inside needs an opening, because the content test
-  requires those cells to be reachable from the spawn.
+  requires those cells to be reachable from the spawn, unless the pen is a listed locked area.
 
 A 5x4 pen with an opening in its bottom side, as runtime IDs. `06` stands for any grass cell.
 
@@ -891,8 +900,9 @@ author a map by hand.
   wall is grass, except for the door's front tile. A footpath runs from that tile to the
   road network, and its first tile runs straight south, because the tiles beside it touch
   the wall.
-- **Organic villages.** Do not line houses up on one row. Space them at irregular
-  intervals and distances from the street. Each door's footpath can be a different length.
+- **Organic villages.** Do not line houses up on one row. Put doors on different rows, with
+  irregular gaps between the houses. Let each street step, and let each door's footpath have
+  its own length and, where it helps, a bend.
 - **Roads one tile wide.** Streets and footpaths are one tile wide. A paved square of 2x2
   or 3x3 marks the place where streets meet.
 - **Winding, not straight.** Roads step sideways one cell every four to twelve cells.
@@ -904,6 +914,11 @@ author a map by hand.
   bridge where a street meets it, and let it continue to the sea or the map edge.
 - **Trees around roads.** Scatter single trees and small clumps near roads, two to four
   tiles away, thinning with distance. A single tree never touches another tree.
+- **Nothing natural runs straight.** Step cliff walls, river banks and lake shores up or down
+  every few cells, and keep forest edges ragged. A long straight edge or a straight block of
+  trees reads as built.
+- **No dead space.** Barriers are a few cells deep. Do not fill a region of the map with trees,
+  water and cliffs that nobody can enter; open it as ground to walk.
 - **Soft forest edges.** Forest edges are not hard lines. Vary the depth of a forest from
   cell to cell, and put loose trees near it.
 - **A varied border.** The map border changes its barrier every few dozen cells: forest,
@@ -1032,6 +1047,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 
 ## Before committing a map
 
+- Look at the whole preview against [Layout principles](#layout-principles), enlarged. The
+  content test cannot judge straight edges, houses in a row or solid dead space.
 - A new animated tile has its frames in the phase layer atlases, not in atlas cells, and
   every grass or flowers tile has a wind frame.
 - Chimneys replace `0xb5` or `0x92` only, torches stand beside paths and not on them, and
@@ -1053,8 +1070,8 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
 - No `EMPTY` (`0x00`) cell is painted, and the floor mixes sparse and dense grass cells.
 - The spawn is passable, and every named point and route is reachable from the spawn
   over passable tiles.
-- Every fully walkable cell is reachable from the spawn, except floor that an unbroken
-  outline of cliff pieces seals off.
+- Every fully walkable cell is reachable from the spawn once listed fences are open, except
+  floor that an unbroken outline of cliff pieces seals off.
 - Every water cell is part of a 2x2 block of water and uses the piece that its sides and
   inner corners select in [Water](#water).
 - Every raised cell is part of a 2x2 block of raised cells and uses the piece that

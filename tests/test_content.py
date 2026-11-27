@@ -43,7 +43,7 @@ def adjacent(cell):
 class Ground:
     """Pixel-level walking over one map with the player's 8x8 foot box at (4, 8)."""
 
-    def __init__(self, area, blocked=(), bodies=()):
+    def __init__(self, area, blocked=(), bodies=(), opened=()):
         self.width, self.height = area.width * 16, area.height * 16
         self.solid = bytearray(self.width * self.height)
         shapes = {}
@@ -51,7 +51,7 @@ class Ground:
             for tx in range(area.width):
                 value = area.data[ty * area.width + tx]
                 mask = 0xFFFF if (tx, ty) in blocked or value == 255 else area.tiles[value]["collision"]
-                if not mask:
+                if not mask or (tx, ty) in opened:
                     continue
                 if mask not in shapes:
                     shapes[mask] = [
@@ -72,15 +72,17 @@ class Ground:
                 return False
         return all(not (x < bx + 8 and bx < x + 8 and y < by + 8 and by < y + 8) for bx, by in self.bodies)
 
-    def walk(self, cell):
-        """Every sprite position that the player can reach from standing on a tile."""
+    def walk(self, cell, avoid=()):
+        """Every sprite position that the player can reach from standing on a tile, without the
+        foot center ever entering a tile of `avoid`."""
         first = (cell[0] * 16, cell[1] * 16)
         assert self.clear(*first), cell
         seen, queue = {first}, deque([first])
         while queue:
             x, y = queue.popleft()
             for step in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-                if step not in seen and self.clear(*step):
+                if (step not in seen and self.clear(*step)
+                        and ((step[0] + 8) >> 4, (step[1] + 12) >> 4) not in avoid):
                     seen.add(step)
                     queue.append(step)
         return seen
@@ -271,13 +273,22 @@ assert 255 not in m.data, "every outdoor cell is painted"
 assert {o["handler"] for o in m.objects if o["handler"]} == {"enter_house", "show_message"}
 assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house"}
 
+# The southern clearing is closed off by a fence until a later scene opens it. Shut, it cannot be
+# entered.
+south, south_fence = cells_of("SouthClearing"), cells_of("SouthClearingFence")
+assert all(tiles[at(*cell)]["symbol"].startswith("FENCE_") for cell in south_fence)
+shut = standing_tiles(Ground(m).walk(start))
+assert not shut & south, "the fence does not close the southern clearing"
+
 # The player cannot reach the edge of the map, and every marker and walkable cell is reachable.
-outdoors = Ground(m)
+# Both hold with the southern clearing open.
+outdoors = Ground(m, opened=south_fence)
 walked = outdoors.walk(start)
 assert not any(
     x <= 0 or y <= 0 or x >= outdoors.width - 16 or y >= outdoors.height - 16 for x, y in walked
 ), "the player can reach the edge of the map"
 seen = standing_tiles(walked)
+assert len(seen & south) > 80, "opening the fence does not open a clearing"
 for name, o in names.items():
     if o["area"] == m.area and len(o["points"]) == 1:
         cell = position(name)
@@ -339,10 +350,16 @@ for x, y in gate:
         # Whole or empty cells make the gate behave exactly as a grid puzzle.
         assert tiles[at(nx, ny)]["collision"] in (0, 0xFFFF), f"partial tile beside the gate at {(nx, ny)}"
 assert all(tiles[at(*cell)]["collision"] == 0 for cell in boulders)
-sealed = standing_tiles(Ground(m, blocked=gate).walk(start))
+sealed = standing_tiles(Ground(m, blocked=gate, opened=south_fence).walk(start))
 assert village_side not in sealed and not any(
     cell in sealed for cell in cells_of("PathEast")
 ), "the clearing has a way out around the boulders"
+# Each clearing has its own way to the village: neither leads to the other.
+assert not sealed & south, "the southern clearing opens off the starting clearing"
+beside = standing_tiles(Ground(m, blocked=gate, opened=south_fence).walk(village_side))
+assert len(beside & south) > 80 and start not in beside, (
+    "the southern clearing is not reached from the village alone"
+)
 assert village_side not in standing_tiles(Ground(m, blocked=boulders).walk(start)), "the boulders do not block the way"
 
 floor = {(x, y) for y in range(m.height) for x in range(m.width) if tiles[at(x, y)]["collision"] == 0}
@@ -415,6 +432,71 @@ returning, _, _ = push_states(village_side, boulders)
 assert any(spawn_side in region_from(anchor, stones) for stones, anchor in returning), (
     "the clearing cannot be entered from the village side"
 )
+
+# The traveler remarks on the boulders only when one can be seen while the words show. The
+# dialogue leaves the top of the screen, centered on the player, and a portrait and name cover its
+# left half. Wherever the remark can fire, a boulder stands there with at least three quarters of
+# its height showing, and nobody gets next to a boulder without passing that way.
+DIALOGUE_VIEW_HEIGHT = 64 - 31
+sight = cells_of("BoulderSight")
+fired = 0
+for x, y in Ground(m).walk(start):
+    if ((x + 8) >> 4, (y + 12) >> 4) not in sight:
+        continue
+    fired += 1
+    left = min(max(x - (128 - 16) // 2, 0), m.width * 16 - 128)
+    top = min(max(y - (DIALOGUE_VIEW_HEIGHT - 16) // 2, 0), m.height * 16 - DIALOGUE_VIEW_HEIGHT)
+    assert any(left + 64 <= bx * 16 <= left + 128 - 16
+               and min(by * 16 + 16, top + DIALOGUE_VIEW_HEIGHT) - max(by * 16, top) >= 12
+               for bx, by in boulders), f"no boulder in view from {(x, y)}"
+assert fired, "the boulder remark cannot fire"
+unnoticed = standing_tiles(Ground(m).walk(start, avoid=sight))
+assert not any(step in unnoticed for boulder in boulders for step in adjacent(boulder)), (
+    "a boulder can be reached without the remark"
+)
+
+# A fence beside a solid barrier closes nothing. No fence runs more than two cells with a barrier
+# along one side. A vertical fence stands on the left half of its cells, so a barrier on its east
+# leaves ground showing between them, and is allowed.
+FENCE_CORNERS = ("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")
+FENCE_LINES = (
+    # The pieces of a run, the step along it, and the sides where a barrier makes it redundant.
+    (("HORIZONTAL", "END_WEST", "END_EAST") + FENCE_CORNERS, (1, 0), ((0, -1), (0, 1))),
+    (("VERTICAL", "END_NORTH", "END_SOUTH") + FENCE_CORNERS, (0, 1), ((-1, 0),)),
+)
+
+
+def redundant_fences(area):
+    def piece(x, y):
+        if not (0 <= x < area.width and 0 <= y < area.height):
+            return None
+        tile = area.tiles.get(area.data[y * area.width + x])
+        return tile["symbol"] if tile else None
+
+    def barrier(x, y):
+        if not (0 <= x < area.width and 0 <= y < area.height):
+            return True
+        name = piece(x, y)
+        return bool(name and not name.startswith("FENCE_")
+                    and area.tiles[area.data[y * area.width + x]]["collision"])
+
+    found = []
+    for ends, (dx, dy), sides in FENCE_LINES:
+        names_of_run = {"FENCE_" + end for end in ends}
+        for side_x, side_y in sides:
+            for y in range(area.height):
+                for x in range(area.width):
+                    run = [(x + dx * i, y + dy * i) for i in range(3)]
+                    if all(piece(cx, cy) in names_of_run and barrier(cx + side_x, cy + side_y)
+                           for cx, cy in run):
+                        found.append((run[0], (side_x, side_y)))
+    return found
+
+
+for area in maps:
+    assert not redundant_fences(area), (
+        f"{area.symbol}: fence beside a barrier (first cell, barrier side): {redundant_fences(area)}"
+    )
 
 # Bram stands in the middle of the bridge, the only way south out of the village.
 bram = position("BramPost")
@@ -884,6 +966,7 @@ for path in scores:
     symbol = "SFX_" + re.sub(r"[^A-Za-z0-9_]", "_", path.stem).upper()
     assert re.search(rf"\b{symbol}\b", code), f"{symbol} is never played"
 print(
-    "PASS village and clearing, trap-free boulder gate, sealed border, linked houses, roof and rug "
-    "joins, tile semantics, no guest allocations and only played sound effects"
+    "PASS village and clearings, trap-free boulder gate, sealed border and fenced clearing, open "
+    "fences, linked houses, roof and rug joins, tile semantics, no guest allocations and only "
+    "played sound effects"
 )

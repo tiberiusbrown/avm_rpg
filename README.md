@@ -274,9 +274,10 @@ dialogue. Animated tiles cost nothing per tile: each of the four phases has its 
 sheet. The tile and map rules are in `assets/maps/AUTHORING.md`. The same tiles decide what the
 player hears: see the environment sounds under the music section above.
 
-The outdoor map is 64x32 tiles: the forest clearing, the boulder gate and the village with its
-river and bridge, walled by cliffs, water, forest, rocks and fences. The village houses stand
-along two streets with signs by their doors. Alden's home, Eliza's home, the Shop and the Inn
+The outdoor map is 64x32 tiles: the starting clearing, the boulder gate, a southern clearing
+behind a fence and the village with its river and bridge, walled by cliffs, water, forest and
+rocks. The village houses stand at uneven distances along winding streets with signs by their
+doors. Alden's home, Eliza's home, the Shop and the Inn
 share the interior map: face a door and press A to enter, and walk out through the exit at the
 bottom of the room to leave.
 

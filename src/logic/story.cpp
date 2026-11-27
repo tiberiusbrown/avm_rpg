@@ -67,7 +67,7 @@ bool follow_the_way_home() {
         return true;
     }
     if(game.get_flag(FLAG_BOULDERS_NOTICED) ||
-       !game.player_is_in_region(positions::ClearingEastRegion))
+       !game.player_is_in_region(positions::BoulderSightRegion))
         return false;
     game.set_flag(FLAG_BOULDERS_NOTICED);
     dialogue_show(NPC_ALDEN, F("Hey! Those boulders must have rolled while I slept. The way out is "

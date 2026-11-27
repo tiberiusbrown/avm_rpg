@@ -52,7 +52,7 @@ and the canon in the same change.
 
 - Define each essential NPC with `NpcPolicy<ID> : AtOneOf<...>` and `NpcContent<ID>` in its area header; use `When<POS, predicate>` for saved quest conditions. Keep possible sites and conditions together, without a second location registry or per-identity coordinates. Add positions in Tiled. Identity, portrait row and active slot are independent.
 - Preserve the eight-slot compact actor prefix, bounded candidate priority (higher priority then lower ID), guarded offscreen activation/retirement and pinned essential NPCs with unfinished target/route movement. Reacquire actor pointers after NPC-stage compaction. Run the full NPC stage every frame and throughout destination scene preparation.
-- Python emits map catalogs and area dimensions; C++20 owns chunk specialization and dense PROGMEM function tables. Keep 24-bit code pointers, full LTO and complete stack bounds. Save loading reconstructs transient actors from their location policies.
+- Python emits map catalogs and area dimensions; C++20 owns chunk specialization and dense PROGMEM function tables. Keep 24-bit code pointers, full LTO and complete stack bounds. A save holds the NPC pool: loading validates it and resumes those actors, and location policies cast others through ordinary admission.
 
 ## UI panel style
 

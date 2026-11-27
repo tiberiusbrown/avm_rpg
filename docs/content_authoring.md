@@ -22,11 +22,18 @@ and approaches can be spacious when they establish geography or mood. Give
 them an outline, recognizable landmarks, and enough variation to orient by.
 Treat all these distances as heuristics.
 
+A map should not look generated. Cliffs, rivers, shores and forest edges step in
+and out, houses sit at their own depths, and fences stand only where nothing
+else closes the way. Spend space on ground the player can walk: a thick mass of
+trees, water and cliff that nobody can enter is wasted. Decide how areas connect
+before drawing them, and give each its own way from where the story sends the
+player, unless the story chains them.
+
 ## Settlements
 
 Give each settlement a reason to exist, a visual identity, and a central
 landmark. Group useful services near a place people would actually gather.
-Arrange houses according to terrain, trades, and streets. Connect courtyards,
+Arrange houses according to terrain, trades, and streets, never in rows. Connect courtyards,
 work yards, gardens, and districts with more than one route where space allows.
 Keep thresholds and busy routes clear even when residents are walking.
 
@@ -69,6 +76,24 @@ the [native quest registry](quest_programming.md). Use Journal summaries to help
 resume after a break. Mark useful destinations and leave room for deduction.
 Make rewards single-use and test repeated interactions and reloads.
 
+## Story triggers and puzzles
+
+Start a moment from where the player is: test a named region, and record only
+the fact that the moment happened. Do not add saved fields that track how far the
+player has walked or where an object has been moved. A movable object keeps its
+state in its actor, and the save holds it.
+
+A line about something plays only where the player can see that thing while the
+words are on screen. The dialogue panel leaves the top 33 pixel rows, centered on
+the player, and a speaker's portrait and name cover much of the left half, so a
+remark about an object belongs within a tile or two of it, with the object ahead. A
+trigger that must come before an interaction lies across every route to it.
+Prove both in the content test, and look at the device capture with the panel up.
+
+A puzzle never traps the player: not after any order of moves, from either side,
+or across saving, loading and walking away. Keep its objects in one 8x4 chunk so
+that they reset together, and only when unloaded out of sight.
+
 ## Caves and dungeons
 
 Establish why the place exists and what sets it apart. Vary geography,
@@ -97,7 +122,8 @@ challenge and explain their presence through the setting.
 ## Play and presentation
 
 Teach mechanics through early choices and clear landmarks. Signal danger
-before contact, keep early battles manageable, and put recovery and saving
+before contact, keep early battles manageable (the first need not be impossible
+to lose, only easy), and put recovery and saving
 within reach. A defeat returns the player to the title screen. Use existing
 art, animation, audio, services, and mechanisms before adding new systems.
 Keep return walks short and let players decide what to pursue next.
@@ -113,6 +139,9 @@ owning area's code.
 ## Acceptance checklist
 
 - [ ] Review generated previews and walk a few actual 8×4 views in both directions.
+- [ ] In the preview, look for straight natural edges, houses in a row, solid dead space,
+      redundant fences and areas that connect the wrong way.
+- [ ] For each remark about something in the world, check that it shows while the words do.
 - [ ] Run `python tools/review_content_density.py` and inspect sparse stretches in context.
 - [ ] Check navigation, doors, portal arrivals, NPC approaches, and actor retirement.
 - [ ] Try alternate orders, cancellation, repeat interactions, save/load, and post-quest reactions.

@@ -60,6 +60,10 @@ Status, text and marker queries must not change game state. `start`, `evaluate`,
 Status derives from saved facts. Go Home, for example, reads whether the traveler has set out
 and whether they have reached home.
 
+Add a fact only for something that happened. Detect where the player is with a named region
+(`game.player_is_in_region`), not with a saved record of their movement, and leave the state of a
+movable object in its actor, which the save already holds.
+
 `Game::selected_quest` stores the tracked quest or `QUEST_NONE`. The save
 checks the tracked ID and calls each quest’s `consistent()` to reject impossible
 combinations. `save_restore()` clears a selection that names an inactive quest.
