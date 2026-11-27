@@ -50,7 +50,7 @@ static PartyMember make_member(NPC_ID id, uint8_t movement, uint8_t attack) {
 static Party make_party(uint8_t count) {
     Party party{};
     party.members[0] = make_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
-    party.members[1] = make_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT);
+    party.members[1] = make_member(NPC_ELIZA, MOVEMENT_LEAP, ATTACK_SHOOT);
     party.members[2] = make_member(NPC_ALDEN, MOVEMENT_CHARGE, ATTACK_REND);
     party.members[3] = make_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_REACH);
     party.count = count;

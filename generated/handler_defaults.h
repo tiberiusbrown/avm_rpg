@@ -16,39 +16,7 @@ EmptyHandler enter_house(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 EmptyHandler leave_house(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
-EmptyHandler light_orb(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler maintenance_hatch(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler open_chest(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler open_door(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler open_shop(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler press_plate(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler read_survey_notes(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler read_survey_trail(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler read_workshop_record(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler rest_at_inn(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
 EmptyHandler show_message(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler show_state(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler steam_vent(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler take_lantern_relay(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler take_passage(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler use_lever(Tag<POS, STAGE>) { return {}; }
-template <TilePos POS, HandlerStage STAGE>
-EmptyHandler village_lantern(Tag<POS, STAGE>) { return {}; }
 template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_enter_house() {
     return authored_handler<decltype(enter_house(Tag<POS, STAGE>{}))>;
@@ -66,140 +34,12 @@ void dispatch_leave_house() {
     leave_house(Tag<POS, STAGE>{});
 }
 template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_light_orb() {
-    return authored_handler<decltype(light_orb(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_light_orb() {
-    light_orb(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_maintenance_hatch() {
-    return authored_handler<decltype(maintenance_hatch(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_maintenance_hatch() {
-    maintenance_hatch(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_open_chest() {
-    return authored_handler<decltype(open_chest(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_open_chest() {
-    open_chest(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_open_door() {
-    return authored_handler<decltype(open_door(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_open_door() {
-    open_door(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_open_shop() {
-    return authored_handler<decltype(open_shop(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_open_shop() {
-    open_shop(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_press_plate() {
-    return authored_handler<decltype(press_plate(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_press_plate() {
-    press_plate(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_read_survey_notes() {
-    return authored_handler<decltype(read_survey_notes(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_read_survey_notes() {
-    read_survey_notes(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_read_survey_trail() {
-    return authored_handler<decltype(read_survey_trail(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_read_survey_trail() {
-    read_survey_trail(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_read_workshop_record() {
-    return authored_handler<decltype(read_workshop_record(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_read_workshop_record() {
-    read_workshop_record(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_rest_at_inn() {
-    return authored_handler<decltype(rest_at_inn(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_rest_at_inn() {
-    rest_at_inn(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
 constexpr bool implemented_show_message() {
     return authored_handler<decltype(show_message(Tag<POS, STAGE>{}))>;
 }
 template <TilePos POS, HandlerStage STAGE>
 void dispatch_show_message() {
     show_message(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_show_state() {
-    return authored_handler<decltype(show_state(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_show_state() {
-    show_state(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_steam_vent() {
-    return authored_handler<decltype(steam_vent(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_steam_vent() {
-    steam_vent(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_take_lantern_relay() {
-    return authored_handler<decltype(take_lantern_relay(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_take_lantern_relay() {
-    take_lantern_relay(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_take_passage() {
-    return authored_handler<decltype(take_passage(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_take_passage() {
-    take_passage(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_use_lever() {
-    return authored_handler<decltype(use_lever(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_use_lever() {
-    use_lever(Tag<POS, STAGE>{});
-}
-template <TilePos POS, HandlerStage STAGE>
-constexpr bool implemented_village_lantern() {
-    return authored_handler<decltype(village_lantern(Tag<POS, STAGE>{}))>;
-}
-template <TilePos POS, HandlerStage STAGE>
-void dispatch_village_lantern() {
-    village_lantern(Tag<POS, STAGE>{});
 }
 }
 template <TilePos POS, HandlerStage STAGE>
@@ -210,55 +50,7 @@ struct Handler {
     void leave_house() {
         handler_impl::dispatch_leave_house<POS, STAGE>();
     }
-    void light_orb() {
-        handler_impl::dispatch_light_orb<POS, STAGE>();
-    }
-    void maintenance_hatch() {
-        handler_impl::dispatch_maintenance_hatch<POS, STAGE>();
-    }
-    void open_chest() {
-        handler_impl::dispatch_open_chest<POS, STAGE>();
-    }
-    void open_door() {
-        handler_impl::dispatch_open_door<POS, STAGE>();
-    }
-    void open_shop() {
-        handler_impl::dispatch_open_shop<POS, STAGE>();
-    }
-    void press_plate() {
-        handler_impl::dispatch_press_plate<POS, STAGE>();
-    }
-    void read_survey_notes() {
-        handler_impl::dispatch_read_survey_notes<POS, STAGE>();
-    }
-    void read_survey_trail() {
-        handler_impl::dispatch_read_survey_trail<POS, STAGE>();
-    }
-    void read_workshop_record() {
-        handler_impl::dispatch_read_workshop_record<POS, STAGE>();
-    }
-    void rest_at_inn() {
-        handler_impl::dispatch_rest_at_inn<POS, STAGE>();
-    }
     void show_message() {
         handler_impl::dispatch_show_message<POS, STAGE>();
-    }
-    void show_state() {
-        handler_impl::dispatch_show_state<POS, STAGE>();
-    }
-    void steam_vent() {
-        handler_impl::dispatch_steam_vent<POS, STAGE>();
-    }
-    void take_lantern_relay() {
-        handler_impl::dispatch_take_lantern_relay<POS, STAGE>();
-    }
-    void take_passage() {
-        handler_impl::dispatch_take_passage<POS, STAGE>();
-    }
-    void use_lever() {
-        handler_impl::dispatch_use_lever<POS, STAGE>();
-    }
-    void village_lantern() {
-        handler_impl::dispatch_village_lantern<POS, STAGE>();
     }
 };

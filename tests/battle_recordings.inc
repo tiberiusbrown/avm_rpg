@@ -270,7 +270,7 @@ static void save_review_video(FadeTrace const& trace, fs::path const& path, unsi
 }
 
 static void record_battle_review(Device& d, fs::path const& out) {
-    start_grove_contact(d);
+    start_rat_contact(d);
     settled_song(d);
     // Isolate the real game cues in the review tracks. The emulator records speaker output
     // at 16 MHz / SOUND_CYCLES from the same run used for the captured OLED frames.

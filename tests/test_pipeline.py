@@ -24,6 +24,7 @@ from generate_assets import (
     collision_pixel_solid,
     export_world,
     generate,
+    load_tilesets,
     load_world,
     map_previews,
     read_face_frames,
@@ -32,22 +33,33 @@ from generate_assets import (
     tileset_overlays,
     TILE_PHASES,
     world_map_image,
+    world_map_scale,
     world_map_sprite,
 )
 
 
 class Pipeline(unittest.TestCase):
     def test_world_map_size_and_binary_pixels(self):
+        maps, _, _ = load_world(ROOT)
+        outdoor = next(m for m in maps if m.symbol == "OUTDOOR")
+        scale = world_map_scale(outdoor.width, outdoor.height)
+        width, height = outdoor.width * scale, outdoor.height * scale
         image = world_map_image(ROOT)
-        self.assertEqual(image.size, (MAX_WIDTH, MAX_HEIGHT))
+        self.assertEqual(image.size, (width, height))
         self.assertEqual(image.mode, "1")
         packed = world_map_sprite(image)
-        self.assertEqual(packed[:2], [MAX_WIDTH, MAX_HEIGHT])
-        self.assertEqual(len(packed), 2 + MAX_WIDTH * MAX_HEIGHT // 8)
-        for y in range(MAX_HEIGHT):
-            for x in range(MAX_WIDTH):
-                byte = packed[2 + (y // 8) * MAX_WIDTH + x]
+        self.assertEqual(packed[:2], [width, height])
+        self.assertEqual(len(packed), 2 + width * ((height + 7) // 8))
+        for y in range(height):
+            for x in range(width):
+                byte = packed[2 + (y // 8) * width + x]
                 self.assertEqual(bool(byte & (1 << (y % 8))), bool(image.getpixel((x, y))))
+
+    def test_world_map_scale_keeps_the_whole_map_on_the_display(self):
+        self.assertEqual(world_map_scale(64, 32), 2)
+        self.assertEqual(world_map_scale(65, 32), 1)
+        self.assertEqual(world_map_scale(64, 33), 1)
+        self.assertEqual(world_map_scale(MAX_WIDTH, MAX_HEIGHT), 1)
 
     def test_world_map_partial_page_padding(self):
         image = Image.new("1", (3, 9), 1)
@@ -71,7 +83,7 @@ class Pipeline(unittest.TestCase):
         self.tree.write(self.path, encoding="utf-8", xml_declaration=True)
 
     def sign(self):
-        return self.object("WellSign")
+        return self.object("AldenSign")
 
     def object(self, name):
         return self.tree.find(f".//object[@name='{name}']")
@@ -85,13 +97,18 @@ class Pipeline(unittest.TestCase):
         obj.set("y", str(16 * ty + 8))
 
     def fit_objects(self, width, height):
-        """Move every named point into a small map: the spawn in the middle, the rest on
-        distinct tiles, so that the map is still a valid authoring input."""
+        """Move every named marker into a small map as a point: the spawn in the middle, the
+        rest on distinct tiles, so that the map is still a valid authoring input."""
         spawn = (width // 2, height // 2)
         free = [(x, y) for y in range(height) for x in range(width) if (x, y) != spawn]
         for obj in self.tree.getroot().iter("object"):
             if not obj.get("name"):
                 continue
+            # A region would not fit; its marker becomes a point.
+            obj.attrib.pop("width", None)
+            obj.attrib.pop("height", None)
+            if obj.find("point") is None:
+                ET.SubElement(obj, "point")
             if obj.get("name") == "PlayerStart":
                 self.move_to(obj, *spawn)
             else:
@@ -126,7 +143,7 @@ class Pipeline(unittest.TestCase):
     def test_all_bitmap_and_alpha_mask_pixels(self):
         source = generate(self.root)["sprites.cpp"]
         maps, _, _ = load_world(self.root)
-        counts = tile_export_counts(maps)
+        counts = tile_export_counts(maps, load_tilesets(self.root))
         for name, file, frames, masked in [
             ("TILE_SPRITES", "tiles16.png", counts["world"], False),
             ("HOUSE_TILE_SPRITES", "tiles16_house.png", counts["house"], False),
@@ -207,8 +224,8 @@ class Pipeline(unittest.TestCase):
     def test_phase_sheets_and_wind_frames(self):
         out = generate(self.root)
         maps, _, _ = load_world(self.root)
-        by_name = {m.tileset: m.tiles for m in maps}
-        counts = tile_export_counts(maps)
+        by_name = load_tilesets(self.root)
+        counts = tile_export_counts(maps, by_name)
         # Tilesets take their runtime index by name, after the world's.
         for index, (name, sprites, atlas) in enumerate([
             ("world", "TILE_SPRITES", "tiles16"),
@@ -350,13 +367,11 @@ class Pipeline(unittest.TestCase):
         self.assertIn("TILESET_WORLD = 0;", areas)
         self.assertIn(f"inline constexpr uint8_t NUM_AREAS = {len(maps)};", areas)
         self.assertEqual(sorted(m.area for m in maps), list(range(1, len(maps) + 1)))
-        self.assertEqual(by_symbol["CAVE"].tileset, "cave")
-        self.assertEqual(by_symbol["DUNGEON"].tileset, "dungeon")
+        # Every terrain tileset is exported, whether or not a map draws with it: battlefields
+        # use them too.
         for index, name in enumerate(("WORLD", "CAVE", "DUNGEON", "HOUSE")):
             self.assertIn(f"TILESET_{name} = {index};", areas)
         self.assertIn("TILESET_COUNT = 4;", areas)
-        for symbol, name in (("CAVE", "CAVE"), ("DUNGEON", "DUNGEON")):
-            self.assertIn(f"case {by_symbol[symbol].area}: return TILESET_{name};", areas)
         interiors = by_symbol["INTERIORS"].area
         self.assertIn(f"case {interiors}: return TILESET_HOUSE;", areas)
         self.assertIn("default: return TILESET_WORLD;", areas)
@@ -731,15 +746,15 @@ class Pipeline(unittest.TestCase):
                         self.assertEqual(bits, (int(bool(r and a)), int(bool(a))))
 
     def test_sign_relocation_crosses_chunk(self):
-        tx, ty = self.tile_of("WellSign")
+        tx, ty = self.tile_of("AldenSign")
         before = export_world(self.root)
         nx = (tx // 8 + 1) * 8  # The first tile of the next chunk column.
         self.move_to(self.sign(), nx, ty)
         self.write()
         after = export_world(self.root)
-        self.assertIn(f"WellSign{{1, {tx}, {ty}}}", before["map_positions.h"])
-        self.assertIn(f"WellSign{{1, {nx}, {ty}}}", after["map_positions.h"])
-        self.assertIn("MapSite<positions::WellSign, MapOperation_fixture_sign>",
+        self.assertIn(f"AldenSign{{1, {tx}, {ty}}}", before["map_positions.h"])
+        self.assertIn(f"AldenSign{{1, {nx}, {ty}}}", after["map_positions.h"])
+        self.assertIn("MapSite<positions::AldenSign, MapOperation_fixture_sign>",
                       after["map_handler_catalog.h"])
 
     def test_maximum_map_and_high_chunk_index(self):
@@ -749,7 +764,7 @@ class Pipeline(unittest.TestCase):
         self.write()
         result = export_world(self.root)
         columns, rows = -(-width // 8), -(-height // 4)
-        self.assertIn(f"WellSign{{1, {width - 1}, {height - 1}}}", result["map_positions.h"])
+        self.assertIn(f"AldenSign{{1, {width - 1}, {height - 1}}}", result["map_positions.h"])
         self.assertIn(f"OUTDOOR_CHUNK_COLUMNS = {columns}", result["world_assets.h"])
         self.assertIn(f"OUTDOOR_CHUNK_ROWS = {rows}", result["world_assets.h"])
         last = (rows - 1) * columns + columns - 1
@@ -783,7 +798,7 @@ class Pipeline(unittest.TestCase):
 
     def test_rectangle_expansion_at_four_chunks(self):
         # A two-by-two rectangle whose top-left tile sits just before a chunk corner.
-        tx, ty = self.tile_of("WellSign")
+        tx, ty = self.tile_of("AldenSign")
         bx, by = (tx // 8 + 1) * 8, (ty // 4 + 1) * 4
         rx, ry = bx - 1, by - 1
         sign = self.sign()
@@ -793,14 +808,14 @@ class Pipeline(unittest.TestCase):
         sign.set("height", "32")
         self.write()
         result = export_world(self.root)
-        self.assertIn(f"WellSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
+        self.assertIn(f"AldenSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}", result["map_positions.h"])
         for i, (dx, dy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
-            self.assertIn(f"MapSite<positions::WellSign_{i}, MapOperation_fixture_sign>",
+            self.assertIn(f"MapSite<positions::AldenSign_{i}, MapOperation_fixture_sign>",
                           result["map_handler_catalog.h"])
-            self.assertIn(f"WellSign_{i}{{1, {rx + dx}, {ry + dy}}}", result["map_positions.h"])
+            self.assertIn(f"AldenSign_{i}{{1, {rx + dx}, {ry + dy}}}", result["map_positions.h"])
 
     def test_fractional_rectangle_edges(self):
-        tx, ty = self.tile_of("WellSign")
+        tx, ty = self.tile_of("AldenSign")
         bx, by = (tx // 8 + 1) * 8, (ty // 4 + 1) * 4
         rx, ry = bx - 1, by - 1
         self.sign().set("x", str(16 * rx + 15.9))
@@ -809,12 +824,12 @@ class Pipeline(unittest.TestCase):
         self.sign().set("height", "0.2")
         self.write()
         self.assertIn(
-            f"WellSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}",
+            f"AldenSignRegion{{{{1, {rx}, {ry}}}, 2, 2}}",
             export_world(self.root)["map_positions.h"],
         )
 
     def test_safe_spawn_and_duplicate_names(self):
-        self.tree.find("properties/property[@name='spawn']").set("value", "WellSign")
+        self.tree.find("properties/property[@name='spawn']").set("value", "AldenSign")
         self.fails("tiles without collision")
         self.tree.find("properties/property[@name='spawn']").set("value", "PlayerStart")
         self.sign().set("name", "PlayerStart")
@@ -899,7 +914,7 @@ def write_handler_fixture(output):
         path = root / "assets/maps/outdoor.tmx"
         tree = ET.parse(path)
         group = tree.find("objectgroup")
-        field = tree.find(".//object[@name='TestField']")
+        field = tree.find(".//object[@name='ElizaGarden']")
         fx, fy = int(float(field.get("x"))) // 16, int(float(field.get("y"))) // 16
         for name in ("Pending0", "Pending1", None):
             obj = ET.SubElement(

@@ -41,7 +41,7 @@ void npc_on_activate(Npc& n) {
             game.player.y = next.y * TILE;
             break;
         case 3:
-            game.clear_flag(FLAG_LANTERN_RECORD_FOUND);
+            game.clear_flag(TEST_FLAG_A);
             break;
         case 4:
             game.party.members[game.party.count++] = {1, 1, 0, 0, (NPC_ID)5};
@@ -105,13 +105,13 @@ int main() {
     game_new();
     // With no quest crowd, empty distant chunks evaluate no identities.
     npc_stage_begin();
-    run_chunk<STAGE_NPCS>(AREA_OUTDOOR, 29, 61);
+    run_chunk<STAGE_NPCS>(AREA_OUTDOOR, 7, 7);
     CHECK(npc_site_checks == 0);
     npc_stage_end();
 
-    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
-    world_enter(positions::TestField.area, positions::TestField.x * TILE,
-                positions::TestField.y * TILE, SOUTH);
+    game.set_flag(TEST_FLAG_A);
+    world_enter(sites::TEST_FIELD.area, sites::TEST_FIELD.x * TILE, sites::TEST_FIELD.y * TILE,
+                SOUTH);
     // A clear synthetic cache isolates selection from authored terrain.
     npc_reset();
     memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
@@ -131,16 +131,16 @@ int main() {
     CHECK(npc_site_checks >= 64);
     // Discovery outside their sites is independent of catalog length.
     npc_stage_begin();
-    run_chunk<STAGE_NPCS>(AREA_OUTDOOR, 29, 61);
+    run_chunk<STAGE_NPCS>(AREA_OUTDOOR, 7, 7);
     CHECK(npc_site_checks == 0);
     npc_stage_end();
     // Hooks run between sorted casts. Each mutation invalidates a different part
     // of the admission proof; no later candidate may reuse stale eligibility.
     for(unsigned mutation = 1; mutation <= 5; ++mutation) {
         game_new();
-        game.set_flag(FLAG_LANTERN_RECORD_FOUND);
-        world_enter(positions::TestField.area, positions::TestField.x * TILE,
-                    positions::TestField.y * TILE, SOUTH);
+        game.set_flag(TEST_FLAG_A);
+        world_enter(sites::TEST_FIELD.area, sites::TEST_FIELD.x * TILE, sites::TEST_FIELD.y * TILE,
+                    SOUTH);
         npc_reset();
         memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
         note_tile_edit();
@@ -159,9 +159,9 @@ int main() {
     // Full pool of ordinary off-cache residents with cached homes. Even a
     // higher-priority offer must wait; retention neither evicts nor duplicates.
     game_new();
-    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
-    world_enter(positions::TestField.area, positions::TestField.x * TILE,
-                positions::TestField.y * TILE, SOUTH);
+    game.set_flag(TEST_FLAG_A);
+    world_enter(sites::TEST_FIELD.area, sites::TEST_FIELD.x * TILE, sites::TEST_FIELD.y * TILE,
+                SOUTH);
     npc_reset();
     memset(cache.tiles, TILE_GRASS_06, sizeof(cache.tiles));
     note_tile_edit();

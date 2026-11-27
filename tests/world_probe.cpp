@@ -1,6 +1,6 @@
 #include "battle.h"
 #include "chunk.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "tile_ids.h"
 #include "sfx.h"
 #include <avm.h>
@@ -71,7 +71,7 @@ RPG_NOINLINE static void run_edge_probe() {
     game.dimensions = {3, 2};
     cache.origin_tx = cache.origin_ty = 0;
     uint32_t hash = 2166136261u;
-    for(uint8_t area = AREA_OUTDOOR; area <= AREA_DUNGEON; ++area) {
+    for(uint8_t area = 1; area <= NUM_AREAS; ++area) {
         game.area = area;
         for(uint16_t tile = 0; tile < 256; ++tile) {
             uint16_t mask = tile_collision((uint8_t)tile);
@@ -125,7 +125,7 @@ extern "C" void setup() {
     run_world_scenarios();
     game_new();
     game.gold = 19;
-    CHECK(save_restore() && game.gold == 19 && game.player.x == positions::PlayerStart.x * TILE);
+    CHECK(save_restore() && game.gold == 19 && game.player.x == sites::PLAYER_START.x * TILE);
     game.save_version = 3;
     CHECK(!save_restore());
     run_edge_probe();

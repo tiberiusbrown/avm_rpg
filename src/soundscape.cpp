@@ -27,7 +27,7 @@ RPG_NOINLINE SFX ambient_sound_now() {
         if(x < 0 || y < 0 || x >= game.dimensions.width_tiles || y >= game.dimensions.height_tiles)
             continue;
         uint8_t tile = cached_tile({game.area, (uint8_t)x, (uint8_t)y});
-        SFX sound = tile_sound(game.area, tile_ambient(tile), probe.roll, probe.vary);
+        SFX sound = tile_sound(area_tileset(game.area), tile_ambient(tile), probe.roll, probe.vary);
         if(sound != SFX_NONE)
             return sound;
     }

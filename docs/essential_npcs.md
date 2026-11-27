@@ -7,7 +7,7 @@ form a compact prefix; retirement moves full records without resetting other act
 character sprites, resolver functions and chunk tables remain in PROGMEM. Stage scratch
 holds at most eight candidates, regardless of the identity count.
 
-Millcross’s resident identities are listed in the [world bible](world_bible.md).
+The village residents are listed in the [world bible](world_bible.md).
 `npc_name(id)` returns a PROGMEM name, or null for an unknown ID.
 `dialogue_show(id, F("..."))` shows that name in a fitted panel above the main
 dialogue panel, aligned with its left edge. The name remains visible across pages.
@@ -34,27 +34,51 @@ Successful `party_add` calls for NPCs then show "<name> has joined the party!"
 and play the `party_join` jingle. Failed additions and the initial traveler setup
 remain silent; the announcement uses the ordinary close/dismiss prompt.
 
-Tessa stands near the well. The surveyor’s policy moves between the mine and Millcross.
-Orrin and Nell wander within their respective lanes. Every resident’s dialogue
+Eliza wanders where her policy places her, and Bram holds the bridge. Every resident’s dialogue
 is delivered through `npc_dialogue` after `npc_talk`.
 
-`NPC_ROWAN` stands at `RowanHome` southeast of the player spawn. His conversation
-offers local advice and a recruitment choice. He joins the four-member party with 18/18 HP,
-4/4 AP, step movement, and shoot attack. Recruitment retires his map actor
-immediately. Party membership prevents him from
-being cast again, including after an area change or save restoration. The traveler starts alone with 20/20 HP,
-4/4 AP, and step movement/strike attack. Both start at full HP and AP through `party_new_member`.
-Party current HP and AP and both class identifiers are bytes. Maximum HP is derived by `party_max_hp`
-from identity (20 base HP, or 18 for Rowan), level bonuses, and equipped HP bonuses. Maximum AP
-is 4. Saves validate the party count, unique NPC identities, statistics, and both perk ranks. The pause menu's Party panel shows one page per member, turned with left and
-right, and freezes world simulation while it eases in and out.
+A recruit joins the four-member party through `party_add` at full HP and AP
+(`party_new_member`); recruitment retires its map actor immediately, and party membership
+prevents it from being cast again, including after an area change or save restoration. No
+authored character is a recruit yet. Maximum HP is derived by `party_max_hp` from the base of
+12, level bonuses and equipped bonuses. Maximum AP is 4. Saves validate the party count, unique
+NPC identities, statistics and both perk ranks. The pause menu's Party panel shows one page per
+member, turned with left and right, and freezes world simulation while it eases in and out.
 
-`NpcDefinition` is an 11-byte ROM record: behavior/facing, period, pause/walk, leash,
-priority, route, sprite_row and talkable. `period` is the number of frames per movement
-step; Orrin and Nell use 2, so they walk at half the player's speed. Pause and walk are
-frame counts. Rows are 0..15; `talkable=false` excludes a character from A targeting,
-leaving nearby tile interactions available. Both NPCs and player select directional
-frames through `actor_frame`: north/east/south/west groups of three, idle 0, gait 0,1,0,2.
+`NpcDefinition` is a 12-byte ROM record: behavior/facing, period, pause/walk, leash,
+priority, route, sprite_row, talkable and body. `period` is the number of frames per movement
+step; Eliza uses 2, so she walks at half the player's speed. Pause and walk are frame counts.
+Character rows index the actor sheet; `talkable=false` excludes a character from A targeting,
+leaving nearby tile interactions available. Both NPCs and player select directional frames
+through `actor_frame`: north/east/south/west groups of three, idle 0, gait 0,1,0,2.
+
+## Bodies
+
+`body` selects how an NPC occupies the world.
+
+- `NPC_BODY_CHARACTER` (default): the 8x8 foot box. It yields to a pushing player as described
+  under [Movement and collision](#movement-and-collision).
+- `NPC_BODY_FIXED`: a character that never yields. The player cannot pass it, except to walk out
+  of an existing overlap. Bram holds the only exit of the village this way.
+- `NPC_BODY_STATIC`: an object drawn from `assets/images/npc_static.png`. `sprite_row` names an
+  image (`NPC_STATIC_*`), and the image's 16-bit mask in `assets/tilesets/npc_static.tsx`
+  (the terrain collision format) is its collision shape.
+
+### Static objects
+
+A static object blocks the player and other actors with its mask's solid pixels. The player's
+corner assist slides past partial shapes as it does past terrain. A answers from the tile that
+the player faces, and the object never turns. It moves only as scripted: `npc_push(id, dir,
+bounds)` slides it one tile if the destination lies in `bounds` and in the chunk of its site and
+is free of terrain, the player and other actors. `npc_move_to` and routes work as for
+characters, but an object slides straight and never detours, escapes or yields. While sliding,
+it reserves its destination.
+
+Objects of a chunk live together. An object stays in the 8x4 chunk of its policy site, keeps
+its slot while the terrain cache reaches that chunk or it is on screen, and then unloads with
+the rest of the chunk's objects. A later cast returns it to its site, so a pushed arrangement
+resets as a whole, never in part. Saving and loading keeps the arrangement. An object whose policy site changes unloads once off screen
+and is cast afresh at the new site. A puzzle of objects should therefore lie inside one chunk.
 
 ## Declarative locations and presence
 
@@ -65,9 +89,13 @@ NPCs. The stable identities in `npc_ids.h` run from 1 through `NPC_ID_LIMIT - 1`
 For example:
 
 ```cpp
-template <> struct NpcPolicy<NPC_SURVEYOR>
-    : AtOneOf<positions::SurveyorTrapped,
-              When<positions::SurveyorReturned, [] { return game.get_flag(FLAG_SURVEYOR_RESCUED); }>> {};
+inline bool eliza_in_village() {
+    return game.get_flag(FLAG_RAT_REPORTED);
+}
+
+template <>
+struct NpcPolicy<NPC_ELIZA>
+    : AtOneOf<positions::ElizaAtAlden, When<positions::ElizaGarden, eliza_in_village>> {};
 ```
 
 The first matching `When` wins; otherwise `current()` returns the default. Predicates
@@ -117,6 +145,10 @@ The retirement hook receives
 `NPC_RETIRED_UNLOADED` exactly once before prefix compaction. Recruitment uses
 `NPC_RETIRED_PARTY`; reset uses `NPC_RETIRED_RESET`. Reacquire `Npc*` after stage processing
 because compaction can change slot addresses.
+
+After scene entry, a frame casts only the best candidate, since several casts can overrun the
+frame; the others are offered again while their sites are still out of view, which a newly
+cached site stays for several frames. Scene entry casts every candidate.
 
 Admission validates the initial world state once. The first cast checks capacity and
 initializes its slot without repeating collision tests. After any successful cast,
@@ -235,16 +267,23 @@ deepest paths.
 ## Hooks
 
 The generic engine calls activation, movement-event, retirement and restore hooks declared in
-`logic/npc_logic.h`. The default essential NPC hooks are empty. Events cover route start/completion/invalidity
+`logic/npc_logic.h`. The game's activation hook resumes the giant rat's chase when it is cast
+again after the story started it; the other essential hooks are empty. Events cover route start/completion/invalidity
 and target reached/failed. Retirement reports reset, recruitment or safe unloading. Independent native policy
 fixtures exercise route replacement, pauses, endpoints and targets without quest code inside
 `src/npc.cpp`.
 
-Save version 21 writes the complete pointer-free live `Game` directly from `.saved`,
-without a separate buffer or checksum. Quest flags are the authoritative location state.
-Restoration validates the version, player, party, flags and area bounds, then resets actors,
-scratch and movement state. The normal cache repair and complete scene-entry NPC stage
-reconstruct actors from policies. Older save versions are rejected without migration.
+Saving writes the complete pointer-free live `Game` directly from `.saved`,
+without a separate buffer or checksum, so the NPC pool is part of every save. Quest flags are
+the authoritative location state. Restoration validates the version, player, party, flags,
+area bounds and pool, then keeps each saved actor with its position, behavior and movement
+state. Only the fixed-site, static and immovable bits are taken from the content again, and
+terrain under the actors is checked against the rebuilt cache. No activation hook runs. The
+next NPC stage retires and casts as on any other frame. Older save versions are rejected
+without migration.
+
+A hook that keeps state outside `Game` must be able to rebuild it in `npc_logic_restore`,
+which runs after a load as well as after a reset.
 
 ## Enemy encounters
 
@@ -254,13 +293,14 @@ it with the generated position and actor sprite row in the area's `TypeList`.
 
 ```cpp
 using VillageEnemies = TypeList<
-    EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17>
+    EnemySpawn<positions::RatNest, &BATTLE_GIANT_RAT, 16, ENEMY_WANDER, SPEED_NORMAL, 0,
+               RESPAWN_NEVER, RatHooks, RAT_SETTINGS>
 >;
 ```
 
-This entry wanders up to one tile on each axis, faces south initially, pauses and walks for
-48 frames plus jitter, moves every second frame, uses priority 2 and respawns at The World
-Remembers. Enemies are non-talkable and use the same eight slots, terrain checks and admission
+With default settings (`EnemySpawn<positions::Nest, &BATTLE, 16>`), an entry wanders up to one
+tile on each axis, faces south initially, pauses and walks for 48 frames plus jitter, moves
+every second frame, uses priority 2 and respawns at The World Remembers. Enemies are non-talkable and use the same eight slots, terrain checks and admission
 priority as friendly actors.
 
 `src/logic/enemy_catalog.h` joins the area lists and derives `ENEMY_SPAWN_COUNT` at compile
@@ -273,7 +313,8 @@ requires a save-version bump.
 Edit or reorder area lists as needed during development. Insertions, removals, or
 reordering can assign an existing defeat bit to a different enemy. Bump `SAVE_VERSION`
 when a catalog edit removes a spawn or changes which enemy owns an existing index, so the
-game rejects older saves. Appending at the end of the joined list within capacity preserves
+game rejects older saves. Bump it too when a map or NPC change would leave saved actors in
+the wrong places. Appending at the end of the joined list within capacity preserves
 existing indices and requires no version bump.
 
 Choose `ENEMY_CHASE` to wander until the player comes within three tiles, then pursue the
@@ -282,6 +323,8 @@ back toward its spawn. Chase distances use Manhattan distance in pixels. `SPEED_
 one pixel per frame, which matches the player. `SPEED_NORMAL` moves every second frame.
 Pass an `EnemySettings` value as the final template argument to configure facing, pause,
 walk, wander extents, detection, disengagement, leash or admission priority.
+`npc_start_pursuit(id)` makes an active enemy of another behavior chase with those rules; the
+rat holds still until the story starts its pursuit.
 
 A patrol uses `ENEMY_ROUTE` and a named polyline in the same map's Routes layer. Put its points
 inside walkable tiles. The first point can coincide with the spawn. The route supports
@@ -291,7 +334,7 @@ When normal admission casts it again, it starts its route from the spawn. A perm
 dialogue before battle and a message after victory can be authored as follows.
 
 ```cpp
-struct VaultGuardHooks : EnemyHooks {
+struct GuardHooks : EnemyHooks {
     static bool before_battle() {
         dialogue_show(F("The guardian turns toward you."));
         return true;
@@ -302,10 +345,10 @@ struct VaultGuardHooks : EnemyHooks {
     }
 };
 
-using DungeonEnemies = TypeList<
-    EnemySpawn<positions::VaultGuard, &BATTLE_VAULT_GUARDS, 25,
-               ENEMY_ROUTE, SPEED_NORMAL, routes::VaultPatrol,
-               RESPAWN_NEVER, VaultGuardHooks>
+using GuardedEnemies = TypeList<
+    EnemySpawn<positions::GuardPost, &BATTLE_GUARDS, 25,
+               ENEMY_ROUTE, SPEED_NORMAL, routes::GuardPatrol,
+               RESPAWN_NEVER, GuardHooks>
 >;
 ```
 
@@ -331,7 +374,7 @@ world tileset's defaults.
 
 ```cpp
 battle_encounter(ENEMY_WOLF)
-battle_encounter(battlefields_for_area(AREA_CAVE), ENEMY_WOLF, ENEMY_BRUTE)
+battle_encounter(BATTLEFIELDS_CAVE, ENEMY_WOLF, ENEMY_BRUTE)
 battle_encounter(BATTLEFIELDS_DUNGEON, ENEMY_BRUTE)
 battle_encounter(battlefields(BATTLEFIELD_GROVE, BATTLEFIELD_MINE_CROSSING), ENEMY_WOLF)
 ```

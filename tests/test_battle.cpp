@@ -1,8 +1,8 @@
-#include "logic/area_cave.h"
 #include "battle.h"
 #include "battle_fixtures.h"
 #include "battle_ai.h"
 #include "battle_cursor.h"
+#include "equipment.h"
 #include "battle_motion.h"
 #include "battle_reference.h"
 #include "tile_ids.h"
@@ -11,6 +11,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// A cave encounter, which draws one of the mine battlefields.
+static constexpr BattleEncounter PROGMEM BATTLE_MINE_SCOUTS =
+    battle_encounter(BATTLEFIELDS_CAVE, ENEMY_WOLF);
 
 static unsigned checks;
 #define CHECK(value)                                                                               \
@@ -2420,8 +2424,8 @@ static void target_frames() {
 
 static void random_battle_deployment() {
     CHECK(battlefields_for_area(AREA_OUTDOOR) == BATTLEFIELDS_WORLD);
-    CHECK(battlefields_for_area(AREA_CAVE) == BATTLEFIELDS_CAVE);
-    CHECK(battlefields_for_area(AREA_DUNGEON) == BATTLEFIELDS_DUNGEON);
+    CHECK(battlefields_for_tileset(TILESET_CAVE) == BATTLEFIELDS_CAVE);
+    CHECK(battlefields_for_tileset(TILESET_DUNGEON) == BATTLEFIELDS_DUNGEON);
     CHECK(battlefields_for_area(AREA_INTERIORS) == BATTLEFIELDS_HOUSE);
 
     bool obstacle_seen[TILESET_COUNT][256]{};
@@ -2532,17 +2536,17 @@ static constexpr BattleEncounter MIXED_CAVE_FIXTURE =
 static void saved_party_battles() {
     game = {};
     game.party.count = 2;
-    game.party.members[0] = {20, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_ALDEN, 1, 0};
-    game.party.members[1] = {17, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ROWAN, 1, 0};
+    game.party.members[0] = {12, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_ALDEN, 1, 0};
+    game.party.members[1] = {11, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ELIZA, 1, 0};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &MIXED_CAVE_FIXTURE);
-    CHECK(state.unit_count == 4 && state.units[0].hp == 20 && state.units[1].hp == 17);
+    CHECK(state.unit_count == 4 && state.units[0].hp == 12 && state.units[1].hp == 11);
     CHECK(state.units[0].id == battle_party_id(0) && state.units[1].id == battle_party_id(1));
     CHECK(state.units[2].id == ENEMY_WOLF && state.units[2].hp == ENEMY_INFO[ENEMY_WOLF].max_hp);
     CHECK(state.units[3].id == ENEMY_BRUTE && state.units[3].hp == ENEMY_INFO[ENEMY_BRUTE].max_hp);
-    CHECK(battle_max_hp(state.units[0]) == 20 && battle_max_hp(state.units[1]) == 18);
-    CHECK(battle_sprite_row(state.units[0]) == 0 && battle_sprite_row(state.units[1]) == 3);
+    CHECK(battle_max_hp(state.units[0]) == 12 && battle_max_hp(state.units[1]) == 12);
+    CHECK(battle_sprite_row(state.units[0]) == 0 && battle_sprite_row(state.units[1]) == 8);
     // Use an exact board position for the movement and damage assertions below.
     state.field = BATTLEFIELD_GROVE;
     state.units[0].cell = cell(2, 1);
@@ -2556,7 +2560,7 @@ static void saved_party_battles() {
     CHECK(battle_rules(state.units[1].id).effect == BATTLE_EFFECT_KNOCKBACK);
     BattleState child = state;
     battle_apply(child, act(0, 6, 1));
-    CHECK(child.units[2].hp == state.units[2].hp - 3 && child.units[0].hp == 20);
+    CHECK(child.units[2].hp == state.units[2].hp - 3 && child.units[0].hp == 12);
     CHECK(!memcmp(&game.party, &saved, sizeof(Party)));
     BattleSearchResult choice = battle_search(state, 2);
     CHECK(choice.depth && !memcmp(&game.party, &saved, sizeof(Party)));
@@ -2576,7 +2580,7 @@ static void saved_party_battles() {
     game.party.count = 1;
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
         for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
-            game.party.members[0] = {20, 4, m, a, NPC_ALDEN, 1, 0};
+            game.party.members[0] = {12, 4, m, a, NPC_ALDEN, 1, 0};
             battle_begin(state, &MIXED_CAVE_FIXTURE);
             auto const& rules = battle_rules(state.units[0].id);
             CHECK(rules.movement_type == MOVEMENT_INFO[m].movement_type);
@@ -2623,14 +2627,14 @@ static void rend_damage() {
         CHECK(damage_in_duel(wolf, fighter) == (2 * hp >= 10 ? 2 : 4));
         CHECK(damage_in_duel(fighter, wolf) == 3);
     }
-    // A party victim's maximum comes from the saved member: the traveler's is 20.
+    // A party victim's maximum comes from the saved member: the traveler's is 12.
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
-    BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
-    for(uint8_t hp = 1; hp <= 20; ++hp) {
+    game.party.members[0] = {12, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
+    BattleUnit traveler{cell(3, 0), 12, battle_party_id(0), BATTLE_PARTY};
+    for(uint8_t hp = 1; hp <= 12; ++hp) {
         traveler.hp = hp;
-        CHECK(damage_in_duel(wolf, traveler) == (2 * hp >= 20 ? 2 : 4));
+        CHECK(damage_in_duel(wolf, traveler) == (2 * hp >= 12 ? 2 : 4));
     }
 }
 
@@ -2640,8 +2644,8 @@ static void rend_damage() {
 static void level_attack_damage() {
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
-    BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
+    game.party.members[0] = {12, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
+    BattleUnit traveler{cell(3, 0), 12, battle_party_id(0), BATTLE_PARTY};
     BattleUnit fighter{cell(3, 1), ENEMY_INFO[BATTLE_TEST_FIGHTER].max_hp, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
     uint8_t bonus[PARTY_MAX_LEVEL] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
     for(uint8_t level = 1; level <= PARTY_MAX_LEVEL; ++level) {
@@ -2666,9 +2670,9 @@ static void level_attack_damage() {
 static void victory_ap_recovery() {
     game = {};
     game.party.count = 3;
-    game.party.members[0] = {20, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
-    game.party.members[1] = {0, 3, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_TESSA, 1, 0};
-    game.party.members[2] = {17, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ROWAN, 1, 0};
+    game.party.members[0] = {12, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
+    game.party.members[1] = {0, 3, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_BRAM, 1, 0};
+    game.party.members[2] = {11, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ELIZA, 1, 0};
     Party saved = game.party;
     BattleState state;
     battle_begin(state, &MIXED_CAVE_FIXTURE);
@@ -2831,7 +2835,7 @@ static void signature_attacks() {
     auto other = (ENEMY_ID)battle_party_id(2);
     auto& member = game.party.members[0];
     member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
-    game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.members[1] = party_new_member(NPC_ELIZA, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.members[2] = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_SHOOT);
 
     auto use_signature = [&](BattleState& state, unsigned x, unsigned y) {
@@ -2918,17 +2922,17 @@ static void signature_attacks() {
 
     member.attack_class = ATTACK_DRAIN;
     BattleState channel = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 16},
-                                              {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
-                                              {7, 3, ally, BATTLE_PARTY, 8},
-                                              {6, 3, other, BATTLE_PARTY, 18},
-                                              {4, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 0}});
+                                               {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
+                                               {7, 3, ally, BATTLE_PARTY, 4},
+                                               {6, 3, other, BATTLE_PARTY, 10},
+                                               {4, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 0}});
     BattleState channel_kill = channel;
     channel_kill.units[1].hp = 4;
     use_signature(channel, 3, 1);
     CHECK(channel.units[0].hp == 16 && channel.units[1].hp == 4);
-    CHECK(channel.units[2].hp == 13 && channel.units[3].hp == 20 && !channel.units[4].hp);
+    CHECK(channel.units[2].hp == 9 && channel.units[3].hp == 12 && !channel.units[4].hp);
     use_signature(channel_kill, 3, 1);
-    CHECK(channel_kill.ended && channel_kill.units[0].hp == 16 && channel_kill.units[2].hp == 13);
+    CHECK(channel_kill.ended && channel_kill.units[0].hp == 16 && channel_kill.units[2].hp == 9);
 
     member.attack_class = ATTACK_RECOIL;
     BattleState sweep = board(BATTLE_PARTY, {{3, 1, hero, BATTLE_PARTY, 16},
@@ -3145,7 +3149,7 @@ static void step_and_leap_perks() {
     auto id = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
     member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
-    game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.members[1] = party_new_member(NPC_ELIZA, MOVEMENT_STEP, ATTACK_STRIKE);
     member.level = 4;
     BattleState guard = board(BATTLE_ENEMY, {{3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
                                              {2, 1, id, BATTLE_PARTY, 3},
@@ -3176,7 +3180,7 @@ static void step_and_leap_perks() {
 
     // Reduced direct damage also limits Drain's healing against a surviving target.
     auto& opponent = game.party.members[1];
-    opponent = party_new_member(NPC_ROWAN, MOVEMENT_CHARGE, ATTACK_DRAIN);
+    opponent = party_new_member(NPC_ELIZA, MOVEMENT_CHARGE, ATTACK_DRAIN);
     opponent.level = 4;
     CHECK(party_learn_perk(opponent, PERK_ATTACK));
     hit = guard;
@@ -3507,7 +3511,7 @@ static void new_direct_attacks() {
             for(bool special : {false, true}) {
                 member.ap = 4;
                 BattleState s =
-                    board(BATTLE_PARTY, {{3, 1, id, BATTLE_PARTY, 15},
+                    board(BATTLE_PARTY, {{3, 1, id, BATTLE_PARTY, 8},
                                          {test.x, test.y, ENEMY_BRUTE, BATTLE_ENEMY, 12}});
                 BattleAction action = act(0, test.x, test.y);
                 CHECK(battle_legal(s, action) && battle_special_legal(s, action));
@@ -3520,7 +3524,7 @@ static void new_direct_attacks() {
                                            (rank == 2 ? test.rank_two : 0));
                 CHECK(s.units[1].cell == action.destination);
                 CHECK(s.units[0].cell == (test.attack == ATTACK_RECOIL ? cell(2, 1) : cell(3, 1)));
-                CHECK(s.units[0].hp == 15 + (test.attack == ATTACK_DRAIN ? 1 + (rank != 0) : 0));
+                CHECK(s.units[0].hp == 8 + (test.attack == ATTACK_DRAIN ? 1 + (rank != 0) : 0));
                 CHECK(s.activations == 1 && s.turn == BATTLE_ENEMY && !s.ended);
                 CHECK(member.ap == (special ? 2 : 4));
             }
@@ -3538,33 +3542,33 @@ static void drain_and_recoil() {
         return board(BATTLE_ENEMY, {{2, 1, id, BATTLE_ENEMY, hp},
                                     {3, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, victim_hp}});
     };
-    BattleState s = drain(20, 10);
+    BattleState s = drain(12, 10);
     battle_apply(s, act(0, 3, 1));
-    CHECK(s.units[0].hp == 20 && s.units[1].hp == 8);
-    s = drain(17, 1);
+    CHECK(s.units[0].hp == 12 && s.units[1].hp == 8);
+    s = drain(9, 1);
     battle_apply(s, act(0, 3, 1));
-    CHECK(s.ended && s.result == BATTLE_DEFEAT && s.units[0].hp == 18);
+    CHECK(s.ended && s.result == BATTLE_DEFEAT && s.units[0].hp == 10);
     member.level = 2;
     CHECK(party_learn_perk(member, PERK_ATTACK));
-    s = drain(17, 1);
+    s = drain(9, 1);
     battle_apply(s, act(0, 3, 1));
-    CHECK(s.ended && s.units[0].hp == 19);
-    s = drain(17, 10);
+    CHECK(s.ended && s.units[0].hp == 11);
+    s = drain(9, 10);
     battle_apply(s, act(0, 3, 1));
-    CHECK(s.units[0].hp == 18 && s.units[1].hp == 8);
+    CHECK(s.units[0].hp == 10 && s.units[1].hp == 8);
     member.level = BATTLE_STARTER_LEVEL;
-    s = drain(17, 2);
+    s = drain(9, 2);
     battle_apply_special(s, act(0, 3, 1));
-    CHECK(s.ended && s.units[0].hp == 19 && member.ap == 2);
+    CHECK(s.ended && s.units[0].hp == 11 && member.ap == 2);
     s = drain(party_max_hp(member) - 1, 3);
     battle_apply_special(s, act(0, 3, 1));
     CHECK(s.ended && s.units[0].hp == party_max_hp(member) && member.ap == 0);
 
     member.level = 4;
     CHECK(party_learn_perk(member, PERK_ATTACK));
-    s = drain(17, 10);
+    s = drain(9, 10);
     battle_apply(s, act(0, 3, 1));
-    CHECK(s.units[0].hp == 19 && s.units[1].hp == 7);
+    CHECK(s.units[0].hp == 11 && s.units[1].hp == 7);
 
     member = party_new_member(NPC_ALDEN, MOVEMENT_LEAP, ATTACK_RECOIL);
     static constexpr int offsets[][2] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
@@ -3879,7 +3883,7 @@ static void third_rank_attacks() {
     game = {};
     game.party.count = 2;
     auto& defender = game.party.members[1];
-    defender = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_STRIKE);
+    defender = party_new_member(NPC_ELIZA, MOVEMENT_STEP, ATTACK_STRIKE);
     defender.level = 6;
     for(uint8_t rank = 0; rank < 3; ++rank)
         CHECK(party_learn_perk(defender, PERK_MOVEMENT));
@@ -3962,8 +3966,10 @@ static void third_rank_attacks() {
         member.attack_class = ATTACK_REND;
         auto normal_rush = special ? 9 : 6;
         duel.units[1].hp = 5;
+        uint8_t half = (uint8_t)(battle_max_hp(duel.units[0]) / 2);
+        duel.units[0].hp = half;
         CHECK(battle_attack_damage(duel, 0, 1, special) == normal_rush + 2);
-        duel.units[0].hp = 12;
+        duel.units[0].hp = (uint8_t)(half + 1);
         CHECK(battle_attack_damage(duel, 0, 1, special) == normal_rush);
         duel.units[0].hp = 11;
 
@@ -3991,9 +3997,9 @@ static void third_rank_attacks() {
         CHECK(guarded.units[1].hp == (special ? 5 : 8));
         CHECK(guarded.units[0].hp == (special ? 14 : 12));
         BattleState near_full = drain;
-        near_full.units[0].hp = 21;
+        near_full.units[0].hp = 13;
         attack(near_full, cell(2, 1));
-        CHECK(near_full.units[0].hp == 22);
+        CHECK(near_full.units[0].hp == 14);
         BattleState finish = drain;
         finish.units[1].hp = 1;
         attack(finish, cell(2, 1));
@@ -4113,7 +4119,7 @@ static void fourth_rank_attacks() {
     auto ally = (ENEMY_ID)battle_party_id(1);
     auto& member = game.party.members[0];
     member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
-    game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
+    game.party.members[1] = party_new_member(NPC_ELIZA, MOVEMENT_STEP, ATTACK_SHOOT);
     member.level = 8;
     for(uint8_t rank = 0; rank < 4; ++rank)
         CHECK(party_learn_perk(member, PERK_ATTACK));
@@ -4188,11 +4194,11 @@ static void fourth_rank_attacks() {
 
     member.attack_class = ATTACK_DRAIN;
     BattleState drain = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 10},
-                                            {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 4},
-                                            {7, 3, ally, BATTLE_PARTY, 16},
-                                            {4, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 0}});
+                                             {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 4},
+                                             {7, 3, ally, BATTLE_PARTY, 10},
+                                             {4, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, 0}});
     battle_apply(drain, act(0, 3, 1));
-    CHECK(drain.units[0].hp == 15 && drain.units[2].hp == 18 && !drain.units[3].hp);
+    CHECK(drain.units[0].hp == 15 && drain.units[2].hp == 12 && !drain.units[3].hp);
 
     member.attack_class = ATTACK_RECOIL;
     BattleState recoil = board(BATTLE_PARTY, {{2, 1, hero, BATTLE_PARTY, 10},
@@ -4327,7 +4333,7 @@ static void equipment_attacks() {
                 once = true;
                 break;
             case ITEM_CRACKED_SABER:
-                state.units[0].hp = 8;
+                state.units[0].hp = 4; // Half of the 9 HP that the saber leaves.
                 bonus = 3;
                 once = true;
                 break;
@@ -4343,6 +4349,9 @@ static void equipment_attacks() {
                 place(state, 1, 7, 1);
                 member.attack_class = ATTACK_SHOOT;
                 bonus = 2;
+                break;
+            case ITEM_BARN_FORK:
+                state.units[0].hp = party_max_hp(member); // The fork rewards full HP.
                 break;
             default:
                 break;
@@ -4436,6 +4445,8 @@ static void equipment_moves_and_guards() {
                         ITEM_PADDED_SHAWL, ITEM_LEAD_BOOTS, ITEM_TURNSHOE}) {
         auto state = guard;
         member.equipment[SLOT_ARMOR] = equipment_encode(item);
+        if(item == ITEM_OAK_SHIELD)
+            state.units[0].hp = 6; // Half of the maximum, where the shield guards.
         if(item == ITEM_REED_ARMOR)
             state.units[2].hp = 0;
         if(item == ITEM_TURNSHOE)
@@ -4448,7 +4459,7 @@ static void equipment_moves_and_guards() {
         CHECK(battle_attack_damage(state, 1, 0) == (once ? 1 : 2));
         CHECK(!state.units[0].equipment_used());
         battle_apply(state, {1, state.units[0].cell});
-        CHECK(state.units[0].hp == (once ? 9 : 8));
+        CHECK(state.units[0].hp == (once ? 9 : item == ITEM_OAK_SHIELD ? 4 : 8));
         CHECK(state.units[0].equipment_used() == (once ? 1 << SLOT_ARMOR : 0));
         CHECK(battle_attack_damage(state, 1, 0) == (once ? 3 : 2));
     }

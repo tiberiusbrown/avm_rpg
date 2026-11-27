@@ -203,6 +203,10 @@ struct Device {
     bool started = false;
     bool proof = false;
     uint8_t frame_area = 0;
+    // Set when dialogue opened during the frame, which then waited on the player.
+    bool frame_waited = false;
+    // Set to leave the next frame out of the budget: it prepares a scene that a test injected.
+    bool prepare_next = false;
     uint64_t begin = 0, render_begin = 0;
     // Journal redraws, from the QA marks the Journal sets. They are not frames.
     uint64_t journal_begin = 0, journal_render = 0;
@@ -327,8 +331,12 @@ struct Device {
         }
 
         uint8_t marker = cpu.data[marker_addr];
+        if(marker && prompt() != DIALOGUE_CLOSED)
+            frame_waited = true;
         if(marker != previous_marker) {
             if(marker == 1) {
+                frame_waited = prepare_next;
+                prepare_next = false;
                 begin = cpu.cycle_count;
                 frame_area = proof ? 0 : state().area;
                 stages = {};
@@ -355,20 +363,20 @@ struct Device {
                 last.collision = stages.collision;
                 // Cross-area updates now include a blocking fade. FadeTrace checks each of its
                 // display frames; ordinary exploration still has the single-frame CPU budget.
-                if(check_timing && (proof || state().area == frame_area) && last.total > 320000)
+                bool const budgeted = !frame_waited && (proof || state().area == frame_area);
+                if(check_timing && budgeted && last.total > 320000)
                     std::cerr << "Over-budget frame: total=" << last.total
                               << " render=" << last.render << " reload=" << last.reload
                               << " chunks=" << last.chunks << " actors/collision=" << last.collision
                               << " serial=" << serial() << " area=" << unsigned(frame_area)
                               << " player=" << state().player.x << ',' << state().player.y
                               << '\n';
-                if(proof || state().area == frame_area)
+                if(budgeted)
                     worst_exploration_cycles = std::max(worst_exploration_cycles, last.total);
-                require(!check_timing || (!proof && state().area != frame_area) ||
-                            last.total <= 320000,
+                require(!check_timing || !budgeted || last.total <= 320000,
                         "exploration frame exceeded the 320000-cycle budget");
                 if(trace)
-                    trace.finish(state(), serial(), last, proof || state().area == frame_area);
+                    trace.finish(state(), serial(), last, budgeted);
                 frames.push_back(last);
             }
             previous_marker = marker;
@@ -595,6 +603,119 @@ struct Device {
     }
 };
 
+// The saved Game of a sector's newest record. Each save appends a record, headed by its size, and
+// a load takes the last one.
+static uint8_t const* newest_save(std::vector<uint8_t> const& sector) {
+    constexpr unsigned RECORD = 2 + sizeof(Game);
+    auto holds = [&](unsigned at) {
+        return at + RECORD <= 4094 && (sector[at] | (unsigned)sector[at + 1] << 8) == sizeof(Game);
+    };
+    require(holds(0), "the sector holds no save");
+    unsigned at = 0;
+    while(holds(at + RECORD))
+        at += RECORD;
+    return sector.data() + at + 2;
+}
+
+// Reads the dialogue that is open to its end, answering every page with A, and returns how many
+// pages it read. Lines that follow one another keep the panel open, and are all read.
+static unsigned read_dialogue(Device& d) {
+    unsigned pages = 0;
+    do {
+        d.wait_for_prompt();
+        require(d.prompt() == DIALOGUE_MORE || d.prompt() == DIALOGUE_DONE,
+                "expected a text dialogue prompt");
+        d.tap(BTN_A);
+        d.advance(0, 1600000);
+        require(++pages <= 16, "dialogue exceeded the page bound");
+    } while(d.prompt() != DIALOGUE_CLOSED);
+    return pages;
+}
+
+// Starts exploring from the title of a game without a save, which opens with a line.
+static void start_new_game(Device& d) {
+    d.tap(BTN_A);
+    d.frame();
+    require(d.prompt() != DIALOGUE_CLOSED, "a new game did not open with the traveler's line");
+    read_dialogue(d);
+    d.frame();
+}
+
+// Records every step of the story short of the rat's defeat, with every menu unlocked, so that a
+// scenario tests its menus and mechanics without the story interrupting it. The facts stay ones
+// that a save accepts: the Party menu follows the choice of classes, and so the rat quest.
+static void skip_story(Device& d) {
+    d.frame();
+    Game g = d.state();
+    for(FLAG flag : {FLAG_INTRO_SHOWN, FLAG_HOME_STARTED, FLAG_BOULDERS_NOTICED, FLAG_LEFT_CLEARING,
+                     FLAG_HOME_REACHED, FLAG_ELIZA_GREETED, FLAG_RAT_ACCEPTED, FLAG_RAT_SIGHTED,
+                     FLAG_CLASSES_CHOSEN, FLAG_MENU_JOURNAL, FLAG_MENU_PARTY, FLAG_MENU_SUPPLIES})
+        g.flags.set_flag(flag);
+    d.set_state(g);
+    d.frame();
+}
+
+// Moves the player between two frames, as a scene change would find them. NPCs around the new view
+// may be cast although they are in sight.
+static void place_player(Device& d, uint16_t x, uint16_t y, DIRECTION facing) {
+    d.frame();
+    Game g = d.state();
+    g.player = {x, y, facing, 0};
+    g.npcs.entering = 1;
+    d.set_state(g);
+    d.prepare_next = true;
+    d.frame();
+}
+
+static void place_player(Device& d, TilePos cell, DIRECTION facing) {
+    place_player(d, (uint16_t)(cell.x * TILE), (uint16_t)(cell.y * TILE), facing);
+}
+
+// Stands the player under a door and walks in with A.
+static void enter_house(Device& d, TilePos door) {
+    place_player(d, {door.area, door.x, (uint8_t)(door.y + 1)}, NORTH);
+    d.advance(0, 1600000);
+    require(d.state().can_interact, "house door did not become interactive");
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    require(d.state().area == AREA_INTERIORS, "the door did not enter the house");
+}
+
+// Walks out of a house from the floor above its exit.
+static void leave_house(Device& d, TilePos exit) {
+    place_player(d, {exit.area, exit.x, (uint8_t)(exit.y - 1)}, SOUTH);
+    for(unsigned frames = 0; d.state().area == exit.area; ++frames) {
+        require(frames < 2 * TILE, "walking onto the house exit did not leave");
+        d.frame(BTN_DOWN);
+    }
+    d.advance(0, 4800000);
+}
+
+static Npc find_actor(Device const& d, NPC_ID id) {
+    Game g = d.state();
+    for(auto const& actor : g.npcs.actors)
+        if(actor.id == id)
+            return actor;
+    return Npc{};
+}
+
+// Stands the player just west of a character, which holds still, so that A reaches it.
+static void face_npc(Device& d, NPC_ID id) {
+    d.frame();
+    Game g = d.state();
+    for(auto& actor : g.npcs.actors)
+        if(actor.id == id) {
+            actor.state = NPC_STATE_NONE;
+            actor.behavior = NPC_STAND;
+            actor.timer = 200;
+            g.player = {(uint16_t)(actor.actor.x - 12), actor.actor.y, EAST, 0};
+            d.set_state(g);
+            d.frame();
+            return;
+        }
+    require(false, "the character to talk to is not present");
+}
+
 static void verify_actor_layers(Device& d, fs::path const& out) {
     Game original = d.state();
     Game fixture = original;
@@ -604,11 +725,12 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
     fixture.player = {(uint16_t)(spawn_x - 8), (uint16_t)(spawn_y + 8), SOUTH, 0};
     fixture.npcs = {};
     // Deliberately reverse the NPC slots relative to depth, with the player between.
-    fixture.npcs.actors[0].id = NPC_TESSA;
-    fixture.npcs.actors[0].assigned_site = positions::TessaWell;
+    fixture.flags.set_flag(FLAG_RAT_REPORTED); // Eliza belongs in the village.
+    fixture.npcs.actors[0].id = NPC_ELIZA;
+    fixture.npcs.actors[0].assigned_site = positions::ElizaGarden;
     fixture.npcs.actors[0].actor = {(uint16_t)(spawn_x + 4), (uint16_t)(spawn_y + 12), SOUTH, 0};
-    fixture.npcs.actors[1].id = NPC_ORRIN;
-    fixture.npcs.actors[1].assigned_site = positions::OrrinLane;
+    fixture.npcs.actors[1].id = NPC_BRAM;
+    fixture.npcs.actors[1].assigned_site = positions::BramPost;
     fixture.npcs.actors[1].actor = {spawn_x, spawn_y, SOUTH, 0};
     d.set_state(fixture);
     d.frame();
@@ -641,11 +763,11 @@ static void verify_actor_layers(Device& d, fs::path const& out) {
             }
         }
     };
-    compose(expected, rendered.npcs.actors[1].actor, NpcContent<NPC_ORRIN>::definition.sprite_row);
+    compose(expected, rendered.npcs.actors[1].actor, NpcContent<NPC_BRAM>::definition.sprite_row);
     compose(expected, rendered.player, 0);
-    compose(expected, rendered.npcs.actors[0].actor, NpcContent<NPC_TESSA>::definition.sprite_row);
-    compose(old_order, rendered.npcs.actors[0].actor, NpcContent<NPC_TESSA>::definition.sprite_row);
-    compose(old_order, rendered.npcs.actors[1].actor, NpcContent<NPC_ORRIN>::definition.sprite_row);
+    compose(expected, rendered.npcs.actors[0].actor, NpcContent<NPC_ELIZA>::definition.sprite_row);
+    compose(old_order, rendered.npcs.actors[0].actor, NpcContent<NPC_ELIZA>::definition.sprite_row);
+    compose(old_order, rendered.npcs.actors[1].actor, NpcContent<NPC_BRAM>::definition.sprite_row);
     compose(old_order, rendered.player, 0);
     require(expected != old_order, "depth fixture does not distinguish the previous draw order");
     d.capture(out / "actor-depth.pgm");
@@ -1142,7 +1264,7 @@ static void verify_pause_party(Device& d, fs::path const& out) {
 static void verify_perk_choice(Device& d, fs::path const& out) {
     Game milestone = d.state();
     milestone.party.members[0].level = 2;
-    milestone.party.members[0].hp = 16;
+    milestone.party.members[0].hp = 8;
     d.set_state(milestone);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -1166,8 +1288,7 @@ static void verify_perk_choice(Device& d, fs::path const& out) {
     d.tap(BTN_A);
     PartyMember learned = d.state().party.members[0];
     require(party_movement_perk_rank(learned) == 1 && party_attack_perk_rank(learned) == 0 &&
-                party_unspent_perks(learned) == 0 && learned.hp == 16 &&
-                party_max_hp(learned) == 20,
+                party_unspent_perks(learned) == 0 && learned.hp == 8 && party_max_hp(learned) == 12,
             "confirmed Hold Together did not spend exactly one choice");
     d.tap(BTN_A);
     require(d.state().party.members[0].perk_ranks == learned.perk_ranks,
@@ -1179,202 +1300,9 @@ static void verify_perk_choice(Device& d, fs::path const& out) {
     d.advance(0, 8000000);
 }
 
-static void start_grove_contact(Device& d);
+static void start_rat_contact(Device& d);
 
 static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target);
-
-static void verify_party_recruitment(Device& d, fs::path const& out) {
-    Game original = d.state();
-    require(original.party.count == 1, "new game did not start with one party member");
-    Game nearby = original;
-    nearby.player = {(uint16_t)((positions::RowanHome.x - 1) * TILE),
-                     (uint16_t)(positions::RowanHome.y * TILE), EAST, 0};
-    d.set_state(nearby);
-    d.frame();
-    auto open_choices = [&] {
-        d.tap(BTN_A);
-        require(d.prompt() != DIALOGUE_CLOSED, "talking to Rowan did not open dialogue");
-        d.wait_for_prompt();
-        d.tap(BTN_A);
-        require(d.prompt() == DIALOGUE_OPTIONS, "Rowan did not offer dialogue options");
-    };
-    open_choices();
-    d.tap(BTN_B);
-    d.advance(0, 4000000);
-    require(d.prompt() == DIALOGUE_CLOSED && d.state().party.count == 1,
-            "backing out of Rowan's options recruited Rowan");
-
-    open_choices();
-    d.tap(BTN_DOWN);
-    d.tap(BTN_DOWN);
-    d.tap(BTN_DOWN);
-    d.capture(out / "rowan-dialogue-options.pgm");
-    d.tap(BTN_A);
-    d.wait_for_prompt();
-    require(d.prompt() == DIALOGUE_DONE && d.state().party.count == 1,
-            "selecting Rowan's fourth option did not show a topic");
-    d.tap(BTN_A);
-    d.advance(0, 4000000);
-
-    open_choices();
-    Snapshot before = d.state();
-    require(d.panel_addr && d.ab->core_state.cpu.data[d.panel_addr], "dialogue panel is not open");
-
-    // The choices and recruitment announcement must share a single open panel.
-    struct PanelTrace {
-        Device& device;
-        bool closed = false;
-        bool reloaded = false;
-    } trace{d};
-
-    require(!d.cycle_observer, "another device observer is attached");
-    d.observer_context = &trace;
-    d.cycle_observer = [](void* context, bool after) {
-        auto& trace = *static_cast<PanelTrace*>(context);
-        if(after) {
-            auto const& ram = trace.device.ab->core_state.cpu.data;
-            if(!ram[trace.device.panel_addr])
-                trace.closed = true;
-            if(ram[trace.device.phase_addr] == 4)
-                trace.reloaded = true;
-        }
-    };
-    d.tap(BTN_A);
-    d.wait_for_prompt();
-    d.cycle_observer = nullptr;
-    d.observer_context = nullptr;
-    require(!trace.closed, "panel closed between choices and recruitment announcement");
-    require(!trace.reloaded, "dialogue reloaded the tile cache");
-    Snapshot announced = d.state();
-    require(announced.ticks == before.ticks &&
-                !memcmp(&announced.view.cache, &before.view.cache, sizeof(TileCache)) &&
-                !memcmp(&announced.view.camera, &before.view.camera, sizeof(Camera)),
-            "dialogue moved the gameplay camera, reloaded tiles or advanced simulation");
-    d.capture(out / "party-joined.pgm");
-    // Directional input during closing cannot move the player or advance simulation/cache work.
-    d.buttons = BTN_B | BTN_RIGHT;
-    uint64_t deadline = d.ab->core_state.cpu.cycle_count + 4000000;
-    while(d.ab->core_state.cpu.data[d.panel_addr]) {
-        d.step();
-        require(d.ab->core_state.cpu.cycle_count < deadline,
-                "dialogue close did not finish promptly");
-        if(d.ab->core_state.cpu.data[d.panel_addr]) {
-            require(d.ab->core_state.cpu.data[d.phase_addr] != 4,
-                    "dialogue closing reloaded the tile cache");
-            Snapshot closing = d.state();
-            require(closing.ticks == announced.ticks &&
-                        !memcmp(&closing.player, &announced.player, sizeof(Actor)) &&
-                        !memcmp(&closing.view.camera, &announced.view.camera, sizeof(Camera)) &&
-                        !memcmp(&closing.view.cache, &announced.view.cache, sizeof(TileCache)),
-                    "dialogue closing changed gameplay state");
-        }
-    }
-    d.advance(0, 1600000);
-    auto joined = d.state().party;
-    require(joined.count == 2 && joined.members[1].id == NPC_ROWAN && joined.members[1].hp == 18 &&
-                joined.members[1].ap == 4 &&
-                joined.members[1].movement_class == MOVEMENT_STEP &&
-                joined.members[1].attack_class == ATTACK_SHOOT,
-            "Rowan did not join with the expected statistics");
-    auto recruited = d.state();
-    for(auto const& actor : recruited.npcs.actors)
-        require(actor.id != NPC_ROWAN, "recruited Rowan remained on the map");
-    d.tap(BTN_A);
-    require(d.prompt() == DIALOGUE_CLOSED && d.state().party.count == 2,
-            "absent Rowan could still be talked to or recruited twice");
-    d.tap(BTN_B);
-    d.tap(BTN_DOWN);
-    d.tap(BTN_DOWN);
-    d.tap(BTN_A);
-    d.advance(0, 8000000);
-    d.capture(out / "party-recruited.pgm");
-    // Left and right turn pages, which wrap across the two members, without changing statistics.
-    d.tap(BTN_RIGHT);
-    d.advance(0, 800000);
-    d.capture(out / "party-second-page.pgm");
-    d.tap(BTN_RIGHT);
-    d.advance(0, 800000);
-    auto shown = d.state().party;
-    require(!memcmp(&joined, &shown, sizeof(Party)), "Party panel changed member statistics");
-    d.tap(BTN_B);
-    d.advance(0, 8000000);
-    d.frame();
-    // Start a real encounter with a recruited party at its maximum and a wounded member, then
-    // verify result writeback.
-    Game combat = d.state();
-    combat.party.members[0].hp = 20;
-    combat.party.members[0].ap = 4;
-    combat.party.members[0].level = BATTLE_STARTER_LEVEL;
-    combat.party.members[0].movement_class = MOVEMENT_LEAP;
-    combat.party.members[0].attack_class = ATTACK_SHOOT;
-    combat.party.members[1].hp = 17;
-    combat.party.members[1].ap = 4;
-    combat.party.members[1].movement_class = MOVEMENT_CHARGE;
-    combat.party.members[1].attack_class = ATTACK_IMPACT;
-    combat.player = {(uint16_t)(positions::PlayerStart.x * TILE),
-                     (uint16_t)(positions::PlayerStart.y * TILE), NORTH, 0};
-    d.set_state(combat);
-    start_grove_contact(d);
-    auto deployed = d.battle_state();
-    require((BATTLEFIELDS_WORLD & battlefield_bit(deployed.field)) &&
-                deployed.unit_count == 3 && deployed.units[0].id == battle_party_id(0) &&
-                deployed.units[1].id == battle_party_id(1) && deployed.units[0].hp == 20 &&
-                deployed.units[1].hp == 17 && deployed.units[2].id == ENEMY_WOLF,
-            "real battle did not deploy the recruited party with its saved HP");
-    d.advance(0, 1600000);
-    d.capture(out / "battle-saved-party.pgm");
-    // The shot scenario uses a fixed position after checking the real deployment.
-    GroveCell cursor{battle_column(deployed.units[0].cell), battle_row(deployed.units[0].cell)};
-    deployed.field = BATTLEFIELD_GROVE;
-    deployed.units[0].cell = battle_cell(2, 1);
-    deployed.units[1].cell = battle_cell(1, 2);
-    deployed.units[2].cell = battle_cell(6, 1);
-    d.set_battle(deployed);
-    grove_move_cursor(d, cursor, {2, 1});
-    // The traveler's Shot reaches the wolf along row 1, so A on the wolf opens the offer. B closes
-    // it without acting, and A on the still-selected traveler opens it again. Opening Shot costs 2
-    // AP and deals 7 to the wolf at full HP, leaving it at 2.
-    d.tap(BTN_A); // Select the traveler under the cursor.
-    for(unsigned i = 0; i < 4; ++i)
-        d.tap(BTN_RIGHT);
-    d.tap(BTN_A); // Open the offer on the wolf.
-    d.advance(0, 800000);
-    d.capture(out / "battle-special-offer.pgm");
-    d.tap(BTN_B);
-    require(d.battle_state().units[2].hp == 9 && d.state().party.members[0].ap == 4,
-            "closing the offer with B acted on the battle");
-    d.tap(BTN_A);
-    d.tap(BTN_DOWN); // Highlight Opening Shot.
-    d.capture(out / "battle-special-selected.pgm");
-    unsigned activations = d.battle_state().activations;
-    d.tap(BTN_A);
-    d.wait_for_battle(activations);
-    // The wolf may move after the shot and pay its blood price, so it is at 2 HP or 1. A normal attack
-    // would leave it at 5 or 6.
-    require(d.battle_state().units[2].hp <= 2 && d.state().party.members[0].ap == 2,
-            "Opening Shot did not deal its damage or spend its AP");
-    deployed.units[0].hp = 11;
-    deployed.units[1].hp = 0;
-    d.set_battle(deployed);
-    d.tap(BTN_B);
-    d.tap(BTN_DOWN); // Resign
-    d.tap(BTN_A);
-    d.advance(0, 4800000);
-    d.tap(BTN_A);
-    d.advance(0, 8000000);
-    combat.party.members[0].hp = 11;
-    combat.party.members[1].hp = 0;
-    combat.party.members[0].ap = 2;
-    auto finished = d.state().party;
-    require(!memcmp(&combat.party, &finished, sizeof(Party)),
-            "battle result did not persist HP and AP while preserving member classes");
-    d.tap(BTN_A);
-    d.advance(0, 4000000);
-    d.tap(BTN_A); // Enter the next run from the title.
-    d.frame();
-    d.set_state(original);
-    d.frame();
-}
 
 static void verify_battle_menu(Device& d, fs::path const& out) {
     d.advance(0, 6400000);
@@ -1534,6 +1462,10 @@ static void verify_game_over_title(Device& d, fs::path const& out, unsigned seri
     d.advance(0, 1600000);
     d.tap(BTN_A);
     d.frame();
+    if(d.prompt() != DIALOGUE_CLOSED) {
+        read_dialogue(d);
+        d.frame();
+    }
     require(d.serial() != serial, "title did not resume after a fresh A press");
     require(d.sector() == save, "Game Over changed the stored save");
     Game next = d.state();
@@ -1546,8 +1478,8 @@ static void verify_game_over_title(Device& d, fs::path const& out, unsigned seri
                 "title did not load the saved party and location after Game Over");
     } else {
         require(next.player.x == positions::PlayerStart.x * TILE &&
-                    next.player.y == positions::PlayerStart.y * TILE &&
-                    next.party.count == 1 && next.party.members[0].hp == 20,
+                    next.player.y == positions::PlayerStart.y * TILE && next.party.count == 1 &&
+                    next.party.members[0].hp == PARTY_BASE_HP,
                 "title did not start a fresh party after Game Over");
     }
 }
@@ -1579,13 +1511,13 @@ static void verify_battle_resign(Device& d, fs::path const& out) {
 
 static void verify_house_fades(Device& d) {
     Game original = d.state();
-    Game at_door = original;
-    at_door.player = {(uint16_t)(positions::ElderDoor.x * TILE),
-                      (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
-    d.set_state(at_door);
+    place_player(
+        d,
+        {positions::AldenDoor.area, positions::AldenDoor.x, (uint8_t)(positions::AldenDoor.y + 1)},
+        NORTH);
     d.advance(0, 1600000);
     require(d.state().can_interact, "house door did not become interactive");
-    uint8_t door_tile = d.cached_tile(positions::ElderDoor.x, positions::ElderDoor.y);
+    uint8_t door_tile = d.cached_tile(positions::AldenDoor.x, positions::AldenDoor.y);
     {
         FadeTrace trace(d);
         d.tap(BTN_A);
@@ -1593,11 +1525,11 @@ static void verify_house_fades(Device& d) {
         trace.verify("house_entry");
     }
     Game inside = d.state();
-    require(inside.area == positions::ElderExit.area &&
-                inside.player.x == positions::ElderExit.x * TILE &&
-                inside.player.y == (positions::ElderExit.y - 1) * TILE &&
+    require(inside.area == positions::AldenExit.area &&
+                inside.player.x == positions::AldenExit.x * TILE &&
+                inside.player.y == (positions::AldenExit.y - 1) * TILE &&
                 inside.player.facing == NORTH &&
-                d.cached_tile(positions::ElderExit.x, positions::ElderExit.y) ==
+                d.cached_tile(positions::AldenExit.x, positions::AldenExit.y) ==
                     HOUSE_TILE_EDGE_TOP_EXIT,
             "house entry revealed the wrong destination or tile cache");
     d.tap(BTN_B);
@@ -1615,10 +1547,10 @@ static void verify_house_fades(Device& d) {
         trace.verify("house_exit");
     }
     Game outside = d.state();
-    require(outside.area == original.area && outside.player.x == positions::ElderDoor.x * TILE &&
-                outside.player.y == (positions::ElderDoor.y + 1) * TILE &&
+    require(outside.area == AREA_OUTDOOR && outside.player.x == positions::AldenDoor.x * TILE &&
+                outside.player.y == (positions::AldenDoor.y + 1) * TILE &&
                 outside.player.facing == SOUTH && !outside.player.walking &&
-                d.cached_tile(positions::ElderDoor.x, positions::ElderDoor.y) == door_tile,
+                d.cached_tile(positions::AldenDoor.x, positions::AldenDoor.y) == door_tile,
             "house exit revealed the wrong destination or tile cache");
     d.set_state(original);
     d.advance(0, 1600000);
@@ -1668,36 +1600,39 @@ static void grove_move_cursor(Device& d, GroveCell& cursor, GroveCell target) {
     }
 }
 
-constexpr NPC_ID GROVE_WOLF = (NPC_ID)NPC_ENEMY_FIRST;
-constexpr FLAG GROVE_WOLF_DEFEATED = FLAG_ENEMY_FIRST;
-
-static void place_grove_contact(Device& d) {
-    // Inject a new scene between exploration frames, including after The World Remembers.
+// Starts a battle with the giant rat in Eliza's bedroom, whatever the story has reached.
+static void place_rat_contact(Device& d) {
+    d.frame();
+    if(d.state().area != AREA_INTERIORS)
+        enter_house(d, positions::ElizaDoor);
     d.frame();
     Game world = d.state();
-    require(world.area == positions::GroveWolf.area, "Grove contact fixture is in the wrong area");
-    world.flags.clear_flag(GROVE_WOLF_DEFEATED);
-    world.remember_timer = 0;
-    world.player = {(uint16_t)(positions::GroveWolf.x * TILE + FOOT_WIDTH + 2),
-                    (uint16_t)(positions::GroveWolf.y * TILE), WEST, 0};
+    for(FLAG flag : {FLAG_RAT_ACCEPTED, FLAG_RAT_SIGHTED, FLAG_CLASSES_CHOSEN})
+        world.flags.set_flag(flag);
+    world.flags.clear_flag(FLAG_RAT_DEFEATED);
+    world.player = {(uint16_t)(positions::RatNest.x * TILE - TILE - 2),
+                    (uint16_t)(positions::RatNest.y * TILE), EAST, 0};
+    world.npcs = {};
     world.npcs.entering = 1;
     d.set_state(world);
     d.frame();
-    auto ready = d.state();
-    auto* wolf = std::find_if(ready.npcs.actors, ready.npcs.actors + NPC_CAPACITY,
-                              [](Npc const& npc) { return npc.id == GROVE_WOLF; });
-    require(wolf != ready.npcs.actors + NPC_CAPACITY, "Grove Wolf did not spawn via its chunk");
-    // Keep a stable contact edge while the frame and fade observers attach.
-    wolf->state = NPC_STATE_NONE;
-    wolf->timer = 30;
-    ready.player.x = wolf->actor.x + FOOT_WIDTH;
-    ready.player.y = wolf->actor.y;
+    Game ready = d.state();
+    auto* rat = std::find_if(ready.npcs.actors, ready.npcs.actors + NPC_CAPACITY,
+                             [](Npc const& npc) { return npc.id == NPC_GIANT_RAT; });
+    require(rat != ready.npcs.actors + NPC_CAPACITY, "the giant rat did not spawn via its chunk");
+    // Hold the rat still beside the player while the frame and fade observers attach.
+    rat->state = NPC_STATE_NONE;
+    rat->behavior = NPC_STAND;
+    rat->policy_pending &= (uint8_t)~NPC_FLAG_PURSUIT;
+    rat->timer = 200;
+    ready.player.x = (uint16_t)(rat->actor.x - FOOT_WIDTH);
+    ready.player.y = rat->actor.y;
     d.set_state(ready);
 }
 
-static void start_grove_contact(Device& d) {
-    place_grove_contact(d);
-    d.tap(BTN_LEFT);
+static void start_rat_contact(Device& d) {
+    place_rat_contact(d);
+    d.tap(BTN_RIGHT);
     d.accept_formation();
 }
 
@@ -1706,12 +1641,12 @@ static void verify_battle_formation(Device& d, fs::path const& out) {
     Game world = d.state();
     world.party.count = 2;
     world.party.members[1] = world.party.members[0];
-    world.party.members[1].id = NPC_ROWAN;
-    world.party.members[1].hp = 17;
+    world.party.members[1].id = NPC_ELIZA;
+    world.party.members[1].hp = 11;
     world.party.members[1].attack_class = ATTACK_SHOOT;
     d.set_state(world);
-    place_grove_contact(d);
-    d.tap(BTN_LEFT);
+    place_rat_contact(d);
+    d.tap(BTN_RIGHT);
     d.wait_for_battle(256, true);
     BattleState initial = d.battle_state();
     require(initial.unit_count == 3, "formation fixture did not deploy two allies and an enemy");
@@ -1829,7 +1764,7 @@ static void verify_consecutive_perk_ranks(Device& d, fs::path const& out) {
 }
 
 static void verify_battle_classes(Device& d, fs::path const& out) {
-    start_grove_contact(d);
+    start_rat_contact(d);
 
     BattleState inspection = d.battle_state();
     GroveCell inspect_cursor{battle_column(inspection.units[0].cell),
@@ -1869,38 +1804,38 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
     };
 
     static constexpr Case CASES[] = {
-        {"battle_before_starter", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 15, 7, false, 0, false, 2},
-        {"battle_starter_unlocked", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 15, 4, true, 0, false, 3},
+        {"battle_before_starter", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1),
+         battle_cell(3, 1), battle_cell(3, 1), battle_cell(2, 1), 8, 7, false, 0, false, 2},
+        {"battle_starter_unlocked", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1),
+         battle_cell(3, 1), battle_cell(3, 1), battle_cell(2, 1), 8, 4, true, 0, false, 3},
         {"battle_step", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(2, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 15, 9, false},
+         battle_cell(3, 1), battle_cell(2, 1), 8, 9, false},
         {"battle_charge", MOVEMENT_CHARGE, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
-         battle_cell(4, 1), battle_cell(3, 1), 14, 7, false},
+         battle_cell(4, 1), battle_cell(3, 1), 7, 7, false},
         {"battle_vault", MOVEMENT_VAULT, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
-         battle_cell(2, 1), battle_cell(3, 1), 14, 7, false},
+         battle_cell(2, 1), battle_cell(3, 1), 7, 7, false},
         {"battle_glide", MOVEMENT_GLIDE, ATTACK_STRIKE, battle_cell(1, 0), battle_cell(3, 2),
-         battle_cell(3, 1), battle_cell(3, 2), 14, 8, false},
+         battle_cell(3, 1), battle_cell(3, 2), 7, 8, false},
         {"battle_arc", MOVEMENT_STEP, ATTACK_ARC, battle_cell(3, 1), battle_cell(4, 2),
-         battle_cell(4, 2), battle_cell(3, 1), 15, 3, true},
+         battle_cell(4, 2), battle_cell(3, 1), 8, 3, true},
         {"battle_drain", MOVEMENT_STEP, ATTACK_DRAIN, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 18, 3, true, 3},
+         battle_cell(3, 1), battle_cell(2, 1), 11, 3, true, 3},
         {"battle_reach", MOVEMENT_STEP, ATTACK_REACH, battle_cell(1, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(1, 1), 15, 3, true, 3},
+         battle_cell(3, 1), battle_cell(1, 1), 8, 3, true, 3},
         {"battle_recoil", MOVEMENT_LEAP, ATTACK_RECOIL, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(1, 1), 15, 2, true},
+         battle_cell(3, 1), battle_cell(1, 1), 8, 2, true},
         {"battle_flank", MOVEMENT_STEP, ATTACK_FLANK, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(2, 1), 15, 4, false},
+         battle_cell(3, 1), battle_cell(2, 1), 8, 4, false},
         {"battle_blast", MOVEMENT_STEP, ATTACK_BLAST, battle_cell(2, 1), battle_cell(5, 1),
-         battle_cell(5, 1), battle_cell(2, 1), 15, 4, true, 3},
+         battle_cell(5, 1), battle_cell(2, 1), 8, 4, true, 3},
         {"battle_trample", MOVEMENT_CHARGE, ATTACK_STRIKE, battle_cell(1, 1), battle_cell(3, 1),
-         battle_cell(2, 1), battle_cell(3, 1), 14, 7, false, 4},
+         battle_cell(2, 1), battle_cell(3, 1), 7, 7, false, 4},
         {"battle_throughshot", MOVEMENT_STEP, ATTACK_SHOOT, battle_cell(0, 1), battle_cell(5, 1),
-         battle_cell(5, 1), battle_cell(0, 1), 15, 1, true, 4},
+         battle_cell(5, 1), battle_cell(0, 1), 8, 1, true, 4},
         {"battle_split_shot", MOVEMENT_STEP, ATTACK_SHOOT, battle_cell(1, 1), battle_cell(5, 1),
-         battle_cell(5, 1), battle_cell(1, 1), 15, 4, true, 4, true},
+         battle_cell(5, 1), battle_cell(1, 1), 8, 4, true, 4, true},
         {"battle_breach_cut", MOVEMENT_STEP, ATTACK_STRIKE, battle_cell(2, 1), battle_cell(3, 1),
-         battle_cell(3, 1), battle_cell(3, 1), 15, 0, true, 4, true},
+         battle_cell(3, 1), battle_cell(3, 1), 8, 0, true, 4, true},
     };
     for(auto const& test : CASES) {
         Game world = d.state();
@@ -1915,7 +1850,7 @@ static void verify_battle_classes(Device& d, fs::path const& out) {
         BattleState state{};
         state.field = BATTLEFIELD_GROVE;
         state.turn = BATTLE_PARTY;
-        state.units[0] = BattleUnit{test.actor, 15, battle_party_id(0), BATTLE_PARTY};
+        state.units[0] = BattleUnit{test.actor, 8, battle_party_id(0), BATTLE_PARTY};
         state.units[1] = BattleUnit{test.victim, 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
         state.units[2] = BattleUnit{battle_cell(7, 3), 10, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
         state.unit_count = 3;
@@ -2073,31 +2008,10 @@ static void play_grove_battle(Device& d, bool verify_transition = false,
     }
     Game resumed = d.state();
     require(d.prompt() == DIALOGUE_CLOSED && resumed.gold == gold_after &&
-                resumed.flags.get_flag(GROVE_WOLF_DEFEATED) && resumed.remember_timer > 0,
-            "Grove Wolf victory did not persist before returning to exploration");
+                resumed.flags.get_flag(FLAG_RAT_DEFEATED) && !resumed.remember_timer,
+            "the victory did not persist before returning to exploration");
     for(auto const& npc : resumed.npcs.actors)
-        require(npc.id != GROVE_WOLF, "defeated Grove Wolf remained active");
-}
-
-static void verify_remembers(Device& d, fs::path const& out) {
-    Game world = d.state();
-    world.remember_timer = 1;
-    world.flags.set_flag((FLAG)(FLAG_ENEMY_FIRST + 2));
-    d.set_state(world);
-    d.advance(0, 30000000);
-    unsigned serial = d.serial();
-    require(d.state().flags.get_flag(GROVE_WOLF_DEFEATED), "respawn cleared before the cutscene");
-    d.advance(0, 8000000);
-    require(d.serial() == serial, "The World Remembers advanced exploration");
-    d.capture(out / "world-remembers.pgm");
-    d.advance(0, 25000000);
-    Game resumed = d.state();
-    require(d.serial() != serial && !resumed.remember_timer &&
-                !resumed.flags.get_flag(GROVE_WOLF_DEFEATED) &&
-                resumed.flags.get_flag((FLAG)(FLAG_ENEMY_FIRST + 2)),
-            "The World Remembers did not selectively clear defeat flags");
-    for(auto const& npc : resumed.npcs.actors)
-        require(npc.id != GROVE_WOLF, "Grove Wolf respawned in view");
+        require(npc.id != NPC_GIANT_RAT, "the defeated rat remained active");
 }
 
 #ifndef RPG_DEVICE_TEST_LIBRARY
@@ -2127,53 +2041,15 @@ static unsigned settled_song(Device& d) {
 
 #include "battle_recordings.inc"
 
-// Holds a direction until a walk crosses into the area.
-static void walk_to_area(Device& d, uint8_t held, uint8_t area, char const* message) {
-    for(unsigned frames = 0; d.state().area != area; ++frames) {
-        require(frames < 2 * TILE, message);
-        d.frame(held);
-    }
-}
-
-// The cave plays its own song, and the outdoors keeps Morning in the Meadow.
+// Houses play the village's song, which carries on as the player goes in and out.
 static void verify_area_music(Device& d) {
     Game original = d.state();
     unsigned outdoor = settled_song(d);
-
-    // The cave mouth is a passage: walking north onto it enters the cave.
-    Game at_mouth = original;
-    at_mouth.player = {(uint16_t)(positions::CaveMouth.x * TILE),
-                       (uint16_t)((positions::CaveMouth.y + 1) * TILE), NORTH, 0};
-    d.set_state(at_mouth);
-    d.advance(0, 1600000);
-    walk_to_area(d, BTN_UP, AREA_CAVE, "walking onto the cave mouth did not teleport");
-    unsigned cave = settled_song(d);
-    require(cave != outdoor, "the cave kept the outdoor song");
-    summary("cave_music", d, 30);
-
-    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "walking onto the cave exit did not teleport");
-    require(settled_song(d) == outdoor, "leaving the cave did not bring the outdoor song back");
-
-    // Leaving while the cave's song is still queued must replace the queue, not let the cave's
-    // song start outdoors once the fade ends. The slowest fade, at attenuation 255, takes 1.02
-    // seconds and outlasts the two screen fades of the walk out.
-    auto& ram = d.ab->core_state.cpu.data;
-    uint8_t volume = ram[AUDIO_MUSIC_VOLUME];
-    ram[AUDIO_MUSIC_VOLUME] = 255;
-    d.set_state(at_mouth);
-    d.advance(0, 1600000);
-    walk_to_area(d, BTN_UP, AREA_CAVE, "walking onto the cave mouth did not teleport");
-    Game at_exit = d.state();
-    at_exit.player = {
-        (uint16_t)(positions::CaveExit.x * TILE),
-        (uint16_t)(positions::CaveExit.y * TILE - FOOT_CENTER_Y - 1), SOUTH, 0};
-    d.set_state(at_exit);
-    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "walking onto the cave exit did not teleport");
-    require(ram[AUDIO_FADE_VOLUME] != 0 && audio_pointer(d, AUDIO_FADE_SONG) == outdoor,
-            "leaving during a song change did not queue the outdoor song");
-    require(settled_song(d) == outdoor, "the cave song started outdoors after a quick exit");
-    ram[AUDIO_MUSIC_VOLUME] = volume;
-
+    enter_house(d, positions::AldenDoor);
+    require(settled_song(d) == outdoor, "entering a house changed the song");
+    summary("indoor_music", d, 30);
+    leave_house(d, positions::AldenExit);
+    require(settled_song(d) == outdoor, "leaving a house changed the song");
     d.set_state(original);
     d.advance(0, 1600000);
 }
@@ -2263,8 +2139,9 @@ static void verify_ambient_sounds(Device& d) {
     // Listen in front of a house door, where paving and walls leave the gust little grass to bend.
     d.frame();
     Game street = d.state();
-    street.player = {(uint16_t)(positions::ElderDoor.x * TILE),
-                     (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
+    street.player = {(uint16_t)(positions::AldenDoor.x * TILE),
+                     (uint16_t)((positions::AldenDoor.y + 1) * TILE), NORTH, 0};
+    street.npcs.entering = 1;
     d.set_state(street);
     d.advance(0, 1600000);
     street = d.state();
@@ -2308,44 +2185,46 @@ static void verify_ambient_sounds(Device& d) {
     d.advance(0, 1600000);
 }
 
-// A lever's click is followed by the grind of the gate it opens, as two effects with a short gap,
-// and throwing it back plays the pair again.
-static void verify_mechanism_sounds(Device& d) {
-    Game at_mouth = d.state();
-    at_mouth.player = {(uint16_t)(positions::CaveMouth.x * TILE),
-                       (uint16_t)((positions::CaveMouth.y + 1) * TILE), NORTH, 0};
-    d.set_state(at_mouth);
-    d.advance(0, 1600000);
-    walk_to_area(d, BTN_UP, AREA_CAVE, "walking onto the cave mouth did not teleport");
-
-    d.frame();
-    Game at_lever = d.state();
-    at_lever.player = {(uint16_t)(positions::CaveLever.x * TILE),
-                       (uint16_t)((positions::CaveLever.y + 1) * TILE), NORTH, 0};
-    d.set_state(at_lever);
-    d.advance(0, 1600000);
-    require(d.state().can_interact, "the cave lever did not become interactive");
-
-    for(bool on : {true, false}) {
+// A boulder grinds as it rolls, and a push that cannot move it answers with a short tone.
+static void verify_boulder_sounds(Device& d) {
+    Game original = d.state();
+    auto stand = [&](TilePos cell, DIRECTION facing) {
+        place_player(d, cell, facing);
+        d.advance(0, 1600000);
         wait_for_quiet_sfx(d);
         d.advance(0, 800000);
-        SfxWatch thrown = watch_sfx(d, BTN_A, 32000000, 2);
-        d.advance(0, 1600000);
-        require(d.state().get_flag(FLAG_CAVE_GATE) == on, "the lever did not toggle its gate");
-        require(thrown.runs.size() == 2, "the lever and its gate were not two effects");
-        // The click is short, the grind is long, and the second starts when the first ends.
-        require(thrown.runs[0] < 250 * CYCLES_PER_MS && thrown.runs[1] > 400 * CYCLES_PER_MS,
-                "the lever's click and the gate's grind had the wrong lengths");
-        require(thrown.gap < 60 * CYCLES_PER_MS, "the gate's grind did not follow the click");
-    }
+    };
+    auto resting = [&](NPC_ID id, TilePos cell) {
+        Npc boulder = find_actor(d, id);
+        return boulder.id == id && boulder.actor.x == cell.x * TILE &&
+               boulder.actor.y == cell.y * TILE;
+    };
+    constexpr TilePos a = positions::BoulderA, c = positions::BoulderC;
+
+    // The boulder west of C blocks a push from its east side.
+    stand({c.area, (uint8_t)(c.x + 1), c.y}, WEST);
+    require(d.state().can_interact, "the boulder did not become interactive");
+    SfxWatch blocked = watch_sfx(d, BTN_A, 16000000, 1);
+    require(blocked.runs.size() == 1 && blocked.runs[0] < 300 * CYCLES_PER_MS,
+            "a blocked push did not answer with a short tone");
+    require(resting(NPC_BOULDER_C, c), "a blocked boulder moved");
+
+    stand({a.area, a.x, (uint8_t)(a.y - 1)}, SOUTH);
+    SfxWatch pushed = watch_sfx(d, BTN_A, 32000000, 1);
+    require(pushed.runs.size() == 1 && pushed.runs[0] > 400 * CYCLES_PER_MS,
+            "a rolling boulder was not heard grinding");
+    d.advance(0, 1600000);
+    require(resting(NPC_BOULDER_A, {a.area, a.x, (uint8_t)(a.y + 1)}),
+            "the boulder did not roll one tile");
+    d.set_state(original);
+    d.advance(0, 1600000);
 }
 
-// Menus tick, a gust is heard as wind, and a lever and its gate are heard in turn. The cave comes
-// last, because it leaves the player there.
+// Menus tick, a gust is heard as wind, and boulders grind or refuse.
 static void verify_sounds(Device& d) {
     verify_menu_sounds(d);
     verify_ambient_sounds(d);
-    verify_mechanism_sounds(d);
+    verify_boulder_sounds(d);
 }
 
 static void press_with_music_fade(Device& d) {
@@ -2372,16 +2251,16 @@ static void press_with_music_fade(Device& d) {
         }
         require(ram[0xa17] == 128 && ram[0xa72] == 255, "music fade changed master or SFX gain");
     };
-    d.advance(BTN_LEFT, 800000);
+    d.advance(BTN_RIGHT, 800000);
     // Let the battle entry finish while the longer audio fade is still running.
     d.advance(0, 4600000);
     require(d.battle_address() && d.ab->core_state.cpu.data[0xa73],
             "battle did not accept contact while music was fading");
     auto display = d.ab->peripherals.display.ram;
-    d.tap(BTN_RIGHT);
+    d.tap(BTN_LEFT);
     require(d.ab->peripherals.display.ram != display,
             "music fade blocked input or display updates");
-    d.tap(BTN_LEFT); // Restore the menu selection or battle cursor.
+    d.tap(BTN_RIGHT); // Restore the menu selection or battle cursor.
     d.advance(0, 16000000);
     d.cycle_observer = trace.observer;
     d.observer_context = trace.observer_context;
@@ -2392,116 +2271,32 @@ static void press_with_music_fade(Device& d) {
         require(trace.levels[i] < trace.levels[i - 1], "music fade did not ramp down");
 }
 
-static void advance_to_dialogue_options(Device& d) {
-    for(unsigned page = 0; page < 16; ++page) {
-        d.wait_for_prompt();
-        auto prompt = d.prompt();
-        if(prompt == DIALOGUE_OPTIONS)
-            return;
-        require(prompt == DIALOGUE_MORE || prompt == DIALOGUE_DONE,
-                "expected a text page before the options");
-        d.tap(BTN_A);
-    }
-    throw std::runtime_error("dialogue options did not appear");
-}
-
-static void verify_bram_meeting(Device& d, fs::path const& out) {
-    constexpr auto yard = positions::BramYard;
-    constexpr auto waiting = positions::BramLantern;
-    auto bram = [&] {
-        Game current = d.state();
-        for(auto const& actor : current.npcs.actors)
-            if(actor.id == NPC_BRAM)
-                return actor;
-        return Npc{};
-    };
-
+// Telling Eliza that the rat is gone completes her quest, and its experience earns a level.
+static void verify_quest_level_up(Device& d, fs::path const& out) {
+    Game original = d.state();
+    enter_house(d, positions::AldenDoor);
     d.frame();
     Game fixture = d.state();
-    fixture.player = {(uint16_t)((yard.x + 1) * TILE), (uint16_t)(yard.y * TILE), WEST, 0};
-    fixture.npcs = {};
-    fixture.npcs.entering = 1;
-    fixture.flags.set_flag(FLAG_LANTERN_STARTED);
-    fixture.flags.set_flag(FLAG_LANTERN_DIAGNOSED);
-    fixture.flags.set_flag(FLAG_LANTERN_RECORD_FOUND);
-    d.set_state(fixture);
-    d.frame();
-    require(bram().id == NPC_BRAM && bram().assigned_site == yard,
-            "Bram was missing from his yard");
-
-    d.tap(BTN_A);
-    d.wait_for_typing();
-    require(d.prompt() == DIALOGUE_OPTIONS, "Bram did not offer his dialogue topics");
-    d.tap(BTN_A);
-    d.dismiss_dialogue();
-    Npc walking = bram();
-    require(d.state().get_flag(FLAG_BRAM_LANTERN_MEETING) && walking.id == NPC_BRAM &&
-                walking.behavior == NPC_TRAVEL && walking.actor.x < yard.x * TILE,
-            "Bram did not walk after his invitation");
-    d.capture(out / "bram-leaves-yard.pgm");
-
-    uint8_t lane = (uint8_t)(positions::VillageLantern.x + 3);
-    uint8_t square_row = positions::VillageLantern.y;
-    d.hold(BTN_DOWN, TILE);
-    d.hold(BTN_LEFT, (yard.x + 1 - lane) * TILE);
-    d.hold(BTN_UP, (yard.y + 1 - square_row) * TILE);
-    d.hold(0, 16);
-    Npc arrived = bram();
-    require(arrived.id == NPC_BRAM && arrived.behavior == NPC_STAND &&
-                arrived.actor.x == waiting.x * TILE && arrived.actor.y == waiting.y * TILE,
-            "Bram was not waiting beside the lantern");
-    d.capture(out / "bram-at-lantern.pgm");
-    std::cout << "{\"result\":\"PASS\",\"scenario\":\"Bram walks to the lantern\"}\n";
-}
-
-static void verify_quest_level_up(Device& d, fs::path const& out) {
-    Snapshot fixture = d.state();
-    fixture.player = {(uint16_t)((positions::VillageLantern.x - 1) * TILE),
-                      (uint16_t)(positions::VillageLantern.y * TILE), EAST, 0};
-    fixture.npcs.entering = 1;
-    fixture.flags.set_flag(FLAG_LANTERN_STARTED);
-    fixture.flags.set_flag(FLAG_LANTERN_DIAGNOSED);
-    fixture.flags.set_flag(FLAG_LANTERN_RECORD_FOUND);
+    for(FLAG flag : {FLAG_RAT_ACCEPTED, FLAG_RAT_SIGHTED, FLAG_CLASSES_CHOSEN, FLAG_RAT_DEFEATED})
+        fixture.flags.set_flag(flag);
     fixture.party.members[0].level = 1;
-    fixture.party.members[0].experience = 4;
+    fixture.party.members[0].experience = 8;
     fixture.party.members[0].perk_ranks = 0;
     d.set_state(fixture);
-    d.frame();
-
-    d.capture(out / "lantern-unlit.pgm", true);
+    face_npc(d, NPC_ELIZA);
     d.tap(BTN_A);
-    advance_to_dialogue_options(d);
-    d.capture(out / "lantern-modern-options.pgm");
-    d.tap(BTN_B);
-    d.frame();
-    require(!d.state().get_flag(FLAG_LANTERN_RESTORED) &&
-                !d.state().get_flag(FLAG_LANTERN_MODERN) &&
-                d.state().party.members[0].experience == 4,
-            "canceling the repair changed quest state");
-
-    d.tap(BTN_A);
-    advance_to_dialogue_options(d);
-    d.tap(BTN_A);
-    // Advance the final text without waiting for exploration, which the notice pauses.
-    auto prompt = DIALOGUE_MORE;
-    for(unsigned page = 0; page < 16 && prompt == DIALOGUE_MORE; ++page) {
-        d.wait_for_prompt();
-        prompt = d.prompt();
-        require(prompt == DIALOGUE_MORE || prompt == DIALOGUE_DONE,
-                "expected Bram's resolution text");
-        d.tap(BTN_A);
-    }
-    require(prompt == DIALOGUE_DONE, "Bram's resolution text did not finish");
+    require(d.prompt() != DIALOGUE_CLOSED, "Eliza did not answer");
+    read_dialogue(d);
     d.advance(0, 3200000);
     Snapshot rewarded = d.state();
-    require(rewarded.get_flag(FLAG_LANTERN_RESTORED) && rewarded.get_flag(FLAG_LANTERN_MODERN) &&
-                rewarded.gold == fixture.gold + 12 && rewarded.party.members[0].level == 2 &&
+    require(rewarded.get_flag(FLAG_RAT_REPORTED) && rewarded.gold == fixture.gold + 10 &&
+                rewarded.party.members[0].level == 2 &&
                 party_unspent_perks(rewarded.party.members[0]) == 1,
-            "Lantern Keeper did not earn a level and a perk choice");
+            "reporting the rat did not earn a level and a perk choice");
     unsigned serial = d.serial();
     d.advance(0, 3200000);
     require(d.serial() == serial, "quest completion panel did not wait for dismissal");
-    d.capture(out / "lantern-quest-complete.pgm");
+    d.capture(out / "rat-quest-complete.pgm");
     d.tap(BTN_A);
     d.advance(0, 3200000);
     require(d.serial() == serial, "quest level-up notice did not wait for dismissal");
@@ -2510,189 +2305,9 @@ static void verify_quest_level_up(Device& d, fs::path const& out) {
     d.frame();
     require(d.serial() != serial && party_unspent_perks(d.state().party.members[0]) == 1,
             "dismissing the quest notice did not resume exploration with a pending perk");
-    d.capture(out / "lantern-modern.pgm", true);
-}
-
-static void verify_venlor_quests(Device& d, fs::path const& out) {
-    auto place = [&](TilePos site, int8_t dx, int8_t dy, DIRECTION facing) {
-        Game fixture = d.state();
-        fixture.area = site.area;
-        if(site.area == AREA_CAVE)
-            fixture.dimensions = {CAVE_WIDTH, CAVE_HEIGHT};
-        else if(site.area == AREA_INTERIORS)
-            fixture.dimensions = {INTERIORS_WIDTH, INTERIORS_HEIGHT};
-        else
-            fixture.dimensions = {OUTDOOR_WIDTH, OUTDOOR_HEIGHT};
-        fixture.player = {(uint16_t)((site.x + dx) * TILE), (uint16_t)((site.y + dy) * TILE),
-                          facing, 0};
-        fixture.previous_player_tile = {};
-        fixture.npcs = {};
-        fixture.npcs.entering = 1;
-        d.set_state(fixture);
-        d.frame();
-    };
-    auto inspect = [&](char const* filename, bool resume_exploration = true) {
-        d.capture(out / filename, true);
-        d.tap(BTN_A);
-        d.dismiss_dialogue(resume_exploration);
-    };
-    auto surveyors_here = [&] {
-        auto state = d.state();
-        return std::count_if(std::begin(state.npcs.actors), std::end(state.npcs.actors),
-                             [](Npc const& n) { return n.id == NPC_SURVEYOR; });
-    };
-
-    place(positions::WorkshopRecord, 0, 1, NORTH);
-    inspect("workshop-record.pgm");
-    require(d.state().get_flag(FLAG_LANTERN_RECORD_FOUND) && !d.state().get_flag(FLAG_LANTERN_STARTED),
-            "reading the workshop record did not preserve early evidence");
-    place(positions::SurveyorNotes, 0, 1, NORTH);
-    inspect("surveyor-notes.pgm", false);
-    d.advance(0, 3200000);
-    require(d.state().get_flag(FLAG_SURVEY_STARTED) && d.state().get_flag(FLAG_SURVEY_NOTES_READ),
-            "the survey notes did not start the search");
-    unsigned serial = d.serial();
-    d.advance(0, 3200000);
-    require(d.serial() == serial && d.state().selected_quest == QUEST_NONE,
-            "the quest start panel did not wait for a tracking choice");
-    d.capture(out / "surveyor-quest-start.pgm");
-    d.tap(BTN_A);
-    d.frame();
-    require(d.state().selected_quest == QUEST_MISSING_SURVEYOR,
-            "Track did not select the new quest");
-    d.capture(out / "tracked-quest-arrow.pgm", true);
-
-    place(positions::MineLanternRelay, 0, 1, NORTH);
-    Game gate_open = d.state();
-    gate_open.flags.set_flag(FLAG_CAVE_GATE);
-    d.set_state(gate_open);
-    d.frame();
-    inspect("mine-lantern-relay.pgm");
-    require(d.state().get_flag(FLAG_LANTERN_RELAY_FOUND) && !d.state().get_flag(FLAG_CAVE_BRIDGE),
-            "the relay depended on the bridge");
-
-    Game crossing = d.state();
-    crossing.flags.set_flag(FLAG_CAVE_BRIDGE);
-    // Keep this scenario below the level-up threshold at each separate reward.
-    crossing.party.members[0].level = 2;
-    crossing.party.members[0].experience = 0;
-    d.set_state(crossing);
-    place(positions::SurveyorTrapped, 0, 1, NORTH);
-    require(surveyors_here() == 1, "trapped surveyor did not appear");
-    d.capture(out / "surveyor-trapped.pgm", true);
-    for(uint8_t response : {BTN_B, BTN_A}) {
-        d.tap(BTN_A);
-        d.wait_for_prompt();
-        while(d.prompt() == DIALOGUE_MORE) {
-            d.tap(BTN_A);
-            d.wait_for_prompt();
-        }
-        require(d.prompt() == DIALOGUE_CHOICE, "surveyor did not offer to leave");
-        d.tap(response);
-        if(response == BTN_B) {
-            d.frame();
-            require(d.state().get_flag(FLAG_SURVEYOR_FOUND) &&
-                        !d.state().get_flag(FLAG_SURVEYOR_RESCUED) &&
-                        d.state().gold == crossing.gold && surveyors_here() == 1,
-                    "declining the rescue changed its outcome");
-        } else {
-            d.dismiss_dialogue(false);
-            d.advance(0, 3200000);
-            d.capture(out / "surveyor-quest-complete.pgm");
-            d.tap(BTN_A);
-            d.frame();
-        }
-    }
-    require(d.state().get_flag(FLAG_SURVEYOR_RESCUED) && surveyors_here() == 0 &&
-                d.state().gold == crossing.gold + 15 &&
-                d.state().party.members[0].experience == 8 &&
-                d.state().selected_quest == QUEST_NONE && !d.state().get_flag(FLAG_CAVE_CHEST),
-            "rescue did not retire the surveyor and award exactly 8 XP and 15 G");
-    place(positions::CaveLadder, 0, 1, NORTH);
-    walk_to_area(d, BTN_UP, AREA_OUTDOOR, "the rescued surveyor's ladder did not lead outside");
-    walk_to_area(d, BTN_UP, AREA_CAVE, "the hatch did not reopen the ladder route");
-    place(positions::InnExit, 0, -1, SOUTH);
-    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "the inn did not return to Millcross");
-    d.hold(BTN_RIGHT, TILE);
-    require(surveyors_here() == 1, "the returned surveyor did not appear by the inn");
-    d.capture(out / "surveyor-returned.pgm", true);
-    d.tap(BTN_A);
-    advance_to_dialogue_options(d);
-    d.tap(BTN_DOWN);
-    d.tap(BTN_A);
-    d.dismiss_dialogue();
-    require(d.state().gold == crossing.gold + 15, "post-rescue conversation reissued a reward");
-
-    // Walk around Well Square from the inn. Normal movement admits actors incrementally.
-    d.hold(BTN_DOWN, 3 * TILE);
-    d.hold(BTN_RIGHT, (positions::VillageLantern.x - positions::SurveyorReturned.x) * TILE);
-    Game diagnosis = d.state();
-    diagnosis.flags.set_flag(FLAG_LANTERN_DIAGNOSED);
-    d.set_state(diagnosis);
-    d.tap(BTN_A);
-    advance_to_dialogue_options(d);
-    d.capture(out / "lantern-ancient-options.pgm");
-    d.tap(BTN_DOWN);
-    d.tap(BTN_A);
-    d.dismiss_dialogue(false);
-    d.advance(0, 3200000);
-    d.tap(BTN_B); // Close the start panel. This interaction also completed the quest.
-    d.advance(0, 3200000);
-    serial = d.serial();
-    d.tap(BTN_B);
-    require(d.serial() == serial && d.state().selected_quest == QUEST_NONE,
-            "closing Quest Start did not leave Quest Complete open and tracking clear");
-    d.tap(BTN_A);
-    d.frame();
-    require(d.state().get_flag(FLAG_LANTERN_RESTORED) && !d.state().get_flag(FLAG_LANTERN_MODERN) &&
-                d.state().gold == crossing.gold + 27 &&
-                d.state().party.members[0].experience == 14,
-            "ancient restoration did not preserve the repair method or award 6 XP and 12 G");
-    d.capture(out / "lantern-ancient.pgm", true);
-    d.tap(BTN_B);
-    for(unsigned row = 0; row < PAUSE_JOURNAL - PAUSE_RESUME; ++row)
-        d.tap(BTN_DOWN);
-    d.tap(BTN_A);
-    d.advance(0, 3200000);
-    d.capture(out / "journal-both-completed.pgm");
-    d.tap(BTN_DOWN);
-    d.tap(BTN_A);
-    d.advance(0, 3200000);
-    d.capture(out / "journal-surveyor-completed.pgm");
-    d.tap(BTN_B);
-    d.tap(BTN_B);
-    d.advance(0, 3200000);
-}
-
-static void verify_millcross_views(Device& d, fs::path const& out) {
-    Game origin = d.state();
-    auto place = [&](TilePos site, int8_t dx, int8_t dy, DIRECTION facing) {
-        Game fixture = d.state();
-        fixture.player = {(uint16_t)((site.x + dx) * TILE), (uint16_t)((site.y + dy) * TILE),
-                          facing, 0};
-        fixture.npcs.entering = 1;
-        d.set_state(fixture);
-        d.frame();
-    };
-    d.capture(out / "millcross-arrival.pgm");
-    place(positions::WellSign, -1, -1, NORTH);
-    summary("millcross_well", d, 30);
-    d.capture(out / "millcross-well.pgm");
-    place(positions::OrchardSign, 0, -1, WEST);
-    summary("millcross_orchard", d, 30);
-    d.capture(out / "millcross-orchard.pgm");
-    place(positions::BramYard, 0, 1, NORTH);
-    summary("millcross_smithy", d, 30);
-    d.capture(out / "millcross-smithy.pgm");
-    place(positions::CaveMouth, 0, 1, NORTH);
-    summary("hollow_mine_mouth", d, 12);
-    d.capture(out / "hollow-mine-mouth.pgm");
-    walk_to_area(d, BTN_UP, AREA_CAVE, "Millcross trail did not lead into the mine");
-    summary("hollow_mine_camp", d, 30);
-    d.capture(out / "hollow-mine-camp.pgm");
-    walk_to_area(d, BTN_DOWN, AREA_OUTDOOR, "Hollow Mine camp could not return to the trail");
-    d.set_state(origin);
-    d.frame();
+    leave_house(d, positions::AldenExit);
+    d.set_state(original);
+    d.advance(0, 1600000);
 }
 
 static void verify_equipment(Device& d, fs::path const& out) {
@@ -2700,7 +2315,7 @@ static void verify_equipment(Device& d, fs::path const& out) {
     for(uint8_t id = 0; id < ITEM_DEFINED_COUNT; ++id)
         require(!fixture.get_flag(equipment_flag(id)), "new game starts with owned equipment");
     fixture.flags.set_flag(equipment_flag(ITEM_FIRSTSTRIKE_SWORD));
-    fixture.party.members[1] = {18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0, 0, {}};
+    fixture.party.members[1] = {12, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ELIZA, 1, 0, 0, {}};
     fixture.party.count = 2;
     d.set_state(fixture);
 
@@ -2712,7 +2327,7 @@ static void verify_equipment(Device& d, fs::path const& out) {
     d.advance(0, 8000000);
     d.tap(BTN_UP);
     d.tap(BTN_A); // Equipment
-    d.tap(BTN_RIGHT); // Rowan
+    d.tap(BTN_RIGHT); // The second member
     d.tap(BTN_A); // Weapon picker
     d.tap(BTN_DOWN); // Firststrike Sword
     d.tap(BTN_A); // Details
@@ -2786,7 +2401,7 @@ static void verify_supplies(Device& d, fs::path const& out) {
             "cancelled Elixir changed the party or inventory");
     d.tap(BTN_A);
     d.tap(BTN_A);
-    require(d.state().party.members[0].hp == 13 &&
+    require(d.state().party.members[0].hp == PARTY_BASE_HP &&
                 !d.state().supplies.quantity[SUPPLY_ELIXIR],
             "confirmed Elixir did not heal the party");
     require(d.serial() == serial, "Supplies advanced exploration");
@@ -2795,82 +2410,6 @@ static void verify_supplies(Device& d, fs::path const& out) {
     require(d.serial() != serial, "Supplies did not resume exploration");
     original.supplies = d.state().supplies;
     d.set_state(original);
-}
-
-static void verify_shop(Device& d, fs::path const& out) {
-    Game original = d.state();
-    Game street = original;
-    street.gold = 20;
-    street.player = {(uint16_t)(positions::ShopDoor.x * TILE),
-                     (uint16_t)((positions::ShopDoor.y + 1) * TILE), NORTH, 0};
-    d.set_state(street);
-    d.advance(0, 1600000);
-    d.tap(BTN_A);
-    d.advance(0, 4800000);
-    require(d.state().area == positions::ShopExit.area, "Shop door did not enter the shop");
-    d.frame();
-    Game beside_ada = d.state();
-    beside_ada.player = {(uint16_t)((positions::AdaShop.x - 1) * TILE),
-                         (uint16_t)(positions::AdaShop.y * TILE), EAST, 0};
-    d.set_state(beside_ada);
-    d.frame();
-    d.tap(BTN_A);
-    d.wait_for_typing();
-    require(d.prompt() == DIALOGUE_OPTIONS, "Ada did not offer dialogue options");
-
-    unsigned serial = d.serial();
-    d.advance(0);
-    d.advance(BTN_A, 4800000); // Browse supplies and keep A held through the handoff.
-    require(d.panel_addr, "missing dialogue panel QA address");
-    require(d.serial() == serial && !d.ab->core_state.cpu.data[d.panel_addr] &&
-                d.state().gold == street.gold,
-            "Ada's dialogue stayed open behind the shop or opening the shop changed gameplay");
-    d.capture(out / "shop-list.pgm");
-    d.advance(0);
-    d.tap(BTN_A);
-    d.capture(out / "shop-details.pgm");
-    d.tap(BTN_A);
-    d.capture(out / "shop-confirm.pgm");
-    d.tap(BTN_B);
-    auto cancelled = d.state();
-    require(cancelled.gold == street.gold &&
-                !memcmp(&cancelled.supplies, &street.supplies, sizeof(Supplies)),
-            "Cancelled shop confirmation changed the wallet or inventory");
-    d.advance(BTN_A, 3200000);
-    require(d.state().gold == street.gold &&
-                d.state().supplies.quantity[SUPPLY_POTION] == street.supplies.quantity[SUPPLY_POTION],
-            "Holding A on confirmation entry purchased a Potion");
-    d.advance(0);
-    d.advance(BTN_A, 3200000);
-    require(d.state().gold == street.gold - 12 &&
-                d.state().supplies.quantity[SUPPLY_POTION] ==
-                    street.supplies.quantity[SUPPLY_POTION] + 1,
-            "Shop confirmation did not purchase exactly one Potion");
-    d.capture(out / "shop-purchased.pgm");
-    d.advance(0);
-    d.tap(BTN_A);
-    d.tap(BTN_A);
-    d.tap(BTN_A);
-    require(d.state().gold == street.gold - 12 &&
-                d.state().supplies.quantity[SUPPLY_POTION] ==
-                    street.supplies.quantity[SUPPLY_POTION] + 1,
-            "Unaffordable purchase changed the wallet or inventory");
-    d.capture(out / "shop-insufficient.pgm");
-    d.tap(BTN_B);
-    d.tap(BTN_B);
-    d.tap(BTN_B);
-    d.frame();
-    require(d.serial() != serial && d.prompt() == DIALOGUE_CLOSED &&
-                !d.ab->core_state.cpu.data[d.panel_addr],
-            "Closing Ada's shop did not return directly to exploration");
-    for(unsigned frames = 0; d.state().area == positions::ShopExit.area; ++frames) {
-        require(frames < 3 * TILE, "Walking onto the Shop exit did not return to the village");
-        d.frame(BTN_DOWN);
-    }
-    original.gold = d.state().gold;
-    original.supplies = d.state().supplies;
-    d.set_state(original);
-    d.advance(0, 1600000);
 }
 
 static void enter_exploration_with_fade(Device& d, uint8_t button) {
@@ -2915,6 +2454,9 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
     d.advance(0);
     d.capture(out / "title.pgm");
     enter_exploration_with_fade(d, BTN_A);
+    require(d.prompt() != DIALOGUE_CLOSED, "a new game did not open with the traveler's line");
+    read_dialogue(d);
+    skip_story(d);
     auto initial = d.state();
     require(d.serial() != 0 && initial.ticks != 0 && initial.area == AREA_OUTDOOR,
             "smoke new game did not reach exploration");
@@ -2960,8 +2502,8 @@ static void verify_smoke(Device& d, fs::path const& package, fs::path const& out
                 equipment_get(member, SLOT_WEAPON) == ITEM_FIRSTSTRIKE_SWORD &&
                 equipment_get(loaded.party.members[1], SLOT_WEAPON) == ITEM_NONE,
             "smoke restart did not restore equipment ownership and slots");
-    require(party_movement_perk_rank(member) == 1 && member.hp == 16 &&
-                party_max_hp(member) == 20 && party_unspent_perks(member) == 0,
+    require(party_movement_perk_rank(member) == 1 && member.hp == 8 && party_max_hp(member) == 12 &&
+                party_unspent_perks(member) == 0,
             "smoke restart did not restore the learned perk and current HP");
     std::cout << "{\"result\":\"PASS\",\"scenario\":\"boot, input, display, perk confirmation and "
                  "save/restart\"}\n";
@@ -3009,7 +2551,7 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
     (void)out;
     Snapshot before = d.state();
     Game started = before;
-    started.flags.set_flag(FLAG_LANTERN_STARTED);
+    started.flags.set_flag(FLAG_HOME_STARTED);
     d.set_state(started);
     d.tap(BTN_B);
     d.advance(0, 1600000);
@@ -3053,18 +2595,352 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
     d.set_state(before);
 }
 
+// Waits for a panel that holds exploration still, such as a quest notice, captures it and closes
+// it.
+static void dismiss_notice(Device& d, fs::path const& capture) {
+    d.advance(0, 4800000);
+    unsigned serial = d.serial();
+    d.advance(0, 1600000);
+    require(d.serial() == serial && d.prompt() == DIALOGUE_CLOSED, "expected a waiting notice");
+    d.capture(capture, true);
+    d.tap(BTN_A);
+    d.advance(0, 800000);
+}
+
+// Runs exploration, holding a button, until dialogue opens.
+static void play_until_dialogue(Device& d, uint8_t held, char const* message) {
+    for(unsigned frames = 0; d.prompt() == DIALOGUE_CLOSED; ++frames) {
+        require(frames < 200, message);
+        d.frame(held);
+    }
+}
+
+// Captures the first page of the open dialogue, then reads it through.
+static unsigned read_captured(Device& d, fs::path const& capture) {
+    d.wait_for_prompt();
+    d.capture(capture);
+    return read_dialogue(d);
+}
+
+// The whole of the opening story on the device: waking in the clearing, the boulder gate, home,
+// Eliza's rat, the choice of classes, the fight and the report, then a save and a restart.
+// A save taken among the pushed boulders holds the pool: a restart brings each back where it lay,
+// around the traveler.
+static void verify_saved_boulders(Device& d, fs::path const& package, fs::path const& out) {
+    d.frame();
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN); // Save, immediately below Resume.
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    Game saved = d.state();
+    auto sector = d.sector();
+    require(!memcmp(newest_save(sector), &saved, sizeof(Game)), "the boulders were not saved");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+
+    Device restarted(package, d.game_addr, d.marker_addr, d.serial_addr, d.dialogue_addr);
+    restarted.phase_addr = d.phase_addr;
+    restarted.import_sector(sector);
+    restarted.open_title();
+    restarted.tap(BTN_A);
+    restarted.frame();
+    Game loaded = restarted.state();
+    require(loaded.player.x == saved.player.x && loaded.player.y == saved.player.y,
+            "a restart moved the traveler from among the boulders");
+    for(NPC_ID id = NPC_BOULDER_A; id <= NPC_BOULDER_D; id = (NPC_ID)(id + 1)) {
+        Npc before{};
+        for(auto const& actor : saved.npcs.actors)
+            if(actor.id == id)
+                before = actor;
+        Npc after = find_actor(restarted, id);
+        require(before.id == id && after.id == id && after.actor.x == before.actor.x &&
+                    after.actor.y == before.actor.y,
+                "a restart did not restore a pushed boulder");
+    }
+    restarted.capture(out / "08-restarted-gate.pgm", true);
+}
+
+static void verify_story(Device& d, fs::path const& package, fs::path const& out) {
+    d.open_title();
+    d.tap(BTN_A);
+    play_until_dialogue(d, 0, "the story did not open");
+    require(read_captured(d, out / "01-wake.pgm") == 1, "waking took more than one line");
+    d.frame();
+    require(d.state().area == AREA_OUTDOOR && !d.state().flags.get_flag(FLAG_HOME_STARTED),
+            "the story moved on while the player stood still");
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    require(pause_row_visible(d, 3) && !pause_row_visible(d, 4),
+            "the opening menu did not hold only Resume, Save, Map and Audio");
+    d.capture(out / "02-opening-menu.pgm", true);
+    d.tap(BTN_B);
+    d.frame();
+
+    play_until_dialogue(d, BTN_RIGHT, "wandering did not start the way home");
+    read_captured(d, out / "03-way-home.pgm");
+    dismiss_notice(d, out / "04-go-home-notice.pgm");
+    play_until_dialogue(d, 0, "the Journal hint did not appear");
+    read_captured(d, out / "05-journal-hint.pgm");
+    d.frame();
+    require(d.state().flags.get_flag(FLAG_MENU_JOURNAL), "the Journal did not unlock");
+
+    // Walking east toward the gate casts the boulders as they come within reach.
+    place_player(d,
+                 {AREA_OUTDOOR, (uint8_t)(positions::GateMouth.x - 8),
+                  (uint8_t)(positions::GateMouth.y + 1)},
+                 EAST);
+    play_until_dialogue(d, BTN_RIGHT, "the blocked way out went unnoticed");
+    require(read_captured(d, out / "06-boulders.pgm") >= 2, "the boulder lines were cut short");
+    d.frame();
+    summary("approach_gate_east", d, 56, BTN_RIGHT);
+    constexpr NPC_ID BOULDERS[] = {NPC_BOULDER_A, NPC_BOULDER_B, NPC_BOULDER_C, NPC_BOULDER_D};
+    for(NPC_ID id : BOULDERS)
+        require(find_actor(d, id).id == id, "walking up to the gate did not cast every boulder");
+    d.capture(out / "07-gate.pgm", true);
+
+    // Four pushes open the gate. The content test proves this order, and that no order traps.
+    struct Push {
+        NPC_ID boulder;
+        TilePos from;
+        DIRECTION facing;
+        TilePos to;
+    };
+
+    constexpr TilePos a = positions::BoulderA, b = positions::BoulderB, c = positions::BoulderC;
+    constexpr Push PUSHES[] = {
+        {NPC_BOULDER_B,
+         {b.area, b.x, (uint8_t)(b.y + 1)},
+         NORTH,
+         {b.area, b.x, (uint8_t)(b.y - 1)}},
+        {NPC_BOULDER_C, {c.area, (uint8_t)(c.x - 1), c.y}, EAST, {c.area, (uint8_t)(c.x + 1), c.y}},
+        {NPC_BOULDER_C, c, EAST, {c.area, (uint8_t)(c.x + 2), c.y}},
+        {NPC_BOULDER_A,
+         {a.area, a.x, (uint8_t)(a.y + 1)},
+         NORTH,
+         {a.area, a.x, (uint8_t)(a.y - 1)}},
+    };
+    unsigned index = 0;
+    for(Push const& push : PUSHES) {
+        place_player(d, push.from, push.facing);
+        d.frame();
+        require(d.state().can_interact, "a boulder of the solution could not be reached");
+        d.tap(BTN_A);
+        d.advance(0, 8000000);
+        Npc boulder = find_actor(d, push.boulder);
+        require(boulder.id == push.boulder && boulder.actor.x == push.to.x * TILE &&
+                    boulder.actor.y == push.to.y * TILE,
+                "a boulder of the solution did not roll");
+        d.capture(out / ("08-push-" + std::to_string(++index) + ".pgm"), true);
+    }
+    verify_saved_boulders(d, package, out);
+    place_player(d, positions::ClearingExit, EAST);
+    d.frame();
+    require(d.state().flags.get_flag(FLAG_LEFT_CLEARING), "leaving the clearing went unnoticed");
+    summary("village_gate", d, 30);
+    d.capture(out / "09-past-the-gate.pgm", true);
+
+    // Far from their chunk the boulders unload; walking back casts them at their sites again.
+    place_player(d,
+                 {AREA_OUTDOOR, (uint8_t)(positions::ClearingExit.x + 8),
+                  (uint8_t)(positions::ClearingExit.y + 1)},
+                 WEST);
+    d.frame();
+    for(NPC_ID id : BOULDERS)
+        require(find_actor(d, id).id == NPC_NONE, "a boulder outlived its chunk");
+    summary("approach_gate_west", d, 112, BTN_LEFT);
+    for(NPC_ID id : BOULDERS)
+        require(find_actor(d, id).id == id, "walking back did not cast every boulder");
+    require(find_actor(d, NPC_BOULDER_A).actor.y == positions::BoulderA.y * TILE &&
+                find_actor(d, NPC_BOULDER_C).actor.x == positions::BoulderC.x * TILE,
+            "an unloaded boulder did not return to its site");
+
+    enter_house(d, positions::AldenDoor);
+    dismiss_notice(d, out / "10-home-reward.pgm");
+    play_until_dialogue(d, 0, "Eliza did not greet the traveler");
+    read_captured(d, out / "11-eliza-greets.pgm");
+    d.frame();
+    face_npc(d, NPC_ELIZA);
+    d.tap(BTN_A);
+    for(unsigned page = 0; page < 8; ++page) {
+        d.wait_for_prompt();
+        if(d.prompt() == DIALOGUE_CHOICE)
+            break;
+        d.tap(BTN_A);
+    }
+    require(d.prompt() == DIALOGUE_CHOICE, "Eliza did not ask for help");
+    d.capture(out / "12-eliza-asks.pgm");
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    read_captured(d, out / "13-eliza-thanks.pgm");
+    dismiss_notice(d, out / "14-rat-quest-notice.pgm");
+    leave_house(d, positions::AldenExit);
+
+    enter_house(d, positions::ElizaDoor);
+    d.frame();
+    d.capture(out / "15-eliza-home.pgm", true);
+    place_player(
+        d, {positions::RatNest.area, (uint8_t)(positions::RatNest.x - 2), positions::RatNest.y},
+        EAST);
+    play_until_dialogue(d, 0, "the rat went unnoticed");
+    read_captured(d, out / "16-rat-sighted.pgm");
+
+    // The class screen: choose Leap and Reach, reading each description.
+    d.advance(0, 8000000);
+    d.capture(out / "17-movement-list.pgm", true);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    d.capture(out / "18-leap.pgm", true);
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.capture(out / "19-attack-list.pgm", true);
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    d.capture(out / "20-reach.pgm", true);
+    d.tap(BTN_A);
+    d.advance(0, 1600000);
+    d.capture(out / "21-confirm.pgm", true);
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    play_until_dialogue(d, 0, "the Party hint did not appear");
+    read_captured(d, out / "22-party-hint.pgm");
+    PartyMember chosen = d.state().party.members[0];
+    require(chosen.movement_class == MOVEMENT_LEAP && chosen.attack_class == ATTACK_REACH &&
+                d.state().flags.get_flag(FLAG_MENU_PARTY),
+            "the class choice did not take");
+
+    // The rat now chases, and reaches the traveler.
+    d.buttons = 0;
+    d.wait_for_battle(256, true);
+    d.capture(out / "23-formation.pgm", true);
+    d.accept_formation();
+    d.capture(out / "24-battle.pgm", true);
+    BattleState fight = d.battle_state();
+    require(fight.unit_count == 2 && fight.units[1].id == ENEMY_GIANT_RAT &&
+                (BATTLEFIELDS_HOUSE & battlefield_bit(fight.field)),
+            "the fight is not the lone rat indoors");
+    // Finish it from a known position: one thrust fells a rat with 1 HP.
+    fight.field = BATTLEFIELD_GROVE;
+    fight.units[0].cell = battle_cell(1, 1);
+    fight.units[1].cell = battle_cell(2, 1);
+    fight.units[1].hp = 1;
+    d.set_battle(fight);
+    for(unsigned i = 1; i < BATTLE_COLUMNS; ++i)
+        d.tap(BTN_LEFT);
+    for(unsigned i = 1; i < BATTLE_ROWS; ++i)
+        d.tap(BTN_UP);
+    GroveCell cursor{0, 0};
+    grove_move_cursor(d, cursor, {1, 1});
+    d.tap(BTN_A);
+    grove_move_cursor(d, cursor, {2, 1});
+    d.tap(BTN_A);
+    d.wait_for_battle(0);
+    require(d.battle_state().ended && d.battle_state().result == BATTLE_VICTORY,
+            "the thrust did not win the fight");
+    d.advance(0, 1600000);
+    d.capture(out / "25-victory.pgm", true);
+    d.tap(BTN_A);
+    d.advance(0, 4800000);
+    d.frame();
+    require(d.state().flags.get_flag(FLAG_RAT_DEFEATED) && d.state().area == AREA_INTERIORS &&
+                d.state().gold == 3,
+            "the victory did not return to Eliza's home");
+
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Party
+    d.advance(0, 8000000);
+    d.capture(out / "26-party.pgm", true);
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+
+    leave_house(d, positions::ElizaExit);
+    enter_house(d, positions::AldenDoor);
+    d.frame();
+    face_npc(d, NPC_ELIZA);
+    d.tap(BTN_A);
+    require(read_captured(d, out / "27-report.pgm") >= 2, "the report was cut short");
+    dismiss_notice(d, out / "28-rat-reward.pgm");
+    dismiss_notice(d, out / "29-level-up.pgm");
+    d.frame();
+    Game finished = d.state();
+    require(finished.flags.get_flag(FLAG_RAT_REPORTED) && finished.gold == 13 &&
+                finished.party.members[0].level == 2,
+            "the report did not pay its reward");
+
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_DOWN);
+    d.tap(BTN_A); // Journal
+    d.advance(0, 8000000);
+    d.capture(out / "30-journal.pgm", true);
+    d.tap(BTN_A);
+    d.advance(0, 8000000);
+    d.capture(out / "31-journal-detail.pgm", true);
+    d.tap(BTN_B);
+    d.tap(BTN_B);
+    d.advance(0, 8000000);
+
+    leave_house(d, positions::AldenExit);
+    place_player(d,
+                 {positions::ElizaGarden.area, positions::ElizaGarden.x,
+                  (uint8_t)(positions::ElizaGarden.y + 2)},
+                 NORTH);
+    d.frame();
+    require(find_actor(d, NPC_ELIZA).id == NPC_ELIZA, "Eliza did not return to the village");
+    summary("village_garden", d, 30);
+    face_npc(d, NPC_ELIZA);
+    d.tap(BTN_A);
+    require(d.prompt() == DIALOGUE_CLOSED, "Eliza spoke again after her quest");
+    d.capture(out / "32-village.pgm", true);
+    place_player(
+        d, {positions::BramPost.area, positions::BramPost.x, (uint8_t)(positions::BramPost.y - 2)},
+        SOUTH);
+    summary("village_bridge", d, 30);
+    d.capture(out / "33-bram.pgm", true);
+
+    d.tap(BTN_B);
+    d.advance(0, 1600000);
+    d.tap(BTN_DOWN); // Save
+    d.tap(BTN_A);
+    auto saved = d.state();
+    auto sector = d.sector();
+    require(!memcmp(newest_save(sector), &saved, sizeof(Game)), "the story was not saved");
+    Device restarted(package, d.game_addr, d.marker_addr, d.serial_addr, d.dialogue_addr);
+    restarted.phase_addr = d.phase_addr;
+    restarted.import_sector(sector);
+    restarted.open_title();
+    restarted.tap(BTN_A);
+    restarted.frame();
+    Game loaded = restarted.state();
+    require(restarted.prompt() == DIALOGUE_CLOSED && loaded.gold == saved.gold &&
+                !memcmp(&loaded.flags, &saved.flags, sizeof(WorldFlags)) &&
+                !memcmp(&loaded.party, &saved.party, sizeof(Party)),
+            "a restart did not resume the story where it was saved");
+    std::cout << "{\"result\":\"PASS\",\"scenario\":\"the opening story, saved and resumed\"}\n";
+}
+
 int main(int argc, char** argv) try {
     require(argc >= 9 && argc <= 13,
             "device_tests package game_address marker_address serial_address "
             "output_directory "
-            "normal|fxc|proof|smoke|smoke-functional|millcross|pause|battle|battle-classes|battle-formation|battle-recordings|perk-ranks|bram-meeting|"
-            "shop|sounds|"
+            "normal|fxc|proof|smoke|smoke-functional|story|pause|battle|battle-classes|battle-"
+            "formation|battle-recordings|perk-ranks|"
+            "sounds|"
             "functional|"
             "sounds-functional "
             "dialogue_address phase_address "
             "[battle_pointer_address [battle_ready_address [panel_address [workspace_address]]]]");
     // The journal mode reports Journal frame costs, which may exceed the budget before they are fixed.
-    check_timing = std::string(argv[6]) != "functional" && std::string(argv[6]) != "smoke-functional" &&
+    check_timing = check_timing && std::string(argv[6]) != "functional" &&
+                   std::string(argv[6]) != "smoke-functional" &&
                    std::string(argv[6]) != "sounds-functional" && std::string(argv[6]) != "journal";
     if(!check_timing)
         std::cout << "{\"timing_checks_enforced\":false,\"mode\":\"" << argv[6] << "\"}\n";
@@ -3100,51 +2976,23 @@ int main(int argc, char** argv) try {
         verify_smoke(d, package, out);
         return 0;
     }
+    if(std::string(argv[6]) == "story") {
+        verify_story(d, package, out);
+        return 0;
+    }
     if(std::string(argv[6]) == "battle-classes" || std::string(argv[6]) == "battle-formation" ||
-       std::string(argv[6]) == "battle-recordings" ||
-       std::string(argv[6]) == "perk-ranks" ||
-       std::string(argv[6]) == "bram-meeting") {
+       std::string(argv[6]) == "battle-recordings" || std::string(argv[6]) == "perk-ranks") {
         d.open_title();
-        d.tap(BTN_A);
-        d.advance(0, 3200000);
+        start_new_game(d);
+        skip_story(d);
         if(std::string(argv[6]) == "battle-recordings")
             record_battle_review(d, out);
         else if(std::string(argv[6]) == "perk-ranks")
             verify_consecutive_perk_ranks(d, out);
-        else if(std::string(argv[6]) == "bram-meeting")
-            verify_bram_meeting(d, out);
         else if(std::string(argv[6]) == "battle-formation")
             verify_battle_formation(d, out);
         else
             verify_battle_classes(d, out);
-        return 0;
-    }
-
-    if(std::string(argv[6]) == "shop") {
-        d.open_title();
-        d.tap(BTN_A);
-        d.advance(0, 3200000);
-        verify_shop(d, out);
-        start_grove_contact(d);
-        auto victory_capture = out / "shop-grove-victory.pgm";
-        play_grove_battle(d, true, nullptr, &victory_capture);
-
-        auto earned = d.state();
-        d.tap(BTN_B);
-        d.tap(BTN_DOWN); // Save
-        d.tap(BTN_A);
-        auto sector = d.sector();
-        Device restarted(package, g, m, s, q);
-        restarted.phase_addr = d.phase_addr;
-        restarted.import_sector(sector);
-        restarted.open_title();
-        restarted.tap(BTN_A);
-        restarted.frame();
-        auto loaded = restarted.state();
-        require(loaded.gold == earned.gold &&
-                    !memcmp(&loaded.supplies, &earned.supplies, sizeof(Supplies)),
-                "Restart did not restore battle gold and purchased supplies");
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"shop, Grove victory and restart\"}\n";
         return 0;
     }
 
@@ -3162,26 +3010,18 @@ int main(int argc, char** argv) try {
         require(before != d.ab->peripherals.display.filtered_pixels, "title is not animated");
         require(d.serial() == 0, "animated title advanced exploration");
     }
-    d.tap(BTN_A);
-    d.frame();
+    start_new_game(d);
     require(d.serial() != 0 && d.state().ticks != 0, "new game did not start exploration");
     // The title song fades out and the area's song takes over; the fade lowers the music
     // attenuation while it runs, so the audio checks wait for it.
     require(settled_song(d) != title_song, "starting a game kept the title song");
+    skip_story(d);
     if(std::string(argv[6]) == "sounds" || std::string(argv[6]) == "sounds-functional") {
         verify_sounds(d);
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"menu, ambient and mechanism sounds\"}\n";
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"menu, ambient and boulder sounds\"}\n";
         std::cout << "{\"worst_exploration_cycles\":" << worst_exploration_cycles
                   << ",\"within_frame_budget\":"
                   << (worst_exploration_cycles <= 320000 ? "true" : "false") << "}\n";
-        return 0;
-    }
-    if(std::string(argv[6]) == "millcross") {
-        verify_millcross_views(d, out);
-        verify_venlor_quests(d, out);
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Millcross views, ancient lantern repair and surveyor rescue\"}\n";
-        std::cout << "{\"worst_exploration_cycles\":" << worst_exploration_cycles
-                  << ",\"within_frame_budget\":true}\n";
         return 0;
     }
     verify_options(d, out);
@@ -3259,47 +3099,41 @@ int main(int argc, char** argv) try {
         return 0;
     }
     if(std::string(argv[6]) == "enemy-chase") {
+        enter_house(d, positions::ElizaDoor);
+        d.frame();
         Game world = d.state();
-        world.player = {(uint16_t)(positions::CaveMouth.x * TILE),
-                        (uint16_t)((positions::CaveMouth.y + 1) * TILE), NORTH, 0};
-        d.set_state(world);
-        d.advance(0, 1600000);
-        walk_to_area(d, BTN_UP, AREA_CAVE, "chase fixture could not enter Hollow Mine");
-
-        world = d.state();
+        for(FLAG flag : {FLAG_RAT_ACCEPTED, FLAG_RAT_SIGHTED, FLAG_CLASSES_CHOSEN})
+            world.flags.set_flag(flag);
+        world.npcs = {};
         world.npcs.entering = 1;
-        world.player = {(uint16_t)(positions::MineScout.x * TILE + 40),
-                        (uint16_t)(positions::MineScout.y * TILE), WEST, 0};
+        world.player = {(uint16_t)(positions::RatNest.x * TILE - 40),
+                        (uint16_t)(positions::RatNest.y * TILE), EAST, 0};
         d.set_state(world);
         d.frame();
 
-        auto scout = [&] {
-            Game current = d.state();
-            for(auto const& npc : current.npcs.actors)
-                if(npc.id == (NPC_ID)(NPC_ENEMY_FIRST + 1))
-                    return npc;
-            require(false, "Mine Scout did not spawn via its chunk");
-            return Npc{};
+        auto rat = [&] {
+            Npc found = find_actor(d, NPC_GIANT_RAT);
+            require(found.id == NPC_GIANT_RAT, "the rat did not spawn via its chunk");
+            return found;
         };
-        Npc before = scout();
-        require(before.behavior == NPC_CHASE, "Mine Scout did not detect the player");
-        summary("hollow_mine_chase", d, 20);
-        Npc after = scout();
-        require(after.actor.x == before.actor.x + 20 && after.actor.y == before.actor.y,
-                "Mine Scout did not move one pixel per frame");
+        Npc before = rat();
+        require(before.behavior == NPC_CHASE, "the rat did not chase the player");
+        summary("rat_chase", d, 20);
+        Npc after = rat();
+        require(after.actor.x < before.actor.x, "the chasing rat did not close in");
         d.accept_formation();
         auto battle = d.battle_state();
-        require((BATTLEFIELDS_CAVE & battlefield_bit(battle.field)) &&
+        require((BATTLEFIELDS_HOUSE & battlefield_bit(battle.field)) &&
                     battle.unit_count == d.state().party.count + 1,
-                "Scout contact did not deploy the lone wolf on a cave board");
-        std::cout << "{\"result\":\"PASS\",\"scenario\":\"Mine Scout pursuit and contact\"}\n";
+                "rat contact did not deploy the lone rat on a house board");
+        std::cout << "{\"result\":\"PASS\",\"scenario\":\"rat pursuit and contact\"}\n";
         return 0;
     }
     if(std::string(argv[6]) == "game-over") {
         Game injured = d.state();
         injured.party.members[0].hp = 1;
         d.set_state(injured);
-        start_grove_contact(d);
+        start_rat_contact(d);
         unsigned serial = d.serial();
         auto save = d.sector();
         d.tap(BTN_B);
@@ -3324,7 +3158,7 @@ int main(int argc, char** argv) try {
         d.tap(BTN_A);
         d.tap(BTN_B);
         d.frame();
-        start_grove_contact(d);
+        start_rat_contact(d);
         verify_battle_menu(d, out);
         verify_battle_resign(d, out);
         std::cout << "{\"result\":\"PASS\",\"scenario\":\"battle pause, Audio, team passes and "
@@ -3339,21 +3173,16 @@ int main(int argc, char** argv) try {
     require(d.state().dimensions.width_tiles == OUTDOOR_WIDTH &&
                 d.state().dimensions.height_tiles == OUTDOOR_HEIGHT,
             "wrong map dimensions");
-    require(d.cached_tile(positions::WellSign.x, positions::WellSign.y) == TILE_SIGN,
-            "sign atlas index changed");
     unsigned actors = 0;
     for(auto const& n : d.state().npcs.actors)
         actors += n.id != NPC_NONE;
-    require(actors == 3, "the well residents and recruit did not activate");
-    verify_millcross_views(d, out);
-    verify_shop(d, out);
-    verify_party_recruitment(d, out);
+    require(actors == 0, "the clearing has company");
     verify_actor_layers(d, out);
-    summary("idle_grove", d, 30);
-    d.capture(out / "grove.pgm");
+    summary("idle_clearing", d, 30);
+    d.capture(out / "clearing.pgm");
 
-    auto before_wolf = d.state();
-    place_grove_contact(d);
+    auto before_rat = d.state();
+    place_rat_contact(d);
     {
         FadeTrace trace(d);
         press_with_music_fade(d);
@@ -3370,22 +3199,18 @@ int main(int argc, char** argv) try {
                         deployed.units[i].hp == current.party.members[i].hp,
                     "battle did not preserve saved party HP and identity");
     }
-    d.capture(out / "grove-battle.pgm");
+    d.capture(out / "rat-battle.pgm");
     verify_battle_menu(d, out);
     auto level_up_capture = out / "victory-level-up.pgm";
     play_grove_battle(d, true, &level_up_capture);
-    verify_remembers(d, out);
-    Game before_resign = d.state();
-    start_grove_contact(d);
+    start_rat_contact(d);
     verify_battle_resign(d, out);
-    before_resign.player = before_wolf.player;
-    before_resign.npcs = before_wolf.npcs;
-    d.set_state(before_resign);
+    d.set_state(before_rat);
     d.frame();
     verify_house_fades(d);
     verify_area_music(d);
 
-    // A prepared lantern repair opens dialogue, and B can leave without committing it.
+    // Eliza's quest completes and earns a level.
     Game before_social = d.state();
     verify_quest_level_up(d, out);
     d.set_state(before_social);
@@ -3424,11 +3249,8 @@ int main(int argc, char** argv) try {
     require(d.serial() != menu_serial, "Map did not resume exploration");
     d.tap(BTN_B);
     d.advance(0, 1600000);
-    // Start Lantern Keeper for this menu, so the Journal lists it and its detail view has text to draw.
+    // The Journal lists the finished way home, so its detail view has text to draw.
     Game before_quest = d.state();
-    Game quest = before_quest;
-    quest.flags.set_flag(FLAG_LANTERN_STARTED);
-    d.set_state(quest);
     menu_state = d.state();
     menu_serial = d.serial();
     d.tap(BTN_UP);
@@ -3504,8 +3326,8 @@ int main(int argc, char** argv) try {
     Game changed = d.state();
     changed.gold = saved.gold + 123;
     changed.supplies.quantity[SUPPLY_POTION] = 0;
-    changed.player = {(uint16_t)(positions::ElderDoor.x * TILE),
-                      (uint16_t)((positions::ElderDoor.y + 1) * TILE), NORTH, 0};
+    changed.player = {(uint16_t)(positions::AldenDoor.x * TILE),
+                      (uint16_t)((positions::AldenDoor.y + 1) * TILE), NORTH, 0};
     d.set_state(changed);
     d.advance(0, 1600000);
     d.tap(BTN_A);
@@ -3601,8 +3423,8 @@ int main(int argc, char** argv) try {
     corrupt.import_sector(sector);
     corrupt.open_title();
     verify_audio_options(corrupt, 255, 255);
-    corrupt.tap(BTN_A); // Startup validation must already have hidden the invalid Load entry.
-    corrupt.frame();
+    // Startup validation must already have hidden the invalid Load entry.
+    start_new_game(corrupt);
     corrupt.tap(BTN_B);
     corrupt.advance(0, 1600000);
     corrupt.tap(BTN_UP); // With Load hidden, the last action is Audio.
@@ -3618,6 +3440,10 @@ int main(int argc, char** argv) try {
     invalid_continue.import_sector(sector);
     invalid_continue.open_title();
     invalid_continue.tap(BTN_B);
+    invalid_continue.frame();
+    require(invalid_continue.prompt() != DIALOGUE_CLOSED,
+            "a new game did not open with the traveler's line");
+    read_dialogue(invalid_continue);
     invalid_continue.frame();
     require(invalid_continue.serial() != 0 && invalid_continue.state().gold == 0,
             "B on the title did not start a new game over a corrupt save");

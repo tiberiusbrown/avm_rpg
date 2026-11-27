@@ -95,7 +95,7 @@ static void equipment_supply_modifiers() {
     CHECK(supply_use(supplies, party, SUPPLY_POTION, 1));
     CHECK(cup.hp == 11);
     CHECK(supply_use(supplies, party, SUPPLY_ELIXIR, SUPPLY_NO_TARGET));
-    CHECK(target.hp == 15 && cup.hp == 15 && vest.hp == 6 && party_max_hp(vest) == 21);
+    CHECK(target.hp == 12 && cup.hp == 12 && vest.hp == 6 && party_max_hp(vest) == 13);
 }
 
 static void recovery() {

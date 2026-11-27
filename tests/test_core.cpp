@@ -3,7 +3,7 @@
 #include "equipment.h"
 #include "chunk.h"
 #include "world_assets.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "npc.h"
 #include "story_stub.h"
 #include "logic/enemy_catalog.h"
@@ -65,9 +65,9 @@ static void animate() {
 
 static void movement() {
     game_new();
-    uint16_t const start_x = positions::PlayerStart.x * TILE;
-    uint16_t const start_y = positions::PlayerStart.y * TILE;
-    CHECK(game.player.x == start_x && game.player.y == start_y && game.player.facing == NORTH);
+    uint16_t const start_x = sites::PLAYER_START.x * TILE;
+    uint16_t const start_y = sites::PLAYER_START.y * TILE;
+    CHECK(game.player.x == start_x && game.player.y == start_y && game.player.facing == SOUTH);
     game_update(BTN_RIGHT);
     CHECK(game.player.x == start_x + PLAYER_PIXELS_PER_FRAME && game.player.walking);
     game_update(BTN_LEFT);
@@ -104,11 +104,10 @@ constexpr NPC_ID WOLF = (NPC_ID)NPC_ENEMY_FIRST;
 constexpr NPC_ID SCOUT = (NPC_ID)(NPC_ENEMY_FIRST + 1);
 constexpr NPC_ID GUARD = (NPC_ID)(NPC_ENEMY_FIRST + 2);
 
-using OrdinaryWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 16>;
-using ConfiguredWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 16, ENEMY_WANDER,
-                                 SPEED_FAST, 0, RESPAWN_NEVER, EnemyHooks,
-                                 EnemySettings{.facing = EAST, .priority = 7}>;
-static_assert(NPC_TESSA == 1 && NPC_ORRIN == 2 && NPC_ROWAN == 3);
+using OrdinaryWolf = EnemySpawn<sites::GROVE_WOLF, &BATTLE_GROVE_WOLVES, 16>;
+using ConfiguredWolf =
+    EnemySpawn<sites::GROVE_WOLF, &BATTLE_GROVE_WOLVES, 16, ENEMY_WANDER, SPEED_FAST, 0,
+               RESPAWN_NEVER, EnemyHooks, EnemySettings{.facing = EAST, .priority = 7}>;
 static_assert(NPC_ENEMY_END == NPC_ENEMY_FIRST + ENEMY_SPAWN_COUNT);
 static_assert(enemy_defeated_flag(WOLF) == FLAG_ENEMY_FIRST);
 static_assert(!unique_enemy_positions<OrdinaryWolf, ConfiguredWolf>());
@@ -118,28 +117,28 @@ static_assert(OrdinaryWolf::definition.behavior == NPC_WANDER &&
               OrdinaryWolf::definition.priority == 2 && OrdinaryWolf::respawn == RESPAWN_REMEMBER);
 static_assert(ConfiguredWolf::definition.period == 1 && ConfiguredWolf::definition.priority == 7 &&
               ConfiguredWolf::definition.facing == EAST && ConfiguredWolf::respawn == RESPAWN_NEVER);
-static_assert(routes::area_for(routes::VaultPatrol) == positions::VaultGuard.area);
+static_assert(PATROL_AREA<FIXTURE_PATROL> == sites::GUARD.area);
 
 struct ConditionalWolfHooks : EnemyHooks {
     static bool available() {
-        return game.get_flag(FLAG_CAVE_GATE);
+        return game.get_flag(TEST_FLAG_C);
     }
 
     static BattleEncounter const* select_battle(BattleEncounter const* original) {
-        return game.get_flag(FLAG_CAVE_GATE) ? &BATTLE_MINE_SCOUTS : original;
+        return game.get_flag(TEST_FLAG_C) ? &BATTLE_MINE_SCOUTS : original;
     }
 };
 
-using ConditionalWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
-                                  SPEED_NORMAL, 0, RESPAWN_REMEMBER, ConditionalWolfHooks>;
+using ConditionalWolf = EnemySpawn<sites::GROVE_WOLF, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
+                                   SPEED_NORMAL, 0, RESPAWN_REMEMBER, ConditionalWolfHooks>;
 struct CancelBattleHooks : EnemyHooks {
     static bool before_battle() {
         return false;
     }
 };
 
-using CancelingWolf = EnemySpawn<positions::GroveWolf, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
-                                SPEED_NORMAL, 0, RESPAWN_REMEMBER, CancelBattleHooks>;
+using CancelingWolf = EnemySpawn<sites::GROVE_WOLF, &BATTLE_GROVE_WOLVES, 17, ENEMY_WANDER,
+                                 SPEED_NORMAL, 0, RESPAWN_REMEMBER, CancelBattleHooks>;
 using ConditionalCatalog = EnemyCatalog<std::index_sequence<0>, TypeList<ConditionalWolf>>;
 
 static void enter_enemy_site(TilePos site, uint8_t east) {
@@ -148,8 +147,8 @@ static void enter_enemy_site(TilePos site, uint8_t east) {
 
 static void hostile_patrol_unloads() {
     game_new();
-    constexpr TilePos home = positions::VaultGuard;
-    constexpr TilePos distant = positions::DungeonSpawn;
+    constexpr TilePos home = sites::GUARD;
+    constexpr TilePos distant = sites::FAR_ROOM;
     static_assert(home.area == distant.area);
 
     for(NPC_BEHAVIOR behavior : {NPC_ROUTE, NPC_TARGET}) {
@@ -171,7 +170,7 @@ static void hostile_patrol_unloads() {
         game.player = {home.x * TILE, (home.y - 3) * TILE, SOUTH, 0};
         update_visible_world(0, false);
         guard = npc_find(GUARD);
-        CHECK(guard && guard->behavior == NPC_ROUTE && guard->route == routes::VaultPatrol);
+        CHECK(guard && guard->behavior == NPC_ROUTE && guard->route == FIXTURE_PATROL);
         CHECK(guard->actor.x == home.x * TILE && guard->actor.y == home.y * TILE);
         CHECK(guard->waypoint == 0 && guard->state == NPC_ROUTE_PENDING);
     }
@@ -183,24 +182,24 @@ static void enemy_encounters() {
     CHECK(CancelingWolf::prepare_battle() == nullptr);
     CHECK(ConditionalCatalog::location(WOLF) == NO_LOCATION);
     CHECK(ConditionalWolf::prepare_battle() == &BATTLE_GROVE_WOLVES);
-    game.set_flag(FLAG_CAVE_GATE);
-    CHECK(ConditionalCatalog::location(WOLF) == positions::GroveWolf);
+    game.set_flag(TEST_FLAG_C);
+    CHECK(ConditionalCatalog::location(WOLF) == sites::GROVE_WOLF);
     CHECK(ConditionalWolf::prepare_battle() == &BATTLE_MINE_SCOUTS);
-    game.clear_flag(FLAG_CAVE_GATE);
+    game.clear_flag(TEST_FLAG_C);
     CHECK(!party_add(party_new_member(WOLF, MOVEMENT_STEP, ATTACK_STRIKE)));
     CHECK(!npc_definition(WOLF)->talkable && npc_definition(WOLF)->sprite_row == 17);
     CHECK(npc_definition(SCOUT)->period == 1 && npc_definition(SCOUT)->behavior == NPC_CHASE);
-    CHECK(npc_definition(GUARD)->route == routes::VaultPatrol);
+    CHECK(npc_definition(GUARD)->route == FIXTURE_PATROL);
     CHECK(battle_encounter_valid(&BATTLE_GROVE_WOLVES));
     CHECK(battle_encounter_valid(&BATTLE_MINE_SCOUTS));
     CHECK(battle_encounter_valid(&BATTLE_VAULT_GUARDS));
     CHECK(!battle_encounter_valid(nullptr));
 
-    enter_enemy_site(positions::GroveWolf, 0);
+    enter_enemy_site(sites::GROVE_WOLF, 0);
     CHECK(!npc_find(WOLF)); // Scene entry still excludes the player's feet.
-    enter_enemy_site(positions::GroveWolf, FOOT_WIDTH);
+    enter_enemy_site(sites::GROVE_WOLF, FOOT_WIDTH);
     auto* wolf = npc_find(WOLF);
-    CHECK(wolf && npc_location(WOLF) == positions::GroveWolf);
+    CHECK(wolf && npc_location(WOLF) == sites::GROVE_WOLF);
     wolf->timer = 10;
     CHECK(!npc_player_clear(game.player.x - 1, game.player.y, WEST, false));
     CHECK(encounter_run() && story_stub_battles() == 0);
@@ -217,7 +216,7 @@ static void enemy_encounters() {
 
     // Even ticks move a normal wanderer, odd ticks keep its position.
     game.clear_flag(enemy_defeated_flag(WOLF));
-    enter_enemy_site(positions::GroveWolf, TILE);
+    enter_enemy_site(sites::GROVE_WOLF, TILE);
     wolf = npc_find(WOLF);
     CHECK(wolf);
     wolf->state = NPC_WALK_PHASE;
@@ -234,13 +233,13 @@ static void enemy_encounters() {
         ++game.ticks;
         npc_update();
         CHECK(wolf->actor.x >= wolf_x - TILE && wolf->actor.x <= wolf_x + TILE);
-        CHECK(wolf->actor.y >= positions::GroveWolf.y * TILE - TILE &&
-              wolf->actor.y <= positions::GroveWolf.y * TILE + TILE);
+        CHECK(wolf->actor.y >= sites::GROVE_WOLF.y * TILE - TILE &&
+              wolf->actor.y <= sites::GROVE_WOLF.y * TILE + TILE);
     }
     game.set_flag(enemy_defeated_flag(WOLF));
 
     // A fast scout moves every frame and changes direction when the player moves.
-    enter_enemy_site(positions::MineScout, 20);
+    enter_enemy_site(sites::SCOUT, 20);
     auto* scout = npc_find(SCOUT);
     CHECK(scout);
     uint16_t x = scout->actor.x, y = scout->actor.y;
@@ -255,7 +254,7 @@ static void enemy_encounters() {
     CHECK(scout->behavior == NPC_RETURN);
 
     // Enemy-initiated contact cannot overlap the player or enter battle inside npc_update.
-    enter_enemy_site(positions::MineScout, FOOT_WIDTH);
+    enter_enemy_site(sites::SCOUT, FOOT_WIDTH);
     scout = npc_find(SCOUT);
     CHECK(scout);
     npc_update();
@@ -266,7 +265,7 @@ static void enemy_encounters() {
     CHECK(game.get_flag(enemy_defeated_flag(SCOUT)) && !npc_find(SCOUT));
     CHECK(game.remember_timer == REMEMBER_DELAY_FRAMES);
 
-    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    enter_enemy_site(sites::GUARD, FOOT_WIDTH);
     auto* guard = npc_find(GUARD);
     CHECK(guard);
     game.player.y += TILE;
@@ -276,7 +275,7 @@ static void enemy_encounters() {
         npc_update();
     }
     CHECK(guard->actor.x > guard_x && (guard->state & NPC_BACKWARD));
-    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    enter_enemy_site(sites::GUARD, FOOT_WIDTH);
     guard = npc_find(GUARD);
     CHECK(guard && guard->behavior == NPC_ROUTE);
     uint16_t timer = game.remember_timer;
@@ -289,14 +288,14 @@ static void enemy_encounters() {
     CHECK(!game.get_flag(enemy_defeated_flag(GUARD)) && game.gold == gold &&
           game.remember_timer == timer);
     CHECK(story_stub_count() == 4 && story_stub_battles() == 3);
-    CHECK(strstr(story_stub_event(2).text, "ancient command"));
+    CHECK(strstr(story_stub_event(2).text, "turns toward"));
     CHECK(story_stub_event(3).encounter == &BATTLE_VAULT_GUARDS);
     CHECK(questions == before_questions);
     answer = true;
     CHECK(encounter_run() && story_stub_battles() == 3);
 
     story_stub_set_result(BATTLE_VICTORY);
-    enter_enemy_site(positions::VaultGuard, FOOT_WIDTH);
+    enter_enemy_site(sites::GUARD, FOOT_WIDTH);
     CHECK(npc_find(GUARD) && !actor_move(&game.player, WEST, 1));
     CHECK(encounter_run());
     CHECK(story_stub_battles() == 4 && story_stub_count() == 7);
@@ -304,9 +303,9 @@ static void enemy_encounters() {
     CHECK(game.get_flag(enemy_defeated_flag(GUARD)) && !npc_find(GUARD));
     CHECK(game.remember_timer == timer);
 
-    enter_enemy_site(positions::GroveWolf, FOOT_WIDTH);
+    enter_enemy_site(sites::GROVE_WOLF, FOOT_WIDTH);
     CHECK(!npc_find(WOLF));
-    game.set_flag(FLAG_CAVE_GATE);
+    game.set_flag(TEST_FLAG_C);
     CHECK(save_restore() && game.remember_timer == timer);
     update_visible_world(0, false);
     CHECK(!npc_find(WOLF));
@@ -316,12 +315,12 @@ static void enemy_encounters() {
     CHECK(save_restore() && remember_tick()); // An event due at save remains due after load.
     update_visible_world(0, false);
     remember_reset();
-    CHECK(!remember_tick() && game.get_flag(FLAG_CAVE_GATE));
+    CHECK(!remember_tick() && game.get_flag(TEST_FLAG_C));
     CHECK(!game.get_flag(enemy_defeated_flag(WOLF)) && !game.get_flag(enemy_defeated_flag(SCOUT)));
     CHECK(game.get_flag(enemy_defeated_flag(GUARD)));
     game_update(0);
     CHECK(!npc_find(WOLF)); // A cleared flag cannot cast into the protected camera.
-    enter_enemy_site(positions::GroveWolf, FOOT_WIDTH);
+    enter_enemy_site(sites::GROVE_WOLF, FOOT_WIDTH);
     CHECK(npc_find(WOLF));
     game.remember_timer = REMEMBER_DELAY_FRAMES + 1;
     CHECK(!save_valid());
@@ -335,59 +334,6 @@ static void enemy_encounters() {
         CHECK(!save_valid());
         game.clear_flag(unused);
         CHECK(save_valid());
-    }
-}
-
-static void creature_encounters() {
-    constexpr struct {
-        TilePos site;
-        uint8_t sprite_row;
-        uint8_t count;
-        ENEMY_ID roster[BATTLE_SIDE_CAPACITY];
-        bool respawns = true;
-    } cases[] = {
-        {positions::OrchardSpiders, 19, 2, {ENEMY_GIANT_SPIDER, ENEMY_GIANT_SPIDER}},
-        {positions::MineBatRoost, 18, 1, {ENEMY_GIANT_BAT}},
-        {positions::VaultEastWatch, 23, 2, {ENEMY_SKELETON, ENEMY_FLOATING_EYE}},
-        {positions::FarmRats, 16, 2, {ENEMY_GIANT_RAT, ENEMY_GIANT_RAT}},
-        {positions::EastBeetle, 20, 1, {ENEMY_GIANT_BEETLE}},
-        {positions::RiverSnake, 21, 1, {ENEMY_SNAKE}},
-        {positions::PoolSlime, 22, 1, {ENEMY_SLIME}},
-        {positions::WinchMushroom, 28, 1, {ENEMY_MUSHROOM}},
-        {positions::WestAmbush, 24, 2, {ENEMY_ZOMBIE, ENEMY_GOBLIN}},
-        {positions::ShrineGolem, 30, 2, {ENEMY_GOLEM, ENEMY_GHOST}, false},
-        {positions::VaultCultist, 31, 1, {ENEMY_HOODED_CULTIST}, false},
-    };
-    game_new();
-    story_stub_reset(BATTLE_VICTORY);
-    for(unsigned i = 0; i < sizeof(cases) / sizeof(*cases); ++i) {
-        auto const& expected = cases[i];
-        auto id = (NPC_ID)(NPC_ENEMY_FIRST + 3 + i);
-        enter_enemy_site(expected.site, FOOT_WIDTH);
-        auto const* actor = npc_find(id);
-        CHECK(actor && npc_location(id) == expected.site);
-        CHECK(npc_definition(id)->sprite_row == expected.sprite_row);
-        CHECK(!actor_move(&game.player, WEST, 1) && encounter_run());
-        CHECK(story_stub_battles() == i + 1);
-        auto const* encounter = story_stub_event(i).encounter;
-        BattleState battle;
-        battle_begin(battle, encounter);
-        CHECK(!battle.ended && battle_living(battle, BATTLE_ENEMY) == expected.count);
-        CHECK(battlefields_for_area(expected.site.area) & battlefield_bit(battle.field));
-        for(uint8_t enemy = 0; enemy < expected.count; ++enemy) {
-            BattleUnit const& unit = battle.units[battle.unit_count - expected.count + enemy];
-            CHECK(unit.team == BATTLE_ENEMY && unit.id == expected.roster[enemy]);
-            CHECK(unit.hp == ENEMY_INFO[unit.id].max_hp);
-            CHECK(battle_ap(unit) == ENEMY_INFO[unit.id].starting_ap);
-        }
-        CHECK(game.get_flag(enemy_defeated_flag(id)) && !npc_find(id));
-        CHECK(game.remember_timer == (expected.respawns ? REMEMBER_DELAY_FRAMES : 0));
-        CHECK(save_restore());
-        enter_enemy_site(expected.site, FOOT_WIDTH);
-        CHECK(!npc_find(id));
-        remember_reset();
-        enter_enemy_site(expected.site, FOOT_WIDTH);
-        CHECK((npc_find(id) != nullptr) == expected.respawns);
     }
 }
 
@@ -447,7 +393,7 @@ static void saves() {
     game.party.members[0].attack_class = ATTACK_CLASS_COUNT;
     reject();
     game = saved;
-    game.party.members[0].id = NPC_TESSA;
+    game.party.members[0].id = NPC_VILLAGER;
     reject();
     game = saved;
     game.party.members[0].id = NPC_NONE;
@@ -484,12 +430,12 @@ static void saves() {
     CHECK(game.gold == 37 && game.get_flag(FLAG_RESERVED));
     CHECK(!memcmp(&game.supplies, &saved.supplies, sizeof(Supplies)));
     CHECK(!game.ticks && !game.player.walking);
-    CHECK(game.flags.get_flag(FLAG_LANTERN_RECORD_FOUND) == saved.flags.get_flag(FLAG_LANTERN_RECORD_FOUND));
+    CHECK(game.flags.get_flag(TEST_FLAG_A) == saved.flags.get_flag(TEST_FLAG_A));
     update_visible_world(0, false);
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
-    CHECK(cached_tile(positions::WellSign) == TILE_SIGN);
+    CHECK(cached_tile(sites::SIGN) == TILE_SIGN);
 
-    static_assert(SAVE_VERSION == 24 && sizeof(PartyMember) == 11);
+    static_assert(SAVE_VERSION == 26 && sizeof(PartyMember) == 11);
     static_assert(MOVEMENT_STEP == 0 && MOVEMENT_LEAP == 1 && MOVEMENT_CHARGE == 2);
     static_assert(ATTACK_STRIKE == 0 && ATTACK_SHOOT == 1 && ATTACK_REACH == 2 &&
                   ATTACK_IMPACT == 3 && ATTACK_REND == 4);
@@ -566,19 +512,19 @@ static void dialogue_camera_bounds() {
 static void party_statistics() {
     game_new();
     PartyMember traveler = game.party.members[0];
-    CHECK(traveler.hp == 20 && party_max_hp(traveler) == 20);
+    CHECK(traveler.hp == 12 && party_max_hp(traveler) == 12);
     CHECK(traveler.ap == 4 && party_max_ap(traveler) == 4);
 
-    PartyMember rowan = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
-    CHECK(rowan.hp == 18 && party_max_hp(rowan) == 18);
+    PartyMember rowan = party_new_member(NPC_ARCHER, MOVEMENT_STEP, ATTACK_SHOOT);
+    CHECK(rowan.hp == 12 && party_max_hp(rowan) == 12);
     CHECK(rowan.ap == 4 && party_max_ap(rowan) == 4);
     CHECK(rowan.movement_class == MOVEMENT_STEP && rowan.attack_class == ATTACK_SHOOT);
-    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_TESSA, 1, 0}) == 20);
+    CHECK(party_max_hp({0, 0, MOVEMENT_LEAP, ATTACK_REND, NPC_VILLAGER, 1, 0}) == 12);
 
     // HP or AP above the member's maximum is rejected, and the party does not change.
     Party before = game.party;
-    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_TESSA, 1, 0}));
-    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_TESSA, 1, 0}));
+    CHECK(!party_add({13, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({12, 5, MOVEMENT_STEP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(save_valid());
 }
@@ -586,22 +532,21 @@ static void party_statistics() {
 // Experience is per level and resets at each level-up. Completed levels are processed at once.
 static void party_progression() {
     game_new();
-    PartyMember member = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
+    PartyMember member = party_new_member(NPC_ARCHER, MOVEMENT_STEP, ATTACK_SHOOT);
     CHECK(member.level == 1 && member.experience == 0);
     CHECK(party_experience_needed(1) == 10 && party_experience_needed(9) == 50);
     CHECK(party_victory_experience(member) == 2);
 
-    // Odd-level rewards: maximum HP rises at levels 3 and 7, from the traveler's 20 or Rowan's 18.
-    PartyMember traveler_at = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
-    uint8_t traveler_hp[PARTY_MAX_LEVEL] = {20, 20, 22, 22, 22, 22, 24, 24, 24, 24};
-    uint8_t rowan_hp[PARTY_MAX_LEVEL] = {18, 18, 20, 20, 20, 20, 22, 22, 22, 22};
+    // Odd-level rewards: maximum HP rises at levels 3 and 7, from every member's base of 12.
+    PartyMember traveler_at = {12, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
+    uint8_t max_hp[PARTY_MAX_LEVEL] = {12, 12, 14, 14, 14, 14, 16, 16, 16, 16};
     // Normal-attack bonuses arrive at levels 5 and 9.
     uint8_t attack[PARTY_MAX_LEVEL] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
     for(uint8_t level = 1; level <= PARTY_MAX_LEVEL; ++level) {
         traveler_at.level = level;
         member.level = level;
-        CHECK(party_max_hp(traveler_at) == traveler_hp[level - 1]);
-        CHECK(party_max_hp(member) == rowan_hp[level - 1]);
+        CHECK(party_max_hp(traveler_at) == max_hp[level - 1]);
+        CHECK(party_max_hp(member) == max_hp[level - 1]);
         CHECK(party_attack_bonus(member) == attack[level - 1]);
     }
     member.level = 1;
@@ -620,15 +565,15 @@ static void party_progression() {
     CHECK(party_gain_experience(member, 5) == 0 && member.level == PARTY_MAX_LEVEL &&
           member.experience == 0);
 
-    CHECK(party_progress_valid(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT)));
-    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 0, 0}));
-    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 11, 0}));
-    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 10}));
-    CHECK(!party_progress_valid({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 10, 1}));
+    CHECK(party_progress_valid(party_new_member(NPC_ARCHER, MOVEMENT_STEP, ATTACK_SHOOT)));
+    CHECK(!party_progress_valid({12, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ARCHER, 0, 0}));
+    CHECK(!party_progress_valid({12, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ARCHER, 11, 0}));
+    CHECK(!party_progress_valid({12, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ARCHER, 1, 10}));
+    CHECK(!party_progress_valid({12, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ARCHER, 10, 1}));
 
     // Recruits join at level 1, and a malformed level leaves the party unchanged.
     Party before = game.party;
-    CHECK(!party_add({18, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_TESSA, 0, 0}));
+    CHECK(!party_add({12, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 0, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(save_valid());
 }
@@ -639,17 +584,17 @@ static void permanent_perks() {
     CHECK(member.perk_ranks == 0 && party_unspent_perks(member) == 0);
     CHECK(!party_learn_perk(member, PERK_MOVEMENT));
     CHECK(member.perk_ranks == 0 && save_valid());
-    member.hp = 16;
+    member.hp = 8;
     CHECK(party_gain_experience(member, 10) == 1 && party_unspent_perks(member) == 1);
     CHECK(party_learn_perk(member, PERK_MOVEMENT));
     CHECK(party_movement_perk_rank(member) == 1 && party_attack_perk_rank(member) == 0);
-    CHECK(member.hp == 16 && member.ap == 4 && party_max_hp(member) == 20);
+    CHECK(member.hp == 8 && member.ap == 4 && party_max_hp(member) == 12);
     CHECK(!party_learn_perk(member, PERK_ATTACK));
     CHECK(party_gain_experience(member, 35) == 2 && party_unspent_perks(member) == 1);
     CHECK(party_learn_perk(member, PERK_MOVEMENT) && party_unspent_perks(member) == 0);
-    CHECK(party_max_hp(member) == 22);
+    CHECK(party_max_hp(member) == 14);
     party_gain_experience(member, 255);
-    CHECK(member.level == 10 && party_unspent_perks(member) == 3 && party_max_hp(member) == 24);
+    CHECK(member.level == 10 && party_unspent_perks(member) == 3 && party_max_hp(member) == 16);
     CHECK(party_learn_perk(member, PERK_ATTACK) && party_learn_perk(member, PERK_ATTACK));
     CHECK(party_learn_perk(member, PERK_ATTACK));
     CHECK(!party_learn_perk(member, PERK_MOVEMENT) && !party_learn_perk(member, PERK_ATTACK));
@@ -661,7 +606,7 @@ static void permanent_perks() {
     game = saved;
     CHECK(save_restore());
     CHECK(party_movement_perk_rank(member) == 2 && party_attack_perk_rank(member) == 3);
-    CHECK(party_unspent_perks(member) == 0 && member.hp == 16);
+    CHECK(party_unspent_perks(member) == 0 && member.hp == 8);
 
     static constexpr uint8_t INVALID_RANKS[] = {5, 27, 34, 40, 47, 63, 0x40, 0x80};
     for(uint8_t bad : INVALID_RANKS) {
@@ -675,7 +620,7 @@ static void permanent_perks() {
     member.level = 2;
     CHECK(!save_valid() && !party_learn_perk(member, PERK_ATTACK));
 
-    PartyMember delayed = party_new_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT);
+    PartyMember delayed = party_new_member(NPC_ARCHER, MOVEMENT_LEAP, ATTACK_SHOOT);
     CHECK(party_gain_experience(delayed, 100) == 5);
     CHECK(delayed.level == 6 && party_unspent_perks(delayed) == 3);
     CHECK(party_learn_perk(delayed, PERK_ATTACK));
@@ -696,7 +641,7 @@ static void equipment_operations() {
         CHECK(equipment_decode(equipment_encode(item)) == item);
         CHECK(equipment_flag(id) == FLAG_ITEM_FIRST + id);
     }
-    CHECK(party_add(party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT)));
+    CHECK(party_add(party_new_member(NPC_ARCHER, MOVEMENT_STEP, ATTACK_SHOOT)));
     CHECK(!equipment_equip(0, ITEM_FIRSTSTRIKE_SWORD));
     CHECK(!equipment_equip(PARTY_CAPACITY, ITEM_FIRSTSTRIKE_SWORD));
     CHECK(!equipment_acquire(ITEM_NONE) && !equipment_acquire(ITEM_DEFINED_COUNT));
@@ -711,9 +656,9 @@ static void equipment_operations() {
     auto& leader = game.party.members[0];
     auto& rowan = game.party.members[1];
     CHECK(equipment_equip(0, ITEM_CRACKED_SABER));
-    CHECK(leader.hp == 17 && party_max_hp(leader) == 17);
+    CHECK(leader.hp == 9 && party_max_hp(leader) == 9);
     CHECK(equipment_equip(0, ITEM_LEATHER_JERKIN));
-    CHECK(leader.hp == 17 && party_max_hp(leader) == 20);
+    CHECK(leader.hp == 9 && party_max_hp(leader) == 12);
     CHECK(equipment_equip(0, ITEM_MOON_SHARD));
     CHECK(leader.ap == 4 && party_max_ap(leader) == 5);
     leader.ap = 5;
@@ -722,7 +667,7 @@ static void equipment_operations() {
     CHECK(equipment_unequip(0, SLOT_WEAPON));
     CHECK(equipment_equip(0, ITEM_TESSAS_ROSETTE));
     leader.hp = party_max_hp(leader);
-    CHECK(leader.hp == 24);
+    CHECK(leader.hp == 16);
 
     leader.hp = 0;
     Game before = game;
@@ -740,11 +685,11 @@ static void equipment_operations() {
 
 static void equipment_saves() {
     game_start();
-    CHECK(party_add(party_new_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT)));
+    CHECK(party_add(party_new_member(NPC_ARCHER, MOVEMENT_LEAP, ATTACK_SHOOT)));
     CHECK(equipment_acquire(ITEM_TESSAS_ROSETTE));
     CHECK(equipment_acquire(ITEM_FIRSTSTRIKE_SWORD));
     CHECK(equipment_equip(0, ITEM_TESSAS_ROSETTE) && equipment_equip(0, ITEM_FIRSTSTRIKE_SWORD));
-    game.party.members[0].hp = 21;
+    game.party.members[0].hp = 13;
     game.party.members[0].ap = 2;
     Game saved = game;
 
@@ -764,7 +709,7 @@ static void equipment_saves() {
     reject();
     game.party.members[2].equipment[SLOT_WEAPON] = equipment_encode(ITEM_FIRSTSTRIKE_SWORD);
     reject();
-    game.party.members[0].hp = 24;
+    game.party.members[0].hp = 14;
     reject();
     game.flags.bytes[WorldFlags::BYTE_COUNT - 1] |= 0x80;
     reject();
@@ -778,7 +723,7 @@ static void equipment_saves() {
     CHECK(equipment_owned(ITEM_FIRSTSTRIKE_SWORD) && equipment_owned(ITEM_TESSAS_ROSETTE));
     CHECK(equipment_get(leader, SLOT_WEAPON) == ITEM_FIRSTSTRIKE_SWORD);
     CHECK(equipment_get(leader, SLOT_RELIC) == ITEM_TESSAS_ROSETTE);
-    CHECK(leader.hp == 21 && leader.ap == 2 && party_max_hp(leader) == 21);
+    CHECK(leader.hp == 13 && leader.ap == 2 && party_max_hp(leader) == 13);
 }
 
 int main() {
@@ -787,7 +732,6 @@ int main() {
     movement();
     hostile_patrol_unloads();
     enemy_encounters();
-    creature_encounters();
     saves();
     party_statistics();
     party_progression();

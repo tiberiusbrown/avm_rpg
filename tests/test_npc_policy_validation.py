@@ -8,23 +8,23 @@ root = Path(source)
 work = Path(build) / 'policy-validation'
 work.mkdir(exist_ok=True)
 cases = {
-    'duplicate': ('using Bad = AtOneOf<positions::TessaWell, When<positions::TessaWell, [] { return true; }>>;', 'duplicate NPC policy location'),
+    'duplicate': ('using Bad = AtOneOf<positions::ElizaGarden, When<positions::ElizaGarden, [] { return true; }>>;', 'duplicate NPC policy location'),
     'invalid': ('using Bad = AtOneOf<TilePos{255, 0, 0}>;', 'invalid or duplicate'),
-    'unsupported': ('struct Case { static constexpr TilePos position = positions::TessaOrchard; static bool applies() { return true; } }; using Bad = AtOneOf<positions::TessaWell, Case>;', 'unsupported NPC policy case'),
+    'unsupported': ('struct Case { static constexpr TilePos position = positions::ElizaAtAlden; static bool applies() { return true; } }; using Bad = AtOneOf<positions::ElizaGarden, Case>;', 'unsupported NPC policy case'),
     'missing': ('using Bad = PolicyCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>;', 'missing NpcPolicy'),
-    'override': ('template <> struct NpcPolicy<NPC_TESSA> : AtOneOf<positions::TessaWell> { static TilePos current() { return positions::TessaOrchard; } }; using Bad = CheckedNpcPolicy<NPC_TESSA>;', 'do not override the derived location resolver'),
+    'override': ('template <> struct NpcPolicy<NPC_ELIZA> : AtOneOf<positions::ElizaGarden> { static TilePos current() { return positions::ElizaAtAlden; } }; using Bad = CheckedNpcPolicy<NPC_ELIZA>;', 'do not override the derived location resolver'),
     'identity': ('auto bad() { return npc_location<NPC_NONE>(); } using Bad = AtOneOf<NO_LOCATION>;', 'invalid NPC identity'),
 }
 enemy_cases = {
     'enemy_position': ('using Bad = EnemySpawn<TilePos{255, 0, 0}, &FIXTURE_BATTLE, 16>;', 'invalid enemy spawn position'),
-    'enemy_battle': ('using Bad = EnemySpawn<positions::GroveWolf, nullptr, 16>;', 'enemy spawn needs a battle'),
-    'enemy_duplicate': ('using Entry = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 16>; using Bad = EnemyCatalog<std::index_sequence<0, 1>, TypeList<Entry, Entry>>;', 'duplicate enemy spawn positions'),
-    'enemy_sprite': ('using Bad = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 32>;', 'invalid enemy sprite row'),
-    'enemy_route_area': ('using Bad = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 16, ENEMY_ROUTE, SPEED_NORMAL, routes::VaultPatrol>;', 'enemy patrol needs a route in its area'),
-    'enemy_route_missing': ('using Bad = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 16, ENEMY_ROUTE>;', 'enemy patrol needs a route in its area'),
-    'enemy_speed': ('using Bad = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 16, ENEMY_WANDER, (ENEMY_SPEED)3>;', 'invalid enemy speed'),
-    'enemy_behavior': ('using Bad = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 16, (ENEMY_BEHAVIOR)9>;', 'invalid enemy behavior'),
-    'enemy_respawn': ('using Bad = EnemySpawn<positions::GroveWolf, &FIXTURE_BATTLE, 16, ENEMY_WANDER, SPEED_NORMAL, 0, (ENEMY_RESPAWN)9>;', 'invalid enemy respawn'),
+    'enemy_battle': ('using Bad = EnemySpawn<positions::RatNest, nullptr, 16>;', 'enemy spawn needs a battle'),
+    'enemy_duplicate': ('using Entry = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 16>; using Bad = EnemyCatalog<std::index_sequence<0, 1>, TypeList<Entry, Entry>>;', 'duplicate enemy spawn positions'),
+    'enemy_sprite': ('using Bad = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 32>;', 'invalid enemy sprite row'),
+    'enemy_route_area': ('template <> inline constexpr uint8_t PATROL_AREA<1> = AREA_OUTDOOR; using Bad = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 16, ENEMY_ROUTE, SPEED_NORMAL, 1>;', 'enemy patrol needs a route in its area'),
+    'enemy_route_missing': ('using Bad = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 16, ENEMY_ROUTE>;', 'enemy patrol needs a route in its area'),
+    'enemy_speed': ('using Bad = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 16, ENEMY_WANDER, (ENEMY_SPEED)3>;', 'invalid enemy speed'),
+    'enemy_behavior': ('using Bad = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 16, (ENEMY_BEHAVIOR)9>;', 'invalid enemy behavior'),
+    'enemy_respawn': ('using Bad = EnemySpawn<positions::RatNest, &FIXTURE_BATTLE, 16, ENEMY_WANDER, SPEED_NORMAL, 0, (ENEMY_RESPAWN)9>;', 'invalid enemy respawn'),
 }
 def compile_source(name, source):
     path = work / (name + '.cpp')
@@ -51,7 +51,7 @@ standalone = {
     'generic_enemy_spawn': """
 #include "logic/enemy_spawn.h"
 constexpr BattleEncounter fixture{};
-using Spawn = EnemySpawn<positions::GroveWolf, &fixture, 17>;
+using Spawn = EnemySpawn<positions::RatNest, &fixture, 17>;
 static_assert(Spawn::definition.sprite_row == 17);
 """,
     'disabled_enemy_catalog': """

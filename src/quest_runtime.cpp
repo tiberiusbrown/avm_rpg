@@ -117,22 +117,18 @@ void validate_selection() {
         game.selected_quest = QUEST_NONE;
 }
 
-// Houses occupy separate rooms in the same area. Use the closest authored exit to identify the
-// room. Expand HOUSE_LINKS at compile time to keep the exit coordinates as immediate values.
-template <std::size_t... I> TilePos closest_house_exit(TilePos tile, std::index_sequence<I...>) {
-    TilePos exit{};
-    uint32_t best = UINT32_MAX;
-    auto consider = [&](TilePos site) {
-        int16_t dx = (int16_t)tile.x - site.x;
-        int16_t dy = (int16_t)tile.y - site.y;
-        uint32_t distance = (int32_t)dx * dx + (int32_t)dy * dy;
-        if(distance < best) {
-            best = distance;
-            exit = site;
-        }
+// Houses occupy separate rooms in the same area. Each house's authored floor region names the
+// rooms that its exit serves. Expand HOUSE_LINKS at compile time to keep the coordinates as
+// immediate values. Returns false for a tile outside every house.
+template <std::size_t... I>
+bool house_exit(TilePos tile, TilePos& exit, std::index_sequence<I...>) {
+    auto consider = [&](TileRegion rooms, TilePos way_out) {
+        if(!rooms.contains(tile))
+            return false;
+        exit = way_out;
+        return true;
     };
-    (consider(handler_impl::HOUSE_LINKS[I].exit), ...);
-    return exit;
+    return (consider(handler_impl::HOUSE_LINKS[I].rooms, handler_impl::HOUSE_LINKS[I].exit) || ...);
 }
 
 using Houses =
@@ -199,23 +195,20 @@ bool quest_exploration_marker(TilePos& out) {
         return false;
 
     bool local = quest_map_marker(game.area, out);
-    if(game.area == AREA_INTERIORS) {
-        TilePos player{game.area, (uint8_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
-                       (uint8_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT)};
-        TilePos exit = closest_house_exit(player, Houses{});
-        if(local && closest_house_exit(out, Houses{}) == exit)
-            return true;
-        if(!local && !quest_map_marker(AREA_OUTDOOR, out))
-            return false;
-        out = exit;
+    if(game.area != AREA_INTERIORS)
+        return local;
+    // Inside a house, an objective elsewhere points to the house's exit.
+    TilePos player{game.area, (uint8_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT),
+                   (uint8_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT)};
+    TilePos exit{}, target{};
+    if(!house_exit(player, exit, Houses{}))
+        return local;
+    if(local && house_exit(out, target, Houses{}) && target == exit)
         return true;
-    }
-    if(local)
-        return true;
-    if(game.area == AREA_OUTDOOR || !quest_map_marker(AREA_OUTDOOR, out))
+    if(!local && !quest_map_marker(AREA_OUTDOOR, out))
         return false;
-    return quest_fixed_marker<positions::CaveExit>(game.area, out) ||
-           quest_fixed_marker<positions::DungeonExit>(game.area, out);
+    out = exit;
+    return true;
 }
 
 bool quest_listed(QUEST_ID id) {

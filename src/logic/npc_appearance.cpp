@@ -3,6 +3,10 @@
 #include "enemy_catalog.h"
 #include "handlers.h"
 #include "npc_content.h"
+// Test fixtures add characters of their own.
+#ifdef RPG_NPC_CONTENT_HEADER
+#include RPG_NPC_CONTENT_HEADER
+#endif
 
 using EssentialContent = NpcContentCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>;
 

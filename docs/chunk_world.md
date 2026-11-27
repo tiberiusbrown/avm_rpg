@@ -80,7 +80,7 @@ validates logical area/bounds and clips against the resident cache. A scrolling
 viewport touches at most nine chunks. Gameplay derives its window from the current
 player camera. Tile, NPC, and dialogue stages use the loaded cache origin. Teleports stop outgoing gameplay/dialogue,
 clear the NPC pool and rebuild destination tiles and the full NPC stage; destination gameplay begins
-on the next update. Save/load uses the same cache-based terrain repair.
+on the next update. A load keeps the saved pool and uses the same cache-based terrain repair.
 
 The window's chunks do not change from frame to frame, so each stage does not walk them. The
 `ChunkPlan` in the runtime workspace lists, per stage and in chunk order, the window's chunks that
@@ -102,10 +102,9 @@ result while the display is black. Victory records defeat and retires the actor 
 the world cache is rebuilt and faded in. Defeat ends exploration and returns through the
 outer loop to the title.
 
-Save version 21 stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
-flags and a 16-bit countdown. Older records are rejected. The tile window
+The save stores the live pointer-free `Game` in `.saved`. It includes defeated-enemy
+flags, a 16-bit countdown and the NPC pool. Older records are rejected. The tile window
 and camera are not saved: they live in the runtime workspace (`src/runtime_workspace.h`) and
-are rebuilt from the world and flags. Loads validate version, stats, party, flags and bounds
-before placing the player. Ticks, active slots, assigned-site snapshots and candidate scratch
-are rebuilt through ordinary scene-entry processing. Blocked player positions use cache-based
-overlap repair.
+are rebuilt from the world and flags. Loads validate version, stats, party, flags, bounds and
+the pool before placing the player. The saved actors resume where they stood. Ticks and
+candidate scratch start again, and blocked player positions use cache-based overlap repair.

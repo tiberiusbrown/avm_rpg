@@ -18,7 +18,7 @@ the canonical quest specifications and reward contracts.
 | `src/quests/` | Authored quest definitions. |
 | `src/quest_runtime.cpp` | Generated dispatch, pending evaluation, selection and the public API. |
 | `src/journal.h` | Journal layout constants, the view struct and the summary word wrap. |
-| `src/logic/area_village.h`, `src/logic/area_cave.h` | Area interactions and conversations that update saved facts or emit events. |
+| `src/logic/story.cpp`, `src/logic/area_village.h` | The story script, conversations and interactions that update saved facts or emit events. |
 | `src/screens.cpp`, `src/render.cpp` | The Journal screen and the tracked-quest map marker. |
 
 ## Identity and registration
@@ -29,7 +29,7 @@ past the largest ID, and it can be overridden with `RPG_QUEST_ID_LIMIT` for a te
 Each quest specializes `Quest<ID>` in its own header:
 
 ```cpp
-template <> struct Quest<QUEST_LANTERN_KEEPER> { /* members below */ };
+template <> struct Quest<QUEST_GO_HOME> { /* members below */ };
 ```
 
 To register a quest, add its ID to `quest_ids.h`, add its header to `quest_registry.h`, and
@@ -57,8 +57,8 @@ Status, text and marker queries must not change game state. `start`, `evaluate`,
 
 ## Derived status and persistence
 
-Status derives from saved facts. The Lantern Keeper, for example, reads
-persistent evidence and the state of the well lantern.
+Status derives from saved facts. Go Home, for example, reads whether the traveler has set out
+and whether they have reached home.
 
 `Game::selected_quest` stores the tracked quest or `QUEST_NONE`. The save
 checks the tracked ID and calls each quest’s `consistent()` to reject impossible
@@ -127,9 +127,9 @@ The summary is wrapped once, when the quest opens. The wrap records line offsets
 in program memory, and it keeps at most `JOURNAL_SUMMARY_LINES` lines. Nothing is copied, so the
 Journal has no text buffer. Measurement and drawing use small chunks on the stack.
 The native tests check the wrap with a fixed-width stand-in font, which
-confirms that lines fit their width and that no text is lost. The device suite starts The Lantern Keeper for one
-pause menu, opens its detail view, captures it for review, and checks that the view leaves the game
-state unchanged. It does not assert the rendered pixels. The world does not simulate while the Journal is open.
+confirms that lines fit their width and that no text is lost. The device suite opens the Journal
+with a listed quest, opens its detail view, captures it for review, and checks that the view
+leaves the game state unchanged. It does not assert the rendered pixels. The world does not simulate while the Journal is open.
 
 ## Map markers
 
@@ -141,14 +141,12 @@ is outside that area, whatever the quest computed.
 The marker is a black-edged white diamond that blinks opposite the player's marker. It needs no
 asset. Its position uses the same tile-to-map mapping as the player.
 
-The Lantern Keeper uses authored points for evidence and the eventual repair.
 `quest_fixed_marker<POS>()` copies coordinates as compile-time values. A quest
-can answer with a different position for each area.
+can answer with a different position for each area, and may follow an actor: Eliza's Giant Rat
+points at the rat or at Eliza while indoors.
 
 The exploration arrow uses the tracked quest's marker. It points toward the
-current room's exit when the marker is in another house or outdoors. With an
-outdoor marker and no local marker in Hollow Mine or the Old Vault, it points
-to the area's main exit. Its eight bearings use `assets/images/quest_arrows9.png`.
+current room's exit when the marker is in another house or outdoors. Its eight bearings use `assets/images/quest_arrows9.png`.
 A visible target has a bobbing down arrow above its tile. For an offscreen target,
 the player's bearing intersects an inset screen rectangle to place the arrow.
 The inset animates the bob. Sprite selection still uses the eight bearings
@@ -168,10 +166,10 @@ The compiler enforces:
 
 `tests/test_quest_validation.py` compiles a negative case for each of these.
 
-Runtime tests cover the rest: status derivation, the dialogue and conversation paths, persistence,
-selection and tracking rules, marker geometry and filtering, the Journal listing, the wrapping of
-the shipped text, the bounded settle, flag and conversation selectivity, cascades, and the
-behavior of 40 quests.
+Runtime tests cover the rest: `tests/test_story.cpp` plays the shipped quests, and
+`tests/test_quest_catalog.cpp` checks selection and tracking rules, marker filtering, the
+Journal listing, bounded settling, flag and conversation selectivity, cascades and the behavior
+of 40 quests.
 
 The compiler does not check quest semantics. A quest that sets its completion flag from the wrong
 place is caught only by a behavioral test.
@@ -182,7 +180,7 @@ place is caught only by a behavioral test.
 2. Record the content and saved-state contracts in [game logic](game_logic.md), then add any flags to `flags.h`. Review save compatibility.
 3. Create `src/quests/new_name.h` with `template <> struct Quest<QUEST_NEW_NAME> { ... };`.
 4. Include the header from `quest_registry.h`.
-5. Add tests in `tests/test_quests.cpp`, and run `ctest` for `quests` and `quest_validation`.
+5. Add tests in `tests/test_story.cpp`, and run `ctest` for `story` and `quest_validation`.
 6. If the quest is started from a conversation, call `quest_start` from that conversation. If it
    reacts to one, subscribe with `NpcTalked` and emit the event from its handler.
 

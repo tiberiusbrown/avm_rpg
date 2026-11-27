@@ -35,6 +35,10 @@ struct EnemySettings {
     uint8_t priority = 2;
 };
 
+// The area of a patrol route, or 0 for an unknown one. Test fixtures specialize it for routes of
+// their own.
+template <uint8_t ROUTE> inline constexpr uint8_t PATROL_AREA = routes::area_for(ROUTE);
+
 template <TilePos POS, BattleEncounter const PROGMEM* BATTLE, uint8_t ROW,
           ENEMY_BEHAVIOR MODE = ENEMY_WANDER, ENEMY_SPEED SPEED = SPEED_NORMAL,
           uint8_t ROUTE = 0, ENEMY_RESPAWN RESPAWN = RESPAWN_REMEMBER,
@@ -45,8 +49,9 @@ struct EnemySpawn {
     static_assert(ROW < ACTOR_ROW_COUNT, "invalid enemy sprite row");
     static_assert(MODE <= ENEMY_CHASE, "invalid enemy behavior");
     static_assert(SPEED == SPEED_NORMAL || SPEED == SPEED_FAST, "invalid enemy speed");
-    static_assert((MODE == ENEMY_ROUTE && routes::area_for(ROUTE) == POS.area) ||
-                  (MODE != ENEMY_ROUTE && ROUTE == 0), "enemy patrol needs a route in its area");
+    static_assert((MODE == ENEMY_ROUTE && PATROL_AREA<ROUTE> == POS.area) ||
+                      (MODE != ENEMY_ROUTE && ROUTE == 0),
+                  "enemy patrol needs a route in its area");
     static_assert(RESPAWN <= RESPAWN_NEVER, "invalid enemy respawn policy");
     static_assert(SETTINGS.facing <= WEST && SETTINGS.pause <= 240 && SETTINGS.walk <= 240,
                   "invalid enemy facing or wander duration");

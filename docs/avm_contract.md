@@ -188,7 +188,7 @@ new game preserves that flag and the current audio options. Save calls `avm_save
 readback or validation; the UI reports `Saved`. The title and pause menu use the cached
 flag without loading or checking storage again. On the title, A or B continues the saved game
 when the flag is set and starts a new game otherwise. Continuing and Load explicitly load and
-validate the object, reset NPC casts and animation ticks, refresh the area cache and repair
+validate the object, NPC pool included, reset animation ticks, refresh the area cache and repair
 blocked player positions. Audio options are initialized and applied at startup, defaulting to
 enabled with native Music and SFX attenuation values of 255. Later loads retain
 the current options instead of replacing them with the record's values. A rejected load clears the flag and prepares new-game defaults.

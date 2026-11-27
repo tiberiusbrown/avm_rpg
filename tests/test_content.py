@@ -1,5 +1,5 @@
-"""Content checks: the outdoor map, the house interiors and the tile semantics that
-assets/maps/AUTHORING.md and AUTHORING_INTERIOR.md describe."""
+"""Content checks: the village and forest clearing, the house interiors, the boulder gate and
+the tile semantics that assets/maps/AUTHORING.md and AUTHORING_INTERIOR.md describe."""
 
 import re
 import sys
@@ -9,14 +9,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from generate_assets import load_world, tileset
+from generate_assets import (CHUNK_HEIGHT, CHUNK_WIDTH, collision_pixel_solid, load_world,
+                             static_npc_frames, tileset)
 
 maps, tiles, names = load_world(ROOT)
 by_symbol = {m.symbol: m for m in maps}
-assert set(by_symbol) == {"OUTDOOR", "INTERIORS", "CAVE", "DUNGEON"}
+assert set(by_symbol) == {"OUTDOOR", "INTERIORS"}
 m, interiors = by_symbol["OUTDOOR"], by_symbol["INTERIORS"]
 assert m.tileset == "world" and interiors.tileset == "house"
-assert by_symbol["CAVE"].tileset == "cave" and by_symbol["DUNGEON"].tileset == "dungeon"
 assert len(tiles) == 255 and 255 not in tiles and m.tiles is tiles
 start = names[m.spawn]["tx"], names[m.spawn]["ty"]
 symbol = {tile["symbol"]: index for index, tile in tiles.items()}
@@ -27,98 +27,70 @@ def at(x, y):
     return m.data[y * m.width + x]
 
 
-# Walking onto an entrance teleports, so nothing walks through a cave mouth or a mine door onto
-# the ground behind it. The floods below treat those cells as closed.
-passages = {
-    (point["tx"], point["ty"])
-    for o in m.objects
-    if o["handler"] in {"take_passage", "maintenance_hatch"}
-    for point in o["points"]
-}
-assert len(passages) == 3
+def position(name):
+    return names[name]["tx"], names[name]["ty"]
 
 
-def clear(x, y):
-    return tiles[at(x, y)]["collision"] == 0 and (x, y) not in passages
+def cells_of(name):
+    return {(point["tx"], point["ty"]) for point in names[name]["points"]}
 
 
-def flood(passable):
-    found, queue = {start}, deque([start])
-    while queue:
-        x, y = queue.popleft()
-        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-            if (
-                0 <= nx < m.width
-                and 0 <= ny < m.height
-                and passable(nx, ny)
-                and (nx, ny) not in found
-            ):
-                found.add((nx, ny))
-                queue.append((nx, ny))
-    return found
+def adjacent(cell):
+    x, y = cell
+    return ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
 
 
-seen = flood(clear)
-# Cliff pieces seal ground off on purpose: a raised area with no ramp is scenery. Ground
-# behind an unbroken outline of cliff pieces is exempt; all other floor must be reachable.
-cliff_outline = {
-    index
-    for index, tile in tiles.items()
-    if tile["symbol"].startswith("CLIFF_") and tile["collision"]
-}
-unsealed = flood(lambda x, y: at(x, y) not in cliff_outline and (x, y) not in passages)
-assert all(
-    (x, y) in seen
-    for y in range(m.height)
-    for x in range(m.width)
-    if clear(x, y) and (x, y) in unsealed
-)
-# The border keeps the player off the map edge. Checked per collision quadrant: no
-# quadrant on the outermost ring of the map can be reached from the spawn.
-def quadrant_open(qx, qy):
-    if not (0 <= qx < 2 * m.width and 0 <= qy < 2 * m.height):
-        return False
-    if (qx // 2, qy // 2) in passages:
-        return False
-    mask = tiles[at(qx // 2, qy // 2)]["collision"]
-    return (mask >> (4 * ((qy % 2) * 2 + qx % 2))) & 0xF != 0xF
+class Ground:
+    """Pixel-level walking over one map with the player's 8x8 foot box at (4, 8)."""
+
+    def __init__(self, area, blocked=(), bodies=()):
+        self.width, self.height = area.width * 16, area.height * 16
+        self.solid = bytearray(self.width * self.height)
+        shapes = {}
+        for ty in range(area.height):
+            for tx in range(area.width):
+                value = area.data[ty * area.width + tx]
+                mask = 0xFFFF if (tx, ty) in blocked or value == 255 else area.tiles[value]["collision"]
+                if not mask:
+                    continue
+                if mask not in shapes:
+                    shapes[mask] = [
+                        bytes(1 if mask == 0xFFFF or collision_pixel_solid(mask, x, y) else 0 for x in range(16))
+                        for y in range(16)
+                    ]
+                for y, row in enumerate(shapes[mask]):
+                    offset = (ty * 16 + y) * self.width + tx * 16
+                    self.solid[offset:offset + 16] = row
+        # Other actors, such as Bram, block with their own foot boxes at their sprite origins.
+        self.bodies = [(x * 16, y * 16) for x, y in bodies]
+
+    def clear(self, x, y):
+        if not (0 <= x <= self.width - 16 and 0 <= y <= self.height - 16):
+            return False
+        for row in range(y + 8, y + 16):
+            if 1 in self.solid[row * self.width + x + 4:row * self.width + x + 12]:
+                return False
+        return all(not (x < bx + 8 and bx < x + 8 and y < by + 8 and by < y + 8) for bx, by in self.bodies)
+
+    def walk(self, cell):
+        """Every sprite position that the player can reach from standing on a tile."""
+        first = (cell[0] * 16, cell[1] * 16)
+        assert self.clear(*first), cell
+        seen, queue = {first}, deque([first])
+        while queue:
+            x, y = queue.popleft()
+            for step in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if step not in seen and self.clear(*step):
+                    seen.add(step)
+                    queue.append(step)
+        return seen
 
 
-quadrants, queue = {(2 * start[0], 2 * start[1] + 1)}, deque([(2 * start[0], 2 * start[1] + 1)])
-while queue:
-    qx, qy = queue.popleft()
-    for nq in ((qx - 1, qy), (qx + 1, qy), (qx, qy - 1), (qx, qy + 1)):
-        if nq not in quadrants and quadrant_open(*nq):
-            quadrants.add(nq)
-            queue.append(nq)
-assert not any(
-    qx in (0, 2 * m.width - 1) or qy in (0, 2 * m.height - 1) for qx, qy in quadrants
-), "the player can reach the edge of the map"
-# The border uses several kinds of barrier.
-ring = {at(x, y) for x in range(m.width) for y in (0, m.height - 1)} | {
-    at(x, y) for y in range(m.height) for x in (0, m.width - 1)
-}
-ring_symbols = {tiles[index]["symbol"] for index in ring}
-for prefix in ("WATER", "CLIFF_", "TREE_", "BOULDER"):
-    assert any(name.startswith(prefix) for name in ring_symbols), f"no {prefix} barrier on the border"
+def standing_tiles(positions):
+    """The tiles that hold the player's foot center at some reachable position."""
+    return {((x + 8) >> 4, (y + 12) >> 4) for x, y in positions}
 
-sign = names["WellSign"]
-assert at(sign["tx"], sign["ty"]) == 0x41
-assert (sign["tx"], sign["ty"] + 1) == start
-assert {o["handler"] for o in m.objects if o["handler"]} == {
-    "enter_house",
-    "take_passage",
-    "maintenance_hatch",
-    "show_message",
-    "village_lantern",
-    "read_survey_trail",
-}
-assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house", "rest_at_inn", "open_shop", "show_message",
-                                                                   "read_workshop_record", "read_survey_notes"}
-# Tile semantics from assets/maps/AUTHORING.md. Runtime IDs are atlas cells.
-assert tiles[0]["symbol"] == "EMPTY" and tiles[0]["collision"] == 0xFFFF
-assert 0 not in m.data, "0x00 is EMPTY and must not be painted outdoors"
-assert 255 not in m.data, "every outdoor cell is painted"
+
 # Every named world tile and its collision mask. Quadrant bits are TL 0-3, TR 4-7,
 # BL 8-11, BR 12-15.
 for index, name, mask in (
@@ -251,7 +223,6 @@ for y in range(m.height):
         if at(x, y) in pile_tiles:
             above = tiles[at(x, y - 1)]["symbol"]
             assert PILES.get(above) == tiles[at(x, y)]["symbol"], f"piles at {(x, y)} stand under no bridge"
-assert pile_tiles & set(m.data)
 # TREE_ROUND is for isolated single trees. Groups use the tiling pieces.
 round_trees = {
     (x, y) for y in range(m.height) for x in range(m.width) if at(x, y) == 0x02
@@ -295,35 +266,176 @@ for y in range(m.height):
             )
 assert {0x06, 0x07, 0x16, 0x17} <= set(m.data), "outdoor floors vary across grass"
 assert {0x08, 0x09, 0x0A, 0x59} <= set(m.data), "outdoor floors use sparse grass too"
-outdoor_residents = ("TessaWell", "TessaOrchard", "OrrinLane", "RowanHome", "BramYard", "BramLantern", "NellLookout", "SurveyorReturned")
+assert 0 not in m.data, "0x00 is EMPTY and must not be painted outdoors"
+assert 255 not in m.data, "every outdoor cell is painted"
+assert {o["handler"] for o in m.objects if o["handler"]} == {"enter_house", "show_message"}
+assert {o["handler"] for o in interiors.objects if o["handler"]} == {"leave_house"}
+
+# The player cannot reach the edge of the map, and every marker and walkable cell is reachable.
+outdoors = Ground(m)
+walked = outdoors.walk(start)
+assert not any(
+    x <= 0 or y <= 0 or x >= outdoors.width - 16 or y >= outdoors.height - 16 for x, y in walked
+), "the player can reach the edge of the map"
+seen = standing_tiles(walked)
+for name, o in names.items():
+    if o["area"] == m.area and len(o["points"]) == 1:
+        cell = position(name)
+        assert cell in seen or any(step in seen for step in adjacent(cell)), f"{name} cannot be reached"
+# Walkable ground that the player cannot reach is either a plateau sealed behind cliff pieces
+# or a small gap inside a forest.
+cliff_outline = {
+    index for index, tile in tiles.items() if tile["symbol"].startswith("CLIFF_") and tile["collision"]
+}
+unreached = {
+    (x, y) for y in range(m.height) for x in range(m.width)
+    if tiles[at(x, y)]["collision"] == 0 and (x, y) not in seen
+}
+while unreached:
+    first = unreached.pop()
+    pocket, queue = {first}, deque([first])
+    while queue:
+        for step in adjacent(queue.popleft()):
+            if step in unreached:
+                unreached.remove(step)
+                pocket.add(step)
+                queue.append(step)
+    if len(pocket) <= 2:
+        continue
+    outline, queue = set(pocket), deque(pocket)
+    while queue:
+        for x, y in adjacent(queue.popleft()):
+            if 0 <= x < m.width and 0 <= y < m.height and (x, y) not in outline and at(x, y) not in cliff_outline:
+                assert (x, y) not in seen, f"walled-off ground near {first}"
+                outline.add((x, y))
+                queue.append((x, y))
+# The border uses several kinds of barrier.
+ring = {at(x, y) for x in range(m.width) for y in (0, m.height - 1)} | {
+    at(x, y) for y in range(m.height) for x in (0, m.width - 1)
+}
+ring_symbols = {tiles[index]["symbol"] for index in ring}
+for prefix in ("WATER", "CLIFF_", "TREE", "ROCK"):
+    assert any(name.startswith(prefix) for name in ring_symbols), f"no {prefix} barrier on the border"
+# Forests are broken up: no 4x4 block holds only tree pieces.
+trees = {index for index, tile in tiles.items() if tile["symbol"].startswith("TREE")}
+for top in range(m.height - 3):
+    for left in range(m.width - 3):
+        assert not all(at(left + x, top + y) in trees for x in range(4) for y in range(4)), (
+            f"solid block of trees at {(left, top)}"
+        )
+
+# The boulder gate. The boulders are the only thing between the clearing and the village, and no
+# order of pushes can ever trap the player in the clearing.
+gate = cells_of("BoulderGate")
+boulders = frozenset(position(f"Boulder{letter}") for letter in "ABCD")
+assert boulders <= gate
+spawn_side, village_side = position("GateMouth"), position("ClearingExit")
+assert not (gate & {spawn_side, village_side})
+# A boulder stays in the chunk of its site, and a chunk's boulders unload together. The whole
+# gate lies in one chunk, so walking away restores the opening arrangement, never a part of it.
+assert len({(x // CHUNK_WIDTH, y // CHUNK_HEIGHT) for x, y in gate}) == 1
+for x, y in gate:
+    for nx, ny in ((x + dx, y + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)):
+        # Whole or empty cells make the gate behave exactly as a grid puzzle.
+        assert tiles[at(nx, ny)]["collision"] in (0, 0xFFFF), f"partial tile beside the gate at {(nx, ny)}"
+assert all(tiles[at(*cell)]["collision"] == 0 for cell in boulders)
+sealed = standing_tiles(Ground(m, blocked=gate).walk(start))
+assert village_side not in sealed and not any(
+    cell in sealed for cell in cells_of("PathEast")
+), "the clearing has a way out around the boulders"
+assert village_side not in standing_tiles(Ground(m, blocked=boulders).walk(start)), "the boulders do not block the way"
+
+floor = {(x, y) for y in range(m.height) for x in range(m.width) if tiles[at(x, y)]["collision"] == 0}
 
 
-def position(name):
-    return names[name]["tx"], names[name]["ty"]
+def region_from(cell, stones):
+    seen, queue = {cell}, deque([cell])
+    while queue:
+        for step in adjacent(queue.popleft()):
+            if step in floor and step not in stones and step not in seen:
+                seen.add(step)
+                queue.append(step)
+    return seen
 
 
-def adjacent(cell):
-    x, y = cell
-    return ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
+def push_states(cell, stones):
+    """Every arrangement of boulders and player region reachable by pushing, as a graph."""
+    first = (stones, min(region_from(cell, stones)))
+    index, states, edges, depth = {first: 0}, [first], [], [0]
+    i = 0
+    while i < len(states):
+        stones, anchor = states[i]
+        reach = region_from(anchor, stones)
+        out = []
+        for stone in stones:
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                behind = (stone[0] - dx, stone[1] - dy)
+                ahead = (stone[0] + dx, stone[1] + dy)
+                if behind not in reach or ahead not in gate or ahead not in floor or ahead in stones:
+                    continue
+                moved = (stones - {stone}) | {ahead}
+                key = (moved, min(region_from(stone, moved)))
+                if key not in index:
+                    index[key] = len(states)
+                    states.append(key)
+                    depth.append(depth[i] + 1)
+                out.append(index[key])
+        edges.append(out)
+        i += 1
+    return states, edges, depth
 
 
-for name in (*outdoor_residents, "TestField"):
-    assert position(name) in seen, f"{name} needs an accessible walkable center"
-for tessa in ("TessaWell", "TessaOrchard"):
-    for bram in ("BramYard", "BramLantern"):
-        residents = {position(name) for name in outdoor_residents
-                     if (not name.startswith("Tessa") or name == tessa)
-                     and (not name.startswith("Bram") or name == bram)}
-        routes = flood(lambda x, y: clear(x, y) and (x, y) not in residents)
-        for resident in residents:
-            assert any(cell in routes for cell in adjacent(resident)), resident
-        for name, o in names.items():
-            if o["area"] == m.area and o["handler"] in {"enter_house", "take_passage", "maintenance_hatch"}:
-                assert (o["tx"], o["ty"] + 1) in routes, f"resident blocks {name}"
+def every_state_escapes(cell):
+    """Fewest pushes to the village side, asserting that no push can remove that way out."""
+    states, edges, depth = push_states(cell, boulders)
+    goal = [village_side in region_from(anchor, stones) for stones, anchor in states]
+    back = [[] for _ in states]
+    for i, out in enumerate(edges):
+        for j in out:
+            back[j].append(i)
+    good, queue = list(goal), deque(i for i, found in enumerate(goal) if found)
+    while queue:
+        j = queue.popleft()
+        for i in back[j]:
+            if not good[i]:
+                good[i] = True
+                queue.append(i)
+    assert all(good), f"the boulders can trap the player who starts at {cell}"
+    return min(depth[i] for i, found in enumerate(goal) if found), len(states)
 
 
-# Houses. Each outdoor door pairs with an interior exit of the same name. The player enters
-# by activating the door and leaves by walking onto the exit.
+pushes, states = every_state_escapes(start)
+assert 4 <= pushes <= 8 and states > 50, ("the puzzle should be simple but not trivial", pushes, states)
+# The boulders restart with the player outside the gate on either side: after a load, which moves
+# a player in the gate to a mouth, or after walking away. From the village side too, the player
+# can push a way into the clearing and back out.
+every_state_escapes(spawn_side)
+every_state_escapes(village_side)
+returning, _, _ = push_states(village_side, boulders)
+assert any(spawn_side in region_from(anchor, stones) for stones, anchor in returning), (
+    "the clearing cannot be entered from the village side"
+)
+
+# Bram stands in the middle of the bridge, the only way south out of the village.
+bram = position("BramPost")
+assert tiles[at(*bram)]["symbol"] == "BRIDGE_VERTICAL"
+assert all(tiles[at(bram[0] + dx, bram[1])]["symbol"].startswith("WATER") for dx in (-1, 1))
+open_gate = Ground(m, bodies=[bram])
+beyond = standing_tiles(open_gate.walk(start))
+assert not any(y > bram[1] and abs(x - bram[0]) <= 4 for x, y in beyond), "Bram can be passed"
+assert (bram[0], bram[1] + 1) in standing_tiles(Ground(m).walk(start))
+
+# Every building has a sign beside its door.
+buildings = ("Alden", "Eliza", "Bram", "Shop", "Inn", "NorthHouse", "SouthHouse", "Barn")
+for name in buildings:
+    door, sign = position(f"{name}Door"), position(f"{name}Sign")
+    assert at(*door) in (0x84, 0x85), f"{name}Door is not on a door tile"
+    assert at(*sign) == symbol["SIGN"] and names[f"{name}Sign"]["handler"] == "show_message"
+    assert abs(door[0] - sign[0]) <= 1 and sign[1] - door[1] == 1, f"{name}Sign is not by the door"
+    assert (door[0], door[1] + 1) in seen, f"the ground in front of {name}Door is not reachable"
+
+# Houses. Each enterable door pairs with an interior exit of the same name. The player enters
+# by activating the door and leaves by walking onto the exit. Other doors only answer.
 house = interiors.tiles
 house_symbol = {tile["symbol"]: index for index, tile in house.items()}
 
@@ -393,40 +505,36 @@ for index, tile in enumerate(m.data):
 
 
 assert 255 not in interiors.data, "interior void is painted with EMPTY (0x00), never left unpainted"
-doors = sorted(name[:-4] for name, o in names.items() if name.endswith("Door") and o["area"] == m.area)
+houses = sorted(name for name in buildings if names[f"{name}Door"]["handler"] == "enter_house")
+assert houses == ["Alden", "Eliza", "Inn", "Shop"]
 exits = sorted(name[:-4] for name, o in names.items() if name.endswith("Exit") and o["area"] == interiors.area)
-assert doors == exits and len(doors) >= 8, (doors, exits)
+assert houses == exits, (houses, exits)
 logic = (ROOT / "src/logic/area_village.h").read_text()
+for name in buildings:
+    check_gable(name, *position(f"{name}Door"))
+    if name not in houses:
+        assert names[f"{name}Door"]["handler"] == "show_message"
+        assert f"positions::{name}Door" in logic
 room_cells = {}
-for name in doors:
-    door, way_out = names[name + "Door"], names[name + "Exit"]
-    assert door["handler"] == "enter_house" and way_out["handler"] == "leave_house"
-    x, y = door["tx"], door["ty"]
-    assert at(x, y) in (0x84, 0x85), f"{name}Door is not on a door tile"
-    assert (x, y + 1) in seen, f"the ground in front of {name}Door is not reachable"
-    check_gable(name, x, y)
-    assert inside(way_out["tx"], way_out["ty"]) == house_symbol["EDGE_TOP_EXIT"]
-    assert house[inside(way_out["tx"], way_out["ty"] - 1)]["collision"] == 0
-    assert f"positions::{name}Door, positions::{name}Exit" in logic, f"{name} is missing from HOUSE_LINKS"
-    # The room: every walkable cell joined to the exit.
-    room, queue = set(), deque([(way_out["tx"], way_out["ty"])])
-    while queue:
-        x, y = queue.popleft()
-        if (x, y) in room or not (0 <= x < interiors.width and 0 <= y < interiors.height):
-            continue
-        if house[inside(x, y)]["collision"] == 0xFFFF:
-            continue
-        room.add((x, y))
-        queue.extend(((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)))
+for name in houses:
+    way_out = names[name + "Exit"]
+    assert way_out["handler"] == "leave_house"
+    x, y = way_out["tx"], way_out["ty"]
+    assert inside(x, y) == house_symbol["EDGE_TOP_EXIT"]
+    assert house[inside(x, y - 1)]["collision"] == 0
+    assert f"positions::{name}Door, positions::{name}Exit, positions::{name}RoomsRegion" in logic, (
+        f"{name} is missing from HOUSE_LINKS"
+    )
+    # The room: every cell the player's feet can stand on from the exit, and the floor they
+    # must reach. Furniture never walls off floor.
+    room = standing_tiles(Ground(interiors).walk((x, y - 1)))
     room_cells[name] = room
-for room, marker, tile in (("Smithy", "WorkshopRecord", "TABLE_WORKSHOP_RECORD"),
-                           ("Inn", "SurveyorNotes", "TABLE_SURVEY_NOTES")):
-    assert inside(*position(marker)) == house_symbol[tile]
-    assert any(cell in room_cells[room] for cell in adjacent(position(marker))), marker
-for marker, tile in (("VillageLantern", "VILLAGE_LANTERN_DARK"), ("SurveyTrailMark", "SIGN")):
-    assert at(*position(marker)) == symbol_index[tile]
-    assert any(cell in seen for cell in adjacent(position(marker))), marker
-assert len({frozenset(room) for room in room_cells.values()}) == len(doors), "two houses share a room"
+    region = cells_of(f"{name}Rooms")
+    for cell in region:
+        if house[inside(*cell)]["collision"] == 0:
+            assert cell in room, f"{name}: the floor at {cell} is walled off"
+    assert room - {(x, y)} <= region, f"{name}Rooms does not cover the house"
+assert len({frozenset(room) for room in room_cells.values()}) == len(houses), "two houses share a room"
 # No other interior is on screen from anywhere the player can stand. The view is 8x4
 # tiles around the player, and up to 9x5 when the camera is between tiles.
 painted = {
@@ -450,25 +558,100 @@ for name, room in room_cells.items():
         for dx in range(-5, 6):
             for dy in range(-3, 4):
                 assert owner.get((x + dx, y + dy), name) == name, f"{name} can see another interior"
-rest = names["InnRest"]
-rest_x, rest_y = rest["tx"], rest["ty"]
-assert rest["handler"] == "rest_at_inn" and rest["area"] == interiors.area
-assert owner[rest_x, rest_y] == "Inn"
-assert inside(rest_x, rest_y) == house_symbol["COUNTER_RIGHT"]
-assert (rest_x, rest_y + 1) in room_cells["Inn"]
-counter = names["ShopCounter"]
-counter_x, counter_y = counter["tx"], counter["ty"]
-assert counter["handler"] == "open_shop" and counter["area"] == interiors.area
-assert owner[counter_x, counter_y] == "Shop"
-assert inside(counter_x, counter_y) == house_symbol["COUNTER_MIDDLE"]
-assert (counter_x, counter_y + 1) in room_cells["Shop"]
-for person, room in (("MaraInn", "Inn"), ("AdaShop", "Shop")):
-    site = position(person)
-    assert site in room_cells[room] and house[inside(*site)]["collision"] == 0
-    assert any(cell in room_cells[room] and house[inside(*cell)]["collision"] == 0
-               for cell in adjacent(site)), f"{person} has no clear approach"
+# Eliza's home is a kitchen and living room, with a bedroom for the rat.
+bedroom = cells_of("ElizaBedroom")
+assert bedroom <= cells_of("ElizaRooms") and position("RatNest") in bedroom & room_cells["Eliza"]
+for person, room in (("ElizaAtAlden", "Alden"), ("RatNest", "Eliza")):
+    assert position(person) in room_cells[room] and house[inside(*position(person))]["collision"] == 0
 spawn = names[interiors.spawn]
 assert house[inside(spawn["tx"], spawn["ty"])]["collision"] == 0
+garden = position("ElizaGarden")
+assert garden in seen and tiles[at(*garden)]["collision"] == 0
+
+
+def check_rugs(area):
+    """Every rug or carpet of several cells is a complete rectangle of at least 2x2 pieces,
+    each in its place. Only furniture inside its outline may hide a piece."""
+    sheet = area.tiles
+    places = {"TOP_LEFT": (0, 0), "TOP": (1, 0), "TOP_RIGHT": (2, 0), "LEFT": (0, 1),
+              "CENTER": (1, 1), "CENTER_PLAIN": (1, 1), "RIGHT": (2, 1), "BOTTOM_LEFT": (0, 2),
+              "BOTTOM": (1, 2), "BOTTOM_RIGHT": (2, 2)}
+    pieces = {}
+    for index, tile in sheet.items():
+        for prefix in ("RUG_", "CARPET_"):
+            name = tile["symbol"]
+            if name.startswith(prefix) and name[len(prefix):] in places:
+                pieces[index] = places[name[len(prefix):]]
+    cells = {
+        (x, y): pieces[area.data[y * area.width + x]]
+        for y in range(area.height) for x in range(area.width)
+        if area.data[y * area.width + x] in pieces
+    }
+    remaining = set(cells)
+    while remaining:
+        queue = deque([min(remaining)])
+        remaining.remove(queue[0])
+        rug = set(queue)
+        while queue:
+            for step in adjacent(queue.popleft()):
+                if step in remaining:
+                    remaining.remove(step)
+                    rug.add(step)
+                    queue.append(step)
+        left, right = min(x for x, _ in rug), max(x for x, _ in rug)
+        top, bottom = min(y for _, y in rug), max(y for _, y in rug)
+        where = f"{area.symbol}: rug at {(left, top)}"
+        assert right > left and bottom > top, f"{where} is narrower than 2x2"
+        for y in range(top, bottom + 1):
+            for x in range(left, right + 1):
+                want = (0 if x == left else 2 if x == right else 1,
+                        0 if y == top else 2 if y == bottom else 1)
+                if (x, y) in rug:
+                    assert cells[x, y] == want, f"{where}: the piece at {(x, y)} is out of place"
+                else:
+                    value = area.data[y * area.width + x]
+                    assert want == (1, 1) and sheet[value]["collision"] != 0, f"{where}: gap at {(x, y)}"
+
+
+# The room model's walls, by tileset: the cells of the north wall row, which show a wall face
+# from the front, and the edge pieces around a room.
+WALL_ROWS = {
+    "house": set(range(0x10, 0x1C)) | set(range(0x20, 0x2C)) | set(range(0x30, 0x3B)),
+    "cave": set(range(0x10, 0x20)),
+    "dungeon": (set(range(0x10, 0x24)) | set(range(0x40, 0x4A))) - {0x1C, 0x44},
+}
+EDGE_CELLS = set(range(0x01, 0x10)) | {0x1C}
+
+
+def check_north_walls(area):
+    """In the 3/4 view the north side of every floor shows a wall. A floor or furniture cell has
+    another one above it or a wall row cell, never an edge or the void. This holds for the side
+    passages too; only the exit in a south wall is an edge that the player walks onto."""
+    walls = WALL_ROWS[area.tileset]
+
+    def cell(x, y):
+        return area.data[y * area.width + x] if y >= 0 else 0
+
+    def room(value):
+        return value != 0 and value not in walls and value not in EDGE_CELLS
+
+    for y in range(area.height):
+        for x in range(area.width):
+            value = cell(x, y)
+            walked_edge = value in EDGE_CELLS and area.tiles[value]["collision"] == 0
+            if not room(value) and not (walked_edge and area.tiles[value]["symbol"] != "EDGE_TOP_EXIT"):
+                continue
+            above = cell(x, y - 1)
+            assert room(above) or above in walls, (
+                f"{area.symbol}: {area.tiles[value]['symbol']} at {(x, y)} has no wall to its north"
+            )
+
+
+for area in maps:
+    if area.tileset in WALL_ROWS:
+        check_north_walls(area)
+    check_rugs(area)
+assert any(tile["symbol"].startswith("RUG_") for tile in (house[v] for v in interiors.data))
 
 # Animation. Something moves wherever the player goes: every house has an animated light and
 # a floor for moths, and outdoors every grass, flowers, water and tree cell takes an ambient effect.
@@ -477,7 +660,7 @@ def world_symbol_of(symbol):
 
 
 animated_house = {index for index, tile in house.items() if any(rows is not None for rows in tile["phases"])}
-for name in doors:
+for name in houses:
     cells = {cell for cell, owned in owner.items() if owned == name}
     assert any(inside(x, y) in animated_house for x, y in cells), f"{name} has no animated tile"
     assert any(house[inside(x, y)]["ambient"] == "floor" for x, y in room_cells[name]), f"{name} has no bare floor"
@@ -667,218 +850,11 @@ for path in sorted((ROOT / "assets/images").glob("*.png")):
                         for i in range(4)
                     ), f"{path.name}: checkerboard stipple in cell {(left // 16, top // 16)}"
 
-# The cave and the dungeon. Each is one map with its own tileset, built on the room model.
-LOGIC = ROOT / "src/logic"
-WALL_ROWS = {
-    "cave": set(range(0x10, 0x20)),
-    "dungeon": (set(range(0x10, 0x24)) | set(range(0x40, 0x4A))) - {0x1C, 0x44},
-}
-EDGE_CELLS = set(range(0x01, 0x10)) | {0x1C}
-EDGE_OF = {
-    (True, False, False, False, False): "EDGE_TOP",
-    (False, True, False, False, False): "EDGE_LEFT",
-    (False, False, True, False, False): "EDGE_RIGHT",
-    (True, True, False, False, False): "EDGE_TOP_LEFT",
-    (True, False, True, False, False): "EDGE_TOP_RIGHT",
-    (False, True, True, False, False): "EDGE_LEFT_RIGHT",
-    (True, True, True, False, False): "EDGE_TOP_LEFT_RIGHT",
-    (False, False, False, True, False): "EDGE_DOT_LEFT",
-    (False, False, False, False, True): "EDGE_DOT_RIGHT",
-    (False, False, False, True, True): "EDGE_DOT_BOTH",
-    (False, True, False, False, True): "EDGE_LEFT_DOT_RIGHT",
-    (False, False, True, True, False): "EDGE_RIGHT_DOT_LEFT",
-}
-# The tile that each handler belongs on, and the handlers whose cells open during play.
-HANDLER_TILES = {
-    "take_passage": {"EDGE_TOP_EXIT", "LADDER_UP"},
-    "show_message": {"SIGN", "PLAQUE"},
-    "take_lantern_relay": {"LANTERN"},
-    "use_lever": {"SWITCH_LEFT"},
-    "press_plate": {"PRESSURE_PLATE"},
-    "open_chest": {"CHEST_CLOSED"},
-    "open_door": {"BARS_DOOR"},
-    "light_orb": {"ORB_DARK"},
-    "steam_vent": {"VENT"},
-    "show_state": {
-        "GATE_FRONT", "GATE_SIDE", "SPIKES", "BLOCK_RAISED", "RUNE", "PORTCULLIS",
-        "CHASM", "CHASM_EDGE", "CHASM_RIM", "CHASM_LEFT", "CHASM_RIGHT",
-        "CHASM_EDGE_LEFT", "CHASM_EDGE_RIGHT", "CHASM_RIM_LEFT", "CHASM_RIM_RIGHT",
-    },
-}
-OPENS = {"show_state", "open_door", "steam_vent"}
-for map_symbol in ("CAVE", "DUNGEON"):
-    area = by_symbol[map_symbol]
-    kind = area.tileset
-    sheet = area.tiles
-    logic = (LOGIC / f"area_{kind}.h").read_text()
-    index_of = {tile["symbol"]: index for index, tile in sheet.items()}
-    assert 255 not in area.data, f"{map_symbol}: void is painted with EMPTY (0x00)"
-
-    def cell(x, y):
-        return area.data[y * area.width + x] if 0 <= x < area.width and 0 <= y < area.height else 0
-
-    def is_room(x, y):
-        value = cell(x, y)
-        return value != 0 and value not in EDGE_CELLS and value not in WALL_ROWS[kind]
-
-    def wallish(x, y):
-        return is_room(x, y) or is_room(x, y + 1)
-
-    faces = {index_of[n] for n in ("WALL", "WALL_END_LEFT", "WALL_END_RIGHT", "WALL_PILLAR")}
-    plain = faces | {index_of[n] for n in ("WALL_ALT", "WALL_MOSS")}
-    for y in range(area.height):
-        for x in range(area.width):
-            value, where = cell(x, y), (map_symbol, x, y)
-            if is_room(x, y):
-                continue
-            left, right = is_room(x - 1, y), is_room(x + 1, y)
-            if is_room(x, y + 1):
-                # The wall row: a face, or a decorated piece that stands clear of room cells.
-                assert value in WALL_ROWS[kind], where
-                if value in plain:
-                    want = "WALL_PILLAR" if left and right else "WALL_END_LEFT" if left else "WALL_END_RIGHT" if right else None
-                    assert (value == index_of[want]) if want else (value not in faces or value == index_of["WALL"]), where
-                else:
-                    assert not left and not right, where
-                continue
-            top = is_room(x, y - 1)
-            band_left, band_right = wallish(x - 1, y), wallish(x + 1, y)
-            key = (top, band_left, band_right,
-                   not top and not band_left and is_room(x - 1, y - 1),
-                   not top and not band_right and is_room(x + 1, y - 1))
-            want = EDGE_OF.get(key, "EMPTY")
-            if sheet[value]["symbol"] == "EDGE_TOP_EXIT":
-                assert want == "EDGE_TOP", where
-            else:
-                assert value == index_of[want], (where, sheet[value]["symbol"], want)
-    # A chasm cell takes the piece that the floor around it selects: a lip on each side where
-    # floor lies, and none against a wall or more chasm.
-    if kind == "cave":
-        chasm_of = {index_of[n]: n for n in index_of if n.startswith("CHASM")}
-        floor_at = lambda x, y: is_room(x, y) and cell(x, y) not in chasm_of
-        for y in range(area.height):
-            for x in range(area.width):
-                if cell(x, y) not in chasm_of:
-                    continue
-                row = "EDGE" if floor_at(x, y - 1) else "RIM" if floor_at(x, y + 1) else ""
-                side = "LEFT" if floor_at(x - 1, y) else "RIGHT" if floor_at(x + 1, y) else ""
-                want = "_".join(part for part in ("CHASM", row, side) if part)
-                assert chasm_of[cell(x, y)] == want, (map_symbol, x, y, want)
-        assert all(sheet[index]["collision"] == 0xFFFF for index in chasm_of)
-        assert len(chasm_of) == 9
-    # Handlers sit on the tiles that show what they do, and every mechanism is in the tables.
-    opening = set()
-    for o in area.objects:
-        if not o["handler"]:
-            continue
-        assert o["handler"] in HANDLER_TILES, o["handler"]
-        for point in o["points"]:
-            symbol_here = sheet[cell(point["tx"], point["ty"])]["symbol"]
-            assert symbol_here in HANDLER_TILES[o["handler"]], (o["name"], symbol_here)
-            if o["handler"] in OPENS:
-                opening.add((point["tx"], point["ty"]))
-        marker = o["name"] + ("Region" if o["rectangle"] else "")
-        if o["handler"] not in {"steam_vent", "take_lantern_relay"}:
-            assert f"positions::{marker}" in logic, f"{o['name']} is missing from the tables in src/logic/area_{kind}.h"
-    # Every walkable cell can be reached once the mechanisms are open. A barred cell that no
-    # handler opens is scenery, and the flood passes its door.
-    spawn_point = names[area.spawn]
-    first = (spawn_point["tx"], spawn_point["ty"])
-    assert sheet[cell(*first)]["collision"] == 0
-    doors = {index_of[n] for n in ("BARS_DOOR",) if n in index_of}
-    reached, queue = {first}, deque([first])
-    while queue:
-        x, y = queue.popleft()
-        for step in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-            value = cell(*step)
-            if step not in reached and (sheet[value]["collision"] == 0 or step in opening or value in doors):
-                reached.add(step)
-                queue.append(step)
-    for y in range(area.height):
-        for x in range(area.width):
-            if sheet[cell(x, y)]["collision"] == 0:
-                assert (x, y) in reached, f"{map_symbol}: walkable cell {(x, y)} cannot be reached"
-    for o in area.objects:
-        for point in o["points"]:
-            near = [(point["tx"] + dx, point["ty"] + dy) for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1))]
-            assert any(step in reached for step in near), f"{o['name']} cannot be reached"
-    # Something moves wherever the player stands: every chunk with floor in it holds a tile that
-    # takes an ambient effect, and the map uses many animated tiles.
-    animated = {index for index, tile in sheet.items() if any(rows is not None for rows in tile["phases"])}
-    assert len(animated & set(area.data)) >= 6, f"{map_symbol} uses few animated tiles"
-    classes = {sheet[value]["ambient"] for value in area.data}
-    assert {"drip", "ember", "crystal", "pool"} <= classes, (map_symbol, classes)
-    for cy in range(0, area.height, 4):
-        for cx in range(0, area.width, 8):
-            chunk = [cell(x, y) for y in range(cy, cy + 4) for x in range(cx, cx + 8)]
-            if any(sheet[value]["collision"] == 0 for value in chunk):
-                assert any(sheet[value]["ambient"] != "none" for value in chunk), (map_symbol, cx, cy)
-    # A light burns in sight of every floor cell: the view is 8x4 tiles around the player.
-    lights = {index for index, tile in sheet.items() if tile["ambient"] == "ember"}
-    for x, y in reached:
-        if sheet[cell(x, y)]["ambient"] in ("cave", "crypt"):
-            assert any(cell(x + dx, y + dy) in animated for dx in range(-5, 6) for dy in range(-3, 4)), (
-                f"{map_symbol}: no animated tile near {(x, y)}"
-            )
-    assert lights & set(area.data)
-# Hollow Mine has a one-way progression in world state and a two-way walking route.
-# Check each mechanism from the side on which it is operated, including with the vent blocking.
-mine = by_symbol["CAVE"]
-
-
-def mine_route(start_name, opened=(), vent_active=False):
-    opened = set(opened)
-    start = position(start_name)
-    seen, queue = {start}, deque([start])
-    while queue:
-        for x, y in adjacent(queue.popleft()):
-            cell = (x, y)
-            if cell in seen or not (0 <= x < mine.width and 0 <= y < mine.height):
-                continue
-            if vent_active and cell == position("CaveVent"):
-                continue
-            tile = mine.data[y * mine.width + x]
-            if cell in opened or mine.tiles[tile]["collision"] == 0:
-                seen.add(cell)
-                queue.append(cell)
-    return seen
-
-
-def approachable(routes, name):
-    return any(cell in routes for cell in adjacent(position(name)))
-
-
-gate, grille = position("CaveGate"), position("CaveNookGate")
-bridge_region = next(o for o in mine.objects if o["name"] == "CaveBridge")
-span = {(point["tx"], point["ty"]) for point in bridge_region["points"]}
-for steam in (False, True):
-    camp = mine_route("CaveSpawn", vent_active=steam)
-    assert all(approachable(camp, name) for name in
-               ("CaveExit", "MineWarning", "CaveNotice", "MineLedger", "CaveLever"))
-    assert not approachable(camp, "CaveVaultLever") and position("CavePlate") not in camp
-    east = mine_route("CaveSpawn", (gate,), steam)
-    assert approachable(east, "CaveVaultLever") and position("CavePlate") not in east
-    assert not approachable(camp, "MineLanternRelay")
-    assert approachable(east, "MineLanternRelay")
-    west = mine_route("CaveSpawn", (gate, grille), steam)
-    assert position("CavePlate") in west and not approachable(west, "CaveChest")
-    assert not approachable(west, "SurveyorTrapped")
-# The bridge stays open after either lever is reset. The vent always clears with time.
-restored = mine_route("CaveSpawn", span)
-assert approachable(restored, "SurveyorTrapped")
-assert position("SurveyorTrapped") != position("CaveLadder")
-assert approachable(mine_route("SurveyorTrapped", span), "CaveLadder")
-assert all(approachable(restored, name) for name in ("CaveChest", "CaveLadder", "PoolEcho"))
-
-# Both ends of every passage are in the table, and the outdoor ends are the right entrances.
-logic = "\n".join((LOGIC / f"area_{name}.h").read_text() for name in ("cave", "dungeon"))
-for name, tile_name in (("CaveMouth", "CLIFF_CAVE"), ("MineEntrance", "CLIFF_MINE"), ("CaveHole", "BOULDER_CRACKED")):
-    o = names[name]
-    handler = "maintenance_hatch" if name == "CaveHole" else "take_passage"
-    assert o["handler"] == handler and at(o["tx"], o["ty"]) == symbol_index[tile_name]
-    assert (o["tx"], o["ty"] + 1) in seen, f"the ground below {name} is not reachable"
-    assert f"positions::{name}" in logic
-assert "positions::CaveExit" in logic and "positions::CaveLadder" in logic and "positions::DungeonExit" in logic
+# Static NPC images block with convex shapes, and the boulders fill their cells.
+symbols, collisions, _, _ = static_npc_frames(ROOT)
+assert {"BOULDER", "BOULDER_SPLIT"} <= set(symbols)
+assert all(mask in CONVEX for mask in collisions)
+assert all(collisions[symbols.index(name)] == 0xFFFF for name in ("BOULDER", "BOULDER_SPLIT"))
 
 for path in (ROOT / "assets/maps").glob("*.tmx"):
     node = ET.parse(path).getroot()
@@ -908,6 +884,6 @@ for path in scores:
     symbol = "SFX_" + re.sub(r"[^A-Za-z0-9_]", "_", path.stem).upper()
     assert re.search(rf"\b{symbol}\b", code), f"{symbol} is never played"
 print(
-    "PASS connected village, sealed border, linked houses, roof joins, tile semantics, no guest allocations "
-    "and only played sound effects"
+    "PASS village and clearing, trap-free boulder gate, sealed border, linked houses, roof and rug "
+    "joins, tile semantics, no guest allocations and only played sound effects"
 )

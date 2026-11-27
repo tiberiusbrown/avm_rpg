@@ -149,12 +149,12 @@ constexpr SFX underground_sound(uint8_t ambient_class, uint8_t roll, uint8_t var
     }
 }
 
-// What a tile of the given ambient class sounds like in an area, or SFX_NONE for silence. Only
-// the classes that belong to an area's tileset are listed: a class has one meaning per tileset,
-// and `steam` is a chimney or a campfire outdoors, a stove or a cauldron in a house.
-constexpr SFX tile_sound(uint8_t area, uint8_t ambient_class, uint8_t roll, uint8_t vary) {
-    switch(area) {
-        case AREA_OUTDOOR:
+// What a tile of the given ambient class sounds like in a tileset, or SFX_NONE for silence. Only
+// the classes that belong to the tileset are listed: a class has one meaning per tileset, and
+// `steam` is a chimney or a campfire outdoors, a stove or a cauldron in a house.
+constexpr SFX tile_sound(uint8_t tileset, uint8_t ambient_class, uint8_t roll, uint8_t vary) {
+    switch(tileset) {
+        case TILESET_WORLD:
             switch(ambient_class) {
                 case AMBIENT_TREE:
                     return heard(roll, TREE_BIRD_SONG, bird_song(vary));
@@ -171,7 +171,7 @@ constexpr SFX tile_sound(uint8_t area, uint8_t ambient_class, uint8_t roll, uint
                 default:
                     return SFX_NONE;
             }
-        case AREA_INTERIORS:
+        case TILESET_HOUSE:
             switch(ambient_class) {
                 case AMBIENT_FLOOR:
                     return heard(roll, FLOOR_BOARD_CREAK, SFX_CREAK);
@@ -180,7 +180,7 @@ constexpr SFX tile_sound(uint8_t area, uint8_t ambient_class, uint8_t roll, uint
                 default:
                     return SFX_NONE;
             }
-        case AREA_CAVE:
+        case TILESET_CAVE:
             if(ambient_class == AMBIENT_CAVE) {
                 // A bat, a drop or the rock itself.
                 return roll < CAVE_BAT_CALL     ? SFX_BAT_SQUEAK
@@ -188,7 +188,7 @@ constexpr SFX tile_sound(uint8_t area, uint8_t ambient_class, uint8_t roll, uint
                                                 : heard(roll, CAVE_ROCK_RUMBLE, SFX_RUMBLE);
             }
             return underground_sound(ambient_class, roll, vary);
-        case AREA_DUNGEON:
+        case TILESET_DUNGEON:
             if(ambient_class == AMBIENT_CRYPT) {
                 // A wisp, a chain or the stone itself.
                 return roll < CRYPT_WISP_MOAN      ? SFX_WISP_MOAN

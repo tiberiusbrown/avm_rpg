@@ -1,3 +1,4 @@
+#include "cast.h"
 #include "world_assets.h"
 
 // Two authored tiles in the far corner of the largest logical map.
@@ -44,20 +45,23 @@ static void run_world_scenarios() {
     CHECK(cache.tiles[1 * CACHE_WIDTH + 1] == TILE_TREE);
     set_tile({game.area, MAX_MAP_WIDTH, MAX_MAP_HEIGHT}, TILE_TREE);
     CHECK(cache.tiles[9] == TILE_OUTSIDE);
-    reload_tile_window(cache, nullptr, {1, 1},
-                       {(uint16_t)(positions::PlayerStart.x * TILE), (uint16_t)(positions::PlayerStart.y * TILE)});
+    reload_tile_window(
+        cache, nullptr, {1, 1},
+        {(uint16_t)(sites::PLAYER_START.x * TILE), (uint16_t)(sites::PLAYER_START.y * TILE)});
     CHECK(cache.origin_tx == 0 && cache.origin_ty == 0);
     for(auto tile : cache.tiles)
         CHECK(tile == TILE_OUTSIDE);
     game_new();
-    CHECK(game.player_is_on_tile(positions::PlayerStart));
-    CHECK((game.player_is_in_region({positions::PlayerStart, 3, 3})));
-    CHECK((!game.player_is_in_region({{(uint8_t)(AREA_OUTDOOR + 1), positions::PlayerStart.x, positions::PlayerStart.y}, 3, 3})));
-    CHECK((!game.player_is_in_region({positions::TessaOrchard, 2, 2})));
+    CHECK(game.player_is_on_tile(sites::PLAYER_START));
+    CHECK((game.player_is_in_region({sites::PLAYER_START, 3, 3})));
+    CHECK((!game.player_is_in_region(
+        {{(uint8_t)(AREA_OUTDOOR + 1), sites::PLAYER_START.x, sites::PLAYER_START.y}, 3, 3})));
+    CHECK((!game.player_is_in_region({sites::ORCHARD, 2, 2})));
     CHECK((!teleport_player<TilePos{AREA_OUTDOOR, MAX_MAP_WIDTH, MAX_MAP_HEIGHT}>()));
-    CHECK((!teleport_player<TilePos{255, positions::PlayerStart.x, positions::PlayerStart.y}>())); // No such area.
-    CHECK(teleport_player<positions::PlayerStart>(EAST));
-    CHECK(game.player.x == positions::PlayerStart.x * TILE &&
-          game.player.y == positions::PlayerStart.y * TILE && game.player.facing == EAST);
+    CHECK((!teleport_player<TilePos{255, sites::PLAYER_START.x,
+                                    sites::PLAYER_START.y}>())); // No such area.
+    CHECK(teleport_player<sites::PLAYER_START>(EAST));
+    CHECK(game.player.x == sites::PLAYER_START.x * TILE &&
+          game.player.y == sites::PLAYER_START.y * TILE && game.player.facing == EAST);
     CHECK(!game.player.walking && teleported);
 }

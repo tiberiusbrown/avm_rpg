@@ -70,7 +70,7 @@ constexpr uint64_t BIRDS =
 constexpr uint64_t WATER = bit(SFX_WATER_PLIP) | bit(SFX_WATER_SPLASH);
 constexpr uint64_t DRIPS = bit(SFX_DRIP_A) | bit(SFX_DRIP_B);
 
-// What each area may sound like. The tile classes decide when, and these sets decide what: birds
+// What each tileset may sound like. The tile classes decide when, and these sets decide what: birds
 // and bees are heard outdoors, a creaking floor in a house, drips and bats underground.
 constexpr uint64_t OUTDOOR_SOUNDS = BIRDS | WATER | bit(SFX_BEE_BUZZ) | bit(SFX_FIRE_CRACKLE);
 constexpr uint64_t HOUSE_SOUNDS = bit(SFX_CREAK) | bit(SFX_FIRE_CRACKLE);
@@ -80,26 +80,27 @@ constexpr uint64_t DUNGEON_SOUNDS = DRIPS | bit(SFX_WISP_MOAN) | bit(SFX_CHAIN_R
                                     bit(SFX_RUMBLE) | bit(SFX_CRYSTAL_CHIME) |
                                     bit(SFX_FIRE_CRACKLE);
 
-constexpr uint64_t area_sounds(uint8_t area) {
-    switch(area) {
-        case AREA_OUTDOOR:
+constexpr uint64_t tileset_sounds(uint8_t tileset) {
+    switch(tileset) {
+        case TILESET_WORLD:
             return OUTDOOR_SOUNDS;
-        case AREA_INTERIORS:
+        case TILESET_HOUSE:
             return HOUSE_SOUNDS;
-        case AREA_CAVE:
+        case TILESET_CAVE:
             return CAVE_SOUNDS;
         default:
             return DUNGEON_SOUNDS;
     }
 }
 
-// Every sound that an area's tile classes can make with any roll.
-static uint64_t reachable(uint8_t area) {
+// Every sound that a tileset's tile classes can make with any roll.
+static uint64_t reachable(uint8_t tileset) {
     uint64_t found = 0;
     for(unsigned ambient_class = 0; ambient_class <= AMBIENT_EMBER; ++ambient_class) {
         for(unsigned roll = 0; roll < 256; ++roll) {
             for(unsigned vary = 0; vary < 8; ++vary) {
-                SFX sound = tile_sound(area, (uint8_t)ambient_class, (uint8_t)roll, (uint8_t)vary);
+                SFX sound =
+                    tile_sound(tileset, (uint8_t)ambient_class, (uint8_t)roll, (uint8_t)vary);
                 if(sound != SFX_NONE)
                     found |= bit(sound);
             }
@@ -109,32 +110,31 @@ static uint64_t reachable(uint8_t area) {
 }
 
 static void voices() {
-    for(uint8_t area = 1; area <= NUM_AREAS; ++area) {
-        uint64_t found = reachable(area);
-        // Only the area's own sounds are heard there, and all of them can be.
-        CHECK((found & ~area_sounds(area)) == 0);
-        CHECK(found == area_sounds(area));
+    for(uint8_t tileset = 0; tileset < TILESET_COUNT; ++tileset) {
+        uint64_t found = reachable(tileset);
+        // Only the tileset's own sounds are heard with it, and all of them can be.
+        CHECK((found & ~tileset_sounds(tileset)) == 0);
+        CHECK(found == tileset_sounds(tileset));
         // A tile with no ambient class is silent, and so is a high roll: the sounds come on
         // occasion.
         for(unsigned roll = 0; roll < 256; ++roll)
-            CHECK(tile_sound(area, AMBIENT_NONE, (uint8_t)roll, 0) == SFX_NONE);
+            CHECK(tile_sound(tileset, AMBIENT_NONE, (uint8_t)roll, 0) == SFX_NONE);
         for(unsigned ambient_class = 0; ambient_class <= AMBIENT_EMBER; ++ambient_class)
-            CHECK(tile_sound(area, (uint8_t)ambient_class, 255, 0) == SFX_NONE);
+            CHECK(tile_sound(tileset, (uint8_t)ambient_class, 255, 0) == SFX_NONE);
     }
-    CHECK(tile_sound(0, AMBIENT_TREE, 0, 0) == SFX_NONE &&
-          tile_sound(NUM_AREAS + 1, AMBIENT_TREE, 0, 0) == SFX_NONE);
+    CHECK(tile_sound(TILESET_COUNT, AMBIENT_TREE, 0, 0) == SFX_NONE);
 
     // Birds sing from the trees, and a cave has no trees to sing from.
-    CHECK(((bit(tile_sound(AREA_OUTDOOR, AMBIENT_TREE, 0, 0)) & BIRDS) != 0));
-    CHECK(tile_sound(AREA_CAVE, AMBIENT_TREE, 0, 0) == SFX_NONE);
+    CHECK(((bit(tile_sound(TILESET_WORLD, AMBIENT_TREE, 0, 0)) & BIRDS) != 0));
+    CHECK(tile_sound(TILESET_CAVE, AMBIENT_TREE, 0, 0) == SFX_NONE);
     // Every variant of a group is chosen by some roll of the variety bits.
     uint64_t chosen = 0;
     for(unsigned vary = 0; vary < 256; ++vary)
-        chosen |= bit(tile_sound(AREA_OUTDOOR, AMBIENT_TREE, 0, (uint8_t)vary));
+        chosen |= bit(tile_sound(TILESET_WORLD, AMBIENT_TREE, 0, (uint8_t)vary));
     CHECK(chosen == BIRDS);
     // A fish splashes in the water, and a drop falls in a pool.
-    CHECK((bit(tile_sound(AREA_OUTDOOR, AMBIENT_WATER, 0, 0)) & WATER) != 0);
-    CHECK((bit(tile_sound(AREA_CAVE, AMBIENT_POOL, 0, 0)) & DRIPS) != 0);
+    CHECK((bit(tile_sound(TILESET_WORLD, AMBIENT_WATER, 0, 0)) & WATER) != 0);
+    CHECK((bit(tile_sound(TILESET_CAVE, AMBIENT_POOL, 0, 0)) & DRIPS) != 0);
 }
 
 // Every epoch has exactly one moment, and across epochs a sound is due about as often as the chance
@@ -290,26 +290,11 @@ static void places() {
     }
 
     // In a house: a creaking floor, and no wind and no birds. Houses have no sky.
-    TilePos way_out = positions::ElderExit;
+    TilePos way_out = positions::AldenExit;
     stand_at({way_out.area, way_out.x, (uint8_t)(way_out.y - 1)}, NORTH);
     Heard indoors = listen(0, 65536);
     CHECK(indoors.winds == 0 && (indoors.set & ~HOUSE_SOUNDS) == 0);
     CHECK((indoors.set & bit(SFX_CREAK)) != 0);
-
-    // In the cave: drips and the dark. No wind and no birds.
-    TilePos lever = positions::CaveLever;
-    stand_at({lever.area, lever.x, (uint8_t)(lever.y + 1)}, NORTH);
-    Heard cave = listen(0, 65536);
-    CHECK(cave.winds == 0 && (cave.set & ~CAVE_SOUNDS) == 0);
-    CHECK((cave.set & DRIPS) != 0);
-    CHECK(cave.count > 20);
-
-    // In the dungeon: the crypt's own sounds.
-    TilePos dungeon_lever = positions::DungeonLever;
-    stand_at({dungeon_lever.area, dungeon_lever.x, (uint8_t)(dungeon_lever.y + 1)}, NORTH);
-    Heard dungeon = listen(0, 65536);
-    CHECK(dungeon.winds == 0 && (dungeon.set & ~DUNGEON_SOUNDS) == 0);
-    CHECK(dungeon.count > 20);
 }
 
 int main() {

@@ -1,5 +1,6 @@
 #include "rpg.h"
 #include "battle.h"
+#include "class_choice.h"
 #include "tile_ids.h"
 #include "npc.h"
 #include "runtime_workspace.h"
@@ -114,8 +115,8 @@ void render_world_map(WorldMapView const& view, uint8_t ticks, bool markers) {
     avm_draw_sprite_overwrite(-view.camera_x, -view.camera_y, WORLD_MAP_SPRITE, 0);
     if(!markers)
         return;
-    int16_t player_x = (game.player.x + FOOT_CENTER_X) / TILE - view.camera_x;
-    int16_t player_y = (game.player.y + FOOT_CENTER_Y) / TILE - view.camera_y;
+    int16_t player_x = world_map_pixel((game.player.x + FOOT_CENTER_X) / TILE) - view.camera_x;
+    int16_t player_y = world_map_pixel((game.player.y + FOOT_CENTER_Y) / TILE) - view.camera_y;
     if(!(ticks & 16)) {
         avm_draw_filled_rect_black(player_x - 2, player_y - 2, 5, 5);
         avm_draw_filled_rect_white(player_x - 1, player_y - 1, 3, 3);
@@ -402,10 +403,18 @@ RPG_NOINLINE static void draw_actors(Camera c) {
     for(uint8_t i = 0; i < count; ++i) {
         uint8_t slot = order[i];
         Actor const& actor = actor_in_draw_slot(slot);
-        uint8_t row =
-            slot == PLAYER_DRAW_SLOT ? 0 : npc_definition(game.npcs.actors[slot].id)->sprite_row;
-        avm_draw_plus_mask((int16_t)actor.x - (int16_t)c.x, (int16_t)actor.y - (int16_t)c.y,
-                           actor_frame(actor, row, game.ticks));
+        int16_t x = (int16_t)actor.x - (int16_t)c.x, y = (int16_t)actor.y - (int16_t)c.y;
+        uint8_t row = 0;
+        if(slot != PLAYER_DRAW_SLOT) {
+            Npc const& npc = game.npcs.actors[slot];
+            row = npc_definition(npc.id)->sprite_row;
+            // A static object draws its own image, which leaves the selected sheet alone.
+            if(npc.policy_pending & NPC_FLAG_STATIC) {
+                avm_draw_sprite_plus_mask(x, y, NPC_STATIC_SPRITES, row);
+                continue;
+            }
+        }
+        avm_draw_plus_mask(x, y, actor_frame(actor, row, game.ticks));
     }
 }
 
@@ -623,8 +632,9 @@ static void draw_menu_footer(int16_t x, char const PROGMEM* action,
     draw_menu_rule(x, 52);
     if(action)
         draw_menu_button(x + MENU_LEFT_EDGE, MENU_FOOTER, MENU_BUTTON_A, action);
-    draw_menu_button(x + MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - avm_text_width(back),
-                     MENU_FOOTER, MENU_BUTTON_B, back);
+    if(back)
+        draw_menu_button(x + MENU_RIGHT_EDGE - MENU_BUTTON_LABEL_OFFSET - avm_text_width(back),
+                         MENU_FOOTER, MENU_BUTTON_B, back);
 }
 
 static void begin_menu_row(int16_t x, int16_t y, bool selected, int16_t width) {
@@ -1660,4 +1670,70 @@ void render_shop(uint8_t revealed, bool closing, ShopUi const& ui) {
     }
     if(revealed)
         render_shop_panel(DISPLAY_WIDTH - revealed, ui);
+}
+
+void class_choice_layout(ClassChoiceUi& ui) {
+    avm_set_text_font(AVM_FONT_BR5D);
+    class_choice_wrap(ui, TextRangeWidth{});
+}
+
+static void render_class_list(ClassChoiceUi const& ui) {
+    bool movement = ui.page == CLASS_PAGE_MOVEMENT;
+    draw_menu_title(MENU_LEFT_EDGE, movement ? F("Choose Movement") : F("Choose Attack"), 120);
+    draw_menu_rule(0, 12);
+
+    uint8_t count = movement ? (uint8_t)MOVEMENT_CLASS_COUNT : (uint8_t)ATTACK_CLASS_COUNT;
+    uint8_t selected = movement ? ui.movement : ui.attack;
+    uint8_t first = selected >= CLASS_LIST_ROWS ? selected - (CLASS_LIST_ROWS - 1) : 0;
+    for(uint8_t row = 0; row < CLASS_LIST_ROWS && first + row < count; ++row) {
+        uint8_t index = first + row;
+        int16_t y = 20 + 7 * row;
+        begin_menu_row(0, y, index == selected, 112);
+        avm_draw_text(7, y, movement ? party_movement_name(index) : party_attack_name(index));
+        avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    }
+    draw_menu_scroll(0, 20, 48, first, first + CLASS_LIST_ROWS < count);
+    // The choice cannot be abandoned, so only the attack list leads back.
+    draw_menu_footer(0, F("Details"), movement ? nullptr : F("Back"));
+}
+
+static void render_class_details(ClassChoiceUi const& ui) {
+    bool movement = ui.page == CLASS_PAGE_MOVEMENT_DETAILS;
+    draw_menu_title(MENU_LEFT_EDGE,
+                    movement ? party_movement_name(ui.movement) : party_attack_name(ui.attack), 76);
+    char const PROGMEM* kind = movement ? F("Movement") : F("Attack");
+    avm_draw_text(MENU_RIGHT_EDGE - avm_text_width(kind), 10, kind);
+    draw_menu_rule(0, 12);
+
+    char const PROGMEM* text = class_choice_text(ui);
+    for(uint8_t row = 0; row < CLASS_TEXT_ROWS && ui.scroll + row < ui.line_count; ++row) {
+        uint8_t line = ui.scroll + row;
+        uint8_t from = ui.starts[line], to = ui.starts[line + 1];
+        while(to > from && text[to - 1] == ' ')
+            --to;
+        text_draw_range(MENU_LEFT_EDGE, 22 + 8 * row, text, from, to);
+    }
+    draw_menu_scroll(0, 22, 46, ui.scroll, ui.scroll + CLASS_TEXT_ROWS < ui.line_count);
+    draw_menu_footer(0, F("Choose"));
+}
+
+static void render_class_confirm(ClassChoiceUi const& ui) {
+    draw_menu_title(MENU_LEFT_EDGE, F("Ready?"), 120);
+    draw_menu_rule(0, 12);
+    draw_label_value(MENU_LEFT_EDGE, 23, F("Movement:"), party_movement_name(ui.movement));
+    draw_label_value(MENU_LEFT_EDGE, 32, F("Attack:"), party_attack_name(ui.attack));
+    avm_draw_text(MENU_LEFT_EDGE, 45, F("These classes are permanent."));
+    draw_menu_footer(0, F("Confirm"));
+}
+
+void render_class_choice(ClassChoiceUi const& ui) {
+    avm_set_text_font(AVM_FONT_BR5D);
+    avm_set_text_mode(AVM_TEXT_WHITE_TRANSPARENT);
+    draw_menu_frame(0);
+    if(ui.page == CLASS_PAGE_CONFIRM)
+        render_class_confirm(ui);
+    else if(class_choice_describes(ui.page))
+        render_class_details(ui);
+    else
+        render_class_list(ui);
 }

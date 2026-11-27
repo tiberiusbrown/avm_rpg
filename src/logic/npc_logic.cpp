@@ -2,10 +2,18 @@
 
 #include "handlers.h"
 #include "npc_content.h"
+// Test fixtures add characters of their own.
+#ifdef RPG_NPC_CONTENT_HEADER
+#include RPG_NPC_CONTENT_HEADER
+#endif
 
 using EssentialContent = NpcContentCatalog<std::make_index_sequence<NPC_ID_LIMIT - 1>>;
 
-void npc_on_activate(Npc&) {}
+// A rat that is cast again after the traveler has chosen how to fight resumes the chase.
+void npc_on_activate(Npc& npc) {
+    if(npc.id == NPC_GIANT_RAT && game.get_flag(FLAG_MENU_PARTY))
+        npc_start_pursuit(npc.id);
+}
 
 void npc_on_event(Npc&, NPC_EVENT) {}
 

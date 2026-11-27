@@ -1,6 +1,6 @@
 #include "npc.h"
 #include "chunk.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "tile_ids.h"
 #include "actor_draw_order.h"
 #include <string.h>
@@ -10,16 +10,16 @@ static unsigned npc_test_dialogues, npc_test_choices;
 // Scenario positions are pixel offsets from the map point TestField, the origin of the cleared
 // window that these tests paint.
 static inline uint16_t scene_x(unsigned dx) {
-    return (uint16_t)(positions::TestField.x * TILE + dx);
+    return (uint16_t)(sites::TEST_FIELD.x * TILE + dx);
 }
 
 static inline uint16_t scene_y(unsigned dy) {
-    return (uint16_t)(positions::TestField.y * TILE + dy);
+    return (uint16_t)(sites::TEST_FIELD.y * TILE + dy);
 }
 
 static inline TilePos scene_tile(unsigned dx, unsigned dy) {
-    return TilePos{AREA_OUTDOOR, (uint8_t)(positions::TestField.x + dx),
-                   (uint8_t)(positions::TestField.y + dy)};
+    return TilePos{AREA_OUTDOOR, (uint8_t)(sites::TEST_FIELD.x + dx),
+                   (uint8_t)(sites::TEST_FIELD.y + dy)};
 }
 
 __attribute__((noinline)) static void npc_test_draw_order() {
@@ -29,7 +29,7 @@ __attribute__((noinline)) static void npc_test_draw_order() {
     uint8_t order[NPC_CAPACITY + 1];
     CHECK(actor_draw_order(order) == 1 && order[0] == PLAYER_DRAW_SLOT);
     for(uint8_t i = 0; i < NPC_CAPACITY; ++i) {
-        game.npcs.actors[i].id = NPC_TESSA;
+        game.npcs.actors[i].id = NPC_VILLAGER;
         game.npcs.actors[i].actor = {scene_x(16), scene_y(63 - i * 8), SOUTH, 0};
     }
     CHECK(actor_draw_order(order) == NPC_CAPACITY + 1);
@@ -50,7 +50,7 @@ __attribute__((noinline)) static void npc_test_draw_order() {
     camera = {scene_x(32), scene_y(16)};
     game.player = {scene_x(48), scene_y(32), SOUTH, 0};
     for(uint8_t i = 0; i < 5; ++i)
-        game.npcs.actors[i].id = NPC_TESSA;
+        game.npcs.actors[i].id = NPC_VILLAGER;
     game.npcs.actors[0].actor = {scene_x(17), scene_y(17), SOUTH, 0}; // One visible column.
     game.npcs.actors[1].actor = {scene_x(16), scene_y(32), SOUTH, 0}; // Touches the left edge.
     game.npcs.actors[2].actor = {scene_x(32), scene_y(0), SOUTH, 0};
@@ -67,8 +67,8 @@ __attribute__((noinline)) static void npc_test_foot_geometry() {
     game_new();
     npc_reset();
     camera = {scene_x(0), scene_y(0)};
-    cache.origin_tx = positions::TestField.x;
-    cache.origin_ty = positions::TestField.y;
+    cache.origin_tx = sites::TEST_FIELD.x;
+    cache.origin_ty = sites::TEST_FIELD.y;
     memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
     set_tile(scene_tile(3, 3), TILE_GRASS_06);
@@ -102,8 +102,8 @@ __attribute__((noinline)) static void npc_test_corridor(bool can_detour) {
     game_new();
     npc_reset();
     camera = {scene_x(0), scene_y(0)};
-    cache.origin_tx = positions::TestField.x;
-    cache.origin_ty = positions::TestField.y;
+    cache.origin_tx = sites::TEST_FIELD.x;
+    cache.origin_ty = sites::TEST_FIELD.y;
     memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
     for(uint8_t x = 0; x < CACHE_WIDTH; ++x)
@@ -112,7 +112,7 @@ __attribute__((noinline)) static void npc_test_corridor(bool can_detour) {
     game.player = {scene_x(20), y, EAST, 0};
     auto& blocker = game.npcs.actors[0];
     blocker = {};
-    blocker.id = NPC_TESSA;
+    blocker.id = NPC_VILLAGER;
     blocker.actor = {scene_x(48), y, WEST, 0};
     bool blocked = false;
     for(unsigned i = 0; i < 40; ++i) {
@@ -142,8 +142,8 @@ __attribute__((noinline)) static void npc_test_yield() {
     game_new();
     npc_reset();
     camera = {scene_x(0), scene_y(0)};
-    cache.origin_tx = positions::TestField.x;
-    cache.origin_ty = positions::TestField.y;
+    cache.origin_tx = sites::TEST_FIELD.x;
+    cache.origin_ty = sites::TEST_FIELD.y;
     memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
     for(uint8_t x = 0; x < CACHE_WIDTH; ++x)
@@ -152,7 +152,7 @@ __attribute__((noinline)) static void npc_test_yield() {
     game.player = {scene_x(40), scene_y(44), EAST, 0};
     auto& blocker = game.npcs.actors[0];
     blocker = {};
-    blocker.id = NPC_TESSA;
+    blocker.id = NPC_VILLAGER;
     blocker.actor = {scene_x(48), scene_y(44), WEST, 0};
     for(uint8_t i = 0; i < NPC_PUSH_FRAMES; ++i)
         npc_test_push_step(EAST);
@@ -178,23 +178,23 @@ static void run_npc_scenarios() {
     npc_test_draw_order();
     npc_test_foot_geometry();
     game_new();
-    CHECK(npc_find(NPC_TESSA) && npc_find(NPC_ORRIN));
-    CHECK(npc_definition(NPC_TESSA)->sprite_row == 9);
-    CHECK(npc_definition(NPC_ORRIN)->sprite_row == 2);
+    CHECK(npc_find(NPC_VILLAGER) && npc_find(NPC_WANDERER));
+    CHECK(npc_definition(NPC_VILLAGER)->sprite_row == 9);
+    CHECK(npc_definition(NPC_WANDERER)->sprite_row == 2);
     CHECK(!npc_definition((NPC_ID)255));
     CHECK(!npc_move_to((NPC_ID)255, scene_x(0), scene_y(0)));
-    CHECK(!npc_follow_route(NPC_TESSA, 255));
-    Npc* wanderer = npc_find(NPC_ORRIN);
+    CHECK(!npc_follow_route(NPC_VILLAGER, 255));
+    Npc* wanderer = npc_find(NPC_WANDERER);
     bool walked = false, paused = false;
     uint8_t facings = 0;
     for(unsigned i = 0; i < 400; ++i) {
         game_update(0);
-        CHECK(npc_find(NPC_ORRIN) == wanderer);
+        CHECK(npc_find(NPC_WANDERER) == wanderer);
         // The leash is sixteen pixels west and east, and twelve north and south, of home.
-        CHECK(wanderer->actor.x + 16 >= positions::OrrinLane.x * TILE &&
-              wanderer->actor.x <= positions::OrrinLane.x * TILE + 16);
-        CHECK(wanderer->actor.y + 12 >= positions::OrrinLane.y * TILE &&
-              wanderer->actor.y <= positions::OrrinLane.y * TILE + 12);
+        CHECK(wanderer->actor.x + 16 >= sites::LANE.x * TILE &&
+              wanderer->actor.x <= sites::LANE.x * TILE + 16);
+        CHECK(wanderer->actor.y + 12 >= sites::LANE.y * TILE &&
+              wanderer->actor.y <= sites::LANE.y * TILE + 12);
         CHECK(terrain_clear(wanderer->actor.x, wanderer->actor.y));
         walked |= wanderer->actor.walking != 0;
         paused |= wanderer->actor.walking == 0;
@@ -202,44 +202,41 @@ static void run_npc_scenarios() {
         npc_test_valid();
     }
     CHECK(walked && paused && (facings & (facings - 1)));
-    CHECK(npc_move_to<positions::TessaWell>(NPC_ORRIN));
-    CHECK(wanderer->target.x == positions::TessaWell.x * TILE &&
-          wanderer->target.y == positions::TessaWell.y * TILE);
-    CHECK(!npc_move_to(NPC_ORRIN, (uint16_t)(game.dimensions.width_tiles * TILE), scene_y(10)));
+    CHECK(npc_move_to<sites::WELL>(NPC_WANDERER));
+    CHECK(wanderer->target.x == sites::WELL.x * TILE && wanderer->target.y == sites::WELL.y * TILE);
+    CHECK(!npc_move_to(NPC_WANDERER, (uint16_t)(game.dimensions.width_tiles * TILE), scene_y(10)));
 
     game_new();
-    Npc* villager = npc_find(NPC_TESSA);
+    Npc* villager = npc_find(NPC_VILLAGER);
     // Walks run until arrival or failure, since NPCs step every other frame.
-    uint16_t const home_x = positions::TessaWell.x * TILE, home_y = positions::TessaWell.y * TILE;
-    CHECK(npc_move_to(NPC_TESSA, home_x, home_y + TILE)); // One tile south, on the street.
+    uint16_t const home_x = sites::WELL.x * TILE, home_y = sites::WELL.y * TILE;
+    CHECK(npc_move_to(NPC_VILLAGER, home_x, home_y + TILE)); // One tile south, on the street.
     for(unsigned i = 0; i < 200 && villager->behavior != NPC_STAND; ++i)
         game_update(0);
     CHECK(villager->actor.y == home_y + TILE && villager->behavior == NPC_STAND);
-    CHECK(npc_move_to(NPC_TESSA, home_x, home_y));
+    CHECK(npc_move_to(NPC_VILLAGER, home_x, home_y));
     for(unsigned i = 0; i < 200 && villager->behavior != NPC_STAND; ++i)
         game_update(0);
     CHECK(villager->actor.y == home_y && villager->behavior == NPC_STAND);
-    CHECK(npc_move_to(NPC_TESSA, positions::WellSign.x * TILE,
-                      positions::WellSign.y * TILE)); // The sign blocks this target.
+    CHECK(npc_move_to(NPC_VILLAGER, sites::SIGN.x * TILE,
+                      sites::SIGN.y * TILE)); // The sign blocks this target.
     for(unsigned i = 0; i < 400 && !(villager->state & NPC_TARGET_FAILED); ++i)
         game_update(0);
     CHECK(villager->state & NPC_TARGET_FAILED);
     CHECK(terrain_clear(villager->actor.x, villager->actor.y));
 
     game_new();
-    world_enter(AREA_OUTDOOR, positions::TessaOrchard.x * TILE, positions::TessaOrchard.y * TILE,
-                SOUTH);
-    CHECK(!npc_find(NPC_TESSA)); // Its home lies outside the cache from here.
-    world_enter(AREA_OUTDOOR, positions::PlayerStart.x * TILE, positions::PlayerStart.y * TILE,
-                NORTH);
-    CHECK(npc_find(NPC_TESSA));
+    world_enter(AREA_OUTDOOR, sites::ORCHARD.x * TILE, sites::ORCHARD.y * TILE, SOUTH);
+    CHECK(!npc_find(NPC_VILLAGER)); // Its home lies outside the cache from here.
+    world_enter(AREA_OUTDOOR, sites::PLAYER_START.x * TILE, sites::PLAYER_START.y * TILE, NORTH);
+    CHECK(npc_find(NPC_VILLAGER));
     // With no clear tile left, nothing walks out and no NPC is removed.
     memset(cache.tiles, TILE_TREE, sizeof(cache.tiles));
     note_tile_edit();
-    Npc* stuck = npc_find(NPC_TESSA);
+    Npc* stuck = npc_find(NPC_VILLAGER);
     uint16_t sx = stuck->actor.x, sy = stuck->actor.y;
     npc_update();
-    CHECK(npc_find(NPC_TESSA) == stuck && stuck->actor.x == sx && stuck->actor.y == sy);
+    CHECK(npc_find(NPC_VILLAGER) == stuck && stuck->actor.x == sx && stuck->actor.y == sy);
 
     npc_test_corridor(true);
     npc_test_corridor(false);

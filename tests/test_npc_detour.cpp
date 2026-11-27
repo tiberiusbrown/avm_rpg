@@ -3,7 +3,7 @@
 #include "chunk.h"
 #include "logic/npc_logic.h"
 #include "tile_ids.h"
-#include "map_positions.h"
+#include "cast.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,26 +75,26 @@ static void frame_with_tile(uint8_t tx, uint8_t ty, uint8_t tile) {
 
 // Scenario positions are pixel offsets from the residents' map homes.
 static uint16_t villager_x(int dx) {
-    return (uint16_t)(positions::TessaWell.x * TILE + dx);
+    return (uint16_t)(sites::WELL.x * TILE + dx);
 }
 
 static uint16_t villager_y(int dy) {
-    return (uint16_t)(positions::TessaWell.y * TILE + dy);
+    return (uint16_t)(sites::WELL.y * TILE + dy);
 }
 
 static uint16_t wanderer_x(int dx) {
-    return (uint16_t)(positions::OrrinLane.x * TILE + dx);
+    return (uint16_t)(sites::LANE.x * TILE + dx);
 }
 
 static uint16_t wanderer_y(int dy) {
-    return (uint16_t)(positions::OrrinLane.y * TILE + dy);
+    return (uint16_t)(sites::LANE.y * TILE + dy);
 }
 
 // Stands the player two tiles west of the villager's home. The cache then reaches the tile that
 // the villager's feet occupy at the far end of its walk.
 static void stand_west_of_home() {
-    game.player.x = (uint16_t)(positions::TessaWell.x - 2) * TILE;
-    game.player.y = (uint16_t)positions::TessaWell.y * TILE;
+    game.player.x = (uint16_t)(sites::WELL.x - 2) * TILE;
+    game.player.y = (uint16_t)sites::WELL.y * TILE;
     update_visible_world(0, false);
 }
 
@@ -102,18 +102,17 @@ static void stand_west_of_home() {
 static void test_villager_detours_around_tree() {
     game_new();
     stand_west_of_home();
-    Npc* v = npc_find(NPC_TESSA);
-    CHECK(v && v->actor.x == positions::TessaWell.x * TILE &&
-          v->actor.y == positions::TessaWell.y * TILE);
-    CHECK(npc_move_to(NPC_TESSA, villager_x(40), villager_y(0)));
+    Npc* v = npc_find(NPC_VILLAGER);
+    CHECK(v && v->actor.x == sites::WELL.x * TILE && v->actor.y == sites::WELL.y * TILE);
+    CHECK(npc_move_to(NPC_VILLAGER, villager_x(40), villager_y(0)));
     unsigned blocked_at = 0, sidestep_at = 0, frames = 0;
     uint16_t max_y = 0;
     bool reached = false;
     for(; frames < 600 && !reached; ++frames) {
         uint16_t x0 = v->actor.x, y0 = v->actor.y;
         // The tree sits just east of home, in the villager's row, on open ground.
-        frame_in_field(positions::TessaWell.x + 1, positions::TessaWell.y, TILE_TREE);
-        CHECK(npc_find(NPC_TESSA) == v);
+        frame_in_field(sites::WELL.x + 1, sites::WELL.y, TILE_TREE);
+        CHECK(npc_find(NPC_VILLAGER) == v);
         CHECK(terrain_clear(v->actor.x, v->actor.y));
         CHECK(moved(x0, y0, v) <= 1);
         if(!blocked_at && v->actor.x == villager_x(4) && v->actor.y == villager_y(0))
@@ -138,15 +137,15 @@ static void test_villager_detours_around_tree() {
 static void test_target_inside_obstacle_fails_within_budget() {
     game_new();
     stand_west_of_home();
-    Npc* v = npc_find(NPC_TESSA);
+    Npc* v = npc_find(NPC_VILLAGER);
     CHECK(v);
     // Its feet would lie inside the tree just north-east of home.
-    CHECK(npc_move_to(NPC_TESSA, villager_x(40), villager_y(-16)));
+    CHECK(npc_move_to(NPC_VILLAGER, villager_x(40), villager_y(-16)));
     unsigned frames = 0;
     for(; frames < 2000 && !(v->state & NPC_TARGET_FAILED); ++frames) {
         uint16_t x0 = v->actor.x, y0 = v->actor.y;
-        frame_with_tile(positions::TessaWell.x + 2, positions::TessaWell.y - 1, TILE_TREE);
-        CHECK(npc_find(NPC_TESSA) == v);
+        frame_with_tile(sites::WELL.x + 2, sites::WELL.y - 1, TILE_TREE);
+        CHECK(npc_find(NPC_VILLAGER) == v);
         CHECK(terrain_clear(v->actor.x, v->actor.y));
         CHECK(moved(x0, y0, v) <= 1);
     }
@@ -158,9 +157,9 @@ static void test_target_inside_obstacle_fails_within_budget() {
 // Solid all around, the villager has no way past. It holds its place and its target fails.
 static void test_boxed_in_npc_gives_up_in_place() {
     game_new();
-    Npc* v = npc_find(NPC_TESSA);
+    Npc* v = npc_find(NPC_VILLAGER);
     CHECK(v);
-    CHECK(npc_move_to(NPC_TESSA, villager_x(40), villager_y(0)));
+    CHECK(npc_move_to(NPC_VILLAGER, villager_x(40), villager_y(0)));
     uint16_t sx = v->actor.x, sy = v->actor.y;
     unsigned frames = 0;
     for(; frames < 800 && !(v->state & NPC_TARGET_FAILED); ++frames) {
@@ -169,7 +168,7 @@ static void test_boxed_in_npc_gives_up_in_place() {
         note_tile_edit();
         npc_update();
         ++game.ticks;
-        CHECK(npc_find(NPC_TESSA) == v);
+        CHECK(npc_find(NPC_VILLAGER) == v);
         CHECK(v->actor.x == sx && v->actor.y == sy);
     }
     CHECK(v->state & NPC_TARGET_FAILED);
@@ -179,9 +178,8 @@ static void test_boxed_in_npc_gives_up_in_place() {
 // keeps to its leash. It never overlaps the tree and never leaves the leash.
 static void test_wanderer_detours_under_tree_within_leash() {
     game_new();
-    Npc* w = npc_find(NPC_ORRIN);
-    CHECK(w && w->actor.x == positions::OrrinLane.x * TILE &&
-          w->actor.y == positions::OrrinLane.y * TILE);
+    Npc* w = npc_find(NPC_WANDERER);
+    CHECK(w && w->actor.x == sites::LANE.x * TILE && w->actor.y == sites::LANE.y * TILE);
     w->state |= NPC_WALK_PHASE;
     w->timer = 400;
     w->actor.facing = WEST;
@@ -190,8 +188,8 @@ static void test_wanderer_detours_under_tree_within_leash() {
     for(unsigned frame = 0; frame < 200; ++frame) {
         uint16_t x0 = w->actor.x, y0 = w->actor.y;
         // The tree sits one tile west of home, inside the leash.
-        frame_with_tile(positions::OrrinLane.x - 1, positions::OrrinLane.y, TILE_TREE);
-        CHECK(npc_find(NPC_ORRIN) == w);
+        frame_with_tile(sites::LANE.x - 1, sites::LANE.y, TILE_TREE);
+        CHECK(npc_find(NPC_WANDERER) == w);
         CHECK(terrain_clear(w->actor.x, w->actor.y));
         CHECK(moved(x0, y0, w) <= 1);
         if(w->actor.x < min_x)

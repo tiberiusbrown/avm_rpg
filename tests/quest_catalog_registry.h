@@ -2,11 +2,20 @@
 #define QUEST_CATALOG_REGISTRY_H
 
 // Registry for the catalog test build, which sets RPG_QUEST_ID_LIMIT to 40. Quest 1 is the
-// shipping Lantern Keeper. Quests 2 to 39 are synthetic probes whose state lives in test arrays, because
+// shipping Go Home. Quests 2 to 39 are synthetic probes whose state lives in test arrays, because
 // 40 quests cannot each own flags. They cover flag subscriptions, cascades, an evaluation cycle,
 // conversation delivery, starts, markers, consistency and a long Journal.
-#include "quests/lantern_keeper.h"
-#include "map_positions.h"
+#include "quests/go_home.h"
+#include "cast.h"
+
+// Flags that only the probes read. Equipment ownership flags have no other effect while nobody
+// wears the item.
+inline constexpr FLAG QUEST_FLAG_GATE = (FLAG)(FLAG_ITEM_FIRST + 20);
+inline constexpr FLAG QUEST_FLAG_NOOK = (FLAG)(FLAG_ITEM_FIRST + 21);
+inline constexpr FLAG QUEST_FLAG_BRIDGE = (FLAG)(FLAG_ITEM_FIRST + 22);
+inline constexpr FLAG QUEST_FLAG_ORB = (FLAG)(FLAG_ITEM_FIRST + 23);
+inline constexpr FLAG QUEST_FLAG_CHEST = (FLAG)(FLAG_ITEM_FIRST + 24);
+inline constexpr FLAG QUEST_FLAG_UNWATCHED = (FLAG)(FLAG_ITEM_FIRST + 25);
 
 inline QUEST_STATUS test_status[QUEST_ID_LIMIT];
 inline unsigned test_talks[QUEST_ID_LIMIT];
@@ -14,48 +23,48 @@ inline unsigned test_evaluations[QUEST_ID_LIMIT];
 inline unsigned test_starts[QUEST_ID_LIMIT];
 inline unsigned test_completions[QUEST_ID_LIMIT];
 
-// A quest that watches the cave gate, and cascades into the nook when it sees the gate set.
+// A quest that watches the gate, and cascades into the nook when it sees the gate set.
 template <> struct Quest<(QUEST_ID)2> {
-    using Watches = Watch<FlagChanged<FLAG_CAVE_GATE>>;
+    using Watches = Watch<FlagChanged<QUEST_FLAG_GATE>>;
     static QUEST_STATUS status() { return test_status[2]; }
     static char const PROGMEM* title() { return F("Gate Watcher"); }
-    static char const PROGMEM* summary() { return F("Watches the cave gate."); }
+    static char const PROGMEM* summary() { return F("Watches the gate."); }
     static void evaluate() {
         ++test_evaluations[2];
-        if(game.get_flag(FLAG_CAVE_GATE))
-            game.set_flag(FLAG_CAVE_NOOK);
+        if(game.get_flag(QUEST_FLAG_GATE))
+            game.set_flag(QUEST_FLAG_NOOK);
     }
 };
 
 // Cascade second stage: the nook sets the bridge.
 template <> struct Quest<(QUEST_ID)3> {
-    using Watches = Watch<FlagChanged<FLAG_CAVE_NOOK>>;
+    using Watches = Watch<FlagChanged<QUEST_FLAG_NOOK>>;
     static QUEST_STATUS status() { return test_status[3]; }
     static char const PROGMEM* title() { return F("Nook Watcher"); }
     static char const PROGMEM* summary() { return F("Watches the nook."); }
     static void evaluate() {
         ++test_evaluations[3];
-        if(game.get_flag(FLAG_CAVE_NOOK))
-            game.set_flag(FLAG_CAVE_BRIDGE);
+        if(game.get_flag(QUEST_FLAG_NOOK))
+            game.set_flag(QUEST_FLAG_BRIDGE);
     }
 };
 
 // Listens to the wanderer and counts each conversation without merging them.
 template <> struct Quest<(QUEST_ID)4> {
-    using Watches = Watch<NpcTalked<NPC_ORRIN>>;
+    using Watches = Watch<NpcTalked<NPC_WANDERER>>;
     static QUEST_STATUS status() { return test_status[4]; }
     static char const PROGMEM* title() { return F("Wanderer Listener"); }
-    static char const PROGMEM* summary() { return F("Talks with Orrin."); }
-    static void on(NpcTalked<NPC_ORRIN>) { ++test_talks[4]; }
+    static char const PROGMEM* summary() { return F("Talks with the wanderer."); }
+    static void on(NpcTalked<NPC_WANDERER>) { ++test_talks[4]; }
 };
 
 // Completes on the villager's conversation, once, and only while active.
 template <> struct Quest<(QUEST_ID)5> {
-    using Watches = Watch<NpcTalked<NPC_TESSA>>;
+    using Watches = Watch<NpcTalked<NPC_VILLAGER>>;
     static QUEST_STATUS status() { return test_status[5]; }
     static char const PROGMEM* title() { return F("Villager Listener"); }
-    static char const PROGMEM* summary() { return F("Talks with Tessa."); }
-    static void on(NpcTalked<NPC_TESSA>) {
+    static char const PROGMEM* summary() { return F("Talks with the villager."); }
+    static void on(NpcTalked<NPC_VILLAGER>) {
         ++test_talks[5];
         if(test_status[5] == QUEST_ACTIVE) {
             test_status[5] = QUEST_COMPLETED;
@@ -75,7 +84,7 @@ template <> struct Quest<(QUEST_ID)6> {
     static bool marker(uint8_t area, TilePos& out) {
         if(area != AREA_OUTDOOR)
             return false;
-        out = positions::WellSign;
+        out = sites::SIGN;
         return true;
     }
 };
@@ -104,19 +113,19 @@ template <> struct Quest<(QUEST_ID)9> {
 
 // A cycle: every evaluation toggles the flag it watches, so the notification never ends on its own.
 template <> struct Quest<(QUEST_ID)10> {
-    using Watches = Watch<FlagChanged<FLAG_DUNGEON_ORB>>;
+    using Watches = Watch<FlagChanged<QUEST_FLAG_ORB>>;
     static QUEST_STATUS status() { return test_status[10]; }
     static char const PROGMEM* title() { return F("Cycle"); }
     static char const PROGMEM* summary() { return F("Toggles its own flag."); }
     static void evaluate() {
         ++test_evaluations[10];
-        game.toggle_flag(FLAG_DUNGEON_ORB);
+        game.toggle_flag(QUEST_FLAG_ORB);
     }
 };
 
 // Shares the gate subscription with quest 2, so one change coalesces into two evaluations.
 template <> struct Quest<(QUEST_ID)11> {
-    using Watches = Watch<FlagChanged<FLAG_CAVE_GATE>>;
+    using Watches = Watch<FlagChanged<QUEST_FLAG_GATE>>;
     static QUEST_STATUS status() { return test_status[11]; }
     static char const PROGMEM* title() { return F("Shared Gate"); }
     static char const PROGMEM* summary() { return F("Also watches the gate."); }
@@ -129,7 +138,7 @@ template <> struct Quest<(QUEST_ID)12> {
     static char const PROGMEM* title() { return F("Checked"); }
     static char const PROGMEM* summary() { return F("Needs its chest."); }
     static bool consistent() {
-        return test_status[12] != QUEST_COMPLETED || game.get_flag(FLAG_DUNGEON_CHEST);
+        return test_status[12] != QUEST_COMPLETED || game.get_flag(QUEST_FLAG_CHEST);
     }
 };
 

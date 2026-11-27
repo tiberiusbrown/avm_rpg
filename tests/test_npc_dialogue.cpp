@@ -1,9 +1,8 @@
 #include "rpg.h"
 #include "chunk.h"
 #include "story_stub.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "logic/npc_logic.h"
-#include "quest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,13 +32,8 @@ bool dialogue_show(NPC_ID id, char const PROGMEM* words) {
     return dialogue_show(words);
 }
 
-// Questions take the scripted answer. Offers are accepted unless a test changes the answer.
-static bool answer_yes = true;
-static unsigned questions;
-
-bool dialogue_ask(char const PROGMEM* question) {
-    ++questions;
-    return question && answer_yes;
+bool dialogue_ask(char const PROGMEM*) {
+    return true;
 }
 
 bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
@@ -65,7 +59,7 @@ static void interaction_geometry() {
                         uint16_t nearest = 65535;
                         for(uint8_t slot = 0; slot < 2; ++slot) {
                             Npc& n = game.npcs.actors[slot];
-                            n.id = (slot ^ swap) ? NPC_ORRIN : NPC_TESSA;
+                            n.id = (slot ^ swap) ? NPC_WANDERER : NPC_VILLAGER;
                             int16_t x = slot && !tie ? -dx : dx;
                             int16_t y = slot && !tie ? -dy : dy;
                             n.actor = {(uint16_t)(px + x), (uint16_t)(py + y), STILL, 0};
@@ -97,68 +91,59 @@ static void interaction_geometry() {
     npc_talk(NPC_NONE);
 }
 
-int main() {
+// The traveler is a named speaker whose policy places no actor. Boulders are objects and unnamed.
+static void names() {
     CHECK(npc_name(NPC_NONE) == nullptr);
     CHECK(npc_name((NPC_ID)NPC_ID_LIMIT) == nullptr);
-    // The traveler is a named speaker whose policy places no actor.
     CHECK(!strcmp(npc_name(NPC_ALDEN), "Alden"));
     CHECK(npc_location(NPC_ALDEN).area == 0 && !npc_definition(NPC_ALDEN)->talkable);
-    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
-        CHECK(npc_name((NPC_ID)id) && *npc_name((NPC_ID)id));
-    CHECK(!strcmp(npc_name(NPC_ROWAN), "Rowan"));
-    interaction_geometry();
-    // Without a pending request, the Dialogue phase shows nothing.
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
+        bool boulder = id >= NPC_BOULDER_A && id <= NPC_BOULDER_D;
+        CHECK(boulder ? !npc_name((NPC_ID)id) : npc_name((NPC_ID)id) && *npc_name((NPC_ID)id));
+    }
+    CHECK(!strcmp(npc_name(NPC_ARCHER), "Archer"));
+}
+
+// A talk request waits for the Dialogue phase, which shows it once under the speaker's name.
+static void requests() {
+    game_new();
     npc_dialogue();
     CHECK(shown == 0);
-
-    // Requests are consumed once. Mara's lantern offer uses her own speaker identity.
-    story_stub_set_choice(1);
-    npc_talk(NPC_MARA);
-    CHECK(shown == 0 && questions == 0);
+    npc_talk(NPC_WANDERER);
+    CHECK(shown == 0);
     npc_dialogue();
-    CHECK(questions == 1 && quest_status(QUEST_LANTERN_KEEPER) == QUEST_ACTIVE);
+    CHECK(shown == 1 && last_speaker == NPC_WANDERER && !strcmp(last_text, "Hello."));
     npc_dialogue();
-    CHECK(questions == 1);
-
-    story_stub_set_choice(0);
-    npc_talk(NPC_ORRIN);
-    npc_dialogue();
-    CHECK(shown == 1 && last_text && last_speaker == NPC_ORRIN);
-    CHECK(!game.get_flag(FLAG_LANTERN_DIAGNOSED));
-
+    CHECK(shown == 1);
     npc_talk(NPC_NONE);
     npc_dialogue();
     CHECK(shown == 1);
-    game_new();
-    answer_yes = false;
-    story_stub_set_choice(1);
-    npc_talk(NPC_MARA);
-    npc_dialogue();
-    CHECK(questions == 2 && quest_status(QUEST_LANTERN_KEEPER) == QUEST_NOT_STARTED);
-    answer_yes = true;
 
+    // Interaction takes the actual path: the player faces the villager from the west.
+    Npc* villager = npc_find(NPC_VILLAGER);
+    CHECK(villager);
+    world_enter(AREA_OUTDOOR, villager->actor.x - TILE, villager->actor.y, EAST);
+    CHECK(npc_find(NPC_VILLAGER));
+    game_update(0, BTN_A);
+    CHECK(shown == 2 && last_speaker == NPC_VILLAGER);
+    CHECK(npc_find(NPC_VILLAGER)->actor.facing == WEST);
+}
+
+static void party_limits() {
     story_stub_reset(BATTLE_VICTORY);
     game_new();
     CHECK(story_stub_joins() == 0);
     CHECK(game.party.count == 1 && game.party.members[0].id == NPC_ALDEN);
-    CHECK(game.party.members[0].hp == 20 && party_max_hp(game.party.members[0]) == 20);
+    CHECK(game.party.members[0].hp == 12 && party_max_hp(game.party.members[0]) == 12);
     CHECK(game.party.members[0].ap == 4 && party_max_ap(game.party.members[0]) == 4);
     CHECK(game.party.members[0].movement_class == MOVEMENT_STEP);
     CHECK(game.party.members[0].attack_class == ATTACK_STRIKE);
-    Npc* rowan = npc_find(NPC_ROWAN);
-    CHECK(rowan && rowan->actor.x > game.player.x && rowan->actor.y > game.player.y);
-    CHECK(rowan->actor.x - game.player.x <= 2 * TILE);
-    CHECK(rowan->actor.y - game.player.y <= TILE);
-    // Approach the NPC from the west and use the actual interaction path.
-    world_enter(AREA_OUTDOOR, rowan->actor.x - TILE, rowan->actor.y, EAST);
-    CHECK(npc_find(NPC_ROWAN));
-    game_update(0, BTN_A);
-    CHECK(game.party.count == 2 && party_contains(NPC_ROWAN));
-    CHECK(last_speaker == NPC_ROWAN);
-    CHECK(story_stub_joins() == 1 && story_stub_last_join() == NPC_ROWAN);
-    CHECK(!npc_find(NPC_ROWAN));
-    CHECK(npc_find(NPC_TESSA) && npc_location(NPC_ORRIN) == positions::OrrinLane);
-    // Compact removal must leave no holes before another occupied slot.
+
+    // A recruit leaves the map, and the compacted actors leave no hole.
+    CHECK(npc_find(NPC_ARCHER));
+    CHECK(party_add(party_new_member(NPC_ARCHER, MOVEMENT_STEP, ATTACK_SHOOT)));
+    CHECK(story_stub_joins() == 1 && story_stub_last_join() == NPC_ARCHER);
+    CHECK(!npc_find(NPC_ARCHER) && npc_find(NPC_VILLAGER));
     bool empty = false;
     for(auto const& actor : game.npcs.actors) {
         if(!actor.id)
@@ -167,58 +152,51 @@ int main() {
             CHECK(!empty);
     }
     update_visible_world(0, false);
-    CHECK(!npc_find(NPC_ROWAN));
-    CHECK(game.party.members[1].hp == 18 && party_max_hp(game.party.members[1]) == 18);
-    CHECK(game.party.members[1].ap == 4 && party_max_ap(game.party.members[1]) == 4);
-    CHECK(game.party.members[1].movement_class == MOVEMENT_STEP);
-    CHECK(game.party.members[1].attack_class == ATTACK_SHOOT);
+    CHECK(!npc_find(NPC_ARCHER));
     CHECK(save_valid());
     Game recruited = game;
-    npc_talk(NPC_ROWAN);
-    npc_dialogue();
-    CHECK(game.party.count == 2);
     game.party.members[1].hp = 7;
     CHECK(save_restore());
     update_visible_world(0, false);
     CHECK(game.party.count == 2 && game.party.members[1].hp == 7);
-    CHECK(!npc_find(NPC_ROWAN));
-    npc_talk(NPC_ROWAN);
-    npc_dialogue();
-    CHECK(game.party.count == 2 && game.party.members[1].hp == 7);
-    CHECK(!npc_find(NPC_ROWAN));
+    CHECK(!npc_find(NPC_ARCHER));
 
-    world_enter(AREA_INTERIORS, positions::ElderExit.x * TILE,
-                (positions::ElderExit.y - 1) * TILE, SOUTH);
-    world_enter(AREA_OUTDOOR, positions::PlayerStart.x * TILE, positions::PlayerStart.y * TILE, NORTH);
-    CHECK(!npc_find(NPC_ROWAN));
-    CHECK(npc_find(NPC_TESSA) && npc_find(NPC_ORRIN));
-
+    world_enter(AREA_INTERIORS, sites::INN.x * TILE, (sites::INN.y + 1) * TILE, NORTH);
+    world_enter(AREA_OUTDOOR, sites::PLAYER_START.x * TILE, sites::PLAYER_START.y * TILE, NORTH);
+    CHECK(!npc_find(NPC_ARCHER));
+    CHECK(npc_find(NPC_VILLAGER) && npc_location(NPC_WANDERER) == sites::LANE);
     CHECK(story_stub_joins() == 1);
 
     // Capacity, identity and statistic failures leave the entire party untouched.
-    CHECK(party_add({20, 4, MOVEMENT_LEAP, ATTACK_STRIKE, NPC_TESSA, 1, 0}));
-    CHECK(party_add({0, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ORRIN, 1, 0}));
+    CHECK(party_add({12, 4, MOVEMENT_LEAP, ATTACK_STRIKE, NPC_VILLAGER, 1, 0}));
+    CHECK(party_add({0, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_WANDERER, 1, 0}));
     CHECK(game.party.count == PARTY_CAPACITY && save_valid());
-    CHECK(story_stub_joins() == 3 && story_stub_last_join() == NPC_ORRIN);
+    CHECK(story_stub_joins() == 3 && story_stub_last_join() == NPC_WANDERER);
     Party full = game.party;
-    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_SMITH, 1, 0}));
     CHECK(!memcmp(&full, &game.party, sizeof(Party)));
     game = recruited;
     Party before = game.party;
-    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ROWAN, 1, 0}));
-    CHECK(!party_add({21, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
-    CHECK(!party_add({20, 5, MOVEMENT_STEP, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
-    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
-    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_CLASS_COUNT, NPC_TESSA, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ARCHER, 1, 0}));
+    CHECK(!party_add({13, 4, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({12, 5, MOVEMENT_STEP, ATTACK_SHOOT, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOOT, NPC_VILLAGER, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_CLASS_COUNT, NPC_VILLAGER, 1, 0}));
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, (NPC_ID)NPC_ID_LIMIT, 1, 0}));
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_NONE, 1, 0}));
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ALDEN, 1, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(story_stub_joins() == 3);
     game_new();
-    CHECK(game.party.count == 1 && !party_contains(NPC_ROWAN));
-    CHECK(npc_find(NPC_ROWAN));
+    CHECK(game.party.count == 1 && !party_contains(NPC_ARCHER));
+    CHECK(npc_find(NPC_ARCHER));
+}
 
+int main() {
+    names();
+    interaction_geometry();
+    requests();
+    party_limits();
     printf("npc dialogue checks passed: %u\n", checks);
     return 0;
 }

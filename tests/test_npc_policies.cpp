@@ -1,5 +1,5 @@
-#include "logic/area_village.h"
-#include "map_handler_catalog.h"
+#include "cast.h"
+#include "npc_policy.h"
 #include <cstdio>
 #include <cstdlib>
 
@@ -11,22 +11,22 @@
         }                                                                                          \
     } while(0)
 static bool first, second;
-using Policy = AtOneOf<positions::TessaWell, When<positions::TessaOrchard, [] { return first; }>,
-                       When<positions::RowanHome, [] { return second; }>>;
-using Absent = AtOneOf<NO_LOCATION, When<positions::RowanHome, [] { return first; }>>;
+using Policy = AtOneOf<sites::WELL, When<sites::ORCHARD, [] { return first; }>,
+                       When<sites::HOME, [] { return second; }>>;
+using Absent = AtOneOf<NO_LOCATION, When<sites::HOME, [] { return first; }>>;
 static_assert(sizeof(Policy::locations) / sizeof(TilePos) == 3);
-static_assert(Policy::locations[1] == positions::TessaOrchard);
+static_assert(Policy::locations[1] == sites::ORCHARD);
 static_assert(Absent::locations[0] == NO_LOCATION);
 
 int main() {
-    CHECK(Policy::current() == positions::TessaWell);
+    CHECK(Policy::current() == sites::WELL);
     second = true;
-    CHECK(Policy::current() == positions::RowanHome);
+    CHECK(Policy::current() == sites::HOME);
     first = true;
-    CHECK(Policy::current() == positions::TessaOrchard);
-    CHECK(Absent::current() == positions::RowanHome);
+    CHECK(Policy::current() == sites::ORCHARD);
+    CHECK(Absent::current() == sites::HOME);
     first = second = false;
     CHECK(Absent::current() == NO_LOCATION);
-    CHECK(AtOneOf<positions::OrrinLane>::current() == positions::OrrinLane);
+    CHECK(AtOneOf<sites::LANE>::current() == sites::LANE);
     std::puts("policy precedence, absence and derived site checks passed");
 }

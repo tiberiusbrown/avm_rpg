@@ -1,4 +1,4 @@
-"""Advisory 8×4 views from reachable Millcross tiles at game zoom."""
+"""Advisory 8×4 views from reachable outdoor tiles at game zoom; the village by default."""
 
 import argparse
 from collections import deque
@@ -13,7 +13,7 @@ def neighbors(x, y):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bounds", nargs=4, type=int, default=(9, 15, 45, 38),
+    parser.add_argument("--bounds", nargs=4, type=int, default=(31, 3, 56, 29),
                         metavar=("LEFT", "TOP", "RIGHT", "BOTTOM"))
     args = parser.parse_args()
     maps, _, names = load_world(Path(__file__).resolve().parents[1])

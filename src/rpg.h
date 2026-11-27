@@ -42,7 +42,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 24;
+inline constexpr uint8_t SAVE_VERSION = 26;
 
 enum {
     BTN_B = 4,
@@ -259,10 +259,13 @@ constexpr uint8_t party_victory_experience(PartyMember const&) {
 // Every member's AP maximum is the same until items and perks change it.
 inline constexpr uint8_t PARTY_BASE_AP = 4;
 
-// The maximum HP of a party member: the base of its identity, the traveler's 20 or Rowan's 18, plus
-// 2 at level 3, 2 more at level 7, and any equipped HP bonuses.
+// Every member's maximum HP before level and equipment bonuses.
+inline constexpr uint8_t PARTY_BASE_HP = 12;
+
+// The maximum HP of a party member: the base, plus 2 at level 3, 2 more at level 7, and any
+// equipped HP bonuses.
 constexpr uint8_t party_max_hp(PartyMember const& member) {
-    uint8_t base = member.id == NPC_ROWAN ? 18 : 20;
+    uint8_t base = PARTY_BASE_HP;
     switch(equipment_get(member, SLOT_ARMOR)) {
         case ITEM_LEATHER_JERKIN:
             base += 3;
@@ -388,6 +391,11 @@ static_assert(sizeof(Actor::x) == 2 && sizeof(Actor::y) == 2 && sizeof(Camera::x
               "16-bit actor and camera pixels");
 
 Area const PROGMEM* world_area(uint8_t id);
+#if !defined(RPG_AVM) || defined(RPG_FIXTURE_MAPS)
+// Tests substitute a map for an area. The replacement keeps the generated dimensions, which size
+// the chunk tables. A null area restores the generated map.
+void world_area_override(uint8_t id, Area const PROGMEM* area);
+#endif
 void reload_tile_window(TileCache& cache, uint8_t const PROGMEM* tiles, MapDimensions dimensions,
                         Camera camera);
 // Any collision at all makes a tile solid for NPCs, navigation and cached reads.
@@ -397,6 +405,10 @@ bool tile_solid(uint8_t tile);
 uint16_t tile_collision(uint8_t tile);
 // The AMBIENT_CLASS of a tile in the active area's tileset.
 uint8_t tile_ambient(uint8_t tile);
+#ifndef RPG_AVM
+// Host tests read the classes of tilesets that no area draws with.
+uint8_t tileset_tile_ambient(uint8_t tileset, uint8_t tile);
+#endif
 bool collision_pixel_solid(uint16_t mask, uint8_t x, uint8_t y);
 #ifndef RPG_AVM
 // Host tests substitute masks for tiles that the shipped tileset does not use.
@@ -411,9 +423,16 @@ bool terrain_clear(uint16_t x, uint16_t y);
 bool terrain_step_clear(uint16_t x, uint16_t y, DIRECTION dir);
 // Player foot box against collision masks. Full tiles block the whole box.
 bool player_terrain_clear(uint16_t x, uint16_t y);
+// Whether the foot box at pixel (x, y) touches the solid pixels of a 16x16 collision mask whose
+// top-left corner is at pixel (ox, oy).
+bool foot_hits_object(uint16_t mask, uint16_t x, uint16_t y, uint16_t ox, uint16_t oy);
 // Bit i is set when pixel i of the foot box's leading edge is blocked: the right or left
 // column for east and west steps, and the bottom or top row for south and north steps.
 uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir);
+// The solid pixels of a 16x16 collision mask along eight pixels of one of its columns, or of one
+// of its rows. `across` picks the line, and `along`, from -7 to 15, is where the first of the
+// eight pixels falls on it. Bit i is set when pixel along + i is solid.
+uint8_t object_edge_bits(uint16_t mask, uint8_t across, int8_t along, bool column);
 void reload_tile_cache();
 // Exploration takes back the runtime workspace after a battle: it rebuilds the camera and tile window
 // from the world assets and persistent flags, and invalidates every cached collision answer.
@@ -422,6 +441,8 @@ bool update_visible_world(uint8_t pressed = 0, bool simulate = true);
 // Places the player in an area and resets its NPCs. The visible world is stale until
 // update_visible_world runs. Returns false, placing nothing, for an unknown area.
 bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);
+// The same for a loaded game, which keeps its saved position and NPC pool.
+bool world_resume();
 // world_place followed by update_visible_world.
 void world_enter(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing);
 uint16_t rng_next();
@@ -433,6 +454,15 @@ void game_new();
 
 // The counter sets this during dispatch. Exploration clears it before opening the modal.
 extern bool shop_requested;
+
+// Content hooks of the story, defined in src/logic/story.cpp.
+// Runs after the dialogue stage of every simulated frame; it may show blocking dialogue.
+void story_update();
+// The player must choose the traveler's classes before exploration continues.
+bool story_class_choice_due();
+void story_choose_classes(MOVEMENT_CLASS movement, ATTACK_CLASS attack);
+// The pause items that the story has not unlocked yet, one bit per PAUSE_ITEM.
+uint16_t story_locked_menu_items();
 
 // Returns true when the update teleported the player, so the area changed.
 bool game_update(uint8_t held, uint8_t pressed = 0);
@@ -609,6 +639,7 @@ void audio_screen(BattleScreen const* battle = nullptr);
 void party_screen();
 void journal_screen();
 void map_screen();
+void class_choice_screen();
 struct WorldMapView;
 void render_world_map(WorldMapView const& view, uint8_t ticks, bool markers = true);
 void transition_world_map(WorldMapView const& view, uint8_t ticks, bool closing);
@@ -625,6 +656,8 @@ uint8_t const PROGMEM* tileset_sprites(uint8_t tileset);
 // tileset_sprites(). Selecting the sheet is the whole cost of the animation.
 uint8_t const PROGMEM* tileset_phase_sprites(uint8_t tileset, uint8_t phase);
 extern uint8_t const PROGMEM ACTOR_SPRITES[];
+// Static NPC images, npc_static.png: 16x16 plus-mask frames that npc_static.tsx names.
+extern uint8_t const PROGMEM NPC_STATIC_SPRITES[];
 // 32x32 NPC faces, two frames per NPC_ID: frame NPC_ID * 2 is the mouth closed, +1 the mouth open.
 extern uint8_t const PROGMEM FACE_SPRITES[];
 // One byte per NPC_ID: nonzero when the ID has a portrait. An all-black row of faces32.png has

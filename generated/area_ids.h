@@ -5,10 +5,8 @@
 #include "tile_ids.h"
 inline constexpr uint8_t AREA_OUTDOOR = 1;
 inline constexpr uint8_t AREA_INTERIORS = 2;
-inline constexpr uint8_t AREA_CAVE = 3;
-inline constexpr uint8_t AREA_DUNGEON = 4;
 // Area IDs run from 1 to NUM_AREAS, with no gaps.
-inline constexpr uint8_t NUM_AREAS = 4;
+inline constexpr uint8_t NUM_AREAS = 2;
 inline constexpr uint8_t TILESET_WORLD = 0;
 inline constexpr uint8_t TILESET_CAVE = 1;
 inline constexpr uint8_t TILESET_DUNGEON = 2;
@@ -18,8 +16,6 @@ inline constexpr uint8_t TILESET_COUNT = 4;
 constexpr uint8_t area_tileset(uint8_t area) {
     switch(area) {
         case 2: return TILESET_HOUSE;
-        case 3: return TILESET_CAVE;
-        case 4: return TILESET_DUNGEON;
         default: return TILESET_WORLD;
     }
 }

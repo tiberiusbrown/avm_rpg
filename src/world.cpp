@@ -22,7 +22,7 @@ static void npc_feet_unknown() {
     for(auto& n : game.npcs.actors) {
         if(!n.id)
             break;
-        n.policy_pending &= (uint8_t)~4;
+        n.policy_pending &= (uint8_t)~NPC_FLAG_CLEAR;
     }
     game.npcs.terrain_dirty = 1;
 }
@@ -61,6 +61,12 @@ uint16_t tile_collision(uint8_t tile) {
 uint8_t tile_ambient(uint8_t tile) {
     return TILE_AMBIENT[(uint16_t)((uint16_t)area_tileset(game.area) << 8 | tile)];
 }
+
+#ifndef RPG_AVM
+uint8_t tileset_tile_ambient(uint8_t tileset, uint8_t tile) {
+    return TILE_AMBIENT[(uint16_t)((uint16_t)tileset << 8 | tile)];
+}
+#endif
 
 bool tile_solid(uint8_t tile) {
     return tile_collision(tile) != 0;
@@ -297,6 +303,27 @@ RPG_NOINLINE static bool foot_hits_mask(uint16_t mask, uint16_t left, uint16_t t
     uint8_t xi = (uint8_t)(left + FOOT_WIDTH - 1 - (uint16_t)(uint8_t)tile * TILE);
     uint8_t yi = (uint8_t)(top + FOOT_HEIGHT - 1 - (uint16_t)(tile >> 8) * TILE);
     return (mask & FOOT_TRIANGLES.mask[(uint16_t)yi * FOOT_X_SPANS + xi]) != 0;
+}
+
+bool foot_hits_object(uint16_t mask, uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
+    // The span index is unsigned, so a foot box left of or above the object wraps out of range.
+    uint16_t xi = (uint16_t)(x + FOOT_RIGHT - ox), yi = (uint16_t)(y + FOOT_BOTTOM - oy);
+    if(xi >= FOOT_X_SPANS || yi >= FOOT_Y_SPANS)
+        return false;
+    return (mask & FOOT_TRIANGLES.mask[yi * FOOT_X_SPANS + xi]) != 0;
+}
+
+uint8_t object_edge_bits(uint16_t mask, uint8_t across, int8_t along, bool column) {
+    // The line crosses two quadrants of the square, which hold its first and last eight pixels.
+    uint8_t const PROGMEM* lines = column
+                                       ? reinterpret_cast<uint8_t const PROGMEM*>(&QUADRANT_COLUMNS)
+                                       : reinterpret_cast<uint8_t const PROGMEM*>(&QUADRANT_ROWS);
+    uint8_t shift = column ? (uint8_t)((across & 8) >> 1) : (uint8_t)(across & 8);
+    uint8_t low = lines[(uint8_t)((mask >> shift) & 0xF) * 8 + (across & 7)];
+    shift = (uint8_t)(shift + (column ? 8 : 4));
+    uint8_t high = lines[(uint8_t)((mask >> shift) & 0xF) * 8 + (across & 7)];
+    uint16_t line = (uint16_t)(low | (uint16_t)high << 8);
+    return (uint8_t)(along < 0 ? line << -along : line >> along);
 }
 
 __attribute__((noinline)) uint8_t player_leading_edge(uint16_t x, uint16_t y, DIRECTION dir) {
@@ -539,6 +566,9 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
         RPG_PHASE(5);
         process_all_chunks<STAGE_DIALOGUE>();
         npc_dialogue();
+        // The story judges only simulated frames, never a scene being prepared.
+        if(simulate && !teleported)
+            story_update();
         if(teleported) {
             refresh_tile_cache();
             RPG_PHASE(6);
@@ -560,7 +590,8 @@ bool update_visible_world(uint8_t pressed, bool simulate) {
     return teleported;
 }
 
-bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
+// Puts the player into an area that is about to be shown for the first time.
+static bool world_begin(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     Area const PROGMEM* a = world_area(area);
     if(!a)
         return false;
@@ -571,11 +602,24 @@ bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
     foot_cache.known = false;
     game.area = area;
     encounter_restore();
-    npc_reset();
     game.dimensions = {a->width, a->height};
     game.player = {x, y, facing, 0};
     game.previous_player_tile = {area, (uint8_t)((x + FOOT_CENTER_X) >> TILE_SHIFT),
                                  (uint8_t)((y + FOOT_CENTER_Y) >> TILE_SHIFT)};
+    return true;
+}
+
+bool world_place(uint8_t area, uint16_t x, uint16_t y, DIRECTION facing) {
+    if(!world_begin(area, x, y, facing))
+        return false;
+    npc_reset();
+    return true;
+}
+
+bool world_resume() {
+    if(!world_begin(game.area, game.player.x, game.player.y, game.player.facing))
+        return false;
+    npc_resume();
     return true;
 }
 

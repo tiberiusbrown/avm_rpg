@@ -2,6 +2,7 @@
 #include "rpg.h"
 #include "battle_cursor.h"
 #include "journal.h"
+#include "class_choice.h"
 #include "music_catalog.h"
 #include "party_ui.h"
 #include "pause_menu.h"
@@ -346,12 +347,14 @@ __attribute__((noinline)) void journal_screen() {
 }
 
 __attribute__((noinline)) void map_screen() {
-    int16_t x = (game.player.x + FOOT_CENTER_X) / TILE;
-    int16_t y = (game.player.y + FOOT_CENTER_Y) / TILE;
-    WorldMapView view{{(int16_t)(map_clamp(x, OUTDOOR_WIDTH - 1) * MAP_SUBPIXELS)},
-                      {(int16_t)(map_clamp(y, OUTDOOR_HEIGHT - 1) * MAP_SUBPIXELS)},
-                      map_clamp(x - 64, OUTDOOR_WIDTH > 128 ? OUTDOOR_WIDTH - 128 : 0),
-                      map_clamp(y - 32, OUTDOOR_HEIGHT > 64 ? OUTDOOR_HEIGHT - 64 : 0)};
+    constexpr uint8_t WIDTH = OUTDOOR_WIDTH * WORLD_MAP_SCALE;
+    constexpr uint8_t HEIGHT = OUTDOOR_HEIGHT * WORLD_MAP_SCALE;
+    int16_t x = world_map_pixel((game.player.x + FOOT_CENTER_X) / TILE);
+    int16_t y = world_map_pixel((game.player.y + FOOT_CENTER_Y) / TILE);
+    WorldMapView view{{(int16_t)(map_clamp(x, WIDTH - 1) * MAP_SUBPIXELS)},
+                      {(int16_t)(map_clamp(y, HEIGHT - 1) * MAP_SUBPIXELS)},
+                      map_clamp(x - 64, WIDTH > 128 ? WIDTH - 128 : 0),
+                      map_clamp(y - 32, HEIGHT > 64 ? HEIGHT - 64 : 0)};
     uint8_t ticks = 0;
     transition_world_map(view, ticks, false);
     input_sync();
@@ -362,14 +365,15 @@ __attribute__((noinline)) void map_screen() {
             transition_world_map(view, (uint8_t)(ticks - 1), true);
             return;
         }
-        update_world_map(view, input_held(), OUTDOOR_WIDTH, OUTDOOR_HEIGHT);
+        update_world_map(view, input_held(), WIDTH, HEIGHT);
         render_world_map(view, ticks++);
         avm_display(true);
     }
 }
 
 __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUSE_ITEM initial) {
-    PauseMenuView view = pause_open(initial, save_exists, battle != nullptr, game.area == AREA_OUTDOOR);
+    PauseMenuView view = pause_open(initial, save_exists, battle != nullptr,
+                                    game.area == AREA_OUTDOOR, story_locked_menu_items());
     uint8_t width = menu_width(view);
     int16_t revealed = 0;
     bool closing = false;
@@ -426,7 +430,8 @@ __attribute__((noinline)) MENU_EXIT menu_screen(BattleScreen const* battle, PAUS
                     break;
                 case PAUSE_SAVE:
                     game_save();
-                    view = pause_open(PAUSE_SAVE, save_exists, false, game.area == AREA_OUTDOOR);
+                    view = pause_open(PAUSE_SAVE, save_exists, false, game.area == AREA_OUTDOOR,
+                                      story_locked_menu_items());
                     width = menu_width(view);
                     feedback = F("Saved");
                     break;
@@ -536,6 +541,55 @@ __attribute__((noinline)) void audio_screen(BattleScreen const* battle) {
     }
 }
 
+// The traveler picks a movement and an attack class. The world fades out to the panel and back,
+// and the choice cannot be abandoned.
+__attribute__((noinline)) void class_choice_screen() {
+    ClassChoiceUi ui;
+    class_choice_open(ui);
+    fade_world_out();
+    for(uint8_t step = FADE_STEPS; step--;) {
+        render_class_choice(ui);
+        show_fade(step);
+    }
+    input_sync();
+
+    bool redraw = false;
+    for(;;) {
+        input_wait_frame();
+        if(redraw) {
+            render_class_choice(ui);
+            // A waiting page keeps its frame in RAM, as Party does.
+            avm_display(false);
+            redraw = false;
+        }
+        CLASS_CHOICE_PAGE before = ui.page;
+        CLASS_CHOICE_EVENT event = class_choice_press(ui, input_pressed());
+        if(event == CLASS_CHOICE_NONE)
+            continue;
+        if(event == CLASS_CHOICE_EDGE) {
+            sfx_play(SFX_CURSOR_EDGE);
+            continue;
+        }
+        if(event == CLASS_CHOICE_CONFIRM) {
+            sfx_play(SFX_SELECT);
+            break;
+        }
+        if(event == CLASS_CHOICE_TICK)
+            sfx_menu_tick();
+        else
+            sfx_play(event == CLASS_CHOICE_SELECT ? SFX_SELECT : SFX_CANCEL);
+        if(ui.page != before && class_choice_describes(ui.page))
+            class_choice_layout(ui);
+        redraw = true;
+    }
+
+    render_class_choice(ui);
+    fade_to_black();
+    story_choose_classes(class_choice_movement(ui), class_choice_attack(ui));
+    // The panel left the world's tile cache and actors as they were.
+    fade_world_in();
+}
+
 RPG_NOINLINE static void show_quest_notices() {
     QuestNotice notice;
     while(quest_take_notice(notice)) {
@@ -594,6 +648,8 @@ __attribute__((noinline)) void explore() {
 
     for(;;) {
         dialogue_close();
+        if(story_class_choice_due())
+            class_choice_screen();
         show_quest_notices();
         if(LevelUpNotice notice = quest_take_level_ups(); notice.members)
             show_quest_level_ups(notice);

@@ -13,9 +13,9 @@ objects and handlers. This guide covers what is particular to caves.
 - `assets/images/tiles16_cave_phase1.png` to `tiles16_cave_phase3.png`: the animation layers.
 - `assets/images/tiles16_cave_collision.png`: the atlas with solid pixels tinted red. The
   generator writes it on every run.
-- `assets/maps/cave.tmx`: Hollow Mine, the cave north of the village. `CAVE_preview.png` shows
-  the whole map.
-- The generator emits `CAVE_TILE_<symbol>` constants and `AREA_CAVE`.
+- No cave map exists yet. A new one is `assets/maps/<name>.tmx` with `cave.tsx`, and its
+  battlefields already use this tileset.
+- The generator emits `CAVE_TILE_<symbol>` constants.
 
 ## How a cave looks
 
@@ -173,7 +173,7 @@ swaps in.
   it: levers as `SWITCH_LEFT`, plates up, gates closed, bridges absent. The handler shows the
   other state while the mechanism's world flag is set.
 - **Handlers.** Each mechanism cell takes a handler point, and each handler is listed with its
-  flag and its set tile in `AreaMechanisms<AREA_CAVE>` in `src/logic/area_cave.h`. A cell that is
+  flag and its set tile in the area's `AreaMechanisms` table, in the area's header under `src/logic/`. A cell that is
   missing from the table fails to compile.
 
   | Handler | On | What it does |
@@ -181,9 +181,9 @@ swaps in.
   | `use_lever` | `SWITCH_LEFT` | Facing it and pressing A toggles the flag. |
   | `press_plate` | `PRESSURE_PLATE` | Standing on it sets the flag for good. |
   | `show_state` | a gate, or a rectangle of chasm cells | Shows the set tile while the flag is set. |
-  | `open_chest` | `CHEST_CLOSED` | Pressing A gives 25 gold, a Potion and an Ether once if both stacks have room. |
+  | `open_chest` | `CHEST_CLOSED` | Pressing A claims the chest's `ChestReward` once, if it fits. |
   | `steam_vent` | `VENT` | Blows for 96 ticks of every 256, on the game clock. |
-  | `show_message` | `SIGN` | Pressing A shows the notice's words, listed in `AreaMessages<AREA_CAVE>`. |
+  | `show_message` | `SIGN` | Pressing A shows the notice's words, listed in the area's `AreaMessages` table. |
   | `take_passage` | an exit or a doorway | Walking onto it leaves the cave. See [Exits](#exits). |
 
 - **One flag can drive several cells.** A lever and the gate it opens share a flag, and each
@@ -269,7 +269,7 @@ A cave joins the outdoor map through passages.
 
 - **A passage is a pair of markers**: an entrance outdoors and a doorway in the cave. Put a
   point with the handler `take_passage` on each, and add the pair to
-  `AreaPassages<AREA_CAVE>` in `src/logic/area_cave.h`. A marker that is missing from the tables fails
+  the area's `AreaPassages` table, in the area's header under `src/logic/`. A marker that is missing from the tables fails
   to compile.
 - **A cave mouth pairs with an `EDGE_TOP_EXIT`.** The player walks north into `CLIFF_CAVE`
   outdoors and arrives on the floor cell above the exit, facing north. Walking south onto the
@@ -297,21 +297,6 @@ A cave joins the outdoor map through passages.
 - **Leave a way through.** An object blocks most of its cell. Do not close a passage or box in
   a floor cell with objects. The content test fails when a walkable cell cannot be reached.
 
-## Hollow Mine
-
-`cave.tmx` is a worked example. Its chambers and its chain of mechanisms:
-
-- The **entrance chamber** holds a campfire, the bridge crew’s directions,
-  and Nell’s warning about the wolf. The exit leads to Millcross’s north road.
-- The **rail gallery** contains a wolf encounter and a tally board. `CaveLever`
-  opens the east gate to the winch room.
-- The **winch room** holds `CaveVaultLever`, which opens `CaveNookGate` to the west. Its south wall holds the old lantern relay.
-  `CavePlate` in the west inspection nook extends the bridge and opens the
-  surface hatch.
-- The **grotto** in the northwest holds a pool and an optional inscription.
-- A steam vent bars the north passage intermittently. The restored bridge
-  leads to the supply chest, the surveyor’s landing, and the ladder back to the west ridge.
-
 ## Before committing a cave map
 
 - The map uses `cave.tsx`, and no cell is unpainted. Void is `0x00`.
@@ -325,7 +310,7 @@ A cave joins the outdoor map through passages.
 - Every gate fills a passage one cell wide, and `GATE_SIDE` is used only across a passage that
   runs west to east.
 - Mechanisms are painted in their clear state. Each has a handler point on its tile and a row,
-  with its kind, in `AreaMechanisms<AREA_CAVE>`, and each exit has a row in `AreaPassages<AREA_CAVE>`.
+  with its kind, in the area's `AreaMechanisms` table, and each exit has a row in its `AreaPassages` table.
 - Every walkable cell can be reached once the mechanisms are open.
 - An animated tile is in sight of every floor cell.
 - The spawn is on a walkable cell with no handler.

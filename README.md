@@ -4,11 +4,11 @@ C++20 exploration on the 128x64 Arduboy AVM display, with 16x16 terrain and
 alpha-masked characters. Use the D-pad to move, A to interact, and B to open the pause menu.
 Walking into a hostile creature or blocking its step starts a battle.
 
-Millcross opens at Well Square. Inspect the dark well lantern, ask Mara at the
-Lantern Inn about it, or follow Nell’s lead about a missing surveyor. The inn
-offers free rest, Ada stocks supplies across the square, and Rowan can join the
-party. The [world bible](docs/world_bible.md) describes the village and its
-residents. The [game logic canon](docs/game_logic.md) details the shipped quests.
+Alden wakes from a nap in a forest clearing west of the village. Boulders have rolled into the
+only way out, so the first task is to push them aside and walk home. There Eliza is waiting with a
+problem: a giant rat in her bedroom. The [story](docs/story.md) tells the opening, the
+[world bible](docs/world_bible.md) describes the village and its residents, and the
+[game logic canon](docs/game_logic.md) details the shipped quests.
 
 Teleports, including entering and leaving buildings, use the same 320 ms dither fade through
 black as battles. The destination's camera, tile cache and actors are prepared while the screen
@@ -18,6 +18,7 @@ The pause menu slides in from the left, easing halfway to its target each frame 
 world fades to 50% black. Up/down selects **Resume**, **Save**, **Party**, **Supplies**, **Journal**,
 **Map**, **Audio**, or **Load**; A activates the selection, and B resumes with the
 reverse animation. The compact black panel has a white border and black outer edge.
+The story unlocks **Journal** and **Party**; **Supplies** stays hidden for now.
 Map appears only in the overworld, and Load appears only when the save flag is set, including
 immediately after saving. Seven rows fit in the pause panel. When more entries are visible,
 the list follows the inverted selection bar and arrow sprites show entries above or below.
@@ -55,11 +56,11 @@ The panel's navigation lives only while it is open, so closing and reopening Par
 of the first member. Learning a perk leaves current HP and AP as they were.
 
 The [progression rules](docs/game_logic.md#5-character-classes-progression-and-perks)
-list the available perks and specials. Alden starts alone. Rowan waits southeast of
-the starting point. Choose **Join my party** to recruit him. The world stays frozen
-while the menu is open and music continues.
+list the available perks and specials. Alden travels alone, and chooses movement and attack
+classes before the first fight. The world stays frozen while the menu is open and music
+continues.
 
-Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quests.md](docs/quests.md).
+Journal opens a full-width list of quests that have started, with their state and tracking. A opens a quest, where its summary wraps and its goal is shown, and A there tracks or untracks it. Only one quest is tracked at a time, and its marker appears on the map. See [docs/quest_programming.md](docs/quest_programming.md).
 
 **Supplies** opens a full-width panel with the same slide, fade, row highlight, footer buttons
 and wrapped descriptions as Party and Journal. Up/down selects a stack, including empty stacks.
@@ -67,16 +68,8 @@ A inspects it, then opens a target list or Elixir confirmation. The target list 
 and skips ineligible members as you move the highlight. A uses the item and returns to its stack.
 B goes back one page and closes the list to resume exploration.
 
-The General Store is on the east side of the village. Talk to Ada or face the
-counter and press A. Use Up and Down to choose a supply or scroll its description.
-A opens the description and purchase confirmation. B backs out one page or exits.
-The [supplies and rewards ledger](docs/game_logic.md#4-items-inventory-services-and-rewards)
-lists prices, effects, capacity, and chest contents.
-
-Face the inn counter and press A to ask for free rest. A accepts and restores
-the party’s HP and AP. B declines.
-
-Map opens a scrollable monochrome exterior overview at one pixel per tile. Roads and
+Map opens a scrollable monochrome exterior overview, at two pixels per tile while the whole
+map fits the display. Roads and
 building silhouettes are solid white, woodland is dotted, and water uses a checkerboard
 pattern. The cursor starts at the player; a separate blinking square marks the player
 after the cursor moves away. The crosshair gently expands and contracts, with an opaque
@@ -121,8 +114,7 @@ The FamiTracker reference files remain in `assets/music/imported/`.
 | Stone and Shadow | Dark, foreboding cave march: swelling drone, tolling bell, distant drums and a slow minor tune with a glimmer in the middle (`cave.avms`) | E minor / 4/4 | 68 | 91.765 s |
 | Where the Light Ends | Super creepy special-purpose track, kept for a later scene and played by no area yet (`creepy.avms`) | D Phrygian / 4/4 | 56 | 85.714 s |
 
-[`peaceful.avms`](assets/music/peaceful.avms) is *Morning in the Meadow*, the song of the outdoors, the interiors and
-the dungeon: 24 bars at 76 BPM in G major, in one quiet style. A breathy flute sings its own eight-bar tune
+[`peaceful.avms`](assets/music/peaceful.avms) is *Morning in the Meadow*, the song of the outdoors and the interiors: 24 bars at 76 BPM in G major, in one quiet style. A breathy flute sings its own eight-bar tune
 over G Em C D | G Em C D, with a rocking harp (one chord a bar, in eighth notes) and slow saw roots, and no
 drums. The [Venlor theme](docs/venlor_theme.md) is only quoted, in G, and its two halves are far apart. The question
 (`D4 | G4 A4 | D5 C5 A4`) opens the second section over G D and is left unanswered by the song's own music,
@@ -151,7 +143,7 @@ and sends at most five events in any 20 ms frame. With the song playing, the ani
 its 50 Hz pace (600 frames in 12 seconds, longest interval 332,136 cycles). The generated catalog exposes it as
 `MUSIC_TITLE` with the title **Call of Venlor**.
 
-[`cave.avms`](assets/music/cave.avms) is *Stone and Shadow*, the song of the Hollow Mine: 26 bars at 68 BPM
+[`cave.avms`](assets/music/cave.avms) is *Stone and Shadow*, a cave song for a later area: 26 bars at 68 BPM
 (91.8 seconds) in E minor. It is dark and foreboding but a real song, with a singable tune, honest chords and a
 steady bass, and none of the spoiled consonances of the creepy track. After a two-bar intro (a drone on E swells,
 a distant bell tolls E and B, and one drum answers) the tune enters on a 50% pulse "horn": two four-bar phrases
@@ -169,7 +161,7 @@ It does not quote the Venlor theme. The generated catalog exposes it as `MUSIC_C
 [`creepy.avms`](assets/music/creepy.avms) is *Where the Light Ends*, the cave's earlier song, now a super creepy
 special-purpose track held back for a later scene (20 bars at 56 BPM, D Phrygian and chromatic: a breathing
 drone, drips a semitone or a tritone off the drone, a limping music box, a heartbeat and a scream). No area plays
-it, and `tests/test_world.cpp` asserts so. Play it with `music_play(MUSIC_CREEPY)`.
+it, and `tests/test_story.cpp` asserts so. Play it with `music_play(MUSIC_CREEPY)`.
 
 Sound effects cover battles, menus, mechanisms, doors and the places themselves. Each
 `assets/sfx/*.avms` score is a one-shot effect, and the build compiles them all with
@@ -201,7 +193,7 @@ surroundings never cut off a sound that answers the player.
 | `lever_on`, `lever_off` | A lever is thrown on, and back off |
 | `plate_down` | A pressure plate sinks under the player |
 | `door_unlock`, `orb_light`, `chest_open` | A barred door is forced, the orb wakes, a chest opens |
-| `grind_open`, `grind_close` | A gate, a vault archway or a block of stone slides open or shut |
+| `grind_open`, `grind_close` | A boulder rolls, or a gate, archway or block of stone slides open or shut |
 | `scrape_open`, `scrape_close` | Spikes sink into the floor, or thrust up out of it |
 | `bridge_extend`, `bridge_retract` | A bridge runs out over a chasm, or folds away |
 | `door_open`, `door_close` | The player enters a house, and leaves it |
@@ -241,9 +233,8 @@ two in a house. Ambient effects are quieter than the ones that answer the player
 
 The pre-title is silent while you choose whether to enable audio with B. If enabled, Call of Venlor
 starts when the animated title appears. Starting or continuing a game fades it into the
-area's song: Morning in the Meadow outdoors, in the interiors and in the dungeon, and Stone and Shadow in the
-cave. Battles switch to Steel at Dawn and return to
-Morning in the Meadow when A dismisses the result screen. Music continues through dialogue and menus.
+area's song, Morning in the Meadow in both areas. Battles switch to Steel at Dawn and return to
+the area's song when A dismisses the result screen. Music continues through dialogue and menus.
 
 `music_play(MUSIC_TRACK)` queues a different song with `avm_audio_play_fade`.
 The runtime starts it immediately when no song is active.
@@ -283,18 +274,16 @@ dialogue. Animated tiles cost nothing per tile: each of the four phases has its 
 sheet. The tile and map rules are in `assets/maps/AUTHORING.md`. The same tiles decide what the
 player hears: see the environment sounds under the music section above.
 
-The overworld is one 240x248-tile map with Millcross in its northwest corner beside
-a river with two bridges. Forest, cliffs, sea and rocks close the map border. Each of the
-ten houses has its own interior: face a door and press A to enter, and walk out through
-the exit at the bottom of the room to leave.
+The outdoor map is 64x32 tiles: the forest clearing, the boulder gate and the village with its
+river and bridge, walled by cliffs, water, forest, rocks and fences. The village houses stand
+along two streets with signs by their doors. Alden's home, Eliza's home, the Shop and the Inn
+share the interior map: face a door and press A to enter, and walk out through the exit at the
+bottom of the room to leave.
 
-Two more places lie under the cliff north of the village. A cave mouth at the end of the north road
-leads into Hollow Mine. A separate door farther east leads
-into the Old Vault. Walk into either to enter. Both are built around mechanisms: levers,
-gates that draw down into the floor, pressure plates, spikes, sinking blocks, a bridge over a
-chasm and a steam vent that blows by the clock. Repairing the mine's bridge opens a two-way maintenance hatch on the west ridge. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
+**Static objects**, such as the boulders, are NPCs drawn from their own image sheet and collide
+with per-image pixel masks. See [static objects](docs/essential_npcs.md#static-objects).
 
-**This development build requires save version 24.** The traveler's saved party identity is
+**This development build requires save version 26.** The traveler's saved party identity is
 `NPC_ALDEN`, so earlier development saves are rejected. The live, pointer-free
 `Game` struct is saved directly from AVM's `.saved` prefix, including 16 defeated-enemy
 bits and the shared two-byte respawn countdown. Validation checks the countdown,
@@ -306,8 +295,8 @@ earned. Startup loads and validates that state to initialize the global
 `save_exists` flag, then prepares a new game for the title screen. Press A on the developer credit
 screen to reveal the animated title. A or B on the title continues the saved game when the flag is set
 and starts a new game otherwise. A new game preserves the flag; continuing and Load restore the
-saved world. NPC casts, the tile cache and the animation
-tick are rebuilt from quest-derived policies when a save is loaded. Resource and stack
+saved world, including each active NPC and pushed boulder where it was. The tile cache and the
+animation tick are rebuilt when a save is loaded. Resource and stack
 reports are verified by the full-LTO guest link.
 
 - `assets/maps/outdoor.tmx`: overworld terrain and native handler anchors.
@@ -317,11 +306,12 @@ reports are verified by the full-LTO guest link.
   `tiles16_house_phase*.png`: the animation frames of the tiles. `assets/images/ambient16.png`:
   the ambient creatures. See [Environment animation](#environment-animation).
 - `assets/maps/interiors.tmx`: the inside of every house, entered through the house doors.
-- `assets/maps/cave.tmx` and `dungeon.tmx`: Hollow Mine and the Old Vault.
 - `assets/tilesets/house.tsx`, `cave.tsx` and `dungeon.tsx`, with `tiles16_house.png`,
   `tiles16_cave.png` and `tiles16_dungeon.png`: the interior tilesets. Each map uses one
-  tileset, and the game draws each area with its own. See
+  tileset, and the game draws each area with its own. Battlefields use all of them. See
   `assets/maps/AUTHORING_INTERIOR.md`, `AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md`.
+- `assets/images/npc_static.png` and `assets/tilesets/npc_static.tsx`: the static object images
+  and their collision masks.
 - `assets/images/actors16.png`: 32 character rows (16 people, then 16 creatures and
   enemies), 12 frames per row, binary alpha.
 - `assets/images/cursor22.png`, `battle_targets16.png` and `battle_arrows16.png`: the battle
@@ -336,9 +326,8 @@ reports are verified by the full-LTO guest link.
   definitions, separate from generic mechanics. `handlers.h` only includes the others.
   `mechanisms.h` holds what the environments share: flag-driven cells (levers, plates, doors,
   chests), each with a mechanism kind that decides how it is worked and how it sounds, messages
-  that only show words, and passages between areas. `area_village.h` has the
-  outdoor messages and the houses, `area_cave.h` and `area_dungeon.h` have the mechanism, message and
-  passage tables of their own areas and their own handlers.
+  that only show words, and passages between areas. `area_village.h` has the villagers, the
+  boulders, the enemy catalog, the signs and the houses, and `story.cpp` runs the story.
 - `src/battle.h` and `src/battle.cpp`: the portable battle rules, encounter and unit types,
   and the legal-action enumeration shared by the UI and AI. `src/battlefields.cpp` defines the
   battlefield layouts and deployment areas.
@@ -348,9 +337,12 @@ reports are verified by the full-LTO guest link.
   in `tests/battle_reference.h`. `tests/battle_bench.cpp` reports search costs on the host, and
   `tests/story_stub.*` records story calls and sound requests on the host.
 - `src/quest.h`, `src/quest_dispatch.h`, `src/quest_runtime.cpp` and `src/quests/`: the quest interface,
-  compile-time event dispatch and the two Millcross quests. `src/journal.h` and the Journal screen show them.
-  `docs/quests.md` describes the architecture. `tests/test_quests.cpp`, `tests/test_quest_catalog.cpp`
-  and `tests/test_quest_validation.py` cover them.
+  compile-time event dispatch and the quests. `src/journal.h` and the Journal screen show them.
+  `docs/quest_programming.md` describes the architecture. `tests/test_story.cpp` plays the story,
+  `tests/test_quest_catalog.cpp` and `tests/test_quest_validation.py` cover the framework, and
+  `tests/test_content.py` checks the maps, including that the boulder puzzle cannot trap the player.
+- `tests/fixtures/`: a synthetic cast, maps, enemies and patrol, which the engine tests use so that
+  they do not depend on the game's content.
 - `assets/music/*.avms`: all editable soundtrack scores.
   CMake uses `tools/compile_music.py` and the SDK's `avm_music.py` to rebuild
   each `generated/*_music.h` constexpr header and automatically updates the song list.
@@ -367,10 +359,9 @@ reports are verified by the full-LTO guest link.
 
 ## Overworld encounters
 
-A wolf wanders west of Millcross’s north road. A lone wolf pursues the party at
-player speed on the rails of Hollow Mine. The Old Vault's guardian follows a patrol and challenges the party on
-contact. Victory pays the normal battle rewards and removes the defeated creature before
-exploration reappears.
+The giant rat in Eliza's bedroom is the only enemy. It holds still until Alden has chosen how to
+fight, then chases him. Victory pays the normal battle rewards and removes the defeated creature
+before exploration reappears.
 
 A victory over a respawnable enemy starts or restarts a shared five-minute exploration
 countdown. Menus, dialogue, battle and cutscenes pause it. When it expires, **The World
@@ -482,9 +473,9 @@ python tools/collect_evidence.py --build build --write-docs
 ```
 
 `rpg_integration` runs focused guest checks, short native profiles, and normal/FXC
-device smoke checks (boot, input, drawing, pause, save and restart) and sound checks
-(menu ticks, a gust heard as wind, the muted option, and a lever's chained effects, in the
-device mode `sounds`). With current artifacts it targets a 10–20 second run. `rpg_integration_full` retains the exhaustive
+device smoke checks (boot, input, drawing, pause, save and restart), a playthrough of the
+opening story (device mode `story`), and sound checks (menu ticks, a gust heard as wind, the
+muted option, and a rolling and a blocked boulder, in the device mode `sounds`). With current artifacts it targets a 10–20 second run. `rpg_integration_full` retains the exhaustive
 guest collision matrix, full device scenarios and 8-second profiles; run it before
 collecting performance evidence. Both targets print per-stage wall times and retain
 logs/captures in a fresh `build/verification-*` directory. Compilation is additional.

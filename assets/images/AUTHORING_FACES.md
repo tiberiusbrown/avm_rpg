@@ -54,20 +54,14 @@ Fill any unused slots on the sheet with opaque black.
   stays hidden.
 - **Draw an original face. Never scale up the sprite's head.** The face is a complete redraw
   in the style below.
-- **When a sprite changes, change the description and the face with it.** Moving Tessa to row 9
-  is an example: her face follows the new row.
+- **When a sprite changes, change the description and the face with it.** A character moved to
+  another row takes a face that follows the new row.
 
 | NPC ID | Name | Row in pair 0 | What the face shows |
 | --- | --- | --- | --- |
-| 1 `NPC_TESSA` | Tessa | 9 | Female. Long black hair, bangs and a centre parting. No head covering. |
-| 2 `NPC_ORRIN` | Orrin | 2 | Male. Short white hair and thick dark brows. No head covering. |
-| 3 `NPC_ROWAN` | Rowan | 3 | Male. A curved white hood and cowl hide his hair and ears. A diagonal strap crosses his chest. |
-| 4 `NPC_MARA` | Mara | 11 | Long medium-brown hair with a straight fringe and a collar pin. |
-| 5 `NPC_BRAM` | Bram | 7 | Bald crown, black hair at the sides, and a black moustache. |
-| 6 `NPC_NELL` | Nell | 12 | Long straight black hair under a white hat with a dark band and raised brim tips. |
-| 7 `NPC_ADA` | Ada | 14 | Long medium-brown hair beneath a white polka-dot kerchief with a diagonal fold and short side ties. |
-| 8 `NPC_SURVEYOR` | Surveyor | 10 | Swept pale-blond hair tucked behind one ear, thick dark eyebrows, and a standing collar. |
-| 9 `NPC_ALDEN` | Alden | 0 | Male. Short medium-brown hair with a straight fringe, round cheeks and a plain V-neck collar. |
+| 1 `NPC_ELIZA` | Eliza | 8 | Female. Long center-parted medium-brown hair, round cheeks and neckline. |
+| 2 `NPC_BRAM` | Bram | 7 | Male. Bald crown, black hair at the sides, and a black moustache. |
+| 3 `NPC_ALDEN` | Alden | 0 | Male. Short medium-brown hair with a straight fringe, round cheeks and a plain V-neck collar. |
 
 ## Portrait library
 
@@ -80,19 +74,19 @@ The [actor descriptions](actors16_descriptions.md) record the shared sprite trai
 | --- | --- | --- | --- | --- |
 | 0 | Alden | Hatched side sweep, round cheeks | Cropped fringe, angular face, tied collar | Blunt fringe, square face, large ears |
 | 1 | Swept black fringe, angled brows, overlapping collar | Straight black fringe, raised collar | Swept black fringe, cheek crease | Shaggy black fringe, oval face |
-| 2 | Orrin | White hair, heavy brows, deep cheek folds | Swept white hair, narrow jaw | Peaked white hair, long face |
-| 3 | Rowan | Curled white hood, crossed laces | Left-drooping white hood, diagonal shoulder strap | Rounded white hood with a slanted seam, square jaw, heavy brows, cheek creases |
+| 2 | Short white hair, thick dark brows | White hair, heavy brows, deep cheek folds | Swept white hair, narrow jaw | Peaked white hair, long face |
+| 3 | Curved white hood and cowl, diagonal chest strap | Curled white hood, crossed laces | Left-drooping white hood, diagonal shoulder strap | Rounded white hood with a slanted seam, square jaw, heavy brows, cheek creases |
 | 4 | Short black fringe, eyepatch with a diagonal strap, collar pin | Eyepatch and square jaw | Eyepatch and round cheeks | Eyepatch and lined cheeks |
 | 5 | White headband, short hatched hair, oval jaw, folded collar | Broad headband, sleeveless collar | Narrow headband tied on the right, long face | Headband tied on the left, pointed chin |
 | 6 | Short ruffled curls, broad jaw, laced tunic | Short scalloped curls, long face, shoulder strap | Dense short curls, wide brow, top laces | Cropped curls, defined ear folds, cheek creases |
 | 7 | Bram | Bald with a wide handlebar moustache and curved collar | Bald with a compact straight moustache and broad sash | Bald with a drooping moustache and broad chin |
-| 8 | Long center-parted hatched hair, round cheeks and neckline | Long center-parted hatched hair, narrow face | Long hatched hair tucked behind an ear, rounded face | Long center-parted waves, square neckline |
-| 9 | Tessa | Black curtain bangs, angular cheeks | Symmetric black bangs, pointed collar | Asymmetric black bangs, narrow chin |
-| 10 | Surveyor | Long pale-blond waves, wide jaw | Long pale-blond curls, narrow chin | Long pale-blond side sweep, folded neckline |
-| 11 | Mara | Long striped fringe, round cheeks | Long straight fringe, square collar pin, cheek creases | Short fringe over long straight hair, full cheeks |
-| 12 | Nell | Wide floppy hat, long face | Round high-crowned hat, small face | Tilted wide-brimmed hat, angular face |
+| 8 | Eliza | Long center-parted hatched hair, narrow face | Long hatched hair tucked behind an ear, rounded face | Long center-parted waves, square neckline |
+| 9 | Long black hair, bangs and a centre parting | Black curtain bangs, angular cheeks | Symmetric black bangs, pointed collar | Asymmetric black bangs, narrow chin |
+| 10 | Swept pale-blond hair, thick brows, standing collar | Long pale-blond waves, wide jaw | Long pale-blond curls, narrow chin | Long pale-blond side sweep, folded neckline |
+| 11 | Long hair with a straight fringe, collar pin | Long striped fringe, round cheeks | Long straight fringe, square collar pin, cheek creases | Short fringe over long straight hair, full cheeks |
+| 12 | Long black hair under a white banded hat | Wide floppy hat, long face | Round high-crowned hat, small face | Tilted wide-brimmed hat, angular face |
 | 13 | Long uneven dark curls, angular chin, dress pin | Long tight waves, square face | Long corkscrew curls, tapered chin | Broad uneven waves, lined cheeks |
-| 14 | Ada | Polka-dot kerchief tied on the right, round chin | Snug polka-dot kerchief, cheek creases | Left-tied polka-dot kerchief, long face |
+| 14 | Polka-dot kerchief with a diagonal fold and side ties | Polka-dot kerchief tied on the right, round chin | Snug polka-dot kerchief, cheek creases | Left-tied polka-dot kerchief, long face |
 | 15 | Long center-parted silver hair, no brows, cheek creases, folded collar | Long silver waves, long cheeks, folded collar | Long symmetric silver waves, round neckline | Long center-parted silver hair, angular jaw |
 
 ## Art style
@@ -119,12 +113,13 @@ not stored in this repository. Emulate it:
 - **Show where short hair ends.** Keep it above or behind the ears and expose the cheeks
   below. A cheek contour that turns inward under the ear separates the head from the shoulders.
 - **Keep ears compact at eye level.** Draw a short white lobe around a dark inner crease.
-  Use Orrin and Bram in pair 0 as references.
+  Use rows 2 and 7 in pair 0 as references.
 - **Features are small and plain.** Eyes are short dashes with a white catch-light, brows are
   strokes above them, and the nose is a few pixels. Keep the mouth corners level for a neutral
   expression.
 - **Put a visible hairline between white hair and white skin.** When hair and face are the same
-  colour, a dark line has to separate them or they merge. Orrin has an arc across his forehead.
+  colour, a dark line has to separate them or they merge. The row 2 face has an arc across its
+  forehead.
 - **Draw the chin above the neck.** Carry the black jawline from cheek to cheek and keep the
   skin below it separate in both mouth frames.
 - **Judge the face on black.** The panel is black, so black at the edge of a figure is
@@ -138,13 +133,13 @@ brows, nose length, lashes and wrinkles. It does not belong to where the eyes an
 | Feature | Position |
 | --- | --- |
 | Eyes | Three pixels wide, two tall. Rows 15-16, at columns 11-13 and 18-20. The top-left pixel is white as a catch-light. |
-| Brows | Rows 12-13 over the eyes. Tessa's are a thin arc and Orrin's are thick. Rowan's are lost in the shadow under his hood. |
+| Brows | Rows 12-13 over the eyes. Row 9's are a thin arc and row 2's are thick. Row 3's are lost in the shadow under the hood. |
 | Nose | Ends on row 18 for everyone. |
 | Closed mouth | A straight line on row 21, at columns 14-17. |
-| Face size | Tessa's face and Rowan's hood opening are both 16 pixels wide and 14 rows tall, from the forehead shadow to the chin. Orrin's broader head is 20 wide, with the same features inside it. |
+| Face size | The row 9 face and the row 3 hood opening are both 16 pixels wide and 14 rows tall, from the forehead shadow to the chin. The broader row 2 head is 20 wide, with the same features inside it. |
 
-The face does not shrink to fit its surroundings. Rowan's hood opening was enlarged to match
-Tessa's face for this reason.
+The face does not shrink to fit its surroundings. The row 3 hood opening was enlarged to match
+the row 9 face for this reason.
 
 ## Closed and open mouths
 

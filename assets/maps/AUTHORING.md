@@ -12,8 +12,8 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 ## Files
 
 - `assets/maps/*.tmx`: one finite orthogonal Tiled map per area. `outdoor.tmx` is the
-  overworld. `interiors.tmx` holds the inside of every house. `cave.tmx` is Hollow Mine,
-  and `dungeon.tmx` is the Old Vault.
+  forest clearing and the village. `interiors.tmx` holds the inside of every house. No cave or
+  dungeon map exists yet.
 - **Each map uses exactly one tileset**, and the game draws and collides each area with
   the tileset of its map. Outdoor maps use `world.tsx`. Tile IDs belong to a tileset, so
   the same ID is a different tile in another tileset.
@@ -83,7 +83,7 @@ and [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) describe caves and dungeons.
 | `0x42` | 66 | `CHEST_CLOSED` | partly | Closed chest with a lit lid and a lock. Collectible. Blocks its cell without the top corners. |
 | `0x43` | 67 | `CHEST_OPEN` | partly | Opened chest with its lid raised. The collected state of `CHEST_CLOSED`. |
 | `0x59` | 89 | `GRASS_59` | yes | Sparse grass floor with two tufts. It sits in the center of the cliff block. |
-| `0xD0–0xD2` | 208–210 | `VILLAGE_LANTERN_DARK`, `VILLAGE_LANTERN_MODERN`, `VILLAGE_LANTERN_ANCIENT` | partly | Shared diamond collision. Paint the dark variant under the `VillageLantern` marker. |
+| `0xD0–0xD2` | 208–210 | `VILLAGE_LANTERN_DARK`, `VILLAGE_LANTERN_MODERN`, `VILLAGE_LANTERN_ANCIENT` | partly | A public lamp, unlit or lit two ways. Shared diamond collision. |
 
 The road, bridge, large boulder, water, raised-area and fence cells are named too. Their
 tables are in [Roads](#roads), [Bridges](#bridges), [Rocks](#rocks), [Water](#water),
@@ -150,10 +150,13 @@ Rules for tiled trees:
   clump is `0x03` and `0x04` over `0x13` and `0x14`.
 - **The map edge matches any seam.** The forest continues beyond the map, so a piece on
   the edge may have a seam that faces outside. Half a tree at the edge is correct.
-- **A dense forest is `0x11` everywhere.** Around it, each cell beside one or two `0x11`
-  cells takes the piece whose seams face those cells: `0x21` below the forest, `0x01`
-  above it, `0x12` to its right, `0x10` to its left, and the clump pieces at its corners.
-  A cell beside three `0x11` cells has no piece. Make it `0x11` too.
+- Around a block of `0x11` cells, each cell beside one or two of them takes the piece whose
+  seams face those cells: `0x21` below, `0x01` above, `0x12` to the right, `0x10` to the left,
+  and the clump pieces at its corners. A cell beside three `0x11` cells has no piece.
+- **Never paint a large solid block of trees.** Build a forest as a mosaic of pines, single
+  round trees, clumps, short runs and a few rocks, with small grass gaps and islets. The
+  content test rejects any 4x4 block that holds only tree pieces. A gap must not open a way
+  through a barrier.
 - Never place `TREE_ROUND` next to a piece whose side facing it is a seam. Two
   `TREE_ROUND` tiles never touch orthogonally.
 
@@ -499,11 +502,10 @@ Three cells mark a way in or down. All three are fully walkable.
 - `HOLE_LADDER` goes on open ground, with at least one walkable cell beside it.
 - Entering is content code. Put a point with the handler `take_passage` on the cell and on
   the doorway inside, and add the pair to `AreaPassages` in the header of the environment that
-  it leads into (`src/logic/area_cave.h` or `src/logic/area_dungeon.h`). The handler calls
+  it leads into. The handler calls
   `player_is_walking_onto<POS>()` and then `teleport_player<TARGET>()`. No tile sets `portal`.
   A marker that is missing from the tables fails to compile.
-- The outdoor map has three: `CaveMouth` and `CaveHole` lead into `cave.tmx`, and
-  `MineEntrance` leads into `dungeon.tmx`. [AUTHORING_CAVE.md](AUTHORING_CAVE.md#exits)
+- No authored map has an entrance yet. [AUTHORING_CAVE.md](AUTHORING_CAVE.md#exits)
   describes both ends of a passage.
 - **Give every entrance a handler that teleports.** The cells have no collision. A cave
   or mine with no handler acts as a ramp, and the player walks through it onto the floor
@@ -665,8 +667,9 @@ the player to the cell in front of the door. See
 - Put a point named `<House>Door` on the door tile, with the handler `enter_house`.
 - Put a point named `<House>Exit` on the room's exit cell in `interiors.tmx`, with the
   handler `leave_house`.
-- Add the pair to `HOUSE_LINKS` in `src/logic/area_village.h`. A door or exit that is missing
-  from the table fails to compile.
+- Name the interior's floor with a rectangle `<House>Rooms`, and add
+  `{door, exit, <House>RoomsRegion}` to `HOUSE_LINKS` in `src/logic/area_village.h`. A door or
+  exit that is missing from the table fails to compile.
 - The cell below the door is where the player returns. Keep it fully walkable.
 
 ## Animation
@@ -933,8 +936,8 @@ author a map by hand.
 - Lay roads with the road pieces in [Roads](#roads), not with grass cells.
 - **The border keeps the player off the map edge.** Close every cell of the perimeter
   with a barrier, and use several kinds around one map:
-  - Forest: `0x11` cells two or more deep, with the fringe pieces of
-    [Round trees](#round-trees) on the inside.
+  - Forest: a mosaic two or more cells deep, with the fringe pieces of
+    [Round trees](#round-trees). Check that no half-solid fringe leaves a walkable sliver.
   - Cliffs: a raised area that runs off the map. See [Raised areas](#raised-areas).
   - Water: a sea or lake two or more cells deep, or a river that runs off the map.
   - Rocks: a band of fully solid rocks and boulders two or more cells deep.
@@ -966,9 +969,13 @@ Place objects in the Logic group, with Locations and Routes as the other allowed
   `reverse` (default `once`), and `pause` set from 0 to 255 (default 16). A route needs
   2 to 255 waypoints. Each waypoint must sit inside a tile, not on a tile edge or
   corner. Keep waypoints on passable tiles where an NPC can stand.
-- **Test anchors.** `TestField` is open meadow for the native scenario tests, which paint
-  their own ground over it. Scenario positions are offsets from named points, such as
-  `TestField` or a resident's home. Test code never uses absolute map coordinates.
+- **Static objects.** A movable object is an NPC with `NPC_BODY_STATIC`, placed by its
+  policy at a point marker. The objects of a puzzle must share one 8x4 chunk, aligned to the
+  grid, so that they unload together; keep the terrain around a sliding puzzle either whole or
+  empty, so the objects move on a grid. The content test proves that the boulder gate cannot
+  trap the player. See [static objects](../../docs/essential_npcs.md#static-objects).
+- **Tests.** Engine tests run on the fixture maps in `tests/fixtures/`, not on the authored
+  maps. Content checks of the authored maps live in `tests/test_content.py`.
 - Do not use object types, classes or templates. The exporter rejects them.
 
 ## Artistic rules

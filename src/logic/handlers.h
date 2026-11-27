@@ -5,7 +5,5 @@
 // environments register their tables with it.
 #include "mechanisms.h"
 #include "area_village.h"
-#include "area_cave.h"
-#include "area_dungeon.h"
 
 #endif

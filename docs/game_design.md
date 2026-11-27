@@ -117,7 +117,7 @@ In exploration, face a person or an interactable tile and press A. Avoid requiri
 ## 5. World model and content structure
 
 The [content authoring guide](content_authoring.md) governs region additions.
-The [world bible](world_bible.md) records Millcross and established local facts.
+The [world bible](world_bible.md) records the village and established local facts.
 
 ### 5.1 Proposed initial scale and later expansion
 
@@ -332,10 +332,10 @@ highlight, wrapped descriptions, arrows and footer buttons. Inspecting a stack l
 a target picker or Elixir confirmation. Successful use returns to the selected stack.
 An invalid action or cancel leaves party stats and supplies unchanged.
 
-The inn counter offers unlimited free recovery to every member's derived HP and AP
-maximums, including an incapacitated party. Hollow Mine's chest adds a Potion and an
-Ether to its gold, and Old Vault's adds an Elixir and a Revive. Each chest is claimed once
-and stays intact when the party cannot carry its complete reward.
+An inn offers unlimited free recovery to every member's derived HP and AP maximums,
+including an incapacitated party. A chest can add supplies to its gold; it is claimed once
+and stays intact when the party cannot carry its complete reward. The current world has no
+inn service or chest yet, and the story keeps the Supplies menu locked.
 
 ## 10. Content authoring pipeline (offline; no runtime script VM)
 

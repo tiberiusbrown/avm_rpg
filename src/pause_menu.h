@@ -57,11 +57,13 @@ constexpr void pause_reconcile(PauseMenuView& view) {
         view.first = view.selected - PAUSE_ROWS + 1;
 }
 
-constexpr PauseMenuView pause_open(PAUSE_ITEM initial, bool can_load, bool in_battle,
-                                   bool outdoors) {
+// `locked` holds one bit per PAUSE_ITEM that the story has not unlocked yet.
+constexpr PauseMenuView pause_open(PAUSE_ITEM initial, bool can_load, bool in_battle, bool outdoors,
+                                   uint16_t locked = 0) {
     PauseMenuView view{};
     for(uint8_t item = 0; item < PAUSE_ITEM_COUNT; ++item) {
-        if(!menu_item_visible((PAUSE_ITEM)item, can_load, in_battle, outdoors))
+        if((locked & (1u << item)) ||
+           !menu_item_visible((PAUSE_ITEM)item, can_load, in_battle, outdoors))
             continue;
         view.visible |= 1u << item;
         if(item == initial)

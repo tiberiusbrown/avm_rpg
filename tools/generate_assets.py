@@ -277,10 +277,103 @@ def tileset_prefix(name):
     return "" if name == "world" else name.upper() + "_"
 
 
-def tileset_order(maps):
-    """Tilesets that maps use, in runtime index order: world first, then by name."""
-    names = {m.tileset for m in maps}
-    return sorted(names, key=lambda name: (name != "world", name))
+# The tileset of static NPC images. It is not a terrain tileset: static_npc_frames reads it.
+STATIC_NPC_TILESET = "npc_static.tsx"
+
+
+def terrain_tileset_paths(root):
+    return [
+        path
+        for path in sorted((root / "assets/tilesets").glob("*.tsx"))
+        if path.name != STATIC_NPC_TILESET
+    ]
+
+
+def tileset_order(names):
+    """Tilesets in runtime index order: world first, then by name."""
+    return sorted(set(names), key=lambda name: (name != "world", name))
+
+
+def runtime_records(path):
+    """A tileset's tile records keyed by runtime ID."""
+    records = tileset(path)
+    metadata = {tile["runtime"]: tile for tile in records.values()}
+    require(len(metadata) == len(records), path, "duplicate runtime tile IDs")
+    require(
+        set(metadata) == set(range(len(metadata)))
+        and len({t["symbol"] for t in metadata.values()}) == len(metadata),
+        path,
+        "runtime tile IDs must be dense from zero; tile symbols must be unique",
+    )
+    return metadata
+
+
+def load_tilesets(root):
+    """Every terrain tileset in assets/tilesets, by name, as records keyed by runtime ID. Maps
+    and battlefields draw from them, so all of them are exported."""
+    result = {}
+    for path in terrain_tileset_paths(root):
+        metadata = runtime_records(path)
+        name = metadata[0]["tileset"]
+        require(name not in result, path, f"two tilesets are named {name!r}")
+        result[name] = metadata
+    require(bool(result), root, "no tilesets in assets/tilesets")
+    return result
+
+
+def static_npc_frames(root=ROOT):
+    """The static NPC images of npc_static.tsx as (symbols, collision masks, frames, alpha
+    masks). Frame i is tile i of the tileset, whose image is a sheet of 16x16 plus-mask cells."""
+    path = root / "assets/tilesets" / STATIC_NPC_TILESET
+    node = ET.parse(path).getroot()
+    require(
+        node.tag == "tileset"
+        and node.get("name") == "npc_static"
+        and node.get("tilewidth") == node.get("tileheight") == "16",
+        path,
+        "expected the 16x16 npc_static tileset",
+    )
+    count, columns = integer(node, "tilecount", path), integer(node, "columns", path)
+    require(0 < count <= 255 and columns > 0, path, "1..255 static images")
+    image = node.find("image")
+    require(
+        image is not None and Path(image.get("source")).name == "npc_static.png",
+        path,
+        "the static NPC images live in npc_static.png",
+    )
+    frames, masks = read_sprite_sheet("npc_static.png", columns, root)
+    require(count <= len(frames), path, "the sheet holds fewer images than the tileset declares")
+    records = {}
+    for tile in node.findall("tile"):
+        local = integer(tile, "id", path)
+        require(0 <= local < count and local not in records, path, "invalid/duplicate tile id")
+        p = properties(tile, path)
+        require(
+            set(p) == {"symbol", "collision"},
+            path,
+            "a static image declares exactly the symbol and collision properties",
+        )
+        require(
+            type(p["collision"]) is int and 0 < p["collision"] <= 0xFFFF,
+            path,
+            "a static NPC blocks somewhere: collision 1..65535",
+        )
+        records[local] = (identifier(p["symbol"], path), p["collision"])
+    require(
+        set(records) == set(range(count))
+        and len({symbol for symbol, _ in records.values()}) == count,
+        path,
+        "declare every static image once with a unique symbol",
+    )
+    for index in range(count):
+        require(any("#" in row for row in masks[index]), path, f"static image {index} is blank")
+    ordered = [records[index] for index in range(count)]
+    return (
+        [symbol for symbol, _ in ordered],
+        [collision for _, collision in ordered],
+        frames[:count],
+        masks[:count],
+    )
 
 
 def load_world(root):
@@ -697,7 +790,7 @@ def load_world(root):
         "world",
         "area_id values must run 1..N with no gaps",
     )
-    return maps, tilesets[tileset_order(maps)[0]][1], names
+    return maps, tilesets[tileset_order(tilesets)[0]][1], names
 
 
 COLLISION_OVERLAY = "assets/images/tiles16_collision.png"
@@ -730,7 +823,7 @@ def tileset_overlays(root=ROOT):
     Parsing every tileset here keeps the unused ones valid until maps use them.
     """
     overlays = {}
-    for path in sorted((root / "assets/tilesets").glob("*.tsx")):
+    for path in terrain_tileset_paths(root):
         records = tileset(path)
         image = next(iter(records.values()))["image"]
         name = f"assets/images/{image.stem}_collision.png"
@@ -768,6 +861,8 @@ def overlay_png(atlas_path, metadata, scale=3):
 
 
 MAP_PREVIEW_DIR = "assets/images"
+# The world map screen draws a small outdoor map at two pixels per tile when it fits the display.
+DISPLAY_WIDTH, DISPLAY_HEIGHT = 128, 64
 OUTSIDE_PREVIEW_GRAY = 128
 
 
@@ -775,8 +870,14 @@ def map_preview_path(symbol):
     return f"{MAP_PREVIEW_DIR}/{symbol}_preview.png"
 
 
+def world_map_scale(width, height):
+    """Pixels per tile of the world map overview: two while the whole map still fits."""
+    return 2 if 2 * width <= DISPLAY_WIDTH and 2 * height <= DISPLAY_HEIGHT else 1
+
+
 def world_map_image(root=ROOT):
-    """Cartographic overview, one pixel per tile; patterns use world coordinates."""
+    """Cartographic overview at world_map_scale pixels per tile; patterns use world
+    coordinates."""
     maps, _, _ = load_world(root)
     outdoor = next(m for m in maps if m.symbol == "OUTDOOR")
     image = Image.new("1", (outdoor.width, outdoor.height))
@@ -822,7 +923,8 @@ def world_map_image(root=ROOT):
         else:
             lit = False
         image.putpixel((x, y), 255 if lit else 0)
-    return image
+    scale = world_map_scale(outdoor.width, outdoor.height)
+    return image.resize((outdoor.width * scale, outdoor.height * scale), Image.NEAREST)
 
 
 def world_map_sprite(image):
@@ -867,13 +969,13 @@ def map_previews(root=ROOT):
     return previews
 
 
-def tile_export_counts(maps):
-    """How many tiles of each tileset in use the sprite sheets hold, keyed by name. A sheet
-    stops after the highest tile that has art in any layer or that a map paints, because the
-    renderer only draws tiles of that span and the cells above it are blank."""
+def tile_export_counts(maps, tilesets):
+    """How many tiles of each tileset the sprite sheets hold, keyed by name. A sheet stops after
+    the highest tile that has art in any layer or that a map paints, because the renderer only
+    draws tiles of that span and the cells above it are blank."""
     counts = {}
-    for name in tileset_order(maps):
-        metadata = next(m.tiles for m in maps if m.tileset == name)
+    for name in tileset_order(tilesets):
+        metadata = tilesets[name]
         top = max(
             [i for i, frame in enumerate(tile_frames(metadata)) if any("#" in row for row in frame)]
             + [i for i, t in metadata.items() if t["wind"] is not None or any(t["phases"])]
@@ -884,21 +986,24 @@ def tile_export_counts(maps):
 
 
 def read_tileset_frames(root):
-    """Sprite frames of each tileset in use, keyed by name: the exported atlas frames in
-    runtime index order, then the wind block that tile_wind_block describes."""
+    """Sprite frames of each tileset, keyed by name: the exported atlas frames in runtime index
+    order, then the wind block that tile_wind_block describes."""
     maps, _, _ = load_world(root)
-    by_name = {m.tileset: m.tiles for m in maps}
-    counts = tile_export_counts(maps)
-    return {name: tile_sheet(by_name[name], counts[name]) for name in tileset_order(maps)}
+    tilesets = load_tilesets(root)
+    counts = tile_export_counts(maps, tilesets)
+    return {name: tile_sheet(tilesets[name], counts[name]) for name in tileset_order(tilesets)}
 
 
 def read_tileset_phase_frames(root):
-    """The sprite frames of each tileset in use for phases 1 to TILE_PHASES - 1, keyed by
-    name: one list of exported frames per phase."""
+    """The sprite frames of each tileset for phases 1 to TILE_PHASES - 1, keyed by name: one
+    list of exported frames per phase."""
     maps, _, _ = load_world(root)
-    by_name = {m.tileset: m.tiles for m in maps}
-    counts = tile_export_counts(maps)
-    return {name: tile_phase_sheets(by_name[name], counts[name]) for name in tileset_order(maps)}
+    tilesets = load_tilesets(root)
+    counts = tile_export_counts(maps, tilesets)
+    return {
+        name: tile_phase_sheets(tilesets[name], counts[name])
+        for name in tileset_order(tilesets)
+    }
 
 
 def tile_frames(metadata, count=None):
@@ -957,8 +1062,9 @@ def tile_phase_sheets(metadata, exported=None):
 def export_world(root=ROOT):
     maps, metadata, names = load_world(root)
     prologue = "/* Generated from TMX/TSX; do not edit. */\n"
-    order = tileset_order(maps)
-    by_name = {m.tileset: m.tiles for m in maps}
+    by_name = load_tilesets(root)
+    order = tileset_order(by_name)
+    static_symbols, static_collisions, _, _ = static_npc_frames(root)
     areas = [prologue, "#pragma once", "#include <stdint.h>", '#include "tile_ids.h"']
     areas += [f"inline constexpr uint8_t AREA_{m.symbol} = {m.area};" for m in maps]
     areas += [
@@ -987,7 +1093,7 @@ def export_world(root=ROOT):
         ]
     else:
         areas += ["    (void)area;", f"    return TILESET_{order[0].upper()};", "}"]
-    counts = tile_export_counts(maps)
+    counts = tile_export_counts(maps, by_name)
     wind_blocks = [(name, tile_wind_block(by_name[name], counts[name])) for name in order]
     areas += [
         "// Extra frames of a tileset's sprite sheet: `count` tiles from tile `first`, stored in",
@@ -1164,6 +1270,12 @@ def export_world(root=ROOT):
         for i in range(0, len(collision), 8)
     ]
     ids += array_lines("inline constexpr uint8_t TILESET_BLOCKED[]", blocked)
+    ids.append("// The images of npc_static.png, which static NPCs name as their sprite_row.")
+    ids += [
+        f"inline constexpr uint8_t NPC_STATIC_{symbol} = {index};"
+        for index, symbol in enumerate(static_symbols)
+    ]
+    ids.append(f"inline constexpr uint8_t NPC_STATIC_COUNT = {len(static_symbols)};")
     assets += array_lines("constexpr uint16_t PROGMEM TILE_COLLISION[]", collision)
     assets += array_lines("constexpr uint8_t PROGMEM TILE_PORTALS[]", portals)
     assets += array_lines("constexpr uint8_t PROGMEM TILE_AMBIENT[]", ambient)
@@ -1180,7 +1292,25 @@ def export_world(root=ROOT):
             if portal
         ]
         assets += ["        default: return false;", "    }", "}"]
-    assets += ["Area const PROGMEM* world_area(uint8_t id) {", "    switch(id) {"]
+    assets += array_lines("constexpr uint16_t PROGMEM NPC_STATIC_COLLISION[]", static_collisions)
+    assets += [
+        "uint16_t npc_static_collision(uint8_t frame) {",
+        "    return frame < NPC_STATIC_COUNT ? NPC_STATIC_COLLISION[frame] : 0;",
+        "}",
+        "#if !defined(RPG_AVM) || defined(RPG_FIXTURE_MAPS)",
+        f"static Area const PROGMEM* area_overrides[{len(maps) + 1}];",
+        "void world_area_override(uint8_t id, Area const PROGMEM* area) {",
+        f"    if(id >= 1 && id <= {len(maps)})",
+        "        area_overrides[id] = area;",
+        "}",
+        "#endif",
+        "Area const PROGMEM* world_area(uint8_t id) {",
+        "#if !defined(RPG_AVM) || defined(RPG_FIXTURE_MAPS)",
+        f"    if(id >= 1 && id <= {len(maps)} && area_overrides[id])",
+        "        return area_overrides[id];",
+        "#endif",
+        "    switch(id) {",
+    ]
     assets += [f"        case {m.area}: return &{m.symbol}_AREA;" for m in maps]
     assets += ["        default: return nullptr;", "    }", "}"]
 
@@ -1268,6 +1398,13 @@ def export_world(root=ROOT):
                 for point in o["points"]:
                     sites.append(f"    MapSite<{point['symbol']}, MapOperation_{o['handler']}>")
     catalog += ["using AllMapHandlers = TypeList<", ",\n".join(sites), ">;"]
+    outdoor = next((m for m in maps if m.symbol == "OUTDOOR"), None)
+    if outdoor:
+        header.append("// Pixels per tile of WORLD_MAP_SPRITE.")
+        header.append(
+            "inline constexpr uint8_t WORLD_MAP_SCALE = "
+            f"{world_map_scale(outdoor.width, outdoor.height)};"
+        )
     header += ["struct StaticArea { uint8_t id, width, height, columns, rows; };",
                "inline constexpr StaticArea STATIC_AREAS[] = {"]
     header += [f"    {{{m.area}, {m.width}, {m.height}, {m.columns}, {m.rows}}}," for m in maps]
@@ -1779,6 +1916,7 @@ def generate(root=ROOT):
     phase_sheets = read_tileset_phase_frames(root)
     actor_frames, actor_masks = read_sprite_sheet("actors16.png", ACTOR_COLUMNS, root)
     actor_rows = len(actor_frames) // ACTOR_COLUMNS
+    _, _, static_frames, static_masks = static_npc_frames(root)
     face_frames = read_face_frames(root)
     face_rows = len(face_frames) // FACE_COLUMNS
     prompt_frames = read_prompt_frames(root)
@@ -1802,7 +1940,7 @@ def generate(root=ROOT):
     title_pines = {name: read_title_pine(name, root) for name in TITLE_PINES}
     title_rock, title_rock_mask = read_picture("title_rock.png", root, masked=True)
     art = [
-        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, the 32x32 NPC faces, the 7x7 dialogue prompt indicators, and the title screen's picture, logo, foreground layers and plus-mask frames. */",
+        "/* Generated; 16x16 tiles with their phase and wind frames, alpha-derived actor, static NPC, ambient, battle target, arrow, and damage plus masks, the 22x22 cursor plus masks, the 32x32 NPC faces, the 7x7 dialogue prompt indicators, and the title screen's picture, logo, foreground layers and plus-mask frames. */",
         '#include "rpg.h"',
         '#include "ambient.h"',
         '#include "title.h"',
@@ -1827,6 +1965,8 @@ def generate(root=ROOT):
                 emitted.append((phase_frames, match))
             phase_names[name, phase] = match
     art += sprite_lines("ACTOR_SPRITES", actor_frames, actor_masks)
+    art.append("")
+    art += sprite_lines("NPC_STATIC_SPRITES", static_frames, static_masks)
     art.append("")
     art += sprite_lines("FACE_SPRITES", face_frames, None, FACE_SIZE)
     art.append("")

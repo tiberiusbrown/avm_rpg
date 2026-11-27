@@ -3,65 +3,34 @@
 Preserve these established facts when expanding Venlor. An intentional
 revision should update the affected conversations, maps, quests, and this guide.
 
-## Millcross
+## The village
 
-Millcross grew at the crossing below Hollow Mine, around a public stone well.
-Mine water used to run through a sluice and feed the orchard. The wooden bridge
-at the mine failed, and regular work stopped. The village now lives on fruit,
-repairs, and trade on the old crossing road.
+A small village of a few homes and buildings, joined by roads and marked with signs: Alden's
+home, Eliza's home, Bram's home (locked), a shop, an inn, and a few other houses and buildings
+whose purposes are still open. Cliffs, a river, fences, forest and rocks surround it. The only
+way out is the bridge south, and at the start of the story the watchman keeps it closed.
 
-Well Square joins the Lantern Inn and the provisions shop. West are the
-orchard, farm, and fenced plots. The smithy and weaver occupy quieter lanes
-east of the square. The sloping north road runs toward the mine. A separate
-mine-framed entrance farther east leads to the Old Vault, which has its own
-hazards.
+## The forest clearing
 
-Giant spiders wander along the orchard's northern edge. Rats roam west of
-the farm, a giant beetle forages east of Millcross, and a snake lurks near the
-fisher's house. A giant bat roosts in Hollow Mine's western passage. A slime
-lives by the grotto pool and a giant mushroom has taken root in the winch room.
+A large clearing a short walk west of the village, walled by forest, rock, cliff and water. Its one opening faces east toward the village. While Alden slept
+there, boulders rolled into that opening.
 
-A zombie and goblin prowl the Old Vault's west cell block. A skeleton and
-floating eye haunt the east wing. A golem and ghost keep to one side of the
-shrine, and a hooded cultist waits in the vault itself.
+## Residents
 
 | Resident | Place and role |
 | --- | --- |
-| Tessa | Orchard keeper, direct and protective of her trees. Often stops in Well Square and remembers sorting apples by the old lantern. |
-| Orrin | Retired sluice tender, a dry observer who walks near the elder's house. He knows how the old gates actually worked. |
-| Rowan | Hooded road archer near the square. Offers practical advice and can join the traveler. |
-| Mara | Lantern Inn keeper. Knows the neighbors and offers the party a place to recover. |
-| Bram | Smith, proud of his workmanship. He shut the orchard sluice after the water started flowing backward. |
-| Nell | Curious mine watcher on the north lane. Notices tracks and other details the adults pass over. |
-| Ada | Provisions merchant. Keeps inventory and thinks in terms of weather, work, and what customers can carry. |
-| Surveyor | Methodical field worker who took notes at the inn before following the old mine survey. After their return, they compare the new route with the old workings. |
+| Alden | The traveler the player controls. Naps in the clearing, then walks home. |
+| Eliza | A village resident and Alden's friend. Keeps a two-room home with a kitchen, living area and bedroom, and asks Alden to chase out a giant rat. |
+| Bram | The village watchman, who blocks the bridge out of the village. |
 
-## The well lantern and the mine survey
+## Story so far
 
-The Lantern Inn takes its name from the public lamp at the well. The old
-workshop supplied both the square and the mine, and Bram has kept its
-records. Mara remembers the square when the lantern was working. Orrin
-remembers stories about another lamp on the same line. The revived light
-may burn steadily with a part made in Millcross or pulse with a bell-like
-sound from the well if the old machinery is put back to work.
+Alden wakes in the clearing, pushes the boulders aside and walks home. Eliza is waiting there:
+a giant rat, bigger than anything she has seen, is inside her home. On seeing it, Alden decides
+how to move and fight. See [the story](story.md) and, for quest
+mechanics and dependencies, [game logic](game_logic.md).
 
-Nell saw the surveyor heading north toward Hollow Mine. They left their
-notes on the inn table and marked the trail on the way up. The collapse
-cut off the far landing, where the surveyor waited near the maintenance
-ladder. A hatch on the west ridge once let mine crews reach that landing
-from the surface. The cave wolf remains a danger on the rails.
+## Open questions
 
-For quest mechanics and dependencies, see [game logic](game_logic.md).
-
-## Facts and open questions
-
-Water ran uphill before Bram closed the sluice. The mine's tally records a
-load twice, with identical marks on both entries. These are local observations.
-Their cause, and whether they are connected, are open. Locals say that old
-things remember the shape of their work. Travelers may see a defeated animal
-return under **The World Remembers**.
-
-Use tools laid aside, chalk marks, worn steps, and water behaving oddly as
-recurring motifs. Future routes can follow the old waterworks, investigate
-the tally mark in another settlement, or explore who built the Old Vault.
-Leave the scale and nature of the wider mystery open.
+- Why the watchman keeps the village closed, and what lies beyond the bridge.
+- Who will live in the other houses, and what the shop and inn will offer.

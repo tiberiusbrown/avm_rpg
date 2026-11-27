@@ -75,7 +75,12 @@ def main():
         "avm button set A",
         "avm run-for 100ms",
         "avm button set",
-        "avm run-for 300ms",
+        # A new game opens with a line from the traveler, which A closes.
+        "avm run-for 2500ms",
+        "avm button set A",
+        "avm run-for 100ms",
+        "avm button set",
+        "avm run-for 500ms",
         "expr (int)game.ticks",
         "expr (int)game.player.x",
         "avm button set DOWN",
@@ -116,8 +121,9 @@ def main():
         and values[2] > spawn["ty"] * 16
         and values[3] == values[4]
     ), f"AVM shared rules/input diverged: {values}"
+    # The opening menu holds Resume, Save, Map and Audio, so the third row opens the map.
     assert values[5] == 1
-    assert "party_screen" in output and "explore" in output
+    assert "map_screen" in output and "explore" in output
     proof = [
         # M0 returns from loop every frame; setup is a one-shot stop during boot.
         "breakpoint set --name setup",
@@ -218,13 +224,14 @@ def main():
             qa_addresses = [0 if mode == "proof" else refs[key]["address"] for key in qa_keys]
             cases = [(mode, mode if args.full or mode == "proof" else "smoke")]
             if mode != "proof":
+                cases.append((f"{mode}-story", "story"))
                 cases.append((f"{mode}-sounds", "sounds"))
                 cases.append((f"{mode}-perk-ranks", "perk-ranks"))
-                cases.append((f"{mode}-bram-meeting", "bram-meeting"))
                 cases.append((f"{mode}-battle-classes", "battle-classes"))
                 cases.append((f"{mode}-battle-formation", "battle-formation"))
                 if args.full:
-                    cases.append((f"{mode}-millcross", "millcross"))
+                    for scenario in ("pause", "journal", "enemy-chase", "game-over", "battle"):
+                        cases.append((f"{mode}-{scenario}", scenario))
 
             device_measurements = []
             for label, scenario in cases:

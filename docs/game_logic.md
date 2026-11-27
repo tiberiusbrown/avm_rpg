@@ -1,8 +1,8 @@
 # Venlor — Game Logic Canon
 
-**Save format:** `SAVE_VERSION = 24`
+**Save format:** `SAVE_VERSION = 26`
 
-**Implemented quests:** The Lantern Keeper and The Missing Surveyor.
+**Implemented quests:** Go Home and Eliza's Giant Rat.
 
 ## 0. Purpose and authority
 
@@ -10,7 +10,7 @@ This document is the canonical specification for Venlor’s concrete game rules,
 content, persistent state, and dependencies. It contains no dialogue prose.
 
 - **Update this file in the same change as any modification** to a quest, NPC, item, perk, special, encounter, reward, progression formula, permanent world interaction, or persistent state contract. Add entries before coding new content where practical.
-- **Do not duplicate or fork these definitions** in new design notes. Other documents may discuss worldbuilding (`docs/world_bible.md`), presentation and density (`docs/content_authoring.md`), mechanics architecture (`docs/quests.md`), and map authoring (`assets/maps/AUTHORING*.md`); this file owns the logical inventories, prerequisites, effects, dependencies, and rewards.
+- **Do not duplicate or fork these definitions** in new design notes. Other documents may discuss worldbuilding (`docs/world_bible.md`), presentation and density (`docs/content_authoring.md`), mechanics architecture (`docs/quest_programming.md`), and map authoring (`assets/maps/AUTHORING*.md`); this file owns the logical inventories, prerequisites, effects, dependencies, and rewards.
 - **Stable identities:** preserve already-shipped IDs, and audit save compatibility whenever the layout, enum values, NPC identities, enemy catalog order, or map coordinates change. Do not derive identity from source-file order except where the current enemy catalog explicitly does so.
 - **Content style:** use identifiers, symbolic positions, gameplay conditions, effects and outcomes. Keep dialogue text, narrative descriptions, tile-art instructions and speculative story ideas out of this document.
 
@@ -23,240 +23,187 @@ content, persistent state, and dependencies. It contains no dialogue prose.
 
 ## 1. World, state and identity registry
 
-### 1.1 Areas and passages
+### 1.1 Areas
 
 | Area | ID | Tileset | Implemented use |
 |---|---:|---|---|
-| `AREA_OUTDOOR` | 1 | World | Millcross village, surrounding paths and wildlife encounters, mine/vault entrances, maintenance hatch |
-| `AREA_INTERIORS` | 2 | House | Ten linked house/service interiors; Mara and Ada reside here |
-| `AREA_CAVE` | 3 | Cave | Hollow Mine mechanisms, creature encounters, tally, chest, second exit |
-| `AREA_DUNGEON` | 4 | Dungeon | Old Vault mechanisms, guardian and optional encounters, chest |
+| `AREA_OUTDOOR` | 1 | World | The forest clearing, the boulder gate east of it, and the village with its river bridge (64x32) |
+| `AREA_INTERIORS` | 2 | House | Alden's home, Eliza's home, the Shop and the Inn (76x11) |
 
-House doors/returns are paired by `handler_impl::HOUSE_LINKS` in `src/logic/area_village.h`: `Elder`, `Cottage`, `Weaver`, `Shop`, `Bakery`, `Farm`, `Inn`, `Smithy`, `Hut`, `Fisher` (`<Name>Door` ↔ `<Name>Exit`). Facing/pressing A enters; stepping onto the exit returns outside. `CaveMouth` ↔ `CaveExit`, `CaveHole` ↔ `CaveLadder`, and `MineEntrance` ↔ `DungeonExit` are passage pairs. The outdoor `CaveHole` is **inactive until `FLAG_CAVE_BRIDGE`**, when its tile becomes a ladder and its passage handler activates.
+The cave and dungeon tilesets and battlefields remain for later areas. No map uses them.
+
+House doors and exits are paired by `handler_impl::HOUSE_LINKS` in
+`src/logic/area_village.h`: `Alden`, `Eliza`, `Shop`, `Inn` (`<Name>Door` ↔ `<Name>Exit`, with
+`<Name>RoomsRegion` as the floor). Facing a door and pressing A enters; walking onto the exit
+leaves, in front of the door. `ElizaRoomsRegion` includes the bedroom,
+`ElizaBedroomRegion`, which a hallway joins to the living room.
 
 ### 1.2 NPC identities and roles
 
-NPC identities persist independently of the eight-slot live NPC/enemy pool.
-`NPC_ALDEN = 9` identifies Alden, the traveler and player character. `NPC_NONE = 0`
+NPC identities persist independently of the eight-slot live NPC/enemy pool. `NPC_NONE = 0`
 means no identity.
 
-| `NPC_ID` | Value | Position policy / role in the two quests |
-|---|---:|---|
-| `NPC_TESSA` | 1 | Orchard keeper at `TessaWell`; reacts to village lantern restoration |
-| `NPC_ORRIN` | 2 | Former sluice tender on the lane east of the inn; gives optional information about old lantern works and the mine; no required quest-completion trigger |
-| `NPC_ROWAN` | 3 | Optional archer recruit; Step/Shoot; gives navigation and mine-safety hints; otherwise unchanged |
-| `NPC_MARA` | 4 | Lantern Inn keeper and primary Lantern Keeper entry point; free rest service; reacts to outcome |
-| `NPC_BRAM` | 5 | Smith at `BramYard`. Walks to `BramLantern` after arranging the repair meeting and waits there until restoration. |
-| `NPC_NELL` | 6 | Mine watcher; primary surveyor lead, trail clues; recognizes surveyor after rescue; optional lantern clue |
-| `NPC_ADA` | 7 | Supplies merchant; optional lantern/surveyor context, no mandatory quest gate |
-| `NPC_SURVEYOR` | 8 | Missing surveyor; trapped in Hollow Mine until rescued, then permanently available at a safe village location near the inn; offers post-rescue mine knowledge |
-| `NPC_ALDEN` | 9 | Player character and permanent first party member; named speaker with a portrait; never placed on the map |
+| `NPC_ID` | Value | Body | Position policy and role |
+|---|---:|---|---|
+| `NPC_ELIZA` | 1 | Character, wandering | `ElizaAtAlden` (inside Alden's home) until `FLAG_RAT_REPORTED`, then `ElizaGarden`. Gives Eliza's Giant Rat |
+| `NPC_BRAM` | 2 | Fixed character | `BramPost`, the middle of the bridge. Never yields to the player, so the only way out of the village is closed. Turns to a speaker and says nothing |
+| `NPC_ALDEN` | 3 | None | The player character and first party member; a named speaker with a portrait, never placed on the map |
+| `NPC_BOULDER_A`–`NPC_BOULDER_D` | 4–7 | Static object | `BoulderA`–`BoulderD` in the boulder gate. Unnamed; pushed with A |
 
-`NPC_ID_LIMIT = 10`. Enemy identities start at 10. The surveyor’s location policy
-uses `SurveyorTrapped` in Hollow Mine by default and selects `SurveyorReturned`
-near the Lantern Inn when `FLAG_SURVEYOR_RESCUED` is set.
+`NPC_ID_LIMIT = 8`. Enemy identities start at 8.
+
+**Static objects** are NPCs drawn from `assets/images/npc_static.png` with the plus-mask format.
+`assets/tilesets/npc_static.tsx` gives each image a 16-bit collision mask in the terrain format,
+and the object blocks the player and other actors with those pixels instead of a foot box. A
+static object never turns, yields or walks out of terrain, and slides without detours. It
+stays in the 8x4 chunk of its site, keeps its place while the terrain cache reaches that chunk
+or it is on screen, and otherwise unloads with every other object of the chunk; it is later cast
+at its policy site again.
+
+**Casting.** On scene entry every eligible actor may be cast, including on screen. After entry a
+frame casts at most one actor, only off screen.
 
 ### 1.3 Quest IDs
 
-| `QUEST_ID` | Numeric value | Quest definition | Completion predicate |
+| `QUEST_ID` | Value | Definition | Completion predicate |
 |---|---:|---|---|
 | `QUEST_NONE` | 0 | Sentinel | — |
-| `QUEST_LANTERN_KEEPER` | 1 | `src/quests/lantern_keeper.h` | `FLAG_LANTERN_RESTORED` |
-| `QUEST_MISSING_SURVEYOR` | 2 | `src/quests/missing_surveyor.h` | `FLAG_SURVEYOR_RESCUED` |
+| `QUEST_GO_HOME` | 1 | `src/quests/go_home.h` | `FLAG_HOME_REACHED` |
+| `QUEST_GIANT_RAT` | 2 | `src/quests/giant_rat.h` | `FLAG_RAT_REPORTED` |
 
-`QUEST_ID_LIMIT = 3`. The Journal lists started and completed quests from this
-registry. Status, tracking and map markers use the compiled quest framework.
+`QUEST_ID_LIMIT = 3`. The Journal lists started and completed quests from this registry.
 
 ### 1.4 Persistent flag ledger
 
-The physical mechanisms retain their existing flags. All indices refer to save format 24.
+All indices refer to save format 25.
 
 | Bit | Flag | Set by | Read by / invariant |
 |---:|---|---|---|
 | 0 | `FLAG_RESERVED` | Never | Sentinel |
-| 1 | `FLAG_CAVE_GATE` | Reversible `CaveLever` | East gate state and lantern relay access |
-| 2 | `FLAG_CAVE_NOOK` | Reversible `CaveVaultLever` | West inspection gate |
-| 3 | `FLAG_CAVE_BRIDGE` | Latching `CavePlate` | Permanent bridge and hatch; Surveyor rescue prerequisite |
-| 4 | `FLAG_CAVE_CHEST` | Successful `CaveChest` claim | One-time chest |
-| 5 | `FLAG_DUNGEON_SPIKES` | Reversible dungeon lever | Spike state |
-| 6 | `FLAG_DUNGEON_CELL` | Dungeon cell door | Permanently open cell |
-| 7 | `FLAG_DUNGEON_GATE` | Dungeon plate | Permanently open gate |
-| 8 | `FLAG_DUNGEON_BLOCKS` | Dungeon block lever | Block state |
-| 9 | `FLAG_DUNGEON_ORB` | Dungeon orb | Permanent orb, runes, vault gate |
-| 10 | `FLAG_DUNGEON_CHEST` | Successful `DungeonChest` claim | One-time chest |
-| 11 | `FLAG_LANTERN_STARTED` | Mara quest acceptance **or** first investigation of village lantern | Active Lantern Keeper if unfinished |
-| 12 | `FLAG_LANTERN_DIAGNOSED` | Bram's mechanical inspection | Required for either repair outcome; obtainable before formal acceptance |
-| 13 | `FLAG_LANTERN_RECORD_FOUND` | Inspect the old workshop record at Bram’s table | Required for either repair outcome; identifies possible ancient relay |
-| 14 | `FLAG_LANTERN_RELAY_FOUND` | Inspect/secure old relay in the mine | Required for ancient restoration only; may be discovered early |
-| 15 | `FLAG_LANTERN_RESTORED` | Final repair choice at village lantern with Bram's help | Quest completion, lighting/world reaction, XP + gold award exactly once |
-| 16 | `FLAG_LANTERN_MODERN` | Select conventional replacement | Mutually exclusive outcome tag: set **only** with `FLAG_LANTERN_RESTORED`; clear at completion means ancient restoration |
-| 17 | `FLAG_SURVEY_STARTED` | Read the inn notes, accept Nell’s request, or speak to the trapped surveyor | Active Missing Surveyor if not rescued |
-| 18 | `FLAG_SURVEY_NOTES_READ` | Inspect surveyor notes | Optional route hints; not a hard rescue gate |
-| 19 | `FLAG_SURVEY_TRAIL_FOUND` | Trace survey markers / find overlooked entrance clue | Optional alternative navigation clue; not a hard rescue gate |
-| 20 | `FLAG_SURVEYOR_FOUND` | First talk to trapped surveyor | Requires the search to have started by then; persists across reload |
-| 21 | `FLAG_SURVEYOR_RESCUED` | Confirm help to surveyor **after `FLAG_CAVE_BRIDGE`**, with safe return available | Completion, NPC relocation, XP + gold once; bridge/hatch are already permanently opened |
-| 22–55 | `FLAG_ITEM_FIRST + ITEM_ID` | Equipment acquisition | One ownership bit for each of the 34 early-game items |
-| 56–71 | `FLAG_ENEMY_FIRST + spawn_index` | Victory against authored map enemy | 16 defeat slots; only authored respawnable bits reset |
-| 72 | `FLAG_BRAM_LANTERN_MEETING` | Finish Bram's invitation after diagnosis and workshop evidence | Assigns Bram to `BramLantern` until either repair succeeds |
+| 1 | `FLAG_INTRO_SHOWN` | The first simulated frame of a new game | The waking line is spoken once |
+| 2 | `FLAG_HOME_STARTED` | Leaving `NapAreaRegion` | Go Home active until `FLAG_HOME_REACHED` |
+| 3 | `FLAG_BOULDERS_NOTICED` | Entering `ClearingEastRegion` while Go Home is active and unfinished and the clearing has not been left | Go Home objective; requires `HOME_STARTED` |
+| 4 | `FLAG_LEFT_CLEARING` | Entering `PathEastRegion` | Go Home objective and marker; requires `HOME_STARTED` |
+| 5 | `FLAG_HOME_REACHED` | Standing inside `AldenRoomsRegion` | Completes Go Home; opens Eliza's story; requires `HOME_STARTED` |
+| 6 | `FLAG_ELIZA_GREETED` | Eliza's greeting inside Alden's home, or talking to her first | Requires `HOME_REACHED` |
+| 7 | `FLAG_RAT_ACCEPTED` | Answering yes to Eliza (`quest_start`) | Quest active; casts the rat; requires `ELIZA_GREETED` |
+| 8 | `FLAG_RAT_SIGHTED` | Being in `ElizaBedroomRegion` within three tiles of the rat | Opens the class choice; requires `RAT_ACCEPTED` |
+| 9 | `FLAG_CLASSES_CHOSEN` | Confirming the class choice | Requires `RAT_SIGHTED` |
+| 10 | `FLAG_RAT_REPORTED` | Telling Eliza after the rat's defeat | Completes the quest; moves Eliza; requires `RAT_DEFEATED` |
+| 11 | `FLAG_MENU_JOURNAL` | The Journal hint, one frame after Go Home starts | Unlocks Journal; requires `HOME_STARTED` |
+| 12 | `FLAG_MENU_PARTY` | The Party hint after the class choice | Unlocks Party; the rat then chases; requires `CLASSES_CHOSEN` |
+| 13 | `FLAG_MENU_SUPPLIES` | Never | Would unlock Supplies |
+| 14–47 | `FLAG_ITEM_FIRST + ITEM_ID` | Equipment acquisition | One ownership bit for each of the 34 items |
+| 48–63 | `FLAG_ENEMY_FIRST + spawn_index` | Victory against an authored map enemy | 16 defeat slots. `FLAG_RAT_DEFEATED` = 48; requires `RAT_ACCEPTED` |
 
-`FLAG_ITEM_FIRST = 22`, `FLAG_ENEMY_FIRST = 56`, and `FLAG_COUNT = 73`.
-The flag set occupies ten bytes. Section 6.3 records ownership of the encounter bits.
+`FLAG_ITEM_FIRST = 14`, `FLAG_ENEMY_FIRST = 48`, and `FLAG_COUNT = 64`. The flag set occupies
+eight bytes.
 
-**Reward atomicity:** completion flags and reward grants must be guarded by a single successful state transition. For any optional supply payout, check stack capacity before committing or use an independently claimed reward flag; the two specified quests avoid this issue by awarding only XP and gold directly. `FLAG_LANTERN_MODERN` is set atomically with restoration for the modern branch; other branch is `RESTORED && !MODERN`. Quest completion must never clear encounter flags or force a new area load.
+### 1.5 Saved fields and transient state
 
-### 1.5 Other saved fields and transient-only fields
+- **Saved `Game`:** save version, player actor and position, RNG seed, gold (`uint16_t`, maximum
+  65,535), world tick counter, world flags, World Remembers timer, current area, level field,
+  party (identities, classes, current HP/AP, member level, XP, perk ranks and equipment
+  references), supplies, area dimensions, previous tile, interaction readiness, NPC pool,
+  audio settings and `selected_quest`.
+- **Rebuilt/transient:** tile cache, camera and workspaces, the tick counter, dialogue and
+  menu navigation, pending quest evaluations and notices, battle state and pending contacts.
+  Loading validates IDs, party data, flags, positions, quest invariants and the NPC pool, then
+  rebuilds the view.
+- **NPC pool:** a load keeps every actor as saved: identity, position, behavior, movement
+  progress and pursuit. Boulders therefore stay where they were pushed, a sliding one finishes
+  its slide, and a chase resumes. A load casts and activates nothing by itself; ordinary
+  casting and unloading continue from the saved pool. Whether an actor has a fixed site or a
+  static or immovable body comes from the current content. A save is rejected when its pool
+  holds an unknown, repeated or party identity, a gap between actors, pursuit without an enemy,
+  or an impossible facing, behavior or position.
+- **Quest tracking:** only one active quest may be selected. The Quest Start panel offers
+  A (Track) or B (Close). The story selects Go Home and Eliza's Giant Rat when it starts them.
+  A completed quest is untracked.
+- **Exploration guidance:** the tracked quest's objective, or the local exit toward it, has a
+  bobbing down arrow above its tile while visible; off screen the arrow slides along the screen
+  edge and points in one of eight directions.
+- **Save compatibility:** version 26 resumes the saved NPC pool. Version 25 replaced the earlier
+  world, NPC, quest and flag layouts. Earlier saves are rejected. Because saved actors keep their
+  positions, bump the version when a map or NPC change would leave them wrong. The high bit of the saved SFX level marks audio as disabled. Saved
+  Music and SFX levels above 15 are capped at 15 on startup.
 
-- **Saved `Game`:** save version, player actor and position, RNG seed, gold (`uint16_t`, max 65,535), world tick counter, world flags, World Remembers timer, current area, level field, party (identities/classes/current HP/AP/member level and XP/perk ranks/equipment references), supplies, area dimensions, previous tile, interaction readiness, NPC pool, audio settings, and `selected_quest`.
-- **Rebuilt/transient:** tile cache/camera/workspaces, active NPC reconstruction on area load, dialogue panels/menu navigation, pending quest flag evaluations, pending quest and level-up notices, combat search and battle scene state, and pending encounter contacts. Save restoration validates IDs, party data, flags, positions, and quest invariants; it reconstructs the view and NPC state.
-- **Quest tracking:** only one **active** quest may be selected. The Quest Start panel presents the objective at the time of starting. A (Track) selects the quest if it is still active. B (Close) keeps the current selection. A completed or inactive quest is automatically untracked. All started or completed quests appear in the Journal. Selection does not affect quest progression.
-- **Exploration guidance:** the tracked quest's objective or the local exit toward it has a bobbing down arrow above its tile while visible. For an offscreen target, the arrow slides along the screen edge with the player's bearing and points in one of eight directions. Without a tracked quest, there is no arrow.
-- **Save compatibility.** Version 24 stores the traveler as `NPC_ALDEN`, and `NPC_NONE` is
-  not a valid party identity. Earlier development saves are rejected. The high bit of the saved
-  SFX level marks audio as disabled. Saved Music and SFX levels above 15 are capped at 15 on
-  startup.
+### 1.6 Pause menu unlocks
 
-## 2. Implemented quests
+| Item | Available |
+|---|---|
+| Resume, Audio | Always |
+| Save | Outside battle |
+| Map | Outdoors, outside battle |
+| Load | When a valid save exists, outside battle |
+| Journal | After `FLAG_MENU_JOURNAL` |
+| Party | After `FLAG_MENU_PARTY` |
+| Supplies | After `FLAG_MENU_SUPPLIES`, which nothing sets yet |
 
-Both shipped quests can be explored out of order and completed independently. The quest engine derives status from saved facts.
+## 2. Implemented quests and story
 
-### 2.1 `QUEST_LANTERN_KEEPER` — The Lantern Keeper
+The story script is `src/logic/story.cpp`. It runs after each simulated frame's NPC dialogue.
+Each step derives from saved facts.
 
-**Type:** settlement investigation → records → short mine exploration → irreversible, visible repair choice.  
-**Owning quest:** `src/quests/lantern_keeper.h`.  
-**Area-specific logic:** `src/logic/area_village.h` and `src/logic/area_cave.h`.  
-**NPCs:** `NPC_MARA` (initial lead, post-outcome witness), `NPC_BRAM` (diagnoses and enables repair choice), `NPC_ORRIN` (optional history/clue), `NPC_NELL` (optional cave lead), `NPC_TESSA` (world reaction).  
-**Map markers:** `VillageLantern` (south edge of Well Square), `BramLantern` (the waiting spot north of it), `WorkshopRecord` (table inside the smithy), and `MineLanternRelay` (lamp bracket in the east winch room behind the east gate).
+### 2.1 Opening
 
-#### Start, stages and event contracts
+On the first simulated frame Alden, facing south at `PlayerStart`, speaks once
+(`FLAG_INTRO_SHOWN`).
 
-| State or transition | Requirements | Action / result |
-|---|---|---|
-| **Not started** | `!FLAG_LANTERN_STARTED && !FLAG_LANTERN_RESTORED` | Journal excludes quest; ordinary lore NPC topics remain usable |
-| **Start A** | Talk to Mara and accept investigation | `quest_start(QUEST_LANTERN_KEEPER)` sets `FLAG_LANTERN_STARTED` |
-| **Start B** | Investigate `VillageLantern` before talking to Mara | Set `FLAG_LANTERN_STARTED` via quest start; must not require Mara conversation |
-| **Active** | `FLAG_LANTERN_STARTED && !FLAG_LANTERN_RESTORED` | Goal derived from evidence facts; no manually stored current stage |
-| **Mechanical diagnosis** | Speak to Bram on the lantern topic, whether or not the quest is active | Set `FLAG_LANTERN_DIAGNOSED` on successful completion of investigation; optional account from Orrin never required |
-| **Workshop evidence** | Inspect `WorkshopRecord`, whether or not quest is active | Set `FLAG_LANTERN_RECORD_FOUND`; identifies mine relay as possible ancient source |
-| **Ancient branch evidence** | Find and inspect `MineLanternRelay` | Set `FLAG_LANTERN_RELAY_FOUND`; accessed through the east gate controlled by `FLAG_CAVE_GATE` |
-| **Arrange meeting** | After diagnosis and the workshop record, finish Bram's lantern invitation | Set `FLAG_BRAM_LANTERN_MEETING`. Bram walks toward the lantern and waits beside it. |
-| **Modern repair** | `FLAG_LANTERN_DIAGNOSED && FLAG_LANTERN_RECORD_FOUND && !FLAG_LANTERN_RESTORED` | Choose **conventional replacement** at `VillageLantern`, with Bram's assistance; set `FLAG_LANTERN_MODERN` and `FLAG_LANTERN_RESTORED` atomically |
-| **Ancient repair** | Modern prerequisites **plus** `FLAG_LANTERN_RELAY_FOUND` | Choose **ancient restoration** at `VillageLantern`, with Bram's assistance; set `FLAG_LANTERN_RESTORED`, leave `FLAG_LANTERN_MODERN` clear |
-| **Completed** | `FLAG_LANTERN_RESTORED` | Status completed; choice is immutable and never reoffered |
-
-**Choice presentation:** At the lantern, Bram offers conventional replacement
-and, when the relay was recovered, ancient restoration. Confirm a repair with A,
-or leave by canceling with B or selecting the back option. Bram’s assistance takes
-place in dialogue at the lantern. Once the meeting is arranged, Bram walks while
-visible and may finish relocating offscreen. Area entry and save restoration
-rebuild him at the waiting spot. Either repair sends him back to his yard.
-Later inspections describe the permanent repair.
-
-**Objectives and markers:** Diagnose with Bram first for marker priority, then
-inspect the workshop record. The outdoor marker points to the smithy door while
-the interior query points to the record. After both facts, the outdoor marker
-points to the lantern and the cave query points to the east gate lever or the
-relay if it has yet to be found. The Journal gives the relay as an optional route.
-Completion clears the marker.
-
-**Reward:** **6 XP per current party member and 12 G**, once when restoration is
-first set. Gold credits up to the wallet cap of 65,535 G. The lantern uses
-distinct unlit, modern and ancient tiles. Bram, Mara, Tessa and Orrin respond
-to the chosen repair. Orrin provides an optional historical clue after the
-ancient restoration.
-
-**Persistence and validation:**
-
-- `RESTORED => STARTED && DIAGNOSED && RECORD_FOUND`.
-- `RESTORED && !MODERN => RELAY_FOUND`; `MODERN => RESTORED`.
-- The saved meeting requires diagnosis and the workshop record. Repair clears it. Earlier version 22 saves can arrange the meeting by speaking to Bram.
-- Evidence may be found before quest start; avoid forcing a false state when that happens. If the player resolves the lantern through direct interaction while no quest is tracked, mark it started as part of the atomic completion path.
-- Prevent repeat XP, G and branch switching; replay/restore must reconstruct the lantern's tile state from flags.
-- No dependency on `FLAG_CAVE_BRIDGE`, `FLAG_SURVEYOR_RESCUED`, recruiting Rowan, or defeating either wolf.
-- Validate choice cancellation, evidence in any order, both endings, save/reload, maximal gold, and post-resolution NPC interactions.
-
-### 2.2 `QUEST_MISSING_SURVEYOR` — The Missing Surveyor
-
-**Type:** navigation through scattered clues → mine mechanisms → find trapped NPC → rescue → permanent shortcut and relocation.  
-**Owning quest:** `src/quests/missing_surveyor.h`.  
-**Area-specific logic:** `src/logic/area_village.h`, `src/logic/area_cave.h`.  
-**NPCs:** `NPC_NELL` (disappearance lead), `NPC_MARA` (inn note/information), `NPC_SURVEYOR` (trapped, then village resident), `NPC_ROWAN` (optional tactical advice), `NPC_ORRIN` (optional history).  
-**Map markers:** `SurveyorNotes` (Lantern Inn table), `SurveyTrailMark` (north road), `SurveyorTrapped` (far landing), `SurveyorReturned` (outside near the inn). Existing markers `CaveMouth`, `CaveLever`, `CaveVaultLever`, `CavePlate`, `CaveBridgeRegion`, `CaveHole`, `CaveLadder` are reused.
-
-#### Start, stages and event contracts
+### 2.2 `QUEST_GO_HOME` — Go Home
 
 | State or transition | Requirements | Action / result |
 |---|---|---|
-| **Not started** | `!FLAG_SURVEY_STARTED && !FLAG_SURVEYOR_RESCUED` | Quest is absent from Journal; surveyor notes and mine remain discoverable |
-| **Start A** | Read `SurveyorNotes` | The interaction starts `QUEST_MISSING_SURVEYOR` and sets `FLAG_SURVEY_NOTES_READ` |
-| **Start B** | Ask Nell about the missing surveyor | `quest_start(QUEST_MISSING_SURVEYOR)` sets `FLAG_SURVEY_STARTED`; notes can be read later |
-| **Optional trail** | Inspect `SurveyTrailMark` / locate secondary entrance hint | Set `FLAG_SURVEY_TRAIL_FOUND`; reveal directions; **not required** to reach/rescue surveyor |
-| **Navigate mine** | Enter via `CaveMouth`, work through `CaveLever` and `CaveVaultLever` as necessary | Existing reversible `FLAG_CAVE_GATE` and `FLAG_CAVE_NOOK` control gates, not separate quest-stage flags |
-| **Open crossing** | Step onto `CavePlate` | Latch `FLAG_CAVE_BRIDGE`, extend bridge and activate west-ridge maintenance hatch (`CaveHole`) permanently |
-| **Find surveyor** | Speak with `NPC_SURVEYOR` at `SurveyorTrapped` | Set `FLAG_SURVEYOR_FOUND`; if this occurs before starting the quest, set `FLAG_SURVEY_STARTED` automatically |
-| **Rescue** | `FLAG_SURVEYOR_FOUND && FLAG_CAVE_BRIDGE && !FLAG_SURVEYOR_RESCUED`; confirm assistance when talking to the surveyor | Set `FLAG_SURVEYOR_RESCUED` and award XP/gold once; actor retires at the end of the farewell and reappears at `SurveyorReturned` on the next appropriate area admission |
-| **Completed** | `FLAG_SURVEYOR_RESCUED` | Status completed; progress remains in Journal; village surveyor offers informational topics |
+| Start | Outdoors and outside `NapAreaRegion` | One line, then `quest_start` and `quest_select`; the Quest Start panel |
+| Journal hint | The frame after the start | Set `FLAG_MENU_JOURNAL` and explain the pause menu |
+| Gate noticed | In `ClearingEastRegion`, gate not yet left | Set `FLAG_BOULDERS_NOTICED`; two lines, one explaining A |
+| Clearing left | In `PathEastRegion` | Set `FLAG_LEFT_CLEARING` |
+| Completion | In `AldenRoomsRegion` | Set `FLAG_HOME_REACHED`; reward |
 
-**Rescue model:** The restored bridge and linked hatch provide the return route.
-After the farewell, the surveyor leaves the scene and the policy reconstructs
-them near the inn when that location is admitted.
+- **Objectives:** "Leave the clearing", then "Push the boulders aside" once noticed, then
+  "Go to your home" once left.
+- **Markers:** `ClearingExit` until the clearing is left, then `AldenDoor`.
+- **Reward:** 3 XP per party member, once.
 
-**Objectives and markers:** Outdoors, the marker points to the mine mouth
-until the bridge opens, then to the hatch. The inn notes can be marked in
-interiors while neither optional clue is known and the bridge is down. In the
-mine the marker follows the east lever, winch, plate and trapped surveyor
-as relevant. The Journal prioritizes rescue confirmation once the surveyor has
-been found. Completion clears the marker.
+### 2.3 `QUEST_GIANT_RAT` — Eliza's Giant Rat
 
-**Reward:** **8 XP per current party member and 15 G**, once on rescue. Gold
-credits up to 65,535 G. The bridge and `CaveHole` ↔ `CaveLadder` shortcut
-were unlocked by the plate and remain open. The chest is independently
-claimable. Any wolf victory earns standard battle rewards.
+| State or transition | Requirements | Action / result |
+|---|---|---|
+| Greeting | In `AldenRoomsRegion` with Eliza present, or talking to her, after `HOME_REACHED` | Set `FLAG_ELIZA_GREETED` |
+| Offer | Talk to Eliza, not yet accepted | Yes: `quest_start` and `quest_select`. No: she can be asked again |
+| Waiting | Talk to Eliza while accepted and the rat lives | One line |
+| Sighting | In `ElizaBedroomRegion` within three tiles (48 pixels, both axes summed) of the rat | Set `FLAG_RAT_SIGHTED`; one line |
+| Class choice | `RAT_SIGHTED && !CLASSES_CHOSEN && !RAT_DEFEATED` | Fade to the class panel; confirming sets Alden's movement and attack classes and `CLASSES_CHOSEN` |
+| Party hint | After the choice | Set `FLAG_MENU_PARTY`; the rat starts its pursuit |
+| Battle | Contact with the rat | §6.3 |
+| Report | Talk to Eliza after `RAT_DEFEATED` | Two lines; set `FLAG_RAT_REPORTED`; reward; Eliza belongs at `ElizaGarden` |
+| After completion | Talk to Eliza | Nothing |
 
-**Persistence and validation:**
+- **Objectives:** "Go to Eliza's home", then "Go back to Eliza" after the rat falls.
+- **Markers:** outdoors `ElizaDoor`, then `AldenDoor`; indoors the rat (from `RatNest`) and then
+  Eliza (from `ElizaAtAlden`), following the actor while it is present.
+- **Reward:** 5 XP per party member and 10 G, once.
+- **Invariants:** each flag of the chain requires the one before it, and
+  `RAT_REPORTED => RAT_DEFEATED => RAT_ACCEPTED`.
 
-- `SURVEYOR_RESCUED => SURVEYOR_FOUND && SURVEY_STARTED && FLAG_CAVE_BRIDGE`.
-- `SURVEYOR_FOUND => SURVEY_STARTED` and `SURVEY_NOTES_READ => SURVEY_STARTED`. The trail can be recorded before the search starts. Both clues are optional for rescue.
-- The bridge/hatch state persists even when the quest has not started or the surveyor has not yet been found.
-- Surveyor is in exactly one of the two specified policy sites (trapped if not rescued, returned if rescued), subject to actor-pool admission; never both.
-- The rescue is available even if other mine enemies respawn under The World Remembers. No permanent enemy defeat is a prerequisite.
-- No dependency on Lantern Keeper's start, chosen repair method, or completion.
-- Test missing notes, early bridge opening, discovery before acceptance, repeat talk, save/load before and after rescue, cave-to-outdoor traversal, and forced actor admission/retirement.
+**Class choice.** The panel lists all five movement classes, then all ten attack classes, each
+with a description page, then a confirmation. B steps back one page and refuses on the first.
+The choice is permanent. Level, HP, AP and perks are unchanged.
 
-### 2.3 Cross-quest dependency and effect matrix
+## 3. NPC conversations and signs
 
-| Fact/event | Lantern Keeper | Missing Surveyor | Other gameplay |
-|---|---|---|---|
-| `FLAG_LANTERN_DIAGNOSED`, `FLAG_LANTERN_RECORD_FOUND` | Both required for repair | — | NPCs respond with contextual topics |
-| `FLAG_LANTERN_RELAY_FOUND` | Unlocks ancient choice | — | Can be discovered during unrelated mine exploration |
-| `FLAG_LANTERN_RESTORED`, `FLAG_LANTERN_MODERN` | Completion and final method | — | Lantern visual state; village reactions |
-| `FLAG_CAVE_GATE`, `FLAG_CAVE_NOOK` | The east gate controls access to the relay | Used while navigating | Reversible terrain; never quest completion by itself |
-| `FLAG_CAVE_BRIDGE` | **Not required** | Needed to rescue; already permanently opens shortcut | Hatch active after bridge is opened |
-| `FLAG_SURVEYOR_FOUND` | — | Contact milestone | Can be discovered without reading inn notes |
-| `FLAG_SURVEYOR_RESCUED` | — | Completion | Surveyor returns to village; conversations change |
-| Mine wolf victory | — | Optional hazard | Standard battle rewards; can respawn |
-| `FLAG_CAVE_CHEST` | — | Optional nearby loot | One-time container reward; independent of quests |
+| Target | Result |
+|---|---|
+| Eliza | §2.3 |
+| Bram | Turns to the player; no lines |
+| Boulders | §7.1 |
+| `AldenSign`, `ElizaSign`, `BramSign`, `ShopSign`, `InnSign` | Name the building |
+| `NorthHouseSign`, `SouthHouseSign` | A house |
+| `BarnSign` | A storehouse |
+| `BramDoor` | Locked |
+| `NorthHouseDoor`, `SouthHouseDoor`, `BarnDoor` | No answer |
 
-**Intentional narrative overlap:** an NPC may mention both the mine's old mechanisms and the lantern relay. The returning surveyor can offer **optional** additional information about the relay; that information must not become a hidden prerequisite for Lantern Keeper. Both quests stand alone and admit either order of completion.
-
-## 3. NPC conversations and interactions
-
-Millcross has eight named NPC identities. Multi-topic conversations use `dialogue_options<...>()`. B cancels the menu before any selected topic can run.
-
-| NPC | Relevant topics / actions | State mutations | Conditional reaction |
-|---|---|---|---|
-| Mara | Inn rest; lantern trouble; surveyor’s notes | Start `QUEST_LANTERN_KEEPER` on acceptance; existing rest service unchanged | Lantern modern/ancient branch; surveyor return |
-| Bram | Examine lantern; old workshop; smithing; repair choices at the lantern | Set `FLAG_LANTERN_DIAGNOSED`; finalize eligible repair method with guard | Lantern completion and selected branch |
-| Orrin | Workshop history; mine mechanisms; local observations | None required; **do not gate progression** | Lantern restoration; surveyor return |
-| Nell | Surveyor disappearance; trail/entrance; cave observations | Start `QUEST_MISSING_SURVEYOR` on acceptance; trail topic gives directions | Surveyor rescue; bridge opening |
-| Rowan | Join party; village directions; mine warning; old span | Recruits as existing Step/Shoot member | Bridge opening, lantern restoration, surveyor return |
-| Tessa | Orchard; work; lantern | None required; retain as ordinary resident | Lantern status and repair choice |
-| Ada | Buy supplies; village trade; mine | Existing shop service; no new gate | Lantern status and surveyor return |
-| Surveyor | Rescue agreement when trapped; mine routes/historical findings after return | Set `FLAG_SURVEYOR_FOUND`; on confirmed rescue set `FLAG_SURVEYOR_RESCUED` | Different location and topic availability after rescue |
-
-**Service locations unchanged:** the inn still offers free party rest, and the shop sells the same supplies. Quest clues must not disable either service.
-
-The mine notice, chalk warning, and tally board are environmental hints.
-They leave quest and reward state unchanged.
+The Shop and Inn can be entered; neither offers a service yet.
 
 ## 4. Items, inventory, services and rewards
 
@@ -276,7 +223,7 @@ simulation copy has its own bits. Previews leave the bits untouched.
 #### Early game
 
 All 34 entries below have engine support. New games start with no equipment owned.
-The world, chests, quests, and shops currently grant none of the entries.
+Nothing in the world grants an entry yet.
 
 | `ITEM_ID` | ID | Slot | Implemented effect |
 |---|---:|---|---|
@@ -343,55 +290,52 @@ Ideas only. See the [late-game proposals](ideas_for_items_perks_abilities.md#lat
 
 Ideas only. See the [endgame proposals](ideas_for_items_perks_abilities.md#endgame).
 
-### 4.2 Consumable supplies and shop
+### 4.2 Consumable supplies
 
-A supply is an owned **stack quantity**, not an equipment flag. Each has a maximum stack size of **15**. Using an invalid supply, targeting an ineligible member, or attempting to purchase an uncarryable stack does not consume resources.
+A supply is an owned **stack quantity**, not an equipment flag. Each has a maximum stack size of
+**15**. Using an invalid supply or targeting an ineligible member consumes nothing.
 
-| `SUPPLY_ID` | Starts with | Effect when used outside combat | Eligible target / condition | Shop price |
-|---|---:|---|---|---:|
-| `SUPPLY_POTION` | 2 | Heal up to **8 HP** | One living, injured member | 12 G |
-| `SUPPLY_ELIXIR` | 1 | Heal up to **4 HP** to each eligible member | Whole party; at least one living injured member; does not revive fallen members | 22 G |
-| `SUPPLY_REVIVE` | 1 | Set a fallen member to up to **5 HP** | One member at 0 HP | 30 G |
-| `SUPPLY_ETHER` | 1 | Restore up to **3 AP** | One member below max AP, including one at 0 HP | 18 G |
+| `SUPPLY_ID` | Starts with | Effect when used outside combat | Eligible target / condition |
+|---|---:|---|---|
+| `SUPPLY_POTION` | 2 | Heal up to **8 HP** | One living, injured member |
+| `SUPPLY_ELIXIR` | 1 | Heal up to **4 HP** to each eligible member | Whole party; at least one living injured member; does not revive |
+| `SUPPLY_REVIVE` | 1 | Set a fallen member to up to **5 HP** | One member at 0 HP |
+| `SUPPLY_ETHER` | 1 | Restore up to **3 AP** | One member below max AP, including one at 0 HP |
 
-The shop sells these four supplies with unlimited stock at the fixed prices above. Equipment modifiers for these supplies are listed above. Each confirmed purchase consumes gold and adds **one** supply if enough money and capacity remain. No price changes, selling, stock depletion, merchant reputation, or inventory weight system is implemented. `party_rest` via the inn refills every member's derived max HP and max AP, including those at 0 HP, **free of charge**.
+The Supplies menu stays locked, so the starting supplies cannot be used yet. The shop, inn rest
+and chest reward rules remain implemented (`src/shop.cpp`, `party_rest`,
+`src/logic/container_rewards.h`) with no service or container in the world.
 
-### 4.3 Chest rewards and payment semantics
+### 4.3 Rewards
 
-| Container | Requirement | Successful payout | Persistence |
-|---|---|---|---|
-| `positions::CaveChest` | Access cave chest, `!FLAG_CAVE_CHEST`; enough room for **all** supplies; enough gold capacity | **25 G**, **1 Potion**, **1 Ether** | Sets `FLAG_CAVE_CHEST` once; opened tile thereafter |
-| `positions::DungeonChest` | Access vault chest, `!FLAG_DUNGEON_CHEST`; enough room for **all** supplies; enough gold capacity | **25 G**, **1 Elixir**, **1 Revive** | Sets `FLAG_DUNGEON_CHEST` once; opened tile thereafter |
-
-`ContainerReward::claim()` is **all-or-nothing**. Failed capacity validation leaves supplies, gold and the chest flag unchanged. Chests are authored at locations; the reward policy is **not** automatically a reward of any quest. The player can revisit an unclaimed chest after freeing space.
-
-### 4.4 Rewards and replay
-
-| Source | Effect | Status / replay |
+| Source | Effect | Replay |
 |---|---|---|
-| Any victorious battle | 2 XP to each roster member, 3 G per deployed enemy, eligible equipment rewards, and AP recovery | repeatable if enemy respawns |
-| Lantern Keeper final repair | **6 XP/member + 12 G**, permanent village lantern repair and branch-specific reactions | Once, guarded by `FLAG_LANTERN_RESTORED` |
-| Missing Surveyor rescue | **8 XP/member + 15 G**, surveyor moves to village | Once, guarded by `FLAG_SURVEYOR_RESCUED` |
-| Mine bridge pressure plate | Permanent bridge/hatch access | Permanent mechanism used in Missing Surveyor |
-| Cave and vault chests | Listed in §4.3 | independent of all quests |
-| Inn rest | Free full party HP/AP | repeatable |
-| Rowan's recruitment | New Step/Shoot level-1 member | once |
+| Any victorious battle | 2 XP to each roster member, 3 G per deployed enemy, eligible equipment rewards and AP recovery | Per battle |
+| Go Home | 3 XP per member | Once |
+| Eliza's Giant Rat | 5 XP per member and 10 G | Once |
 
-Both quest rewards cap gold at the wallet limit. Each XP payout belongs to the first confirmed transition to completion.
-The Quest Complete panel reports party XP and gold credited after the completion dialogue, before any resulting level-up notice.
+Gold credits up to the wallet limit. The Quest Complete panel reports party XP and gold after
+the completing dialogue, before any level-up notice. A new player who finishes both quests holds
+10 XP, which reaches level 2, and 13 G.
 
 ## 5. Character classes, progression and perks
 
 ### 5.1 Starting party and base progression
 
-- New game: one traveler (`NPC_ALDEN`), `MOVEMENT_STEP`, `ATTACK_STRIKE`, **level 1**, **20/20 HP**, **4/4 AP**, no owned equipment, **0 G**, and the supply counts above. Rowan is an optional recruit: `MOVEMENT_STEP` / `ATTACK_SHOOT`, **18/18 HP**, **4/4 AP**, level 1.
-- Party capacity: **4**. Identity cannot be duplicated. New recruits begin at full derived HP/AP and level 1; recruiting never resets existing members' progress.
-- Party member levels: **1–10**. XP to next level from current level `L`: `5 × (L + 1)` (e.g. 10 at level 1, 15 at level 2). XP is the amount **toward** the next level, not cumulative; overflow carries across level-ups, and XP at level 10 is discarded.
-- Base maximum HP: **20**, except Rowan **18**. Add **+2 at level 3**, **+2 more at level 7** and equipped HP bonuses. Leveling does **not** itself restore current HP.
-- Normal/special **direct attack base damage** gains **+1 at level 5** and **+1 more at level 9**. Engagement and secondary attack damage use their own base damage and perks.
-- Max AP: **4** at baseline. Moon Shard adds **1** while equipped.
-- Victory AP recovery: **1** per member, capped at that member’s maximum AP. AP is not automatically restored on turn changes or within combat.
-- Perk choices: one at **levels 2, 4, 6, 8, and 10**, derived as `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement perk track and one attack perk track. Ranks are learned in order and their effects stack. Each track has four learnable ranks. Spending the first four choices on one track unlocks its capstone at level 8. Unspent choices remain available until used.
+- New game: Alden alone, `MOVEMENT_STEP` / `ATTACK_STRIKE` until the class choice, **level 1**,
+  **12/12 HP**, **4/4 AP**, no owned equipment, **0 G**, and the supply counts above.
+- Party capacity: **4**. Identities are unique. A recruit begins at full derived HP/AP and level 1.
+- Party member levels: **1–10**. XP to the next level from level `L`: `5 × (L + 1)` (10 at level 1,
+  15 at level 2). XP counts toward the next level, carries over, and is discarded at level 10.
+- Maximum HP: **12** for every member, **+2 at level 3**, **+2 more at level 7**, plus equipped HP
+  bonuses. Leveling does not restore current HP.
+- Normal and special direct attack base damage gains **+1 at level 5** and **+1 more at level 9**.
+  Engagement and secondary damage use their own base damage and perks.
+- Maximum AP: **4**, plus 1 with Moon Shard.
+- Victory AP recovery: **1** per member, capped at the member's maximum.
+- Perk choices at **levels 2, 4, 6, 8 and 10**, derived as
+  `floor(level / 2) - movement_perk_rank - attack_perk_rank`. Each member has one movement and one
+  attack track of four ranks, learned in order and cumulative. Unspent choices remain.
 
 ### 5.2 Battle movement classes
 
@@ -551,7 +495,7 @@ resolved from the current board and the original target or destination, using th
 | `ATTACK_BLAST` | 3 | `SHOCKWAVE` | Deal 1 splash damage to each enemy diagonally adjacent to the primary target. Orthogonal splash still deals 2, and both types count toward Cluster Burst. |
 | `ATTACK_BLAST` | 4 | `CONCUSSION` | Each surviving splash victim is pushed one cell straight away from the original primary target, including diagonal pushes, if its destination was open before the hit. |
 
-Existing saves with Reach rank 2 receive Short Grip. The choice count is derived from level and learned ranks. Learned movement rank occupies `perk_ranks` bits 0–2; attack rank bits 3–5; bits 6–7 reserved. Learning a perk consumes one earned choice but does not directly spend gold, AP, or equipment.
+The choice count is derived from level and learned ranks. Learned movement rank occupies `perk_ranks` bits 0–2; attack rank bits 3–5; bits 6–7 reserved. Learning a perk consumes one earned choice but does not directly spend gold, AP, or equipment.
 
 ## 6. Combat, encounters and The World Remembers
 
@@ -593,7 +537,7 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 - Zero-HP party members do not deploy in subsequent encounters until revived/rested. Battle outcome is victory/defeat, never a draw. Defeat returns to the title screen rather than applying quest rewards.
 - Victory writes surviving and fallen party HP back to saved members; grants each roster member (including those not deployed or at 0 HP) **2 XP** and victory AP recovery; credits **3 G for each deployed enemy** plus any equipment gold bonus, subject to wallet cap.
 
-**Existing battlefield IDs:** outdoor (`BATTLEFIELD_GROVE`, `MEADOW`, `RIVERBANK`); cave (`MINE_GALLERY`, `MINE_CROSSING`, `MINE_CHAMBER`); dungeon (`VAULT_HALL`, `VAULT_CRYPT`, `VAULT_COURT`); interiors (`HOUSE_TAVERN`, `HOUSE_STORE`, `HOUSE_HALL`). The four tileset selections choose from their corresponding three boards. Geometry/obstacles reside in `src/battlefields.cpp`.
+**Battlefield IDs:** world (`BATTLEFIELD_GROVE`, `MEADOW`, `RIVERBANK`); cave (`MINE_GALLERY`, `MINE_CROSSING`, `MINE_CHAMBER`); dungeon (`VAULT_HALL`, `VAULT_CRYPT`, `VAULT_COURT`); house (`HOUSE_TAVERN`, `HOUSE_STORE`, `HOUSE_HALL`). Each tileset selects its three boards. No authored encounter uses the cave or dungeon boards. Geometry and obstacles reside in `src/battlefields.cpp`.
 
 ### 6.2 Enemy type presets
 
@@ -618,101 +562,64 @@ Existing saves with Reach rank 2 receive Short Grip. The choice count is derived
 
 ### 6.3 Authored map encounters (catalog order is save-sensitive)
 
-The catalog concatenates `VillageEnemies`, `CaveEnemies`, `DungeonEnemies`, `OrchardEnemies`, `MineWestEnemies`, `VaultEastEnemies`, `MillcrossWildlife`, `MineCreatures`, and `VaultCreatures` in that order. The list order defines persistent `enemy_defeated_flag_at(index)` ownership. New entries use the next free indices. Changing existing entries' ordering changes saved meanings and requires compatibility review.
+`VillageEnemies` is the whole catalog. List order defines each spawn's defeat flag.
 
-| Spawn index / logical NPC ID | Marker | Behavior | Battle roster and arena pool | Respawn | Victory and dialogue hooks |
-|---|---|---|---|---|---|
-| **0 / 9** | `GroveWolf` | `ENEMY_WANDER`, normal speed | `ENEMY_WOLF` ×1; outdoor boards | `RESPAWN_REMEMBER` | Default; optional independent wolf encounter |
-| **1 / 10** | `MineScout` | `ENEMY_CHASE`, fast speed | `ENEMY_WOLF` ×1; cave boards | `RESPAWN_REMEMBER` | Standard combat and respawn behavior |
-| **2 / 11** | `VaultGuard` | `ENEMY_ROUTE`, normal speed, `routes::VaultPatrol` | `ENEMY_BRUTE` ×2 + `ENEMY_WOLF` ×1; dungeon boards | `RESPAWN_NEVER` | Before-battle and after-victory dialogue; no additional saved story flag beyond defeat bit |
-| **3 / 12** | `OrchardSpiders` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_SPIDER` ×2; outdoor boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
-| **4 / 13** | `MineBatRoost` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_BAT` ×1; cave boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
-| **5 / 14** | `VaultEastWatch` | `ENEMY_WANDER`, normal speed | `ENEMY_SKELETON` ×1 + `ENEMY_FLOATING_EYE` ×1; dungeon boards | `RESPAWN_REMEMBER` | Optional, default hooks and rewards |
-| **6 / 15** | `FarmRats` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_RAT` ×2 (`MEADOW`) | `RESPAWN_REMEMBER` | Optional early fight west of the farm |
-| **7 / 16** | `EastBeetle` | `ENEMY_WANDER`, normal speed | `ENEMY_GIANT_BEETLE` ×1 (`GROVE`) | `RESPAWN_REMEMBER` | Optional early fight east of Millcross |
-| **8 / 17** | `RiverSnake` | `ENEMY_WANDER`, normal speed | `ENEMY_SNAKE` ×1 (`RIVERBANK`) | `RESPAWN_REMEMBER` | Optional early fight west of the fisher's house |
-| **9 / 18** | `PoolSlime` | `ENEMY_WANDER`, normal speed | `ENEMY_SLIME` ×1 (`MINE_CHAMBER`) | `RESPAWN_REMEMBER` | Optional early fight at the grotto pool |
-| **10 / 19** | `WinchMushroom` | `ENEMY_WANDER`, zero wander range | `ENEMY_MUSHROOM` ×1 (`MINE_CROSSING`) | `RESPAWN_REMEMBER` | Optional midgame fight in the east winch room |
-| **11 / 20** | `WestAmbush` | `ENEMY_WANDER`, normal speed | `ENEMY_ZOMBIE` ×1 + `ENEMY_GOBLIN` ×1 (`VAULT_CRYPT`) | `RESPAWN_REMEMBER` | Optional midgame fight off the west cell-block corridor |
-| **12 / 21** | `ShrineGolem` | `ENEMY_WANDER`, zero wander range | `ENEMY_GOLEM` ×1 + `ENEMY_GHOST` ×1 (`VAULT_COURT`) | `RESPAWN_NEVER` | Optional late fight on the shrine's east side |
-| **13 / 22** | `VaultCultist` | `ENEMY_WANDER`, zero wander range | `ENEMY_HOODED_CULTIST` ×1 (`VAULT_HALL`) | `RESPAWN_NEVER` | Optional late fight inside the vault, east of the doorway |
+| Spawn index / NPC ID | Marker | Availability and behavior | Battle | Respawn |
+|---|---|---|---|---|
+| **0 / 8** (giant rat) | `RatNest` | `FLAG_RAT_ACCEPTED`. Stands still (`ENEMY_WANDER`, zero range) until `FLAG_MENU_PARTY`, then chases: detect 10 tiles, disengage and leash 12 tiles | `ENEMY_GIANT_RAT` ×1, house boards | `RESPAWN_NEVER` |
 
-Spawns 0–13 use defeat bits **56–69** (`FLAG_ENEMY_FIRST + spawn_index`). The reserve holds 16 bits (2 unused). A map battle triggers on hostile actor contact, with area-local hooks for availability, pre-battle dialogue, battle selection, victory effects, and post-victory dialogue.
+Spawn 0 uses defeat bit 48 (`FLAG_RAT_DEFEATED`). The reserve holds 16 bits. A battle begins on
+contact with a hostile actor.
 
 ### 6.4 The World Remembers
 
-- On victory against an enemy marked `RESPAWN_REMEMBER`, set its defeat bit and set `game.remember_timer = REMEMBER_DELAY_FRAMES` (**15,000 exploration frames**, 50 Hz nominal, about five minutes of simulation). A subsequent respawnable victory restarts the timer.
-- After the countdown reaches zero, the next safe opportunity triggers the World Remembers reset/cutscene. `remember_reset()` clears defeat bits **only for respawnable spawns**, allowing later ordinary re-admission. `VaultGuard`, `ShrineGolem`, and `VaultCultist` retain their permanent defeat bits.
-- Do **not** clear quest evidence or story flags during the reset. The new lantern/surveyor facts and all cave/dungeon mechanism/chest flags persist.
-- Only authored, currently eligible spawns reappear through normal map activation; the reset is not a forced instant on-screen teleport of all actors.
+- A victory against an enemy marked `RESPAWN_REMEMBER` sets its defeat bit and
+  `game.remember_timer = REMEMBER_DELAY_FRAMES` (15,000 exploration frames, about five minutes).
+- When the countdown ends, the next safe opportunity runs the reset cutscene, which clears
+  defeat bits of respawnable spawns only.
+- No authored enemy is respawnable yet.
 
 ## 7. Environmental mechanics, puzzles and world objects
 
-### 7.1 General mechanism semantics
+### 7.1 Boulder gate
 
-Mechanism objects are declared by area in `AreaMechanisms<AREA>`; their Tiled handlers apply state from flags to tiles. **Levers** toggle; **pressure plates, doors, orbs and chests** latch; gates, bridges, blocks, spikes and runes are read-only visual/terrain responses to flags. Successful chest claims are all-or-nothing. Inputs are either facing/pressing A or stepping onto a specific tile. Sound/visual changes do not store extra puzzle state.
+The gate is `BoulderGateRegion` (tiles x 24–28, y 12–15), inside one 8x4 chunk. Its terrain walls
+and four boulders are the only barrier between the clearing and the village.
 
-### 7.2 Hollow Mine (`AREA_CAVE`)
+- A while facing a resting boulder slides it one tile away at one pixel per frame
+  (`npc_push`). The destination must lie in the region and in the boulder's chunk, be free of
+  terrain and of the player and other actors, and is reserved while the boulder slides. A push
+  that moves plays the grinding sound; a blocked push plays the error tone.
+- Boulders return to their sites only when they unload (§1.2). Saving and loading keeps them
+  where they are.
+- The authored arrangement takes at least four pushes. No order of pushes from either side can
+  trap the player: every reachable arrangement can still reach the village. The content test
+  checks both properties.
 
-| Object/region | Input | Flag affected/read | Gameplay consequence |
-|---|---|---|---|
-| `CaveLever` | A facing | Toggle `FLAG_CAVE_GATE` | `CaveGate` open/closed; controls access to lantern relay |
-| `CaveVaultLever` | A facing | Toggle `FLAG_CAVE_NOOK` | `CaveNookGate` open/closed |
-| `CavePlate` | Step | Latch `FLAG_CAVE_BRIDGE` | `CaveBridgeRegion` extended; `CaveHole` unlocked; enables surveyor rescue (not an automatic quest completion) |
-| `CaveChest` | A facing | Latch `FLAG_CAVE_CHEST` on full successful claim | Existing one-time chest reward, §4.3 |
-| `CaveVent` | Automatic, `game.ticks` | **No saved flag** | Solid during low byte tick 0–95 out of 256; opens for 160 ticks |
-| `MineLanternRelay` | A facing | Set `FLAG_LANTERN_RELAY_FOUND` once | Unlock ancient Lantern Keeper resolution; no consumable item required |
-| `SurveyorTrapped` | Talk to `NPC_SURVEYOR` | `FLAG_SURVEYOR_FOUND`, then `FLAG_SURVEYOR_RESCUED` on confirmation after bridge open | Missing Surveyor completion and offscreen relocation |
-| `CaveNotice`, `MineWarning`, `MineLedger` | A facing | None | Maintenance instructions, wolf warning and historic records |
-| `CaveMouth`/`CaveExit` | Step | None | Existing outdoor↔cave passage |
-| `CaveHole`/`CaveLadder` | Step after bridge opens | Reads `FLAG_CAVE_BRIDGE` | Existing optional second passage / shortcut |
+### 7.2 Village barriers
 
-`WinchChalk`, `VentChalk`, `PoolEcho` and `LadderChalk` remain environmental clues where appropriate. No part of either quest should be reset by ordinary wolf respawning. Do not gate lantern relay access on the surveyor's rescue, or surveyor rescue on completing Lantern Keeper.
+Cliffs, water, forest, rocks and fences surround the clearing and the village. The only exit from
+the village is the bridge south, which Bram holds.
 
-### 7.3 Old Vault (`AREA_DUNGEON`)
+### 7.3 Mechanism support
 
-| Object/region | Input | Flag | Gameplay consequence |
-|---|---|---|---|
-| `DungeonLever` | A facing, reversible | `FLAG_DUNGEON_SPIKES` | Raise/lower `DungeonSpikesRegion` |
-| `DungeonCellDoor` | A facing, permanent | `FLAG_DUNGEON_CELL` | Door opens permanently |
-| `DungeonPlate` | Step, permanent | `FLAG_DUNGEON_GATE` | `DungeonGate` opens |
-| `DungeonBlockLever` | A facing, reversible | `FLAG_DUNGEON_BLOCKS` | Raise/lower `DungeonBlocksRegion` |
-| `DungeonOrb` | A facing, permanent | `FLAG_DUNGEON_ORB` | Orb and `DungeonRuneWest/East` light; `DungeonVaultDoor` opens |
-| `DungeonChest` | A facing | `FLAG_DUNGEON_CHEST` | One-time chest reward, see §4.3 |
-| `VaultGuard` | Contact | Defeat bit index 2 / `RESPAWN_NEVER` | 3-enemy battle and one-time enemy elimination |
-| `DungeonPlaque` | A facing | None | Information only |
-| `MineEntrance` / `DungeonExit` | Step | None | Two-way outdoor↔vault passage |
+Levers, pressure plates, doors, orbs, chests, passages and steam vents remain implemented in
+`src/logic/mechanisms.h` for later areas. No authored map uses them.
 
-No `QUEST_ID` currently governs Old Vault progression; access, switches, chest and permanent guard all work as standalone content. Vault guardian win yields normal **2 XP/member and 9 G**, but there is no additional quest reward.
-
-### 7.4 Millcross and houses
-
-- `VillageLantern`: interactable rendered as a dark, modern or ancient lantern tile according to the restoration and branch flags.
-- `WorkshopRecord`: the old workshop record on a table in the smithy, sets `FLAG_LANTERN_RECORD_FOUND`; revisit does not reset it.
-- `SurveyorNotes`: inn note sets `FLAG_SURVEY_NOTES_READ` and starts Missing Surveyor if not already started. It remains inspectable after rescue without granting rewards.
-- `SurveyTrailMark`: optional navigational evidence (`FLAG_SURVEY_TRAIL_FOUND`), not a mandatory barrier.
-- `SurveyorReturned`: policy home for `NPC_SURVEYOR` outside the inn after rescue.
-- `GroveWolf`: existing independent, respawning outdoor encounter.
-- `WellSign`, `OrchardSign`, `SmithySign`, `CaveSign`, `LadderSign`, `SluiceStone`, `InnRegister`: ordinary informational messages unless a specific new marker and corresponding handler supersede them.
-- `InnRest`: free full party restoration after confirmation; Mara offers the same action.
-- `ShopCounter`: fixed-price supplies shop; Ada offers the same action.
-- All ten house pairs remain functional.
-
-## 8. Global invariants, ordering and design extension checklist
+## 8. Global invariants and design extension checklist
 
 ### 8.1 Logical invariants
 
-1. **Lantern Keeper:** `RESTORED => STARTED && DIAGNOSED && RECORD_FOUND`; ancient branch additionally requires relay; modern branch tag implies restored. The final decision is irreversible. Any early clue discovery is retained; completion awards exactly once.
-2. **Missing Surveyor:** `RESCUED => FOUND && STARTED && CAVE_BRIDGE`; `FOUND => STARTED`; note/trail clues are optional. Surveyor is in the cave before rescue and village afterward. Rescue awards exactly once.
-3. **Independence:** neither quest may require completion, item, branch, or special event from the other. The cave can be explored and bridge opened before either quest is accepted.
-4. **Enemy flags:** defeat flag meaning follows spawn-index order; permanent guardian never returns. World Remembers cannot erase new quest facts or permanent mechanisms.
-5. **Equipment:** a globally owned item has at most one wearer; a compatible owned item or empty occupies each slot; changing equipment requires conscious wearers and clamps current HP/AP.
-6. **Consumables/chests:** prevent capacity overflow and underflow; container rewards are all-or-nothing and single-claim.
-7. **Party/perks:** no duplicate recruits; party size ≤ 4; ranks constrained by implementation and earned milestones; current HP/AP ≤ derived maxima.
-8. **Quests:** status, journal objectives and markers are read-only state derivations; cancellation must not mutate completion flags; loads must not replay rewards.
-9. **No softlocks:** mine crossing, both mine exits, house returns, cave mechanisms, NPC sites and vault all retain viable escape/recovery paths.
-10. **Defeat:** player returns to the title screen; no quest-success flags or rewards are granted by a lost encounter.
-11. **Quest catalog:** the Journal registry consists of `QUEST_LANTERN_KEEPER` and `QUEST_MISSING_SURVEYOR`. Quest identities and the flag layout belong to save format 24.
+1. **Story order:** every story flag requires its predecessor in §1.4; a load rejects a violation.
+2. **Gate:** the player can never be trapped in the clearing by pushes, unloading or loading.
+3. **Enemy flags:** defeat flag meaning follows spawn-index order; the rat never returns.
+4. **Equipment:** an owned item has at most one wearer; changing equipment requires conscious
+   wearers and clamps current HP/AP.
+5. **Party/perks:** no duplicate members; party size ≤ 4; ranks bounded by earned milestones;
+   current HP/AP ≤ derived maxima.
+6. **Quests:** status, objectives and markers are read-only derivations; loads never replay
+   rewards.
+7. **Defeat:** the player returns to the title screen; a lost battle grants nothing.
 
 ### 8.2 Future content entry template
 
@@ -745,12 +652,14 @@ For **new items** record ID, ownership/stack state, slot/target, exact numerical
 |---|---|
 | Saved world state, classes, progression formulas | [`src/rpg.h`](../src/rpg.h), [`src/game.cpp`](../src/game.cpp), [`src/save.cpp`](../src/save.cpp) |
 | Stable flag, quest, NPC and item identities | [`src/flags.h`](../src/flags.h), [`src/quest_ids.h`](../src/quest_ids.h), [`src/npc_ids.h`](../src/npc_ids.h), [`src/equipment_ids.h`](../src/equipment_ids.h) |
+| Story script and class choice | [`src/logic/story.cpp`](../src/logic/story.cpp), [`src/class_choice.cpp`](../src/class_choice.cpp) |
 | Quests, journal tracking and event delivery | [`src/quests/`](../src/quests/), [`src/quest.h`](../src/quest.h), [`src/quest_runtime.cpp`](../src/quest_runtime.cpp) |
-| NPC content, village interactions and locations | [`src/logic/area_village.h`](../src/logic/area_village.h), [`src/logic/area_cave.h`](../src/logic/area_cave.h), [`src/npc_policy.h`](../src/npc_policy.h), [`generated/map_positions.h`](../generated/map_positions.h) |
-| Caves, vault, doors, mechanism and chest policy | [`src/logic/area_cave.h`](../src/logic/area_cave.h), [`src/logic/area_dungeon.h`](../src/logic/area_dungeon.h), [`src/logic/mechanisms.h`](../src/logic/mechanisms.h), [`src/logic/container_rewards.h`](../src/logic/container_rewards.h) |
+| NPC content, houses, signs, enemies and locations | [`src/logic/area_village.h`](../src/logic/area_village.h), [`src/npc_policy.h`](../src/npc_policy.h), [`generated/map_positions.h`](../generated/map_positions.h) |
+| NPC engine, static objects and casting | [`src/npc.cpp`](../src/npc.cpp), [`src/npc.h`](../src/npc.h) |
+| Mechanisms and chest policy | [`src/logic/mechanisms.h`](../src/logic/mechanisms.h), [`src/logic/container_rewards.h`](../src/logic/container_rewards.h) |
 | Combat, specials, classes, enemies, battlefields | [`src/battle.h`](../src/battle.h), [`src/battle.cpp`](../src/battle.cpp), [`src/battle_enemies.cpp`](../src/battle_enemies.cpp), [`src/battlefields.cpp`](../src/battlefields.cpp), [`src/logic/enemy_spawn.h`](../src/logic/enemy_spawn.h), [`src/logic/enemy_catalog.h`](../src/logic/enemy_catalog.h) |
-| Encounter respawns and bespoke hooks | [`src/encounter.cpp`](../src/encounter.cpp), [`src/encounter.h`](../src/encounter.h), area headers |
+| Encounter respawns and hooks | [`src/encounter.cpp`](../src/encounter.cpp), [`src/encounter.h`](../src/encounter.h) |
 | Perks and rewards | [`src/perks.def`](../src/perks.def), [`src/party_progress.cpp`](../src/party_progress.cpp), [`src/equipment.cpp`](../src/equipment.cpp), [`src/supplies.cpp`](../src/supplies.cpp), [`src/shop.cpp`](../src/shop.cpp) |
-| Current world canon and authoring requirements | [`docs/world_bible.md`](world_bible.md), [`docs/content_authoring.md`](content_authoring.md) |
+| World canon and authoring requirements | [`docs/world_bible.md`](world_bible.md), [`docs/content_authoring.md`](content_authoring.md) |
 
 **Maintenance rule:** after a feature changes, update its ledger entry, any dependent quests, the cross-reference matrix, the flag/identity registry, and the relevant tests **in the same change**. The aim is one usable shared source of truth, not a second unofficial implementation.

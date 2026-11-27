@@ -65,7 +65,7 @@ need no Journal entry or marker.
 Connect quests to places and people. Let an outcome change a conversation,
 open a route, or explain something useful elsewhere. Keep independent quests
 playable in any order. Derive status and objectives from saved facts using
-the [native quest registry](quests.md). Use Journal summaries to help a player
+the [native quest registry](quest_programming.md). Use Journal summaries to help a player
 resume after a break. Mark useful destinations and leave room for deduction.
 Make rewards single-use and test repeated interactions and reloads.
 

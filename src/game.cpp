@@ -53,8 +53,9 @@ void game_start() {
     game.supplies = STARTING_SUPPLIES;
     game.level = 1;
 
+    // The story opens with the traveler waking from a nap, facing the player.
     Area const PROGMEM* area = world_area(AREA_OUTDOOR);
-    world_place(AREA_OUTDOOR, area->spawn.x, area->spawn.y, NORTH);
+    world_place(AREA_OUTDOOR, area->spawn.x, area->spawn.y, SOUTH);
 }
 
 // Out of line: a probe that starts a game from its setup would otherwise carry the world update's
@@ -99,13 +100,20 @@ static bool next_pixel(uint16_t x, uint16_t y, DIRECTION dir, uint16_t& nx, uint
 // How one pixel step ended. Only a terrain block lets the player sidestep.
 enum STEP_RESULT : uint8_t { STEP_MOVED, STEP_TERRAIN, STEP_NPC, STEP_EDGE };
 
+// The player's foot box against terrain and static objects. Out of line: movement is inlined
+// into the exploration loop, whose frame every deep path stands on.
+RPG_NOINLINE static bool player_ground_clear(uint16_t x, uint16_t y) {
+    return player_terrain_clear(x, y) && npc_object_clear(x, y);
+}
+
 // Moves one pixel in dir when that pixel is clear for the actor.
 static STEP_RESULT step_actor(Actor* a, DIRECTION dir) {
     uint16_t x, y;
     if(!next_pixel(a->x, a->y, dir, x, y))
         return STEP_EDGE;
     bool player = a == &game.player;
-    if(!(player ? player_terrain_clear(x, y) : terrain_clear(x, y)))
+    // Static objects block the player as terrain does, so a corner slides past them too.
+    if(!(player ? player_ground_clear(x, y) : terrain_clear(x, y)))
         return STEP_TERRAIN;
     if(player && !npc_player_clear(x, y, dir))
         return STEP_NPC;
@@ -133,6 +141,8 @@ __attribute__((noinline)) static bool sidestep_corner(Actor* a, DIRECTION dir) {
     if(!next_pixel(a->x, a->y, dir, fx, fy))
         return false;
     uint8_t edge = player_leading_edge(fx, fy, dir);
+    if(edge != 0xFF)
+        edge |= npc_object_edge(fx, fy, dir);
     // Every edge pixel is blocked, so no sidestep up to the assist distance clears it.
     if(edge == 0xFF)
         return false;
@@ -146,13 +156,14 @@ __attribute__((noinline)) static bool sidestep_corner(Actor* a, DIRECTION dir) {
             int16_t offset = side ? shift : -shift;
             uint16_t cx = horizontal ? fx : (uint16_t)(fx + offset);
             uint16_t cy = horizontal ? (uint16_t)(fy + offset) : fy;
-            if(!player_terrain_clear(cx, cy))
+            if(!player_ground_clear(cx, cy))
                 continue;
             DIRECTION sidestep = horizontal ? (side ? SOUTH : NORTH) : (side ? EAST : WEST);
             if(!strafe[side]) {
                 uint16_t sx, sy;
                 bool clear = next_pixel(a->x, a->y, sidestep, sx, sy) &&
-                             player_terrain_clear(sx, sy) && npc_player_clear(sx, sy, sidestep, false);
+                             player_ground_clear(sx, sy) &&
+                             npc_player_clear(sx, sy, sidestep, false);
                 strafe[side] = clear ? 1 : 2;
             }
             if(strafe[side] == 2)

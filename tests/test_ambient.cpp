@@ -89,32 +89,27 @@ static void ambient_classes() {
     CHECK(tile_ambient(HOUSE_TILE_STOVE) == AMBIENT_STEAM);
     CHECK(tile_ambient(HOUSE_TILE_EMPTY) == AMBIENT_NONE &&
           tile_ambient(HOUSE_TILE_RUG_CENTER) == AMBIENT_NONE);
-    game.area = AREA_CAVE;
-    CHECK(tile_ambient(CAVE_TILE_FLOOR_A) == AMBIENT_CAVE &&
-          tile_ambient(CAVE_TILE_FLOOR_MOSS) == AMBIENT_CAVE);
-    CHECK(tile_ambient(CAVE_TILE_PUDDLE) == AMBIENT_DRIP &&
-          tile_ambient(CAVE_TILE_POOL_CENTER) == AMBIENT_POOL);
-    CHECK(tile_ambient(CAVE_TILE_CRYSTALS) == AMBIENT_CRYSTAL &&
-          tile_ambient(CAVE_TILE_WALL_ORE) == AMBIENT_CRYSTAL);
-    CHECK(tile_ambient(CAVE_TILE_WALL_TORCH) == AMBIENT_EMBER &&
-          tile_ambient(CAVE_TILE_CAMPFIRE) == AMBIENT_EMBER);
-    CHECK(tile_ambient(CAVE_TILE_VENT_ACTIVE) == AMBIENT_STEAM &&
-          tile_ambient(CAVE_TILE_VENT) == AMBIENT_NONE);
-    CHECK(tile_ambient(CAVE_TILE_EMPTY) == AMBIENT_NONE &&
-          tile_ambient(CAVE_TILE_CHASM) == AMBIENT_NONE &&
-          tile_ambient(CAVE_TILE_RAIL_HORIZONTAL) == AMBIENT_NONE);
-    game.area = AREA_DUNGEON;
-    CHECK(tile_ambient(DUNGEON_TILE_FLOOR_A) == AMBIENT_CRYPT &&
-          tile_ambient(DUNGEON_TILE_FLOOR_CRACKED) == AMBIENT_CRYPT);
-    CHECK(tile_ambient(DUNGEON_TILE_PUDDLE) == AMBIENT_DRIP &&
-          tile_ambient(DUNGEON_TILE_FLOOR_GRATE) == AMBIENT_DRIP);
-    CHECK(tile_ambient(DUNGEON_TILE_TORCH) == AMBIENT_EMBER &&
-          tile_ambient(DUNGEON_TILE_BRAZIER) == AMBIENT_EMBER);
-    CHECK(tile_ambient(DUNGEON_TILE_CHANNEL_VERTICAL) == AMBIENT_POOL &&
-          tile_ambient(DUNGEON_TILE_ORB_LIT) == AMBIENT_CRYSTAL);
-    CHECK(tile_ambient(DUNGEON_TILE_ORB_DARK) == AMBIENT_NONE &&
-          tile_ambient(DUNGEON_TILE_CARPET_CENTER) == AMBIENT_NONE &&
-          tile_ambient(DUNGEON_TILE_SPIKES) == AMBIENT_NONE);
+    auto cave = [](uint8_t tile) { return tileset_tile_ambient(TILESET_CAVE, tile); };
+    CHECK(cave(CAVE_TILE_FLOOR_A) == AMBIENT_CAVE && cave(CAVE_TILE_FLOOR_MOSS) == AMBIENT_CAVE);
+    CHECK(cave(CAVE_TILE_PUDDLE) == AMBIENT_DRIP && cave(CAVE_TILE_POOL_CENTER) == AMBIENT_POOL);
+    CHECK(cave(CAVE_TILE_CRYSTALS) == AMBIENT_CRYSTAL &&
+          cave(CAVE_TILE_WALL_ORE) == AMBIENT_CRYSTAL);
+    CHECK(cave(CAVE_TILE_WALL_TORCH) == AMBIENT_EMBER && cave(CAVE_TILE_CAMPFIRE) == AMBIENT_EMBER);
+    CHECK(cave(CAVE_TILE_VENT_ACTIVE) == AMBIENT_STEAM && cave(CAVE_TILE_VENT) == AMBIENT_NONE);
+    CHECK(cave(CAVE_TILE_EMPTY) == AMBIENT_NONE && cave(CAVE_TILE_CHASM) == AMBIENT_NONE &&
+          cave(CAVE_TILE_RAIL_HORIZONTAL) == AMBIENT_NONE);
+    auto dungeon = [](uint8_t tile) { return tileset_tile_ambient(TILESET_DUNGEON, tile); };
+    CHECK(dungeon(DUNGEON_TILE_FLOOR_A) == AMBIENT_CRYPT &&
+          dungeon(DUNGEON_TILE_FLOOR_CRACKED) == AMBIENT_CRYPT);
+    CHECK(dungeon(DUNGEON_TILE_PUDDLE) == AMBIENT_DRIP &&
+          dungeon(DUNGEON_TILE_FLOOR_GRATE) == AMBIENT_DRIP);
+    CHECK(dungeon(DUNGEON_TILE_TORCH) == AMBIENT_EMBER &&
+          dungeon(DUNGEON_TILE_BRAZIER) == AMBIENT_EMBER);
+    CHECK(dungeon(DUNGEON_TILE_CHANNEL_VERTICAL) == AMBIENT_POOL &&
+          dungeon(DUNGEON_TILE_ORB_LIT) == AMBIENT_CRYSTAL);
+    CHECK(dungeon(DUNGEON_TILE_ORB_DARK) == AMBIENT_NONE &&
+          dungeon(DUNGEON_TILE_CARPET_CENTER) == AMBIENT_NONE &&
+          dungeon(DUNGEON_TILE_SPIKES) == AMBIENT_NONE);
     game.area = AREA_OUTDOOR;
 }
 

@@ -1,25 +1,23 @@
-#include "npc_policy.h"
+#pragma once
+
+#include "fixtures/absent_cast.h"
+#include "fixtures/cast.h"
 
 template <>
-struct NpcPolicy<NPC_TESSA>
-    : AtOneOf<positions::TessaWell,
-              When<NO_LOCATION, [] { return game.get_flag(FLAG_LANTERN_DIAGNOSED); }>,
-              When<TilePos{positions::CaveExit.area, positions::CaveExit.x,
-                           (uint8_t)(positions::CaveExit.y - 1)},
-                   [] { return game.get_flag(FLAG_LANTERN_RECORD_FOUND); }>> {};
+struct NpcPolicy<NPC_VILLAGER>
+    : AtOneOf<sites::WELL, When<NO_LOCATION, [] { return game.get_flag(TEST_FLAG_B); }>,
+              When<sites::FAR_ROOM, [] { return game.get_flag(TEST_FLAG_A); }>> {};
 
-template <> struct NpcPolicy<NPC_ORRIN> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_WANDERER> : AtOneOf<NO_LOCATION> {};
 
-template <> struct NpcPolicy<NPC_ROWAN> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_ARCHER> : AtOneOf<NO_LOCATION> {};
 
-template <> struct NpcPolicy<NPC_MARA> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_INNKEEPER> : AtOneOf<NO_LOCATION> {};
 
-template <> struct NpcPolicy<NPC_BRAM> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_SMITH> : AtOneOf<NO_LOCATION> {};
 
-template <> struct NpcPolicy<NPC_NELL> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_WATCHER> : AtOneOf<NO_LOCATION> {};
 
-template <> struct NpcPolicy<NPC_ADA> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_MERCHANT> : AtOneOf<NO_LOCATION> {};
 
-template <> struct NpcPolicy<NPC_SURVEYOR> : AtOneOf<NO_LOCATION> {};
-
-template <> struct NpcPolicy<NPC_ALDEN> : AtOneOf<NO_LOCATION> {};
+template <> struct NpcPolicy<NPC_SURVEY> : AtOneOf<NO_LOCATION> {};

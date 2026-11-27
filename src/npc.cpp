@@ -85,41 +85,127 @@ static void saturate(uint8_t& value) {
         ++value;
 }
 
-// Whether the feet at (x, y) are free of the player and the other NPCs. Terrain is not checked.
-static bool occupancy_clear(Npc const* self, uint16_t x, uint16_t y) {
+// A static object fills the 16x16 square at its position with the solid part of its mask. A
+// character fills only its foot box. A body is described by its mask: zero for a character.
+static RPG_NOINLINE uint16_t body_mask(NPC_ID id) {
+    auto def = npc_definition(id);
+    return def && def->body == NPC_BODY_STATIC ? npc_static_collision(def->sprite_row) : 0;
+}
+
+static uint16_t object_mask(Npc const& n) {
+    return n.policy_pending & NPC_FLAG_STATIC ? body_mask(n.id) : 0;
+}
+
+static bool squares_overlap(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
+    return x < ox + TILE && ox < x + TILE && y < oy + TILE && oy < y + TILE;
+}
+
+// Whether the foot box at (x, y) reaches the 16x16 square at (ox, oy), which holds all of an
+// object there.
+static bool foot_reaches_square(uint16_t x, uint16_t y, uint16_t ox, uint16_t oy) {
+    return (uint16_t)(x + FOOT_RIGHT - ox) < TILE + FOOT_WIDTH - 1 &&
+           (uint16_t)(y + FOOT_BOTTOM - oy) < TILE + FOOT_HEIGHT - 1;
+}
+
+// Whether the NPC fills any of the foot box at (x, y). A sliding object also reserves its
+// destination, so nothing can step into its way.
+static RPG_NOINLINE bool npc_blocks_foot(Npc const& n, uint16_t x, uint16_t y) {
+    if(!(n.policy_pending & NPC_FLAG_STATIC))
+        return npc_overlap(x, y, n.actor.x, n.actor.y);
+    // Movement asks this of every object, and looking up a mask costs far more than ruling out
+    // an object that is nowhere near.
+    bool here = foot_reaches_square(x, y, n.actor.x, n.actor.y);
+    bool there = n.behavior == NPC_TARGET && foot_reaches_square(x, y, n.target.x, n.target.y);
+    if(!here && !there)
+        return false;
+    uint16_t mask = object_mask(n);
+    return (here && foot_hits_object(mask, x, y, n.actor.x, n.actor.y)) ||
+           (there && foot_hits_object(mask, x, y, n.target.x, n.target.y));
+}
+
+// Whether a character at (x, y) is free of the player and the other NPCs. Terrain is not checked.
+static bool character_space_clear(Npc const* self, uint16_t x, uint16_t y) {
     if((!self || !(self->state & NPC_PASS_PLAYER)) &&
        npc_overlap(x, y, game.player.x, game.player.y))
         return false;
     for(auto const& other : game.npcs.actors) {
         if(!other.id)
             break;
-        if(&other != self && npc_overlap(x, y, other.actor.x, other.actor.y))
+        if(&other != self && npc_blocks_foot(other, x, y))
             return false;
     }
     return true;
 }
 
-static bool position_clear(Npc const* self, uint16_t x, uint16_t y) {
-    return terrain_clear(x, y) && occupancy_clear(self, x, y);
+// The same for a static object with the given mask, whose square nothing may share with another
+// object.
+static bool object_space_clear(Npc const* self, uint16_t x, uint16_t y, uint16_t mask) {
+    if((!self || !(self->state & NPC_PASS_PLAYER)) &&
+       foot_hits_object(mask, game.player.x, game.player.y, x, y))
+        return false;
+    for(auto const& other : game.npcs.actors) {
+        if(!other.id)
+            break;
+        if(&other == self)
+            continue;
+        if(other.policy_pending & NPC_FLAG_STATIC) {
+            if(squares_overlap(x, y, other.actor.x, other.actor.y) ||
+               (other.behavior == NPC_TARGET &&
+                squares_overlap(x, y, other.target.x, other.target.y)))
+                return false;
+        } else if(foot_hits_object(mask, other.actor.x, other.actor.y, x, y)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Whether every tile under the 16x16 square at (x, y) is passable, as a static object needs.
+static bool object_terrain_clear(uint16_t x, uint16_t y) {
+    if(!game.dimensions.pixel_bounds(x, y))
+        return false;
+    for(uint8_t ty = (uint8_t)(y >> TILE_SHIFT); ty <= (uint8_t)((y + TILE - 1) >> TILE_SHIFT);
+        ++ty)
+        for(uint8_t tx = (uint8_t)(x >> TILE_SHIFT); tx <= (uint8_t)((x + TILE - 1) >> TILE_SHIFT);
+            ++tx)
+            if(tile_solid(cached_tile({game.area, tx, ty})))
+                return false;
+    return true;
+}
+
+// Whether a body can stand at (x, y): a character, or a static object with a nonzero mask.
+static bool position_clear(Npc const* self, uint16_t x, uint16_t y, uint16_t mask = 0) {
+    if(mask)
+        return object_terrain_clear(x, y) && object_space_clear(self, x, y, mask);
+    return terrain_clear(x, y) && character_space_clear(self, x, y);
+}
+
+// A sliding object's step. Out of line and apart from position_clear, so that the steps of
+// characters, which are the deepest, do not pay for it.
+static RPG_NOINLINE bool object_step_clear(Npc const& n, uint16_t x, uint16_t y) {
+    return object_terrain_clear(x, y) && object_space_clear(&n, x, y, object_mask(n));
 }
 
 // Whether a one-pixel step of n to (x, y) is clear. Known-clear feet need only the tiles the step
 // enters; otherwise the whole footprint is checked.
 static bool step_clear(Npc const& n, uint16_t x, uint16_t y, DIRECTION dir) {
-    bool terrain = n.policy_pending & 4 ? terrain_step_clear(x, y, dir) : terrain_clear(x, y);
+    if(n.policy_pending & NPC_FLAG_STATIC)
+        return object_step_clear(n, x, y);
+    bool terrain =
+        n.policy_pending & NPC_FLAG_CLEAR ? terrain_step_clear(x, y, dir) : terrain_clear(x, y);
     if(!terrain)
         return false;
     if(npc_is_enemy(n.id) && npc_overlap(x, y, game.player.x, game.player.y)) {
         for(auto const& other : game.npcs.actors) {
             if(!other.id)
                 break;
-            if(&other != &n && npc_overlap(x, y, other.actor.x, other.actor.y))
+            if(&other != &n && npc_blocks_foot(other, x, y))
                 return false;
         }
         encounter_contact(n.id);
         return false;
     }
-    return occupancy_clear(&n, x, y);
+    return character_space_clear(&n, x, y);
 }
 
 static bool foot_cached_at(uint16_t x, uint16_t y) {
@@ -130,8 +216,17 @@ static bool foot_cached_at(uint16_t x, uint16_t y) {
     return dx <= CACHE_WIDTH * TILE - FOOT_WIDTH && dy <= CACHE_HEIGHT * TILE - FOOT_HEIGHT;
 }
 
+// A static object reads the tiles under its whole square.
+static bool square_cached_at(uint16_t x, uint16_t y) {
+    uint16_t dx = (uint16_t)(x - (uint16_t)cache.origin_tx * TILE);
+    uint16_t dy = (uint16_t)(y - (uint16_t)cache.origin_ty * TILE);
+    return dx <= (CACHE_WIDTH - 1) * TILE && dy <= (CACHE_HEIGHT - 1) * TILE;
+}
+
+// Whether the cache holds the terrain that the NPC's movement reads.
 static bool foot_cached(Npc const& n) {
-    return foot_cached_at(n.actor.x, n.actor.y);
+    return n.policy_pending & NPC_FLAG_STATIC ? square_cached_at(n.actor.x, n.actor.y)
+                                              : foot_cached_at(n.actor.x, n.actor.y);
 }
 
 // A scene casts its NPCs when it is entered. Afterwards a cast may happen only out of view, so an
@@ -140,16 +235,25 @@ static bool foot_cached(Npc const& n) {
 // Casts id at its home. A home that is blocked, or in view after entry, waits until it is clear
 // and out of view. The lifecycle functions stay out of line so their frames do not grow the frame
 // of update_visible_world, which the stack budget counts on every path.
-static bool candidate_clear(NPC_ID id, TilePos site) {
-    if(site.area != game.area || party_contains(id) || npc_find(id))
-        return false;
+// Whether a body can be cast at its site now: cached, out of view after entry, and clear.
+static bool site_clear(NPC_ID id, TilePos site) {
     uint16_t x = (uint16_t)site.x * TILE, y = (uint16_t)site.y * TILE;
-    return foot_cached_at(x, y) && (game.npcs.entering || !protected_view(x, y)) &&
-           !tile_portal(cached_tile(site)) && position_clear(nullptr, x, y);
+    uint16_t mask = body_mask(id);
+    return (mask ? square_cached_at(x, y) : foot_cached_at(x, y)) &&
+           (game.npcs.entering || !protected_view(x, y)) && !tile_portal(cached_tile(site)) &&
+           position_clear(nullptr, x, y, mask);
 }
 
-// This activation bit lets the normal NPC loop skip pursuit without a flash read.
-static constexpr uint8_t PURSUIT_ENABLED = 8;
+// The flags that content decides for as long as an actor holds its slot.
+static uint8_t content_flags(NPC_ID id, NPC_BODY body) {
+    return (uint8_t)((npc_location_is_fixed(id) ? NPC_FLAG_FIXED_SITE : 0) |
+                     (body == NPC_BODY_STATIC ? NPC_FLAG_STATIC | NPC_FLAG_IMMOVABLE : 0) |
+                     (body == NPC_BODY_FIXED ? NPC_FLAG_IMMOVABLE : 0));
+}
+
+static bool candidate_clear(NPC_ID id, TilePos site) {
+    return site.area == game.area && !party_contains(id) && !npc_find(id) && site_clear(id, site);
+}
 
 static bool cast_npc(NPC_ID id, TilePos home, bool revalidate) {
     auto& pool = game.npcs;
@@ -179,12 +283,12 @@ static bool cast_npc(NPC_ID id, TilePos home, bool revalidate) {
     *slot = {};
     slot->id = id;
     slot->assigned_site = home;
-    slot->policy_pending = (npc_location_is_fixed(id) ? 2 : 0) | 4;
+    slot->policy_pending = (uint8_t)(content_flags(id, def.body) | NPC_FLAG_CLEAR);
     slot->actor = {x, y, def.facing, 0};
     slot->behavior = def.behavior;
     if(slot->behavior == NPC_CHASE) {
         slot->behavior = NPC_WANDER;
-        slot->policy_pending |= PURSUIT_ENABLED;
+        slot->policy_pending |= NPC_FLAG_PURSUIT;
     }
     slot->route = def.route;
     npc_on_activate(*slot);
@@ -205,23 +309,28 @@ __attribute__((noinline)) static bool escape_step(Npc& n) {
             if(!terrain_clear((uint16_t)(x + dx * radius), (uint16_t)(y + dy * radius)))
                 continue;
             int16_t nx = x + dx, ny = y + dy;
-            if(!(n.state & NPC_PASS_PLAYER) &&
-               npc_overlap((uint16_t)nx, (uint16_t)ny, game.player.x, game.player.y))
+            if(!character_space_clear(&n, (uint16_t)nx, (uint16_t)ny))
                 return false;
-            for(auto const& other : game.npcs.actors) {
-                if(!other.id)
-                    break;
-                if(&other != &n &&
-                   npc_overlap((uint16_t)nx, (uint16_t)ny, other.actor.x, other.actor.y))
-                    return false;
-            }
-            n.policy_pending &= (uint8_t)~4;
+            n.policy_pending &= (uint8_t)~NPC_FLAG_CLEAR;
             n.actor.x = (uint16_t)nx;
             n.actor.y = (uint16_t)ny;
             n.actor.facing = dir;
             return true;
         }
     return false;
+}
+
+// Whether the terrain cache reaches any tile of the chunk that holds a site.
+static bool chunk_cached(TilePos site) {
+    uint8_t right = (uint8_t)(site.x | (CHUNK_WIDTH - 1));
+    uint8_t bottom = (uint8_t)(site.y | (CHUNK_HEIGHT - 1));
+    return (uint8_t)(right - cache.origin_tx) < CHUNK_WIDTH - 1 + CACHE_WIDTH &&
+           (uint8_t)(bottom - cache.origin_ty) < CHUNK_HEIGHT - 1 + CACHE_HEIGHT;
+}
+
+static bool same_chunk(TilePos a, TilePos b) {
+    return a.area == b.area && a.x / CHUNK_WIDTH == b.x / CHUNK_WIDTH &&
+           a.y / CHUNK_HEIGHT == b.y / CHUNK_HEIGHT;
 }
 
 namespace {
@@ -271,12 +380,27 @@ RPG_NOINLINE void npc_stage_begin() {
             ++current;
             continue;
         }
+        // An object never leaves the chunk of its site, and the objects of a chunk unload
+        // together once the cache has left it, so an arrangement of them is never rebuilt in part.
+        // One whose site changes does not walk there: it is cast there afresh.
+        if(n.policy_pending & NPC_FLAG_STATIC) {
+            bool stays =
+                (n.policy_pending & NPC_FLAG_FIXED_SITE) || npc_location(n.id) == n.assigned_site;
+            if((!stays || !chunk_cached(n.assigned_site)) &&
+               !protected_view(n.actor.x, n.actor.y)) {
+                retire_slot(i);
+                continue;
+            }
+            ++i;
+            ++current;
+            continue;
+        }
         // A one-site essential policy can reuse its initialized snapshot.
-        if(!(n.policy_pending & 2)) {
+        if(!(n.policy_pending & NPC_FLAG_FIXED_SITE)) {
             TilePos site = npc_location(n.id);
             if(site != n.assigned_site) {
                 n.assigned_site = site;
-                n.policy_pending |= 1;
+                n.policy_pending |= NPC_FLAG_PENDING;
             }
         }
         // Scripted movement pins the actor until it completes, including off cache.
@@ -285,8 +409,8 @@ RPG_NOINLINE void npc_stage_begin() {
             ++current;
             continue;
         }
-        if(n.policy_pending & 1) {
-            n.policy_pending &= (uint8_t)~1;
+        if(n.policy_pending & NPC_FLAG_PENDING) {
+            n.policy_pending &= (uint8_t)~NPC_FLAG_PENDING;
             n.behavior = n.assigned_site.area == game.area ? NPC_TRAVEL : NPC_STAND;
             n.timer = n.stuck = n.push = n.detour = 0;
             n.state = NPC_STATE_NONE;
@@ -330,6 +454,10 @@ RPG_NOINLINE void npc_detail::offer_candidate(NPC_ID id, TilePos site) {
     if(!def)
         return;
     uint8_t priority = def->priority;
+    // After scene entry, a frame casts only the best candidate: casting several at once can overrun
+    // it. The others are offered again while their sites are out of view, which a newly cached
+    // site stays for several frames.
+    uint8_t const limit = game.npcs.entering ? NPC_CAPACITY : 1;
     uint8_t at = 0;
     while(at < candidate_count) {
         auto const& c = candidates[at];
@@ -339,12 +467,9 @@ RPG_NOINLINE void npc_detail::offer_candidate(NPC_ID id, TilePos site) {
             break;
         ++at;
     }
-    uint16_t x = (uint16_t)site.x * TILE, y = (uint16_t)site.y * TILE;
-    if(at == NPC_CAPACITY || !foot_cached_at(x, y) ||
-       (!game.npcs.entering && protected_view(x, y)) || tile_portal(cached_tile(site)) ||
-       !position_clear(nullptr, x, y))
+    if(at == limit || !site_clear(id, site))
         return;
-    if(candidate_count < NPC_CAPACITY)
+    if(candidate_count < limit)
         ++candidate_count;
     for(uint8_t i = candidate_count - 1; i > at; --i)
         candidates[i] = candidates[i - 1];
@@ -370,6 +495,41 @@ void npc_reset() {
     candidate_count = 0;
     game.npcs.push_direction = STILL;
     game.npcs.entering = 1;
+    npc_logic_restore();
+}
+
+bool npc_saved_state_valid(MapDimensions dimensions) {
+    NpcPool const& pool = game.npcs;
+    if(pool.entering > 1 || pool.push_direction > STILL)
+        return false;
+    bool ended = false;
+    for(auto const& n : pool.actors) {
+        if(!n.id) {
+            ended = true;
+            continue;
+        }
+        // Occupied slots come first, and each holds a different known actor from outside the
+        // party. Only an enemy has pursuit rules, and a facing or a yield names a direction.
+        bool pursues = n.behavior == NPC_CHASE || n.behavior == NPC_RETURN ||
+                       (n.policy_pending & NPC_FLAG_PURSUIT);
+        if(ended || !npc_definition(n.id) || party_contains(n.id) || npc_find(n.id) != &n ||
+           n.behavior > NPC_RETURN || (pursues && !npc_is_enemy(n.id)) || n.actor.facing > WEST ||
+           ((n.state & NPC_YIELDING) && (n.stuck >> 4) > WEST) ||
+           !dimensions.pixel_bounds(n.actor.x, n.actor.y))
+            return false;
+    }
+    return true;
+}
+
+void npc_resume() {
+    for(auto& n : game.npcs.actors) {
+        if(!n.id)
+            break;
+        // Content may have changed since the save. No actor keeps known-clear feet either.
+        n.policy_pending = (uint8_t)((n.policy_pending & (NPC_FLAG_PENDING | NPC_FLAG_PURSUIT)) |
+                                     content_flags(n.id, npc_definition(n.id)->body));
+    }
+    candidate_count = 0;
     npc_logic_restore();
 }
 
@@ -410,7 +570,7 @@ static bool step(Npc& n, DIRECTION dir) {
     if(x < 0 || y < 0 || !leashed(n, (uint16_t)x, (uint16_t)y) ||
        !step_clear(n, (uint16_t)x, (uint16_t)y, dir))
         return false;
-    n.policy_pending |= 4;
+    n.policy_pending |= NPC_FLAG_CLEAR;
     n.actor.x = (uint16_t)x;
     n.actor.y = (uint16_t)y;
     n.actor.walking = 1;
@@ -533,6 +693,9 @@ __attribute__((noinline)) static bool steer_or_detour(Npc& n, PixelPos target, u
     }
     if(steer(n, target))
         return true;
+    // An object slides straight: it never walks around what blocks it.
+    if(n.policy_pending & NPC_FLAG_STATIC)
+        return false;
     if(n.stuck + period < NPC_DETOUR_FRAMES)
         return false;
     DIRECTION ahead = toward_ahead(n, target);
@@ -569,7 +732,7 @@ bool npc_move_to(NPC_ID id, uint16_t x, uint16_t y) {
     Npc* n = npc_find(id);
     if(!n || !game.dimensions.pixel_bounds(x, y))
         return false;
-    n->policy_pending &= (uint8_t)~4;
+    n->policy_pending &= (uint8_t)~NPC_FLAG_CLEAR;
     n->target = {x, y};
     n->behavior = NPC_TARGET;
     n->timer = n->stuck = 0;
@@ -584,7 +747,7 @@ bool npc_follow_route(NPC_ID id, uint8_t route) {
     auto path = npc_route(route);
     if(!n || !path || path->area != game.area)
         return false;
-    n->policy_pending &= (uint8_t)~4;
+    n->policy_pending &= (uint8_t)~NPC_FLAG_CLEAR;
     n->route = route;
     n->behavior = NPC_ROUTE;
     n->waypoint = n->timer = n->stuck = 0;
@@ -615,6 +778,39 @@ static void waypoint_reached(Npc& n, NpcRoute const PROGMEM* path) {
         n.behavior = NPC_STAND;
         npc_on_event(n, NPC_EVENT_ROUTE_COMPLETED);
     }
+}
+
+bool npc_start_pursuit(NPC_ID id) {
+    Npc* n = npc_find(id);
+    if(!n || !npc_is_enemy(id))
+        return false;
+    n->policy_pending |= NPC_FLAG_PURSUIT;
+    return true;
+}
+
+bool npc_push(NPC_ID id, DIRECTION dir, TileRegion bounds) {
+    Npc* n = npc_find(id);
+    if(!n || !(n->policy_pending & NPC_FLAG_STATIC) || n->behavior != NPC_STAND || dir > WEST ||
+       (n->actor.x & (TILE - 1)) || (n->actor.y & (TILE - 1)))
+        return false;
+    int16_t tx = (int16_t)(n->actor.x >> TILE_SHIFT), ty = (int16_t)(n->actor.y >> TILE_SHIFT);
+    if(dir == NORTH)
+        --ty;
+    if(dir == EAST)
+        ++tx;
+    if(dir == SOUTH)
+        ++ty;
+    if(dir == WEST)
+        --tx;
+    if(tx < 0 || ty < 0 || tx > 255 || ty > 255)
+        return false;
+    TilePos destination{game.area, (uint8_t)tx, (uint8_t)ty};
+    uint16_t x = (uint16_t)tx * TILE, y = (uint16_t)ty * TILE;
+    // An object stays in the chunk of its site, which it unloads with.
+    if(!bounds.contains(destination) || !same_chunk(destination, n->assigned_site) ||
+       !position_clear(n, x, y, object_mask(*n)))
+        return false;
+    return npc_move_to(id, x, y);
 }
 
 // Returning home must finish before detection resumes, including when the player
@@ -652,13 +848,13 @@ void npc_update() {
             for(auto& other : game.npcs.actors) {
                 if(!other.id)
                     break;
-                other.policy_pending &= (uint8_t)~4;
+                other.policy_pending &= (uint8_t)~NPC_FLAG_CLEAR;
             }
             game.npcs.terrain_dirty = 0;
         }
         // A settled actor with known-clear feet has no movement or timer work this frame.
-        if(n.behavior == NPC_STAND && (n.policy_pending & 4) &&
-           !(n.policy_pending & PURSUIT_ENABLED) && !(n.state & NPC_YIELDING) &&
+        if(n.behavior == NPC_STAND && (n.policy_pending & NPC_FLAG_CLEAR) &&
+           !(n.policy_pending & NPC_FLAG_PURSUIT) && !(n.state & NPC_YIELDING) &&
            !n.actor.walking && !n.timer)
             continue;
         // A clipped sprite may still be visible after its feet leave the cache.
@@ -676,15 +872,16 @@ void npc_update() {
         // A tile change can leave an NPC overlapping solid terrain. It walks out one pixel at a
         // time, never in a jump. If it cannot move, its ordinary logic still runs, so a blocked
         // target can still fail.
-        if(step_frame && !(n.policy_pending & 4)) {
-            if(terrain_clear(n.actor.x, n.actor.y)) {
-                n.policy_pending |= 4;
+        // An object stays where it is: nothing pushes it out of terrain.
+        if(step_frame && !(n.policy_pending & NPC_FLAG_CLEAR)) {
+            if((n.policy_pending & NPC_FLAG_STATIC) || terrain_clear(n.actor.x, n.actor.y)) {
+                n.policy_pending |= NPC_FLAG_CLEAR;
             } else if(escape_step(n)) {
                 n.actor.walking = 1;
                 continue;
             }
         }
-        if((n.policy_pending & PURSUIT_ENABLED) && step_frame)
+        if((n.policy_pending & NPC_FLAG_PURSUIT) && step_frame)
             update_pursuit(n, def->pause);
         if(n.state & NPC_YIELDING) {
             if(!step_frame)
@@ -798,10 +995,41 @@ static bool player_position_clear(uint16_t x, uint16_t y) {
     for(auto const& n : game.npcs.actors) {
         if(!n.id)
             break;
-        if(!(n.state & NPC_PASS_PLAYER) && npc_overlap(x, y, n.actor.x, n.actor.y))
+        if(!(n.state & NPC_PASS_PLAYER) && npc_blocks_foot(n, x, y))
             return false;
     }
     return true;
+}
+
+bool npc_object_clear(uint16_t x, uint16_t y) {
+    for(auto const& n : game.npcs.actors) {
+        if(!n.id)
+            break;
+        if((n.policy_pending & NPC_FLAG_STATIC) && npc_blocks_foot(n, x, y) &&
+           !npc_blocks_foot(n, game.player.x, game.player.y))
+            return false;
+    }
+    return true;
+}
+
+RPG_NOINLINE uint8_t npc_object_edge(uint16_t x, uint16_t y, DIRECTION dir) {
+    bool horizontal = dir == EAST || dir == WEST;
+    uint16_t fixed = horizontal ? (uint16_t)(x + (dir == EAST ? FOOT_RIGHT : FOOT_LEFT))
+                                : (uint16_t)(y + (dir == SOUTH ? FOOT_BOTTOM : FOOT_TOP));
+    uint16_t first = horizontal ? (uint16_t)(y + FOOT_TOP) : (uint16_t)(x + FOOT_LEFT);
+    uint8_t bits = 0;
+    for(auto const& n : game.npcs.actors) {
+        if(!n.id)
+            break;
+        if(!(n.policy_pending & NPC_FLAG_STATIC))
+            continue;
+        // Where the edge's line and its first pixel fall within the object's square.
+        uint16_t across = (uint16_t)(fixed - (horizontal ? n.actor.x : n.actor.y));
+        uint16_t along = (uint16_t)(first - (horizontal ? n.actor.y : n.actor.x));
+        if(across < TILE && (uint16_t)(along + 7) < TILE + 7)
+            bits |= object_edge_bits(object_mask(n), (uint8_t)across, (int8_t)along, horizontal);
+    }
+    return bits;
 }
 
 static bool player_segment(int16_t& x, int16_t& y, DIRECTION dir, uint8_t pixels) {
@@ -883,6 +1111,12 @@ bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir, bool actual_step) {
     for(auto& n : game.npcs.actors) {
         if(!n.id)
             break;
+        if(n.policy_pending & NPC_FLAG_IMMOVABLE) {
+            // Neither yields. One that the player already overlaps does not hold the player.
+            if(npc_blocks_foot(n, x, y) && !npc_blocks_foot(n, game.player.x, game.player.y))
+                clear = false;
+            continue;
+        }
         if(!npc_overlap(x, y, n.actor.x, n.actor.y))
             continue;
         if(npc_is_enemy(n.id)) {
@@ -917,6 +1151,22 @@ bool npc_player_clear(uint16_t x, uint16_t y, DIRECTION dir, bool actual_step) {
     return clear;
 }
 
+// Whether the tile that the player faces holds the center of the object.
+static RPG_NOINLINE bool object_faced(Npc const& n, DIRECTION facing) {
+    uint16_t x = (uint16_t)((game.player.x + FOOT_CENTER_X) >> TILE_SHIFT);
+    uint16_t y = (uint16_t)((game.player.y + FOOT_CENTER_Y) >> TILE_SHIFT);
+    if(facing == NORTH)
+        --y;
+    if(facing == EAST)
+        ++x;
+    if(facing == SOUTH)
+        ++y;
+    if(facing == WEST)
+        --x;
+    return ((n.actor.x + TILE / 2) >> TILE_SHIFT) == x &&
+           ((n.actor.y + TILE / 2) >> TILE_SHIFT) == y;
+}
+
 void npc_interact() {
     DIRECTION facing = game.player.facing;
     if(facing > WEST)
@@ -934,7 +1184,11 @@ void npc_interact() {
         int16_t side = horizontal ? dy : dx;
         if(reverse)
             forward = (int16_t)-forward;
-        if(forward < 1 || forward > 24 || side < -10 || side > 10)
+        // A character answers from a window ahead. An object answers, as terrain does, from the
+        // tile that the player faces.
+        if(n.policy_pending & NPC_FLAG_STATIC
+               ? !object_faced(n, facing)
+               : forward < 1 || forward > 24 || side < -10 || side > 10)
             continue;
         if(!npc_definition(n.id)->talkable)
             continue;
@@ -949,7 +1203,8 @@ void npc_interact() {
     game.can_interact = true;
     if(frame_pressed & BTN_A) {
         frame_pressed &= (uint8_t)~BTN_A;
-        best->actor.facing = (DIRECTION)((game.player.facing + 2) & 3);
+        if(!(best->policy_pending & NPC_FLAG_STATIC))
+            best->actor.facing = (DIRECTION)((game.player.facing + 2) & 3);
         npc_talk(best->id);
     }
 }

@@ -1,9 +1,9 @@
 #include "rpg.h"
 #include "chunk.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "chunk.h"
 #include "world_assets.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "npc.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,13 +26,12 @@ static bool replace_route;
 
 NpcDefinition const PROGMEM* npc_definition(NPC_ID id) {
     static constexpr NpcDefinition DEFINITION{NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 3, 0};
-    return id == NPC_TESSA ? &DEFINITION : nullptr;
+    return id == NPC_VILLAGER ? &DEFINITION : nullptr;
 }
 
 NpcRoute const PROGMEM* npc_route(uint8_t id) {
     static constexpr RoutePoint POINTS[] = {
-        {positions::TessaWell.x, positions::TessaWell.y},
-        {positions::TessaWell.x, static_cast<uint8_t>(positions::TessaWell.y + 1)}};
+        {sites::WELL.x, sites::WELL.y}, {sites::WELL.x, static_cast<uint8_t>(sites::WELL.y + 1)}};
     static constexpr NpcRoute ONCE{POINTS, 2, ROUTE_ONCE, 2, AREA_OUTDOOR};
     static constexpr NpcRoute REVERSE{POINTS, 2, ROUTE_REVERSE, 2, AREA_OUTDOOR};
     return id == 1 ? &ONCE : id == 2 ? &REVERSE : nullptr;
@@ -85,12 +84,12 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
 int main() {
     game_new();
     CHECK(activated == 1 && restored == 1);
-    Npc& n = *npc_find(NPC_TESSA);
+    Npc& n = *npc_find(NPC_VILLAGER);
     CHECK(npc_follow_route(n.id, 1));
     for(unsigned i = 0; i < 24; ++i)
         npc_update();
     CHECK(events[NPC_EVENT_ROUTE_STARTED] == 1 && events[NPC_EVENT_ROUTE_COMPLETED] == 1);
-    CHECK(n.actor.y == (positions::TessaWell.y + 1) * TILE && n.behavior == NPC_STAND);
+    CHECK(n.actor.y == (sites::WELL.y + 1) * TILE && n.behavior == NPC_STAND);
     replace_route = true;
     CHECK(npc_follow_route(n.id, 1));
     npc_update();
@@ -111,67 +110,64 @@ int main() {
     CHECK(events[NPC_EVENT_TARGET_FAILED] == 1);
     // Every tile is solid now, so the villager has no clear spot to walk out to. It keeps its
     // slot and holds still.
-    Npc* stuck = npc_find(NPC_TESSA);
+    Npc* stuck = npc_find(NPC_VILLAGER);
     uint16_t sx = stuck->actor.x, sy = stuck->actor.y;
     npc_update();
-    CHECK(npc_find(NPC_TESSA) == stuck && stuck->actor.x == sx && stuck->actor.y == sy);
-    world_enter(AREA_OUTDOOR, positions::PlayerStart.x * TILE, positions::PlayerStart.y * TILE,
-                NORTH);
-    CHECK(npc_find(NPC_TESSA));
-    CHECK(npc_move_to(NPC_TESSA, positions::TessaWell.x * TILE,
-                      positions::TessaWell.y * TILE + 1));
+    CHECK(npc_find(NPC_VILLAGER) == stuck && stuck->actor.x == sx && stuck->actor.y == sy);
+    world_enter(AREA_OUTDOOR, sites::PLAYER_START.x * TILE, sites::PLAYER_START.y * TILE, NORTH);
+    CHECK(npc_find(NPC_VILLAGER));
+    CHECK(npc_move_to(NPC_VILLAGER, sites::WELL.x * TILE, sites::WELL.y * TILE + 1));
     npc_update();
     npc_update();
     CHECK(events[NPC_EVENT_TARGET_REACHED] == 1);
-    world_enter(AREA_OUTDOOR, positions::TessaOrchard.x * TILE, positions::TessaOrchard.y * TILE,
-                SOUTH);
+    world_enter(AREA_OUTDOOR, sites::ORCHARD.x * TILE, sites::ORCHARD.y * TILE, SOUTH);
     // Scene exit retires the NPCs that were present, and only them. The villager's home is
     // outside the cache from here, so it is not cast until the cache covers it.
-    CHECK(!npc_find(NPC_TESSA) && last_retirement == NPC_RETIRED_RESET);
-    unsigned present = (npc_find(NPC_TESSA) ? 1u : 0u) + (npc_find(NPC_ORRIN) ? 1u : 0u);
+    CHECK(!npc_find(NPC_VILLAGER) && last_retirement == NPC_RETIRED_RESET);
+    unsigned present = (npc_find(NPC_VILLAGER) ? 1u : 0u) + (npc_find(NPC_WANDERER) ? 1u : 0u);
     unsigned count = retired;
     npc_reset();
     CHECK(retired == count + present);
     // Absence and other-area assignments retain visible actors until safe unloading.
     game_new();
-    CHECK(npc_find(NPC_TESSA));
-    game.set_flag(FLAG_LANTERN_DIAGNOSED);
+    CHECK(npc_find(NPC_VILLAGER));
+    game.set_flag(TEST_FLAG_B);
     update_visible_world(0, false);
-    CHECK(npc_find(NPC_TESSA));
-    game.player.x = positions::TestField.x * TILE;
-    game.player.y = positions::TestField.y * TILE;
+    CHECK(npc_find(NPC_VILLAGER));
+    game.player.x = sites::TEST_FIELD.x * TILE;
+    game.player.y = sites::TEST_FIELD.y * TILE;
     unsigned before_unload = retired;
     update_visible_world(0, false);
-    CHECK(!npc_find(NPC_TESSA) && retired == before_unload + 1);
+    CHECK(!npc_find(NPC_VILLAGER) && retired == before_unload + 1);
     CHECK(last_retirement == NPC_RETIRED_UNLOADED);
     update_visible_world(0, false);
     CHECK(retired == before_unload + 1);
 
     game_new();
-    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
+    game.set_flag(TEST_FLAG_A);
     update_visible_world(0, false);
-    CHECK(npc_find(NPC_TESSA) && npc_location(NPC_TESSA).area == AREA_CAVE);
-    game.player.x = positions::TestField.x * TILE;
-    game.player.y = positions::TestField.y * TILE;
+    CHECK(npc_find(NPC_VILLAGER) && npc_location(NPC_VILLAGER).area == AREA_INTERIORS);
+    game.player.x = sites::TEST_FIELD.x * TILE;
+    game.player.y = sites::TEST_FIELD.y * TILE;
     update_visible_world(0, false);
-    CHECK(!npc_find(NPC_TESSA));
-    TilePos cave_site = npc_location(NPC_TESSA);
+    CHECK(!npc_find(NPC_VILLAGER));
+    TilePos cave_site = npc_location(NPC_VILLAGER);
     world_enter(cave_site.area, (cave_site.x - 1) * TILE, cave_site.y * TILE, EAST);
-    CHECK(npc_find(NPC_TESSA));
-    CHECK(npc_find(NPC_TESSA)->assigned_site == cave_site);
+    CHECK(npc_find(NPC_VILLAGER));
+    CHECK(npc_find(NPC_VILLAGER)->assigned_site == cave_site);
 
     game_new();
-    CHECK(npc_follow_route(NPC_TESSA, 2));
-    game.set_flag(FLAG_LANTERN_RECORD_FOUND);
-    game.player.x = positions::TestField.x * TILE;
-    game.player.y = positions::TestField.y * TILE;
+    CHECK(npc_follow_route(NPC_VILLAGER, 2));
+    game.set_flag(TEST_FLAG_A);
+    game.player.x = sites::TEST_FIELD.x * TILE;
+    game.player.y = sites::TEST_FIELD.y * TILE;
     update_visible_world(0, false);
-    auto pinned = npc_find(NPC_TESSA);
+    auto pinned = npc_find(NPC_VILLAGER);
     CHECK(pinned && pinned->behavior == NPC_ROUTE && pinned->route == 2);
-    CHECK(pinned->assigned_site.area == AREA_CAVE && pinned->policy_pending);
-    CHECK(npc_move_to(NPC_TESSA, pinned->actor.x + 1, pinned->actor.y));
+    CHECK(pinned->assigned_site.area == AREA_INTERIORS && pinned->policy_pending);
+    CHECK(npc_move_to(NPC_VILLAGER, pinned->actor.x + 1, pinned->actor.y));
     update_visible_world(0, false);
-    CHECK(npc_find(NPC_TESSA)->behavior == NPC_TARGET);
+    CHECK(npc_find(NPC_VILLAGER)->behavior == NPC_TARGET);
 
     printf("PASS independent NPC lifecycle policy: %u checks\n", checks);
 }

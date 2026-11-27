@@ -4,7 +4,7 @@
 #include "rpg.h"
 #include "chunk.h"
 #include "logic/npc_logic.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "quest.h"
 #include "quest_catalog_registry.h"
 #include "story_stub.h"
@@ -67,7 +67,7 @@ static void flag_subscriptions() {
     fresh();
     unsigned before = quest_evaluations;
     // The watchers are inactive, so the change is seen but no quest progresses.
-    game.set_flag(FLAG_CAVE_GATE);
+    game.set_flag(QUEST_FLAG_GATE);
     quest_settle();
     CHECK(test_evaluations[2] == 0 && test_evaluations[11] == 0);
     CHECK(quest_evaluations == before);
@@ -78,13 +78,13 @@ static void flag_subscriptions() {
     CHECK(quest_evaluations == before);
 
     // Setting a flag that is already set is no change, so nothing is notified.
-    game.set_flag(FLAG_CAVE_GATE);
+    game.set_flag(QUEST_FLAG_GATE);
     quest_settle();
     CHECK(quest_evaluations == before);
 
     // A real change reaches each subscriber once, and coalesces with a second change in the frame.
-    game.clear_flag(FLAG_CAVE_GATE);
-    game.set_flag(FLAG_CAVE_GATE);
+    game.clear_flag(QUEST_FLAG_GATE);
+    game.set_flag(QUEST_FLAG_GATE);
     test_status[11] = QUEST_ACTIVE;
     quest_settle();
     CHECK(test_evaluations[2] == 1 && test_evaluations[11] == 1);
@@ -92,8 +92,8 @@ static void flag_subscriptions() {
 
     // A flag that no quest watches notifies nothing, and invalid flag values are ignored.
     unsigned evaluations = quest_evaluations;
-    game.set_flag(FLAG_DUNGEON_CHEST);
-    game.toggle_flag(FLAG_CAVE_CHEST);
+    game.set_flag(QUEST_FLAG_CHEST);
+    game.toggle_flag(QUEST_FLAG_UNWATCHED);
     game.set_flag((FLAG)200);
     quest_settle();
     CHECK(quest_evaluations == evaluations);
@@ -103,11 +103,11 @@ static void cascade() {
     fresh();
     test_status[2] = test_status[3] = QUEST_ACTIVE;
     unsigned first = test_evaluations[2], second = test_evaluations[3];
-    game.set_flag(FLAG_CAVE_GATE);
+    game.set_flag(QUEST_FLAG_GATE);
     quest_settle();
     // The gate's evaluation sets the nook, which schedules quest 3 in the next pass, deterministically.
     CHECK(test_evaluations[2] == first + 1 && test_evaluations[3] == second + 1);
-    CHECK(game.get_flag(FLAG_CAVE_NOOK) && game.get_flag(FLAG_CAVE_BRIDGE));
+    CHECK(game.get_flag(QUEST_FLAG_NOOK) && game.get_flag(QUEST_FLAG_BRIDGE));
     unsigned work = quest_evaluations;
     quest_settle();
     CHECK(quest_evaluations == work);
@@ -117,7 +117,7 @@ static void bounded_cycle() {
     fresh();
     test_status[10] = QUEST_ACTIVE;
     unsigned before = test_evaluations[10];
-    game.set_flag(FLAG_DUNGEON_ORB);
+    game.set_flag(QUEST_FLAG_ORB);
     quest_settle();
     // Four passes per settle bound the frame. The last toggle still pends, so the work continues.
     CHECK(test_evaluations[10] - before == 4);
@@ -131,24 +131,24 @@ static void bounded_cycle() {
 
 static void conversations() {
     fresh();
-    quest_emit(NpcTalked<NPC_ORRIN>{});
-    quest_emit(NpcTalked<NPC_ORRIN>{});
+    quest_emit(NpcTalked<NPC_WANDERER>{});
+    quest_emit(NpcTalked<NPC_WANDERER>{});
     CHECK(test_talks[4] == 2 && test_talks[5] == 0);
     // An NPC with no subscribers reaches no handler.
-    quest_emit(NpcTalked<NPC_ROWAN>{});
+    quest_emit(NpcTalked<NPC_ARCHER>{});
     CHECK(test_talks[4] == 2 && test_talks[5] == 0);
 
     test_status[5] = QUEST_ACTIVE;
     CHECK(quest_select(Q(5)) && quest_selected() == Q(5));
-    quest_emit(NpcTalked<NPC_TESSA>{});
+    quest_emit(NpcTalked<NPC_VILLAGER>{});
     CHECK(test_talks[5] == 1 && test_completions[5] == 1 && test_status[5] == QUEST_COMPLETED);
     // Completion clears tracking, and the selection is not given to another quest.
     CHECK(quest_selected() == QUEST_NONE);
     // A repeated conversation delivers again but completes nothing new.
-    quest_emit(NpcTalked<NPC_TESSA>{});
+    quest_emit(NpcTalked<NPC_VILLAGER>{});
     CHECK(test_talks[5] == 2 && test_completions[5] == 1);
     // The shipping quest does not subscribe to the synthetic conversation.
-    CHECK(quest_status(QUEST_LANTERN_KEEPER) == QUEST_NOT_STARTED);
+    CHECK(quest_status(QUEST_GO_HOME) == QUEST_NOT_STARTED);
 }
 
 static void starts() {
@@ -162,8 +162,8 @@ static void starts() {
     // Starting again is idempotent, and it does not run start() again.
     CHECK(!quest_start(Q(8)) && test_starts[8] == 1);
     // A later start keeps the tracked quest.
-    CHECK(quest_start(QUEST_LANTERN_KEEPER) && quest_selected() == Q(8));
-    CHECK(quest_select(QUEST_LANTERN_KEEPER) && quest_selected() == QUEST_LANTERN_KEEPER);
+    CHECK(quest_start(QUEST_GO_HOME) && quest_selected() == Q(8));
+    CHECK(quest_select(QUEST_GO_HOME) && quest_selected() == QUEST_GO_HOME);
 }
 
 static void long_journal() {
@@ -180,8 +180,8 @@ static void long_journal() {
     for(unsigned i = 0; i < listed; ++i)
         CHECK(quest_journal_entry((uint8_t)i) == expected[i]);
     CHECK(quest_journal_entry((uint8_t)listed) == QUEST_NONE);
-    // Lantern Keeper is not started, so it is hidden from the Journal.
-    CHECK(!quest_listed(QUEST_LANTERN_KEEPER));
+    // Go Home is not started, so it is hidden from the Journal.
+    CHECK(!quest_listed(QUEST_GO_HOME));
 
     // A tracked quest replaces the previous one, and only active quests can be tracked.
     CHECK(quest_select(Q(9)) && quest_selected() == Q(9));
@@ -194,11 +194,11 @@ static void markers() {
     TilePos marker;
     CHECK(!quest_marker(Q(6), AREA_OUTDOOR, marker));
     test_status[6] = QUEST_ACTIVE;
-    CHECK(quest_marker(Q(6), AREA_OUTDOOR, marker) && marker == positions::WellSign);
+    CHECK(quest_marker(Q(6), AREA_OUTDOOR, marker) && marker == sites::SIGN);
     // The quest answers only for its own area, and the map shows only the tracked quest.
-    CHECK(!quest_marker(Q(6), AREA_CAVE, marker));
+    CHECK(!quest_marker(Q(6), AREA_INTERIORS, marker));
     CHECK(!quest_map_marker(AREA_OUTDOOR, marker));
-    CHECK(quest_select(Q(6)) && quest_map_marker(AREA_OUTDOOR, marker) && marker == positions::WellSign);
+    CHECK(quest_select(Q(6)) && quest_map_marker(AREA_OUTDOOR, marker) && marker == sites::SIGN);
     // A marker outside its map is refused, whatever the quest computed.
     test_status[9] = QUEST_ACTIVE;
     CHECK(!quest_marker(Q(9), AREA_OUTDOOR, marker));
@@ -213,7 +213,7 @@ static void consistency() {
     CHECK(quest_saved_state_valid());
     test_status[12] = QUEST_COMPLETED;
     CHECK(!quest_saved_state_valid());
-    game.set_flag(FLAG_DUNGEON_CHEST);
+    game.set_flag(QUEST_FLAG_CHEST);
     CHECK(quest_saved_state_valid());
     game.selected_quest = (QUEST_ID)QUEST_ID_LIMIT;
     CHECK(!quest_saved_state_valid());
@@ -230,7 +230,7 @@ static void consistency() {
 static void reset_discards_pending() {
     fresh();
     test_status[2] = QUEST_ACTIVE;
-    game.set_flag(FLAG_CAVE_GATE);
+    game.set_flag(QUEST_FLAG_GATE);
     quest_reset();
     unsigned before = quest_evaluations;
     quest_settle();

@@ -205,8 +205,8 @@ int main(int argc, char** argv) try {
     d.battle_ready_addr = std::stoul(argv[9]);
     d.workspace_addr = std::stoul(argv[10]);
     d.open_title();
-    d.tap(BTN_A);
-    d.frame();
+    start_new_game(d);
+    skip_story(d);
     require(d.music_enabled(), "RPG did not enable music");
     while(!d.ab->core_state.cpu.active ||
           !(d.ab->core_state.cpu.data[absim::reg::addr::SREG] & 128) ||
@@ -219,25 +219,16 @@ int main(int argc, char** argv) try {
     if(variant == "normal" && seconds >= 8) {
         monitor.scenario = "dialogue";
         Game exploration = d.state();
-        Game world = exploration;
-        auto* orrin = std::find_if(world.npcs.actors, world.npcs.actors + NPC_CAPACITY,
-                                  [](Npc const& npc) { return npc.id == NPC_ORRIN; });
-        require(orrin != world.npcs.actors + NPC_CAPACITY, "Orrin is not active");
-        orrin->state = NPC_STATE_NONE;
-        orrin->timer = 40;
-        world.flags.set_flag(FLAG_LANTERN_STARTED);
-        world.player = {(uint16_t)(orrin->actor.x + FOOT_WIDTH), orrin->actor.y, WEST, 0};
-        d.set_state(world);
-        d.frame();
+        enter_house(d, positions::AldenDoor);
+        face_npc(d, NPC_ELIZA);
         d.tap(BTN_A);
         require(d.prompt() != DIALOGUE_CLOSED, "timing dialogue scenario did not open");
-        require(d.prompt() == DIALOGUE_OPTIONS, "Orrin did not open his topics");
-        d.tap(BTN_A);
-        d.dismiss_dialogue();
+        read_dialogue(d);
         monitor.scenario = "battle";
-        start_grove_contact(d);
+        start_rat_contact(d);
         play_grove_battle(d);
-        world = d.state();
+        leave_house(d, positions::ElizaExit);
+        Game world = d.state();
         world.player = exploration.player;
         world.npcs = exploration.npcs;
         d.set_state(world);

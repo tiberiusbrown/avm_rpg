@@ -3,7 +3,6 @@
 #include "encounter.h"
 #include "npc.h"
 #include "quest.h"
-#include <string.h>
 
 bool save_valid() {
     constexpr uint8_t LEGACY_VOLUME_MAX = 30;
@@ -39,19 +38,20 @@ bool save_valid() {
     if(!area)
         return false;
     MapDimensions dimensions{area->width, area->height};
-    return dimensions.pixel_bounds(game.player.x, game.player.y);
+    return dimensions.pixel_bounds(game.player.x, game.player.y) &&
+           npc_saved_state_valid(dimensions);
 }
 
 bool save_restore() {
     if(!save_valid())
         return false;
 
-    // The entire pointer-free Game is saved in place. Rebuild its derived world/NPC state before
-    // resuming, including overlap repair in the caller's first cache refresh.
-    memset(&game.npcs, 0, sizeof(game.npcs));
+    // The entire pointer-free Game is saved in place, the NPC pool included. Rebuild what it
+    // derives from the world before resuming, including overlap repair in the caller's first cache
+    // refresh.
     game.ticks = 0;
     game.can_interact = false;
     // A loaded save resumes with no pending evaluation. A stale tracked quest is dropped.
     quest_restore();
-    return world_place(game.area, game.player.x, game.player.y, game.player.facing);
+    return world_resume();
 }

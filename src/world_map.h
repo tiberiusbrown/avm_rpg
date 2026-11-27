@@ -2,8 +2,14 @@
 #define WORLD_MAP_H
 
 #include "rpg.h"
+#include "world_assets.h"
 
 inline constexpr int16_t MAP_SUBPIXELS = 16;
+
+// The map pixel at the middle of a tile. WORLD_MAP_SPRITE draws WORLD_MAP_SCALE pixels per tile.
+constexpr int16_t world_map_pixel(int16_t tile) {
+    return (int16_t)(tile * WORLD_MAP_SCALE + (WORLD_MAP_SCALE - 1) / 2);
+}
 
 struct MapAxis {
     int16_t position;
@@ -47,14 +53,15 @@ constexpr int16_t map_follow(int16_t camera, int16_t cursor, uint8_t tiles, uint
     return map_clamp(camera, tiles > screen ? tiles - screen : 0);
 }
 
-// A tile's position on the map display, and whether that position lies on the 128x64 display.
-// Tiles and map pixels are one-to-one, so the player and quest markers share this mapping.
+// A tile's position on the map display, and whether that position lies on the 128x64 display. The
+// player and quest markers share this mapping.
 inline bool map_tile_on_screen(TilePos tile, WorldMapView const& view, int16_t& x, int16_t& y) {
-    x = (int16_t)((int16_t)tile.x - view.camera_x);
-    y = (int16_t)((int16_t)tile.y - view.camera_y);
+    x = (int16_t)(world_map_pixel(tile.x) - view.camera_x);
+    y = (int16_t)(world_map_pixel(tile.y) - view.camera_y);
     return x >= 0 && x < 128 && y >= 0 && y < 64;
 }
 
+// width and height are the map's size in map pixels.
 inline void update_world_map(WorldMapView& view, uint8_t held, uint8_t width, uint8_t height) {
     int8_t dx = !!(held & BTN_RIGHT) - !!(held & BTN_LEFT);
     int8_t dy = !!(held & BTN_DOWN) - !!(held & BTN_UP);

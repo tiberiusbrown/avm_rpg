@@ -1,17 +1,20 @@
 #pragma once
 
 #include "enemy_spawn.h"
-#ifndef RPG_DISABLE_ENEMY_SPAWNS
+// Test fixtures name a catalog of their own, or none at all.
+#if defined(RPG_ENEMY_CATALOG_HEADER)
+#include RPG_ENEMY_CATALOG_HEADER
+#elif !defined(RPG_DISABLE_ENEMY_SPAWNS)
 #include "handlers.h"
 #endif
 
 // Catalog order determines enemy IDs and saved defeat flags. Append new spawns at the end.
-#ifndef RPG_DISABLE_ENEMY_SPAWNS
-using EnemyEntries = typename Join<VillageEnemies, CaveEnemies, DungeonEnemies,
-                                   OrchardEnemies, MineWestEnemies, VaultEastEnemies,
-                                   MillcrossWildlife, MineCreatures, VaultCreatures>::type;
-#else
+#if defined(RPG_DISABLE_ENEMY_SPAWNS)
 using EnemyEntries = TypeList<>;
+#elif defined(RPG_ENEMY_CATALOG_HEADER)
+using EnemyEntries = FixtureEnemies;
+#else
+using EnemyEntries = typename Join<VillageEnemies>::type;
 #endif
 
 template <typename> struct CatalogFor;

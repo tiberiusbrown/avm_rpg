@@ -11,8 +11,8 @@ guides, which build on this one.
 | Tileset | Atlas | For | Used by | Guide |
 | --- | --- | --- | --- | --- |
 | `house.tsx` | `tiles16_house.png` | Houses, shops and cellars | `interiors.tmx` | this guide |
-| `cave.tsx` | `tiles16_cave.png` | Caves and mines | `cave.tmx` | [AUTHORING_CAVE.md](AUTHORING_CAVE.md) |
-| `dungeon.tsx` | `tiles16_dungeon.png` | Dungeons, crypts and halls | `dungeon.tmx` | [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) |
+| `cave.tsx` | `tiles16_cave.png` | Caves and mines | No map yet (battlefields) | [AUTHORING_CAVE.md](AUTHORING_CAVE.md) |
+| `dungeon.tsx` | `tiles16_dungeon.png` | Dungeons, crypts and halls | No map yet (battlefields) | [AUTHORING_DUNGEON.md](AUTHORING_DUNGEON.md) |
 
 ## Files
 
@@ -21,8 +21,7 @@ guides, which build on this one.
   256x256 monochrome atlases.
 - `assets/images/tiles16_<name>_collision.png`: each atlas with solid collision pixels
   tinted red. The generator writes them on every run.
-- `assets/maps/interiors.tmx`: the inside of every house, in one map. `cave.tmx` and
-  `dungeon.tmx` are one cave and one dungeon.
+- `assets/maps/interiors.tmx`: the inside of every house, in one map.
 - **Each map uses exactly one tileset.** The game draws and collides an area with the
   tileset of its map. A house map uses `house.tsx`, a cave map uses `cave.tsx`, and a
   dungeon map uses `dungeon.tsx`. Pieces from two tilesets cannot share a map.
@@ -93,8 +92,16 @@ Its wall row holds a window, a bookcase and a sconce on wood panelling. A bed, a
 a plant, a round rug, a chair and a set table stand on a wood floor. A doormat lies above
 the exit in the south wall.
 
-Do not box a floor cell in. Furniture blocks most of its cell, so a floor cell with furniture
-or walls on all four sides cannot be reached.
+**Every north side shows a wall.** A floor or furniture cell has another room cell or a wall
+row cell directly above it, never an edge cell or the void. So a hallway that runs east and west
+is at least two tiles tall: its upper row is a wall row. A side passage through a one-cell wall
+follows the same rule; only the exit in a south wall is an edge that the player walks onto. The
+content test checks this.
+
+**Keep every floor cell reachable.** Furniture blocks most of its cell, so a floor cell with
+furniture or walls on all four sides cannot be reached. Keep furniture out of doorways and
+passages, and leave a way behind counters. The content test walks each house pixel by pixel and
+rejects walled-off floor.
 
 ## Edges
 
@@ -182,8 +189,9 @@ ID and one tileset, and it keeps every house of a region in one place.
   direction. The content test checks five columns and three rows around every walkable
   cell.
 - **Link each room to its door.** Put a point named `<House>Exit` on the room's
-  `EDGE_TOP_EXIT`, with the handler `leave_house`. The outdoor door carries a point named
-  `<House>Door` with the handler `enter_house`. Add the pair to `HOUSE_LINKS` in
+  `EDGE_TOP_EXIT`, with the handler `leave_house`, and a rectangle named `<House>Rooms` over
+  its floor. The outdoor door carries a point named `<House>Door` with the handler
+  `enter_house`. Add `{door, exit, <House>RoomsRegion}` to `HOUSE_LINKS` in
   `src/logic/area_village.h`.
 - **Entering and leaving.** `enter_house` runs when the player faces the door and presses
   A. It moves the player to the floor cell above the exit, facing north. `leave_house`
@@ -361,17 +369,13 @@ Rules for houses:
 - **A bed is two cells tall.** `BED_HEAD` goes above `BED_FOOT`. Put the head against the
   wall row.
 - **Chairs face their table.** Choose the chair by the side of the table it stands on.
-- **A rug is at least 2x2.** For one cell, use `RUG_SMALL` or `DOORMAT`. Furniture hides
-  the rug cell under it, so keep a rug's outline cells free.
-- **Shop.** `ShopCounter` is the `open_shop` point on the middle of the counter.
-  Keep the floor south of it clear. The dialogue-stage handler requests the shop
-  modal after world dispatch returns. `ShopExit` remains the walk-out doorway.
-- **Inn.** `InnRest` is the `rest_at_inn` point on the right end of the counter.
-  Keep the floor south of it clear so the player can face the counter and use A.
-  `InnExit` remains the walk-out doorway.
-- **Document tables.** The `WorkshopRecord` and `SurveyorNotes` handler points
-  use `TABLE_WORKSHOP_RECORD` (`0xD0`) and `TABLE_SURVEY_NOTES` (`0xD1`).
-  Leave a clear adjacent cell for reading.
+- **A rug is at least 2x2.** For one cell, use `RUG_SMALL` or `DOORMAT`. Lay a rug as a
+  complete rectangle with each piece in its place. Only furniture inside the outline may hide a
+  center piece, so keep a rug's outline cells free. The content test checks every rug.
+- **Shop and inn.** No shop or inn service is wired yet. A counter handler goes on the counter
+  cell, with the floor south of it clear so the player can face it.
+- **Document tables.** `TABLE_WORKSHOP_RECORD` (`0xD0`) and `TABLE_SURVEY_NOTES` (`0xD1`) show
+  written pages. Leave a clear adjacent cell for reading.
 - **Interactive tiles block.** A pot or chest takes its handler point on its own
   cell, and the player interacts from the next cell while facing it. Content code records
   the collected state, as outdoors.

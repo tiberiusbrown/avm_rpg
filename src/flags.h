@@ -7,40 +7,35 @@
 inline constexpr uint8_t ENEMY_DEFEAT_CAPACITY = 16;
 
 // Stable bit indices, not masks. Append new flags before FLAG_COUNT.
-// The cave and dungeon flags record a mechanism's state: set means that its lever is thrown, its
-// plate is down, its barrier is open or its chest is empty. The maps show the clear state.
 enum FLAG : uint16_t {
     FLAG_RESERVED = 0,
-    FLAG_CAVE_GATE,
-    FLAG_CAVE_NOOK,
-    FLAG_CAVE_BRIDGE,
-    FLAG_CAVE_CHEST,
-    FLAG_DUNGEON_SPIKES,
-    FLAG_DUNGEON_CELL,
-    FLAG_DUNGEON_GATE,
-    FLAG_DUNGEON_BLOCKS,
-    FLAG_DUNGEON_ORB,
-    FLAG_DUNGEON_CHEST,
-    FLAG_LANTERN_STARTED,
-    FLAG_LANTERN_DIAGNOSED,
-    FLAG_LANTERN_RECORD_FOUND,
-    FLAG_LANTERN_RELAY_FOUND,
-    FLAG_LANTERN_RESTORED,
-    FLAG_LANTERN_MODERN,
-    FLAG_SURVEY_STARTED,
-    FLAG_SURVEY_NOTES_READ,
-    FLAG_SURVEY_TRAIL_FOUND,
-    FLAG_SURVEYOR_FOUND,
-    FLAG_SURVEYOR_RESCUED,
+    // The opening in the forest clearing and the way home.
+    FLAG_INTRO_SHOWN,      // The traveler spoke on waking.
+    FLAG_HOME_STARTED,     // Go Home is under way.
+    FLAG_BOULDERS_NOTICED, // The traveler saw that boulders block the way out.
+    FLAG_LEFT_CLEARING,    // The traveler passed the boulders.
+    FLAG_HOME_REACHED,     // The traveler stepped inside their home: Go Home is complete.
+    // Eliza's Giant Rat.
+    FLAG_ELIZA_GREETED, // Eliza asked for help on finding the traveler.
+    FLAG_RAT_ACCEPTED,  // The traveler agreed to get rid of the rat.
+    FLAG_RAT_SIGHTED,   // The traveler saw the rat in Eliza's bedroom.
+    FLAG_CLASSES_CHOSEN,
+    FLAG_RAT_REPORTED, // Eliza heard that the rat is gone: the quest is complete.
+    // Pause menu items that the story unlocks.
+    FLAG_MENU_JOURNAL,
+    FLAG_MENU_PARTY,
+    FLAG_MENU_SUPPLIES,
     // Expanding either saved range may require a save version bump.
     FLAG_ITEM_FIRST,
     FLAG_ITEM_END = FLAG_ITEM_FIRST + ITEM_DEFINED_COUNT,
     FLAG_ENEMY_FIRST = FLAG_ITEM_END,
-    FLAG_BRAM_LANTERN_MEETING = FLAG_ENEMY_FIRST + ENEMY_DEFEAT_CAPACITY,
-    FLAG_COUNT
+    FLAG_COUNT = FLAG_ENEMY_FIRST + ENEMY_DEFEAT_CAPACITY
 };
 
 static_assert(FLAG_ITEM_END - FLAG_ITEM_FIRST == ITEM_DEFINED_COUNT);
+
+// The giant rat is entry 0 of the enemy catalog; area_village.h checks it.
+inline constexpr FLAG FLAG_RAT_DEFEATED = FLAG_ENEMY_FIRST;
 
 constexpr FLAG enemy_defeated_flag_at(unsigned index) {
     return index < ENEMY_DEFEAT_CAPACITY ? (FLAG)(FLAG_ENEMY_FIRST + index) : FLAG_COUNT;

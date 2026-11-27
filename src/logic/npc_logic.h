@@ -5,7 +5,8 @@
 
 // Synchronous hooks: no blocking UI, reset/teleport, or recursive simulation.
 // Activation and movement events may change this actor's behavior via npc_* APIs.
-// Retirement observes the outgoing actor; restore runs after the pool is cleared.
+// Retirement observes the outgoing actor. Restore runs after the pool is cleared, or after a
+// load, which keeps the saved actors and activates none of them.
 void npc_on_activate(Npc& npc);
 void npc_on_event(Npc& npc, NPC_EVENT event);
 void npc_on_retire(Npc const& npc, NPC_RETIRE_REASON reason);

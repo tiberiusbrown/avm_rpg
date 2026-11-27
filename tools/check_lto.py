@@ -36,7 +36,9 @@ def inspect_lto(compiler, elf):
         )
         signatures.append({"function": name, "optimized_arguments": arguments})
     if elf.stem != "m0_proof":
-        assert "@game = internal global %struct.Game " in ir, "expected one guest Game object"
+        # LTO may keep a numbered copy of the type name; every unit declares the same layout.
+        assert re.search(r"^@game = internal global %struct\.Game(?:\.\d+)? ", ir, re.MULTILINE), (
+            "expected one guest Game object")
         assert not signatures, "Game-reference helpers should use the singleton directly"
         saved_globals = re.findall(r'^@[^\n]*\bglobal\b[^\n]*section "\.saved"[^\n]*', ir, re.MULTILINE)
         assert len(saved_globals) == 1 and saved_globals[0].startswith("@game = "), (

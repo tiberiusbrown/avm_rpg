@@ -1048,3 +1048,7 @@ inline constexpr uint8_t TILESET_BLOCKED[] = {
     255, 31, 255, 239, 255, 255, 225, 255, 0, 128, 240, 255, 248, 255, 248, 255,
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
 };
+// The images of npc_static.png, which static NPCs name as their sprite_row.
+inline constexpr uint8_t NPC_STATIC_BOULDER = 0;
+inline constexpr uint8_t NPC_STATIC_BOULDER_SPLIT = 1;
+inline constexpr uint8_t NPC_STATIC_COUNT = 2;

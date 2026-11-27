@@ -35,7 +35,9 @@ void music_play(MUSIC_TRACK track) {
         avm_audio_play_fade(song);
 }
 
-void music_play_area() {
+// Out of line: inlined into the exploration loop, a constant song pointer would be held on the
+// stack across that loop, under every deep path.
+RPG_NOINLINE void music_play_area() {
     music_play(area_music(game.area));
 }
 

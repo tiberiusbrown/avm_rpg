@@ -40,6 +40,7 @@ After Alden wanders around a bit...
 > Alden: Now which way was home again?
 
 Start quest: Go home. Set objective to clearing exit.
+
 > Press B to pause the game and access your journal.
 
 Unlock Journal menu item.
@@ -47,6 +48,7 @@ Unlock Journal menu item.
 As Alden approaches the east side of the clearing (flag to make this only show up once):
 
 > Alden: Hey! Those boulders must have rolled while I slept. The way out is blocked! Maybe I can push them back?
+
 > Press A while facing something to interact with it.
 
 Update quest description to indicate Alden needs to push boulders to make an exit.
@@ -81,6 +83,7 @@ Eliza's home is two rooms, a kitchen/living area and a bedroom. The rat is insid
 Fade out to black and fade in to a panel (usual UI style) for the player to select movement and attack classes. Each movement and attack class offers a brief description of its mechanics and eventual style (i.e., the overall direction that the class's perks focus on). When the player is finished:
 
 > Press B to access the Party menu, which gives information on each party member's classes, perks, equipment, and special abilities.
+
 Unlock Party menu option.
 
 The rat NPC now changes to chase mode so the player engages with it soon afterwards: combat with single giant rat in indoor environment.
@@ -90,6 +93,7 @@ When finished: update quest objective to go back to Eliza.
 When Alden returns to Eliza:
 
 > Alden: The rat is gone, Eliza.
+
 > Eliza: Oh, thank goodness! I knew you could do it.
 
 Quest complete: small XP and gold reward. Eliza NPC goes back to wandering around someplace in the village.

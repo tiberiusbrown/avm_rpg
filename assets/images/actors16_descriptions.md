@@ -55,19 +55,19 @@ south-facing idle frame (column 6).
 | --- | --- | --- | --- | --- | --- |
 | 0 | male | medium brown, short, fringe | none | none | player (`NPC_ALDEN`) |
 | 1 | male | black, short, heavy fringe | none | none | unused |
-| 2 | male | white, short | none | thick dark brows | Orrin (`NPC_ORRIN`) |
-| 3 | male | hidden by the hood | white pointed hood | strap or lacing marks | Rowan (`NPC_ROWAN`) |
+| 2 | male | white, short | none | thick dark brows | unused |
+| 3 | male | hidden by the hood | white pointed hood | strap or lacing marks | unused |
 | 4 | male | black, short, heavy fringe | none | black eyepatch with strap; pin at the collar | unused |
 | 5 | male | medium brown, short | white headband | none | unused |
 | 6 | male | dark brown, short, ruffled | none | strap or lacing marks | unused |
-| 7 | male | bald; black hair ring at the back | none | black moustache; wide dark sash | Bram |
-| 8 | female | medium brown, long, centre parting | none | none | unused |
-| 9 | female | black, long, centre parting | none | none | Tessa (`NPC_TESSA`) |
-| 10 | female | pale blond, long (assigned) | none | thick dark brows | Surveyor (`NPC_SURVEYOR`) |
-| 11 | female | medium brown, long, straight strands | none | smile; collar and hip marks | Mara |
-| 12 | female | black, long | wide-brimmed hat | none | Nell |
+| 7 | male | bald; black hair ring at the back | none | black moustache; wide dark sash | Bram (`NPC_BRAM`) |
+| 8 | female | medium brown, long, centre parting | none | none | Eliza (`NPC_ELIZA`) |
+| 9 | female | black, long, centre parting | none | none | unused |
+| 10 | female | pale blond, long (assigned) | none | thick dark brows | unused |
+| 11 | female | medium brown, long, straight strands | none | smile; collar and hip marks | unused |
+| 12 | female | black, long | wide-brimmed hat | none | unused |
 | 13 | female | dark brown, long, ruffled | none | collar and hip marks | unused |
-| 14 | female | medium brown, long | polka-dot kerchief | dark waist sash | Ada |
+| 14 | female | medium brown, long | polka-dot kerchief | dark waist sash | unused |
 | 15 | female | silver-gray, long, centre parting | none | no brows | unused |
 
 ## Rows
@@ -95,8 +95,6 @@ Used by the player and Alden's (`NPC_ALDEN`) party slot.
 
 ### Row 2: white short hair
 
-Used by Orrin (`NPC_ORRIN`).
-
 - **Sex:** male.
 - **Hair:** white (reads as white or silver), short and smooth with two dark specks.
 - **Head covering:** none. The dome is smooth with no brim or hood edge, so it
@@ -106,8 +104,6 @@ Used by Orrin (`NPC_ORRIN`).
 - **Basis:** white head on rows 1-3 of the S frame; dark bar on row 4.
 
 ### Row 3: hooded ranger
-
-Used by Rowan (`NPC_ROWAN`, the archer).
 
 - **Sex:** male.
 - **Hair:** hidden. The hood covers the whole head, so no hair colour is shown.
@@ -155,6 +151,8 @@ Used by Rowan (`NPC_ROWAN`, the archer).
 
 ### Row 7: bald with a moustache
 
+Used by Bram (`NPC_BRAM`).
+
 - **Sex:** male.
 - **Hair:** none on top; the crown is a smooth white dome. A ring of black hair
   circles the back of the head at ear level, visible from behind and the sides.
@@ -167,6 +165,8 @@ Used by Rowan (`NPC_ROWAN`, the archer).
 
 ### Row 8: brown, long, plain dress
 
+Used by Eliza (`NPC_ELIZA`).
+
 - **Sex:** female.
 - **Hair:** medium brown, long, falling past the shoulders to mid-back, with a
   fringe split by a centre parting.
@@ -177,8 +177,6 @@ Used by Rowan (`NPC_ROWAN`, the archer).
 
 ### Row 9: black, long, plain dress
 
-Used by Tessa (`NPC_TESSA`).
-
 - **Sex:** female.
 - **Hair:** black, long to mid-back, with bangs and a centre parting.
 - **Head covering:** none.
@@ -186,8 +184,6 @@ Used by Tessa (`NPC_TESSA`).
 - **Basis:** solid black crown and hair continuing below the head.
 
 ### Row 10: pale blond, long
-
-Used by the Surveyor (`NPC_SURVEYOR`).
 
 - **Sex:** female.
 - **Hair:** pale blond or white, long to mid-back and smooth, with a few dark

@@ -2,7 +2,7 @@
 #include "npc.h"
 #include "chunk.h"
 #include "logic/npc_logic.h"
-#include "map_positions.h"
+#include "cast.h"
 #include "tile_ids.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -196,10 +196,10 @@ static void run(uint32_t seed, unsigned frames) {
         if(rng() % 8 == 0)
             held = moves_for[rng() % (sizeof(moves_for) / sizeof(moves_for[0]))];
         if(rng() % 120 == 0)
-            game.toggle_flag(FLAG_LANTERN_RECORD_FOUND);
+            game.toggle_flag(TEST_FLAG_A);
         if(rng() % 160 == 0)
-            npc_move_to(NPC_ORRIN, (uint16_t)(positions::OrrinLane.x * TILE - 16 + rng() % 33),
-                      (uint16_t)(positions::OrrinLane.y * TILE - 12 + rng() % 25));
+            npc_move_to(NPC_WANDERER, (uint16_t)(sites::LANE.x * TILE - 16 + rng() % 33),
+                        (uint16_t)(sites::LANE.y * TILE - 12 + rng() % 25));
         Snapshot before = take();
         Camera camera_before = game_camera();
         if(rng() % 25 == 0)
@@ -217,23 +217,23 @@ static void run(uint32_t seed, unsigned frames) {
 // is twelve pixels west, so it must walk out over many steps, and no step may jump.
 static void test_tile_change_under_npc_walks_out() {
     game_new();
-    Npc* villager = npc_find(NPC_TESSA);
-    CHECK(villager && villager->actor.x == positions::TessaWell.x * TILE &&
-          villager->actor.y == positions::TessaWell.y * TILE);
+    Npc* villager = npc_find(NPC_VILLAGER);
+    CHECK(villager && villager->actor.x == sites::WELL.x * TILE &&
+          villager->actor.y == sites::WELL.y * TILE);
     uint16_t start_x = villager->actor.x, start_y = villager->actor.y;
     for(unsigned frame = 0; frame < 120; ++frame) {
         Snapshot before = take();
         Camera camera_before = game_camera();
         update_visible_world(0, false);
-        for(uint8_t ty = positions::TessaWell.y; ty <= positions::TessaWell.y + 1; ++ty)
-            for(uint8_t tx = positions::TessaWell.x; tx <= positions::TessaWell.x + 1; ++tx)
+        for(uint8_t ty = sites::WELL.y; ty <= sites::WELL.y + 1; ++ty)
+            for(uint8_t tx = sites::WELL.x; tx <= sites::WELL.x + 1; ++tx)
                 cache_tile(tx, ty, TILE_TREE);
         npc_update();
         ++game.ticks;
         ++frames_run;
         Snapshot after = take();
         check_frame(before, after, camera_before, game_camera(), frame);
-        CHECK(npc_find(NPC_TESSA) == villager);
+        CHECK(npc_find(NPC_VILLAGER) == villager);
     }
     CHECK(terrain_clear(villager->actor.x, villager->actor.y));
     CHECK(start_x - villager->actor.x >= 8 && start_x - villager->actor.x <= 16 &&

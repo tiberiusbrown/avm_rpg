@@ -6,10 +6,8 @@
 // new score for an area replaces its line and nothing else.
 constexpr MUSIC_TRACK area_music(uint8_t area) {
     switch(area) {
-        case AREA_CAVE: return MUSIC_CAVE;
         case AREA_OUTDOOR: return MUSIC_PEACEFUL;
         case AREA_INTERIORS: return MUSIC_PEACEFUL;
-        case AREA_DUNGEON: return MUSIC_PEACEFUL;
         default: return MUSIC_DEFAULT;
     }
 }

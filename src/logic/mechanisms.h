@@ -211,6 +211,24 @@ template <TilePos POS> void open_chest(Tiles<POS>) {
     apply_state<POS>();
 }
 
+// A steam vent blows for VENT_BLOW_TICKS of every 256 ticks, on the game clock alone, so it keeps
+// no state. While it blows it is solid, and the player waits for it to rest.
+inline constexpr uint8_t VENT_BLOW_TICKS = 96;
+
+constexpr bool vent_blows(uint16_t ticks) {
+    return (uint8_t)ticks < VENT_BLOW_TICKS;
+}
+
+// The vent hisses as it starts to blow, which is the warning that it is about to bar the way. Every
+// vent within hearing starts on the same tick, and the first hiss is the only one played.
+template <TilePos POS> void steam_vent(Tiles<POS>) {
+    if(vent_blows(game.ticks)) {
+        set_tile<POS>(CAVE_TILE_VENT_ACTIVE);
+        if((uint8_t)game.ticks == 0)
+            sfx_ambient(SFX_STEAM_HISS);
+    }
+}
+
 // A message is a cell that only shows its words when the player faces it and presses A: a sign or
 // a plaque. Anything that does more than show words has a handler of its own.
 struct Message {

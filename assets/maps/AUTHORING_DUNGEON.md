@@ -14,9 +14,9 @@ collision masks, objects and handlers. This guide covers what is particular to d
   layers.
 - `assets/images/tiles16_dungeon_collision.png`: the atlas with solid pixels tinted red. The
   generator writes it on every run.
-- `assets/maps/dungeon.tmx`: the Old Vault, behind the mine door north-east of the village.
-  `DUNGEON_preview.png` shows the whole map.
-- The generator emits `DUNGEON_TILE_<symbol>` constants and `AREA_DUNGEON`.
+- No dungeon map exists yet. A new one is `assets/maps/<name>.tmx` with `dungeon.tsx`, and its
+  battlefields already use this tileset.
+- The generator emits `DUNGEON_TILE_<symbol>` constants.
 
 ## How a dungeon looks
 
@@ -134,7 +134,7 @@ swaps in.
   it: levers as `SWITCH_LEFT`, plates up, barriers closed, runes and orbs dark. The handler
   shows the other state while the mechanism's world flag is set.
 - **Handlers.** Each mechanism cell takes a handler point, and each is listed with its flag and
-  its set tile in `AreaMechanisms<AREA_DUNGEON>` in `src/logic/area_dungeon.h`. A cell that is
+  its set tile in the area's `AreaMechanisms` table, in the area's header under `src/logic/`. A cell that is
   missing from the table fails to compile.
 
   | Handler | On | What it does |
@@ -144,8 +144,8 @@ swaps in.
   | `open_door` | `BARS_DOOR` | Facing it and pressing A sets the flag for good. |
   | `light_orb` | `ORB_DARK` | Pressing A sets the flag for good and says what happened. |
   | `show_state` | a gate, spikes, blocks, a rune, a portcullis | Shows the set tile while the flag is set. |
-  | `open_chest` | `CHEST_CLOSED` | Pressing A gives 25 gold, an Elixir and a Revive once if both stacks have room. |
-  | `show_message` | `PLAQUE` | Pressing A shows the plaque's words, listed in `AreaMessages<AREA_DUNGEON>`. |
+  | `open_chest` | `CHEST_CLOSED` | Pressing A claims the chest's `ChestReward` once, if it fits. |
+  | `show_message` | `PLAQUE` | Pressing A shows the plaque's words, listed in the area's `AreaMessages` table. |
   | `take_passage` | an exit or a doorway | Walking onto it leaves the dungeon. See [Exits](#exits). |
 
 - **One flag can drive several cells.** The orb, both runes and the vault's portcullis share
@@ -226,7 +226,7 @@ A dungeon joins the outdoor map through passages.
 
 - **A passage is a pair of markers**: an entrance outdoors and a doorway in the dungeon. Put a
   point with the handler `take_passage` on each, and add the pair to
-  `AreaPassages<AREA_DUNGEON>` in `src/logic/area_dungeon.h`. A marker that is missing from the tables
+  the area's `AreaPassages` table, in the area's header under `src/logic/`. A marker that is missing from the tables
   fails to compile.
 - **A mine door pairs with an `EDGE_TOP_EXIT`.** The player walks north into `CLIFF_MINE`
   outdoors and arrives on the floor cell above the exit, facing north. Walking south onto the
@@ -249,22 +249,6 @@ A dungeon joins the outdoor map through passages.
 - **Leave a way through.** An object blocks most of its cell. Do not close a corridor or box in
   a floor cell with objects. The content test fails when a walkable cell cannot be reached.
 
-## The Old Vault
-
-`dungeon.tmx` is a worked example. A plaque in the entrance hall names its four seals: spike,
-bar, stone and light.
-
-- The **entrance hall** in the south holds `DungeonLever`, which lowers `DungeonSpikes` in the
-  corridor that leads north through an `ARCHWAY`.
-- The **crossroads** has a corridor to each side and a wall of `DungeonBlocks` to the north.
-- The **cell block** in the west has two cells. `DungeonCellDoor` opens the first, and
-  `DungeonPlate` inside it opens `DungeonGate` in the east corridor.
-- The **east wing** holds a channel fed by a fountain, and `DungeonBlockLever`, which sinks
-  `DungeonBlocks`.
-- The **shrine** north of the blocks holds `DungeonOrb`. Lighting it lights `DungeonRuneWest`
-  and `DungeonRuneEast` and opens `DungeonVaultDoor`.
-- The **vault** behind the shrine holds `DungeonChest`.
-
 ## Before committing a dungeon map
 
 - The map uses `dungeon.tsx`, and no cell is unpainted. Void is `0x00`.
@@ -275,8 +259,8 @@ bar, stone and light.
 - Every barrier fills its passage, and `GATE_SIDE` is used only across a passage one cell wide
   that runs west to east.
 - Mechanisms are painted in their clear state. Each has a handler point on its tile and a row,
-  with its kind, in `AreaMechanisms<AREA_DUNGEON>`, and each exit has a row in
-  `AreaPassages<AREA_DUNGEON>`.
+  with its kind, in the area's `AreaMechanisms` table, and each exit has a row in
+  its `AreaPassages` table.
 - Every walkable cell can be reached once the mechanisms are open, except inside a cell whose
   door has no handler.
 - An animated tile is in sight of every flagstone cell, and every room has a light.

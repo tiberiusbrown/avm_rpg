@@ -17,76 +17,6 @@ struct MapOperation_leave_house {
         Handler<POS, STAGE>{}.leave_house();
     }
 };
-struct MapOperation_light_orb {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_light_orb<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.light_orb();
-    }
-};
-struct MapOperation_maintenance_hatch {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_maintenance_hatch<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.maintenance_hatch();
-    }
-};
-struct MapOperation_open_chest {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_open_chest<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.open_chest();
-    }
-};
-struct MapOperation_open_door {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_open_door<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.open_door();
-    }
-};
-struct MapOperation_open_shop {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_open_shop<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.open_shop();
-    }
-};
-struct MapOperation_press_plate {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_press_plate<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.press_plate();
-    }
-};
-struct MapOperation_read_survey_notes {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_survey_notes<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_survey_notes();
-    }
-};
-struct MapOperation_read_survey_trail {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_survey_trail<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_survey_trail();
-    }
-};
-struct MapOperation_read_workshop_record {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_read_workshop_record<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.read_workshop_record();
-    }
-};
-struct MapOperation_rest_at_inn {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_rest_at_inn<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.rest_at_inn();
-    }
-};
 struct MapOperation_show_message {
     template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
         handler_impl::implemented_show_message<POS, STAGE>();
@@ -94,118 +24,25 @@ struct MapOperation_show_message {
         Handler<POS, STAGE>{}.show_message();
     }
 };
-struct MapOperation_show_state {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_show_state<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.show_state();
-    }
-};
-struct MapOperation_steam_vent {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_steam_vent<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.steam_vent();
-    }
-};
-struct MapOperation_take_lantern_relay {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_take_lantern_relay<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.take_lantern_relay();
-    }
-};
-struct MapOperation_take_passage {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_take_passage<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.take_passage();
-    }
-};
-struct MapOperation_use_lever {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_use_lever<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.use_lever();
-    }
-};
-struct MapOperation_village_lantern {
-    template <TilePos POS, HandlerStage STAGE> static constexpr bool implemented =
-        handler_impl::implemented_village_lantern<POS, STAGE>();
-    template <TilePos POS, HandlerStage STAGE> static void run() {
-        Handler<POS, STAGE>{}.village_lantern();
-    }
-};
 using AllMapHandlers = TypeList<
-    MapSite<positions::BakeryDoor, MapOperation_enter_house>,
-    MapSite<positions::CaveHole, MapOperation_maintenance_hatch>,
-    MapSite<positions::CaveMouth, MapOperation_take_passage>,
-    MapSite<positions::CaveSign, MapOperation_show_message>,
-    MapSite<positions::CottageDoor, MapOperation_enter_house>,
-    MapSite<positions::ElderDoor, MapOperation_enter_house>,
-    MapSite<positions::FarmDoor, MapOperation_enter_house>,
-    MapSite<positions::FisherDoor, MapOperation_enter_house>,
-    MapSite<positions::HutDoor, MapOperation_enter_house>,
+    MapSite<positions::AldenDoor, MapOperation_enter_house>,
+    MapSite<positions::AldenSign, MapOperation_show_message>,
+    MapSite<positions::BarnDoor, MapOperation_show_message>,
+    MapSite<positions::BarnSign, MapOperation_show_message>,
+    MapSite<positions::BramDoor, MapOperation_show_message>,
+    MapSite<positions::BramSign, MapOperation_show_message>,
+    MapSite<positions::ElizaDoor, MapOperation_enter_house>,
+    MapSite<positions::ElizaSign, MapOperation_show_message>,
     MapSite<positions::InnDoor, MapOperation_enter_house>,
-    MapSite<positions::LadderSign, MapOperation_show_message>,
-    MapSite<positions::MineEntrance, MapOperation_take_passage>,
-    MapSite<positions::OrchardSign, MapOperation_show_message>,
+    MapSite<positions::InnSign, MapOperation_show_message>,
+    MapSite<positions::NorthHouseDoor, MapOperation_show_message>,
+    MapSite<positions::NorthHouseSign, MapOperation_show_message>,
     MapSite<positions::ShopDoor, MapOperation_enter_house>,
-    MapSite<positions::SluiceStone, MapOperation_show_message>,
-    MapSite<positions::SmithyDoor, MapOperation_enter_house>,
-    MapSite<positions::SmithySign, MapOperation_show_message>,
-    MapSite<positions::SurveyTrailMark, MapOperation_read_survey_trail>,
-    MapSite<positions::VillageLantern, MapOperation_village_lantern>,
-    MapSite<positions::WeaverDoor, MapOperation_enter_house>,
-    MapSite<positions::WellSign, MapOperation_show_message>,
-    MapSite<positions::BakeryExit, MapOperation_leave_house>,
-    MapSite<positions::CottageExit, MapOperation_leave_house>,
-    MapSite<positions::ElderExit, MapOperation_leave_house>,
-    MapSite<positions::FarmExit, MapOperation_leave_house>,
-    MapSite<positions::FisherExit, MapOperation_leave_house>,
-    MapSite<positions::HutExit, MapOperation_leave_house>,
+    MapSite<positions::ShopSign, MapOperation_show_message>,
+    MapSite<positions::SouthHouseDoor, MapOperation_show_message>,
+    MapSite<positions::SouthHouseSign, MapOperation_show_message>,
+    MapSite<positions::AldenExit, MapOperation_leave_house>,
+    MapSite<positions::ElizaExit, MapOperation_leave_house>,
     MapSite<positions::InnExit, MapOperation_leave_house>,
-    MapSite<positions::InnRegister, MapOperation_show_message>,
-    MapSite<positions::InnRest, MapOperation_rest_at_inn>,
-    MapSite<positions::ShopCounter, MapOperation_open_shop>,
-    MapSite<positions::ShopExit, MapOperation_leave_house>,
-    MapSite<positions::SmithyExit, MapOperation_leave_house>,
-    MapSite<positions::SurveyorNotes, MapOperation_read_survey_notes>,
-    MapSite<positions::WeaverExit, MapOperation_leave_house>,
-    MapSite<positions::WorkshopRecord, MapOperation_read_workshop_record>,
-    MapSite<positions::CaveBridge_0, MapOperation_show_state>,
-    MapSite<positions::CaveBridge_1, MapOperation_show_state>,
-    MapSite<positions::CaveChest, MapOperation_open_chest>,
-    MapSite<positions::CaveExit, MapOperation_take_passage>,
-    MapSite<positions::CaveGate, MapOperation_show_state>,
-    MapSite<positions::CaveLadder, MapOperation_take_passage>,
-    MapSite<positions::CaveLever, MapOperation_use_lever>,
-    MapSite<positions::CaveNookGate, MapOperation_show_state>,
-    MapSite<positions::CaveNotice, MapOperation_show_message>,
-    MapSite<positions::CavePlate, MapOperation_press_plate>,
-    MapSite<positions::CaveVaultLever, MapOperation_use_lever>,
-    MapSite<positions::CaveVent, MapOperation_steam_vent>,
-    MapSite<positions::LadderChalk, MapOperation_show_message>,
-    MapSite<positions::MineLanternRelay, MapOperation_take_lantern_relay>,
-    MapSite<positions::MineLedger, MapOperation_show_message>,
-    MapSite<positions::MineWarning, MapOperation_show_message>,
-    MapSite<positions::PoolEcho, MapOperation_show_message>,
-    MapSite<positions::VentChalk, MapOperation_show_message>,
-    MapSite<positions::WinchChalk, MapOperation_show_message>,
-    MapSite<positions::DungeonBlockLever, MapOperation_use_lever>,
-    MapSite<positions::DungeonBlocks_0, MapOperation_show_state>,
-    MapSite<positions::DungeonBlocks_1, MapOperation_show_state>,
-    MapSite<positions::DungeonCellDoor, MapOperation_open_door>,
-    MapSite<positions::DungeonChest, MapOperation_open_chest>,
-    MapSite<positions::DungeonExit, MapOperation_take_passage>,
-    MapSite<positions::DungeonGate, MapOperation_show_state>,
-    MapSite<positions::DungeonLever, MapOperation_use_lever>,
-    MapSite<positions::DungeonOrb, MapOperation_light_orb>,
-    MapSite<positions::DungeonPlaque, MapOperation_show_message>,
-    MapSite<positions::DungeonPlate, MapOperation_press_plate>,
-    MapSite<positions::DungeonRuneEast, MapOperation_show_state>,
-    MapSite<positions::DungeonRuneWest, MapOperation_show_state>,
-    MapSite<positions::DungeonSpikes_0, MapOperation_show_state>,
-    MapSite<positions::DungeonSpikes_1, MapOperation_show_state>,
-    MapSite<positions::DungeonVaultDoor, MapOperation_show_state>
+    MapSite<positions::ShopExit, MapOperation_leave_house>
 >;
