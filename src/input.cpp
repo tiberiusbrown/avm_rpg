@@ -46,9 +46,7 @@ uint8_t input_wait_press(uint8_t mask) {
 }
 
 void input_wait_frame() {
-    while(!avm_next_frame()) {
-        avm_idle();
-    }
+    avm_wait_frame();
     // Every loop that shows frames waits here, so a chained sound starts in any of them.
     sfx_update();
 }
