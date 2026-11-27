@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static_assert(NPC_SURVEYOR == 8 && NPC_ENEMY_FIRST == 9);
+static_assert(NPC_SURVEYOR == 8 && NPC_ALDEN == 9 && NPC_ENEMY_FIRST == 10);
 static_assert(FLAG_ITEM_FIRST == 22 && FLAG_ENEMY_FIRST == 56 && FLAG_BRAM_LANTERN_MEETING == 72 &&
               FLAG_COUNT == 73);
 

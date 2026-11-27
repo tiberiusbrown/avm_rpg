@@ -1,6 +1,6 @@
 # Venlor — Game Logic Canon
 
-**Save format:** `SAVE_VERSION = 23`
+**Save format:** `SAVE_VERSION = 24`
 
 **Implemented quests:** The Lantern Keeper and The Missing Surveyor.
 
@@ -37,7 +37,8 @@ House doors/returns are paired by `handler_impl::HOUSE_LINKS` in `src/logic/area
 ### 1.2 NPC identities and roles
 
 NPC identities persist independently of the eight-slot live NPC/enemy pool.
-`NPC_NONE = 0` identifies Alden, the traveler.
+`NPC_ALDEN = 9` identifies Alden, the traveler and player character. `NPC_NONE = 0`
+means no identity.
 
 | `NPC_ID` | Value | Position policy / role in the two quests |
 |---|---:|---|
@@ -49,8 +50,9 @@ NPC identities persist independently of the eight-slot live NPC/enemy pool.
 | `NPC_NELL` | 6 | Mine watcher; primary surveyor lead, trail clues; recognizes surveyor after rescue; optional lantern clue |
 | `NPC_ADA` | 7 | Supplies merchant; optional lantern/surveyor context, no mandatory quest gate |
 | `NPC_SURVEYOR` | 8 | Missing surveyor; trapped in Hollow Mine until rescued, then permanently available at a safe village location near the inn; offers post-rescue mine knowledge |
+| `NPC_ALDEN` | 9 | Player character and permanent first party member; named speaker with a portrait; never placed on the map |
 
-`NPC_ID_LIMIT = 9`. Enemy identities start at 9. The surveyor’s location policy
+`NPC_ID_LIMIT = 10`. Enemy identities start at 10. The surveyor’s location policy
 uses `SurveyorTrapped` in Hollow Mine by default and selects `SurveyorReturned`
 near the Lantern Inn when `FLAG_SURVEYOR_RESCUED` is set.
 
@@ -67,7 +69,7 @@ registry. Status, tracking and map markers use the compiled quest framework.
 
 ### 1.4 Persistent flag ledger
 
-The physical mechanisms retain their existing flags. All indices refer to save format 23.
+The physical mechanisms retain their existing flags. All indices refer to save format 24.
 
 | Bit | Flag | Set by | Read by / invariant |
 |---:|---|---|---|
@@ -108,10 +110,10 @@ The flag set occupies ten bytes. Section 6.3 records ownership of the encounter 
 - **Rebuilt/transient:** tile cache/camera/workspaces, active NPC reconstruction on area load, dialogue panels/menu navigation, pending quest flag evaluations, pending quest and level-up notices, combat search and battle scene state, and pending encounter contacts. Save restoration validates IDs, party data, flags, positions, and quest invariants; it reconstructs the view and NPC state.
 - **Quest tracking:** only one **active** quest may be selected. The Quest Start panel presents the objective at the time of starting. A (Track) selects the quest if it is still active. B (Close) keeps the current selection. A completed or inactive quest is automatically untracked. All started or completed quests appear in the Journal. Selection does not affect quest progression.
 - **Exploration guidance:** the tracked quest's objective or the local exit toward it has a bobbing down arrow above its tile while visible. For an offscreen target, the arrow slides along the screen edge with the player's bearing and points in one of eight directions. Without a tracked quest, there is no arrow.
-- **Save compatibility.** Version 23 assigns new equipment IDs and expands the ownership
-  flag range. Earlier development saves are rejected. The high bit of the saved SFX level now
-  marks audio as disabled. Existing version 23 saves have this bit clear and load with audio
-  enabled. Saved Music and SFX levels above 15 are capped at 15 on startup.
+- **Save compatibility.** Version 24 stores the traveler as `NPC_ALDEN`, and `NPC_NONE` is
+  not a valid party identity. Earlier development saves are rejected. The high bit of the saved
+  SFX level marks audio as disabled. Saved Music and SFX levels above 15 are capped at 15 on
+  startup.
 
 ## 2. Implemented quests
 
@@ -382,7 +384,7 @@ The Quest Complete panel reports party XP and gold credited after the completion
 
 ### 5.1 Starting party and base progression
 
-- New game: one traveler (`NPC_NONE`), `MOVEMENT_STEP`, `ATTACK_STRIKE`, **level 1**, **20/20 HP**, **4/4 AP**, no owned equipment, **0 G**, and the supply counts above. Rowan is an optional recruit: `MOVEMENT_STEP` / `ATTACK_SHOOT`, **18/18 HP**, **4/4 AP**, level 1.
+- New game: one traveler (`NPC_ALDEN`), `MOVEMENT_STEP`, `ATTACK_STRIKE`, **level 1**, **20/20 HP**, **4/4 AP**, no owned equipment, **0 G**, and the supply counts above. Rowan is an optional recruit: `MOVEMENT_STEP` / `ATTACK_SHOOT`, **18/18 HP**, **4/4 AP**, level 1.
 - Party capacity: **4**. Identity cannot be duplicated. New recruits begin at full derived HP/AP and level 1; recruiting never resets existing members' progress.
 - Party member levels: **1–10**. XP to next level from current level `L`: `5 × (L + 1)` (e.g. 10 at level 1, 15 at level 2). XP is the amount **toward** the next level, not cumulative; overflow carries across level-ups, and XP at level 10 is discarded.
 - Base maximum HP: **20**, except Rowan **18**. Add **+2 at level 3**, **+2 more at level 7** and equipped HP bonuses. Leveling does **not** itself restore current HP.
@@ -710,7 +712,7 @@ No `QUEST_ID` currently governs Old Vault progression; access, switches, chest a
 8. **Quests:** status, journal objectives and markers are read-only state derivations; cancellation must not mutate completion flags; loads must not replay rewards.
 9. **No softlocks:** mine crossing, both mine exits, house returns, cave mechanisms, NPC sites and vault all retain viable escape/recovery paths.
 10. **Defeat:** player returns to the title screen; no quest-success flags or rewards are granted by a lost encounter.
-11. **Quest catalog:** the Journal registry consists of `QUEST_LANTERN_KEEPER` and `QUEST_MISSING_SURVEYOR`. Quest identities and the flag layout belong to save format 23.
+11. **Quest catalog:** the Journal registry consists of `QUEST_LANTERN_KEEPER` and `QUEST_MISSING_SURVEYOR`. Quest identities and the flag layout belong to save format 24.
 
 ### 8.2 Future content entry template
 

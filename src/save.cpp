@@ -15,11 +15,11 @@ bool save_valid() {
         if(quantity > SUPPLY_LIMIT)
             return false;
     if(!game.party.count || game.party.count > PARTY_CAPACITY ||
-       game.party.members[0].id != NPC_NONE)
+       game.party.members[0].id != NPC_ALDEN)
         return false;
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember const& member = game.party.members[i];
-        if(!party_progress_valid(member) || member.id >= NPC_ID_LIMIT ||
+        if(!party_progress_valid(member) || member.id == NPC_NONE || member.id >= NPC_ID_LIMIT ||
            member.movement_class >= MOVEMENT_CLASS_COUNT ||
            member.attack_class >= ATTACK_CLASS_COUNT || member.hp > party_max_hp(member) ||
            member.ap > party_max_ap(member))

@@ -450,8 +450,13 @@ static void saves() {
     game.party.members[0].id = NPC_TESSA;
     reject();
     game = saved;
+    game.party.members[0].id = NPC_NONE;
+    reject();
+    game = saved;
     game.party.count = 2;
     game.party.members[1] = game.party.members[0];
+    reject();
+    game.party.members[1].id = NPC_NONE;
     reject();
     game = saved;
     game.level = 0;
@@ -484,7 +489,7 @@ static void saves() {
     CHECK(game.dimensions.width_tiles == OUTDOOR_WIDTH);
     CHECK(cached_tile(positions::WellSign) == TILE_SIGN);
 
-    static_assert(SAVE_VERSION == 23 && sizeof(PartyMember) == 11);
+    static_assert(SAVE_VERSION == 24 && sizeof(PartyMember) == 11);
     static_assert(MOVEMENT_STEP == 0 && MOVEMENT_LEAP == 1 && MOVEMENT_CHARGE == 2);
     static_assert(ATTACK_STRIKE == 0 && ATTACK_SHOOT == 1 && ATTACK_REACH == 2 &&
                   ATTACK_IMPACT == 3 && ATTACK_REND == 4);
@@ -587,7 +592,7 @@ static void party_progression() {
     CHECK(party_victory_experience(member) == 2);
 
     // Odd-level rewards: maximum HP rises at levels 3 and 7, from the traveler's 20 or Rowan's 18.
-    PartyMember traveler_at = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    PartyMember traveler_at = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
     uint8_t traveler_hp[PARTY_MAX_LEVEL] = {20, 20, 22, 22, 22, 22, 24, 24, 24, 24};
     uint8_t rowan_hp[PARTY_MAX_LEVEL] = {18, 18, 20, 20, 20, 20, 22, 22, 22, 22};
     // Normal-attack bonuses arrive at levels 5 and 9.

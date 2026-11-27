@@ -204,7 +204,7 @@ int main() {
     // Use saved party definitions so search exercises the perk checks on the party's replies.
     BattleState trained = initial;
     game.party.count = 2;
-    game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_CHARGE, ATTACK_IMPACT);
+    game.party.members[0] = party_new_member(NPC_ALDEN, MOVEMENT_CHARGE, ATTACK_IMPACT);
     game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
     for(uint8_t i = 0; i < game.party.count; ++i) {
         game.party.members[i].level = 4;

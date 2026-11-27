@@ -18,7 +18,7 @@ static Party make_party() {
     Party party{};
     party.count = PARTY_CAPACITY;
     for(auto& member : party.members)
-        member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+        member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     return party;
 }
 

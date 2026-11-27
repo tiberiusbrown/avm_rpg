@@ -44,7 +44,18 @@ struct NpcPolicy<NPC_BRAM>
     : AtOneOf<positions::BramYard, When<positions::BramLantern, bram_meeting_at_lantern>> {};
 template <> struct NpcPolicy<NPC_NELL> : AtOneOf<positions::NellLookout> {};
 template <> struct NpcPolicy<NPC_ADA> : AtOneOf<positions::AdaShop> {};
+template <> struct NpcPolicy<NPC_ALDEN> : AtOneOf<NO_LOCATION> {};
 #endif
+
+// The player is a named speaker without a map actor or conversation. The definition's sprite row
+// draws the traveler in battle.
+template <> struct NpcContent<NPC_ALDEN> {
+    static constexpr auto name = F("Alden");
+    static constexpr NpcDefinition PROGMEM definition{
+        NPC_STAND, SOUTH, 1, 0, 0, 0, 0, 0, 0, 0, false};
+
+    static void talk() {}
+};
 
 template <> struct NpcContent<NPC_TESSA> {
     static constexpr auto name = F("Tessa");

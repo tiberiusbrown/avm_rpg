@@ -21,3 +21,5 @@ template <> struct NpcPolicy<NPC_NELL> : AtOneOf<NO_LOCATION> {};
 template <> struct NpcPolicy<NPC_ADA> : AtOneOf<NO_LOCATION> {};
 
 template <> struct NpcPolicy<NPC_SURVEYOR> : AtOneOf<NO_LOCATION> {};
+
+template <> struct NpcPolicy<NPC_ALDEN> : AtOneOf<NO_LOCATION> {};

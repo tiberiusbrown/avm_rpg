@@ -295,8 +295,7 @@ char const PROGMEM* party_ui_text(PartyUi const& ui, Party const& party) {
 }
 
 char const PROGMEM* party_member_name(PartyMember const& member) {
-    auto name = npc_name(member.id);
-    return name ? name : F("Alden");
+    return npc_name(member.id);
 }
 
 char const PROGMEM* party_movement_name(uint8_t movement) {

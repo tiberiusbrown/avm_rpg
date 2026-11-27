@@ -2532,7 +2532,7 @@ static constexpr BattleEncounter MIXED_CAVE_FIXTURE =
 static void saved_party_battles() {
     game = {};
     game.party.count = 2;
-    game.party.members[0] = {20, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_NONE, 1, 0};
+    game.party.members[0] = {20, 4, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_ALDEN, 1, 0};
     game.party.members[1] = {17, 4, MOVEMENT_CHARGE, ATTACK_IMPACT, NPC_ROWAN, 1, 0};
     Party saved = game.party;
     BattleState state;
@@ -2576,7 +2576,7 @@ static void saved_party_battles() {
     game.party.count = 1;
     for(uint8_t m = 0; m < MOVEMENT_CLASS_COUNT; ++m)
         for(uint8_t a = 0; a < ATTACK_CLASS_COUNT; ++a) {
-            game.party.members[0] = {20, 4, m, a, NPC_NONE, 1, 0};
+            game.party.members[0] = {20, 4, m, a, NPC_ALDEN, 1, 0};
             battle_begin(state, &MIXED_CAVE_FIXTURE);
             auto const& rules = battle_rules(state.units[0].id);
             CHECK(rules.movement_type == MOVEMENT_INFO[m].movement_type);
@@ -2626,7 +2626,7 @@ static void rend_damage() {
     // A party victim's maximum comes from the saved member: the traveler's is 20.
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
     BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
     for(uint8_t hp = 1; hp <= 20; ++hp) {
         traveler.hp = hp;
@@ -2640,7 +2640,7 @@ static void rend_damage() {
 static void level_attack_damage() {
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
     BattleUnit traveler{cell(3, 0), 20, battle_party_id(0), BATTLE_PARTY};
     BattleUnit fighter{cell(3, 1), ENEMY_INFO[BATTLE_TEST_FIGHTER].max_hp, BATTLE_TEST_FIGHTER, BATTLE_ENEMY};
     uint8_t bonus[PARTY_MAX_LEVEL] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
@@ -2666,7 +2666,7 @@ static void level_attack_damage() {
 static void victory_ap_recovery() {
     game = {};
     game.party.count = 3;
-    game.party.members[0] = {20, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    game.party.members[0] = {20, 0, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
     game.party.members[1] = {0, 3, MOVEMENT_LEAP, ATTACK_SHOOT, NPC_TESSA, 1, 0};
     game.party.members[2] = {17, 4, MOVEMENT_CHARGE, ATTACK_REND, NPC_ROWAN, 1, 0};
     Party saved = game.party;
@@ -2742,7 +2742,7 @@ static void victory_gold() {
 static void special_attacks() {
     game = {};
     game.party.count = 1;
-    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_NONE, 1, 0};
+    game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, NPC_ALDEN, 1, 0};
     ENEMY_ID member = (ENEMY_ID)battle_party_id(0);
     BattleState s = board(
         BATTLE_PARTY, {{3, 1, member, BATTLE_PARTY, 20}, {4, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10}});
@@ -2830,9 +2830,9 @@ static void signature_attacks() {
     auto ally = (ENEMY_ID)battle_party_id(1);
     auto other = (ENEMY_ID)battle_party_id(2);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_STRIKE);
-    game.party.members[2] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_SHOOT);
+    game.party.members[2] = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_SHOOT);
 
     auto use_signature = [&](BattleState& state, unsigned x, unsigned y) {
         member.ap = 4;
@@ -2967,7 +2967,7 @@ static void maximum_battle_damage_frame() {
     game.party.count = PARTY_CAPACITY;
     for(uint8_t i = 0; i < game.party.count; ++i) {
         auto& member = game.party.members[i];
-        member = party_new_member((NPC_ID)i, MOVEMENT_STEP, ATTACK_FLANK);
+        member = party_new_member(i ? (NPC_ID)i : NPC_ALDEN, MOVEMENT_STEP, ATTACK_FLANK);
         member.level = PARTY_MAX_LEVEL;
         member.perk_ranks = CONVERGING_BLADES_RANK << 3;
     }
@@ -3011,7 +3011,7 @@ static void attack_perks() {
         {ATTACK_REND, 1, 4, 4, 0, 1},
     };
     for(Case const& test : CASES) {
-        member = party_new_member(NPC_NONE, MOVEMENT_STEP, test.attack);
+        member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, test.attack);
         member.level = 4;
         victim.cell = cell(1 + test.range, 1);
         victim.hp = test.hp;
@@ -3037,7 +3037,7 @@ static void attack_perks() {
     }
 
     // Exercise an exact three-quarter boundary, plus an odd maximum with a fractional threshold.
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_REND);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_REND);
     member.level = 2;
     CHECK(party_learn_perk(member, PERK_ATTACK));
     for(uint8_t enemy : {BATTLE_TEST_FIGHTER, ENEMY_BRUTE, ENEMY_WOLF}) {
@@ -3055,7 +3055,7 @@ static void perk_victory_recovery() {
     game.party.count = 2;
     for(uint8_t i = 0; i < game.party.count; ++i) {
         PartyMember& member = game.party.members[i];
-        member = party_new_member(NPC_NONE, MOVEMENT_LEAP, ATTACK_REACH);
+        member = party_new_member(NPC_ALDEN, MOVEMENT_LEAP, ATTACK_REACH);
         member.level = 2;
         member.hp = 0;
         member.ap = 0;
@@ -3093,7 +3093,7 @@ static void charge_perks() {
     game = {};
     game.party.count = 1;
     PartyMember& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_CHARGE, ATTACK_IMPACT);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_CHARGE, ATTACK_IMPACT);
     member.level = 4;
     ENEMY_ID id = (ENEMY_ID)battle_party_id(0);
     BattleState charge = board(BATTLE_PARTY, {{1, 1, id, BATTLE_PARTY, 1},
@@ -3144,7 +3144,7 @@ static void step_and_leap_perks() {
     game.party.count = 2;
     auto id = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_STRIKE);
     member.level = 4;
     BattleState guard = board(BATTLE_ENEMY, {{3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
@@ -3219,7 +3219,7 @@ static void step_and_leap_perks() {
     battle_apply(step, engage);
     CHECK(!step.ended && step.units[0].hp == 1 && step.units[1].hp == 9);
 
-    member = party_new_member(NPC_NONE, MOVEMENT_LEAP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_LEAP, ATTACK_STRIKE);
     member.level = 4;
     BattleState landing = board(BATTLE_PARTY, {{1, 0, id, BATTLE_PARTY, 10},
                                                {2, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
@@ -3250,7 +3250,7 @@ static void reach_and_impact_perks() {
     game.party.count = 1;
     auto id = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_REACH);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_REACH);
     member.level = 4;
     for(uint8_t rank = 0; rank <= 2; ++rank) {
         if(rank)
@@ -3275,7 +3275,7 @@ static void reach_and_impact_perks() {
     battle_apply(blocked, act(0, 3, 0));
     CHECK(blocked.units[1].hp == 6 && blocked.units[1].cell == cell(3, 0));
 
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_IMPACT);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_IMPACT);
     member.level = 4;
     BattleState strike = board(BATTLE_PARTY, {{1, 1, id, BATTLE_PARTY, 20},
                                               {2, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 3},
@@ -3322,7 +3322,7 @@ static void new_combat_geometry() {
     game = {};
     game.party.count = 1;
     PartyMember& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_VAULT, ATTACK_ARC);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_VAULT, ATTACK_ARC);
     member.level = BATTLE_STARTER_LEVEL;
     for(uint8_t field = 0; field < BATTLEFIELD_COUNT; ++field) {
         BattleState s{};
@@ -3405,7 +3405,7 @@ static void new_movement_effects() {
     game.party.count = 1;
     PartyMember& member = game.party.members[0];
     auto id = (ENEMY_ID)battle_party_id(0);
-    member = party_new_member(NPC_NONE, MOVEMENT_VAULT, ATTACK_ARC);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_VAULT, ATTACK_ARC);
     member.level = 4;
     BattleState vault = board(BATTLE_PARTY, {{1, 2, id, BATTLE_PARTY, 1},
                                              {2, 2, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 3},
@@ -3449,7 +3449,7 @@ static void new_movement_effects() {
     battle_apply(over_terrain, act(0, 5, 0));
     CHECK(over_terrain.units[0].hp == 4 && over_terrain.units[1].hp == 8);
 
-    member = party_new_member(NPC_NONE, MOVEMENT_GLIDE, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_GLIDE, ATTACK_STRIKE);
     member.level = 4;
     BattleState glide = board(BATTLE_PARTY, {{1, 0, id, BATTLE_PARTY, 1},
                                              {3, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 2},
@@ -3497,7 +3497,7 @@ static void new_direct_attacks() {
     };
     for(auto const& test : CASES) {
         for(uint8_t rank = 0; rank <= 2; ++rank) {
-            member = party_new_member(NPC_NONE, MOVEMENT_VAULT, test.attack);
+            member = party_new_member(NPC_ALDEN, MOVEMENT_VAULT, test.attack);
             member.level = BATTLE_STARTER_LEVEL;
             if(rank) {
                 member.level = 9;
@@ -3533,7 +3533,7 @@ static void drain_and_recoil() {
     game.party.count = 1;
     auto id = (ENEMY_ID)battle_party_id(0);
     PartyMember& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_GLIDE, ATTACK_DRAIN);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_GLIDE, ATTACK_DRAIN);
     auto drain = [&](uint8_t hp, uint8_t victim_hp) {
         return board(BATTLE_ENEMY, {{2, 1, id, BATTLE_ENEMY, hp},
                                     {3, 1, BATTLE_TEST_FIGHTER, BATTLE_PARTY, victim_hp}});
@@ -3566,7 +3566,7 @@ static void drain_and_recoil() {
     battle_apply(s, act(0, 3, 1));
     CHECK(s.units[0].hp == 19 && s.units[1].hp == 7);
 
-    member = party_new_member(NPC_NONE, MOVEMENT_LEAP, ATTACK_RECOIL);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_LEAP, ATTACK_RECOIL);
     static constexpr int offsets[][2] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
     for(auto const& offset : offsets) {
         unsigned tx = 3 + offset[0], ty = 1 + offset[1];
@@ -3619,7 +3619,7 @@ static void arc_corner_perk() {
     game.party.count = 1;
     auto id = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_ARC);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_ARC);
     member.level = 4;
     BattleState terrain = board(
         BATTLE_PARTY, {{3, 0, id, BATTLE_PARTY, 20}, {4, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10}});
@@ -3642,7 +3642,7 @@ static void flank_formation() {
     game.party.count = 1;
     auto id = (ENEMY_ID)battle_party_id(0);
     PartyMember& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_FLANK);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_FLANK);
     member.level = 9;
     CHECK(party_learn_perk(member, PERK_ATTACK));
     BattleState original = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 20},
@@ -3692,7 +3692,7 @@ static void blast_splash_and_search() {
     game.party.count = 1;
     auto id = (ENEMY_ID)battle_party_id(0);
     PartyMember& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_BLAST);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_BLAST);
     member.level = BATTLE_STARTER_LEVEL;
     BattleState original = board(BATTLE_PARTY, {{2, 1, id, BATTLE_PARTY, 20},
                                                 {5, 1, BATTLE_TEST_FIGHTER, BATTLE_ENEMY, 10},
@@ -3762,7 +3762,7 @@ static void third_rank_movement() {
     game.party.count = 1;
     auto id = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     member.level = 6;
     for(uint8_t rank = 0; rank < 3; ++rank)
         CHECK(party_learn_perk(member, PERK_MOVEMENT));
@@ -3885,7 +3885,7 @@ static void third_rank_attacks() {
         CHECK(party_learn_perk(defender, PERK_MOVEMENT));
     auto id = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     member.level = 6;
     for(uint8_t rank = 0; rank < 3; ++rank)
         CHECK(party_learn_perk(member, PERK_ATTACK));
@@ -4047,7 +4047,7 @@ static void fourth_rank_movement() {
     game.party.count = 1;
     auto hero = (ENEMY_ID)battle_party_id(0);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     member.level = 8;
     for(uint8_t rank = 0; rank < 4; ++rank)
         CHECK(party_learn_perk(member, PERK_MOVEMENT));
@@ -4112,7 +4112,7 @@ static void fourth_rank_attacks() {
     auto hero = (ENEMY_ID)battle_party_id(0);
     auto ally = (ENEMY_ID)battle_party_id(1);
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.members[1] = party_new_member(NPC_ROWAN, MOVEMENT_STEP, ATTACK_SHOOT);
     member.level = 8;
     for(uint8_t rank = 0; rank < 4; ++rank)
@@ -4228,7 +4228,7 @@ static void new_classes_in_search() {
     game = {};
     game.party.count = PARTY_CAPACITY;
     for(uint8_t slot = 0; slot < PARTY_CAPACITY; ++slot) {
-        game.party.members[slot] = party_new_member(NPC_NONE, MOVEMENT_GLIDE, ATTACK_ARC);
+        game.party.members[slot] = party_new_member(NPC_ALDEN, MOVEMENT_GLIDE, ATTACK_ARC);
         game.party.members[slot].level = 4;
         CHECK(party_learn_perk(game.party.members[slot], PERK_MOVEMENT));
         CHECK(party_learn_perk(game.party.members[slot], PERK_ATTACK));
@@ -4299,7 +4299,7 @@ static void equipment_attacks() {
     game = {};
     game.party.count = 2;
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     auto hero = (ENEMY_ID)battle_party_id(0);
     auto ally = (ENEMY_ID)battle_party_id(1);
     BattleState original = board(BATTLE_PARTY, {
@@ -4383,7 +4383,7 @@ static void equipment_moves_and_guards() {
     game = {};
     game.party.count = 2;
     auto& member = game.party.members[0];
-    member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     auto hero = (ENEMY_ID)battle_party_id(0);
     auto ally = (ENEMY_ID)battle_party_id(1);
     auto move = board(BATTLE_PARTY, {
@@ -4467,7 +4467,7 @@ static void equipment_victory_rewards() {
     game = {};
     game.party.count = PARTY_CAPACITY;
     for(auto& member : game.party.members)
-        member = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+        member = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.members[0].equipment[SLOT_RELIC] = equipment_encode(ITEM_FERRY_BEAD);
     game.party.members[1].equipment[SLOT_RELIC] = equipment_encode(ITEM_SPLIT_BUTTON);
     game.party.members[2].equipment[SLOT_RELIC] = equipment_encode(ITEM_SURVIVORS_RIBBON);

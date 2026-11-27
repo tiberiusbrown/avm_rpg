@@ -38,7 +38,7 @@ cases = {
         extra='    static bool start() { return true; }\n') + CHECK,
         'quest start() must be static void start()'),
     'subscription_npc': (HEADER.format(limit=2) + VALID_QUEST.format(
-        extra='    using Watches = Watch<NpcTalked<(NPC_ID)9>>;\n    static void on(NpcTalked<(NPC_ID)9>) {}\n') + CHECK,
+        extra='    using Watches = Watch<NpcTalked<(NPC_ID)NPC_ID_LIMIT>>;\n    static void on(NpcTalked<(NPC_ID)NPC_ID_LIMIT>) {}\n') + CHECK,
         'invalid NPC identity for conversation event'),
     'subscription_flag': (HEADER.format(limit=2) + VALID_QUEST.format(
         extra='    using Watches = Watch<FlagChanged<FLAG_COUNT>>;\n    static void evaluate() {}\n') + CHECK,

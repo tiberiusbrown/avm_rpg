@@ -294,8 +294,8 @@ into the Old Vault. Walk into either to enter. Both are built around mechanisms:
 gates that draw down into the floor, pressure plates, spikes, sinking blocks, a bridge over a
 chasm and a steam vent that blows by the clock. Repairing the mine's bridge opens a two-way maintenance hatch on the west ridge. `assets/maps/AUTHORING_CAVE.md` and `AUTHORING_DUNGEON.md` describe both.
 
-**This development build requires save version 23.** The expanded equipment IDs and
-ownership flags change the saved layout. The live, pointer-free
+**This development build requires save version 24.** The traveler's saved party identity is
+`NPC_ALDEN`, so earlier development saves are rejected. The live, pointer-free
 `Game` struct is saved directly from AVM's `.saved` prefix, including 16 defeated-enemy
 bits and the shared two-byte respawn countdown. Validation checks the countdown,
 unused flag bits, equipment ownership, slot categories, unique wearers and adjusted HP/AP. Supply quantities are validated against the limit of 15.

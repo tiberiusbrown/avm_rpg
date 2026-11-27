@@ -49,10 +49,10 @@ static PartyMember make_member(NPC_ID id, uint8_t movement, uint8_t attack) {
 // special pages show.
 static Party make_party(uint8_t count) {
     Party party{};
-    party.members[0] = make_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    party.members[0] = make_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     party.members[1] = make_member(NPC_ROWAN, MOVEMENT_LEAP, ATTACK_SHOOT);
-    party.members[2] = make_member(NPC_NONE, MOVEMENT_CHARGE, ATTACK_REND);
-    party.members[3] = make_member(NPC_NONE, MOVEMENT_STEP, ATTACK_REACH);
+    party.members[2] = make_member(NPC_ALDEN, MOVEMENT_CHARGE, ATTACK_REND);
+    party.members[3] = make_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_REACH);
     party.count = count;
     return party;
 }
@@ -226,7 +226,7 @@ static void test_specials_for_each_attack_class() {
     };
     for(uint8_t attack = 0; attack < ATTACK_CLASS_COUNT; ++attack) {
         Party party = make_party(1);
-        party.members[0] = make_member(NPC_NONE, MOVEMENT_STEP, attack);
+        party.members[0] = make_member(NPC_ALDEN, MOVEMENT_STEP, attack);
         PartyUi ui{};
         open_category(ui, party, CATEGORY_SPECIALS);
         CHECK(party_ui_entries(ui, party) == 0);

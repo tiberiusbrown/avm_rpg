@@ -24,15 +24,14 @@ bool party_add(PartyMember member) {
     for(uint8_t stored : member.equipment)
         if(stored)
             return false;
-    if(game.party.count >= PARTY_CAPACITY || member.id >= NPC_ID_LIMIT ||
+    if(game.party.count >= PARTY_CAPACITY || member.id == NPC_NONE || member.id >= NPC_ID_LIMIT ||
        !party_progress_valid(member) || member.movement_class >= MOVEMENT_CLASS_COUNT ||
-       member.attack_class >= ATTACK_CLASS_COUNT ||
-       member.hp > party_max_hp(member) || member.ap > party_max_ap(member) ||
-       party_contains(member.id))
+       member.attack_class >= ATTACK_CLASS_COUNT || member.hp > party_max_hp(member) ||
+       member.ap > party_max_ap(member) || party_contains(member.id))
         return false;
     game.party.members[game.party.count++] = member;
     npc_recruit(member.id);
-    if(member.id != NPC_NONE)
+    if(member.id != NPC_ALDEN)
         party_joined(member.id);
     return true;
 }
@@ -49,7 +48,7 @@ void game_start() {
     game.rng = 0xbabe;
     quest_reset();
     // The traveler occupies the first slot from the start. Recruitment is for NPCs.
-    game.party.members[0] = party_new_member(NPC_NONE, MOVEMENT_STEP, ATTACK_STRIKE);
+    game.party.members[0] = party_new_member(NPC_ALDEN, MOVEMENT_STEP, ATTACK_STRIKE);
     game.party.count = 1;
     game.supplies = STARTING_SUPPLIES;
     game.level = 1;

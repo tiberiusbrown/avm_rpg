@@ -42,7 +42,7 @@ extern "C" void rpg_qa_journal_end();
 #define RPG_QA_MARK(call) ((void)0)
 #endif
 
-inline constexpr uint8_t SAVE_VERSION = 23;
+inline constexpr uint8_t SAVE_VERSION = 24;
 
 enum {
     BTN_B = 4,
@@ -129,7 +129,7 @@ enum ATTACK_CLASS : uint8_t {
 struct PartyMember {
     uint8_t hp, ap;
     uint8_t movement_class, attack_class;
-    NPC_ID id; // NPC_NONE identifies the traveler; other identities prevent duplicate recruits.
+    NPC_ID id; // NPC_ALDEN is the traveler; unique identities prevent duplicate recruits.
     uint8_t level;      // 1 through PARTY_MAX_LEVEL
     uint8_t experience; // toward the next level only; it resets to zero at each level-up
     uint8_t perk_ranks; // movement in bits 0–2, attack in bits 3–5

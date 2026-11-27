@@ -67,11 +67,7 @@ Fill any unused slots on the sheet with opaque black.
 | 6 `NPC_NELL` | Nell | 12 | Long straight black hair under a white hat with a dark band and raised brim tips. |
 | 7 `NPC_ADA` | Ada | 14 | Long medium-brown hair beneath a white polka-dot kerchief with a diagonal fold and short side ties. |
 | 8 `NPC_SURVEYOR` | Surveyor | 10 | Swept pale-blond hair tucked behind one ear, thick dark eyebrows, and a standing collar. |
-
-**Alden, the traveler, uses row 0, pair 0:** male, short medium-brown hair with a straight
-fringe, round cheeks and a plain V-neck collar. No dialogue shows this face yet. Alden's ID
-is `NPC_NONE`, which the unnamed panel also uses, so entry 0 of `faces32.json` stays `null`.
-Showing the face needs a way for dialogue to name Alden as the speaker.
+| 9 `NPC_ALDEN` | Alden | 0 | Male. Short medium-brown hair with a straight fringe, round cheeks and a plain V-neck collar. |
 
 ## Portrait library
 

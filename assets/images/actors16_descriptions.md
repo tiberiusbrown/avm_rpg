@@ -53,7 +53,7 @@ south-facing idle frame (column 6).
 
 | Row | Sex | Hair | Head covering | Distinguishing detail | Used by |
 | --- | --- | --- | --- | --- | --- |
-| 0 | male | medium brown, short, fringe | none | none | player |
+| 0 | male | medium brown, short, fringe | none | none | player (`NPC_ALDEN`) |
 | 1 | male | black, short, heavy fringe | none | none | unused |
 | 2 | male | white, short | none | thick dark brows | Orrin (`NPC_ORRIN`) |
 | 3 | male | hidden by the hood | white pointed hood | strap or lacing marks | Rowan (`NPC_ROWAN`) |
@@ -74,7 +74,7 @@ south-facing idle frame (column 6).
 
 ### Row 0: the traveler
 
-Used by the player and the `NPC_NONE` party slot.
+Used by the player and Alden's (`NPC_ALDEN`) party slot.
 
 - **Sex:** male.
 - **Hair:** medium brown, cropped close around the head, with a straight-cut fringe

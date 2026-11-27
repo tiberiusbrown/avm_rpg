@@ -100,6 +100,9 @@ static void interaction_geometry() {
 int main() {
     CHECK(npc_name(NPC_NONE) == nullptr);
     CHECK(npc_name((NPC_ID)NPC_ID_LIMIT) == nullptr);
+    // The traveler is a named speaker whose policy places no actor.
+    CHECK(!strcmp(npc_name(NPC_ALDEN), "Alden"));
+    CHECK(npc_location(NPC_ALDEN).area == 0 && !npc_definition(NPC_ALDEN)->talkable);
     for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id)
         CHECK(npc_name((NPC_ID)id) && *npc_name((NPC_ID)id));
     CHECK(!strcmp(npc_name(NPC_ROWAN), "Rowan"));
@@ -137,7 +140,7 @@ int main() {
     story_stub_reset(BATTLE_VICTORY);
     game_new();
     CHECK(story_stub_joins() == 0);
-    CHECK(game.party.count == 1 && game.party.members[0].id == NPC_NONE);
+    CHECK(game.party.count == 1 && game.party.members[0].id == NPC_ALDEN);
     CHECK(game.party.members[0].hp == 20 && party_max_hp(game.party.members[0]) == 20);
     CHECK(game.party.members[0].ap == 4 && party_max_ap(game.party.members[0]) == 4);
     CHECK(game.party.members[0].movement_class == MOVEMENT_STEP);
@@ -208,6 +211,8 @@ int main() {
     CHECK(!party_add({1, 1, MOVEMENT_CLASS_COUNT, ATTACK_SHOOT, NPC_TESSA, 1, 0}));
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_CLASS_COUNT, NPC_TESSA, 1, 0}));
     CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, (NPC_ID)NPC_ID_LIMIT, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_NONE, 1, 0}));
+    CHECK(!party_add({1, 1, MOVEMENT_STEP, ATTACK_SHOOT, NPC_ALDEN, 1, 0}));
     CHECK(!memcmp(&before, &game.party, sizeof(Party)));
     CHECK(story_stub_joins() == 3);
     game_new();

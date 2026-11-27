@@ -35,15 +35,16 @@ bool dialogue_ask(NPC_ID id, char const PROGMEM* question) {
 }
 
 // A party member is drawn in battle with the sprite row of the NPC it was recruited as. The
-// traveler (NPC_NONE) has no definition and uses the player's row.
+// traveler (NPC_ALDEN) uses the player's row.
 static void party_sprites_follow_npcs() {
     Party saved = game.party;
-    for(uint8_t id = 0; id < NPC_ID_LIMIT; ++id) {
+    for(uint8_t id = 1; id < NPC_ID_LIMIT; ++id) {
         game.party.members[0] = {20, 4, MOVEMENT_STEP, ATTACK_STRIKE, (NPC_ID)id};
         BattleUnit unit{0, 5, battle_party_id(0), BATTLE_PARTY};
         NpcDefinition const PROGMEM* definition = npc_definition((NPC_ID)id);
         CHECK(battle_sprite_row(unit) == (definition ? definition->sprite_row : 0));
     }
+    CHECK(npc_definition(NPC_ALDEN)->sprite_row == 0);
     game.party = saved;
 }
 

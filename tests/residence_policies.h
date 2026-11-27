@@ -14,3 +14,5 @@ template <> struct NpcPolicy<NPC_BRAM> : AtOneOf<positions::BramYard> {};
 template <> struct NpcPolicy<NPC_NELL> : AtOneOf<positions::NellLookout> {};
 template <> struct NpcPolicy<NPC_ADA> : AtOneOf<positions::AdaShop> {};
 template <> struct NpcPolicy<NPC_SURVEYOR> : AtOneOf<NO_LOCATION> {};
+
+template <> struct NpcPolicy<NPC_ALDEN> : AtOneOf<NO_LOCATION> {};

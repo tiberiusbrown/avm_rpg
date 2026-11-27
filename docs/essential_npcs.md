@@ -60,6 +60,7 @@ frames through `actor_frame`: north/east/south/west groups of three, idle 0, gai
 
 Each owning area header specializes `NpcPolicy<ID>` and `NpcContent<ID>` for its essential
 NPCs. The stable identities in `npc_ids.h` run from 1 through `NPC_ID_LIMIT - 1`.
+`NPC_ALDEN` is the player: it has a name and portrait, and its policy places it nowhere.
 `NpcContent` supplies the name, definition and dialogue. Name positions in Tiled; do not duplicate coordinates in C++.
 For example:
 
@@ -139,7 +140,7 @@ applied after scripted motion completes. This can temporarily saturate the pool.
 The portrait sheet groups faces by actor sprite row. `faces32.json` selects a portrait
 pair for each NPC ID, and `FACE_ROW_COUNT` bounds the exported `FACE_PRESENT` table
 and frame selection. NPCs without a portrait use text dialogue.
-Party names use `npc_name` with a safe fallback.
+Party names come from `npc_name`.
 
 ## Motion
 
