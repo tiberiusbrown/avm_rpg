@@ -68,6 +68,11 @@ Fill any unused slots on the sheet with opaque black.
 | 7 `NPC_ADA` | Ada | 14 | Long medium-brown hair beneath a white polka-dot kerchief with a diagonal fold and short side ties. |
 | 8 `NPC_SURVEYOR` | Surveyor | 10 | Swept pale-blond hair tucked behind one ear, thick dark eyebrows, and a standing collar. |
 
+**Alden, the traveler, uses row 0, pair 0:** male, short medium-brown hair with a straight
+fringe, round cheeks and a plain V-neck collar. No dialogue shows this face yet. Alden's ID
+is `NPC_NONE`, which the unnamed panel also uses, so entry 0 of `faces32.json` stays `null`.
+Showing the face needs a way for dialogue to name Alden as the speaker.
+
 ## Portrait library
 
 Coordinates start at zero. Each row below identifies a row in both
@@ -77,7 +82,7 @@ The [actor descriptions](actors16_descriptions.md) record the shared sprite trai
 
 | Actor and portrait row | Pair 0 | Pair 1 | Pair 2 | Pair 3 |
 | --- | --- | --- | --- | --- |
-| 0 | Short hatched crop, round cheeks, V-neck collar | Hatched side sweep, round cheeks | Cropped fringe, angular face, tied collar | Blunt fringe, square face, large ears |
+| 0 | Alden | Hatched side sweep, round cheeks | Cropped fringe, angular face, tied collar | Blunt fringe, square face, large ears |
 | 1 | Swept black fringe, angled brows, overlapping collar | Straight black fringe, raised collar | Swept black fringe, cheek crease | Shaggy black fringe, oval face |
 | 2 | Orrin | White hair, heavy brows, deep cheek folds | Swept white hair, narrow jaw | Peaked white hair, long face |
 | 3 | Rowan | Curled white hood, crossed laces | Left-drooping white hood, diagonal shoulder strap | Rounded white hood with a slanted seam, square jaw, heavy brows, cheek creases |
