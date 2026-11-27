@@ -24,7 +24,9 @@ The [archived measurement](audio_timing_data/unsmoothed.json), taken with the
 former 7812.5 Hz default, records 430469
 normal and 62500 FX-C output interrupts, with extra delay **0..7 cycles** and
 **zero delays of 10 or more cycles**. PWM interval error is -6..+7 cycles.
-The PWM store completes at compare + 21 cycles plus interrupt acceptance delay.
+The PWM store completed at compare + 21 cycles plus interrupt acceptance delay.
+The current interpreter completes it at compare + 18 cycles, which the observer
+in `tests/audio_timing.cpp` expects.
 The normal run includes 40 seconds of music, dialogue, menus, saving, walking,
 and collision work; FX-C includes eight seconds.
 Native tests cover startup and live rate changes at all 32000 combinations of

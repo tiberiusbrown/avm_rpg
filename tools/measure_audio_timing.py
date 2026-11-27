@@ -95,9 +95,9 @@ def main():
             aggregate[key][delta] += count
             per_scenario[(variant, row["scenario"], row["path"], row["metric"])][delta] += count
     summary = dict(audio_timer=1, clock_hz=16000000, output_period_cycles=1024, synthesis_period_cycles=1024,
-                   entry_baseline_cycles=7, pwm_baseline_cycles=21,
+                   entry_baseline_cycles=7, pwm_baseline_cycles=18,
                    definition="Entry lateness = first ISR body instruction - Timer1 compare deadline - 7; "
-                              "PWM lateness subtracts 21; output and synthesis interval errors subtract 1024.",
+                              "PWM lateness subtracts 18; output and synthesis interval errors subtract 1024.",
                    identity=identity,
                    distributions={"/".join(key): summarize(hist) for key, hist in aggregate.items()},
                    scenarios={"/".join(key): summarize(hist) for key, hist in per_scenario.items()})

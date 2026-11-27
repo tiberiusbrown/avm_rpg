@@ -31,7 +31,7 @@ struct TimingObserver {
     int64_t minimum = 100000, maximum = 0;
     static constexpr uint64_t PERIOD = 1024;
     static constexpr uint64_t ENTRY_CYCLES = 7; // AVR response 4 + vector JMP 3.
-    static constexpr uint64_t WRITE_CYCLES = 14; // Body entry to completed OCR4A STS.
+    static constexpr uint64_t WRITE_CYCLES = 11; // Body entry to completed OCR4A STS.
 
     absim::atmega32u4_t& cpu() { return device.ab->core_state.cpu; }
 
