@@ -57,7 +57,7 @@ bool follow_the_way_home() {
         return false;
     if(game.player_is_in_region(positions::AldenRoomsRegion)) {
         game.set_flag(FLAG_HOME_REACHED);
-        quest_award_reward(GO_HOME_EXPERIENCE, 0);
+        quest_award_reward(QUEST_GO_HOME, GO_HOME_EXPERIENCE, 0);
         return true;
     }
     if(game.get_flag(FLAG_LEFT_CLEARING))
@@ -171,10 +171,10 @@ void story_talk_eliza() {
     dialogue_show(NPC_ALDEN, F("The rat is gone, Eliza."));
     dialogue_show(NPC_ELIZA, F("Oh, thank goodness! I knew you could do it."));
     game.set_flag(FLAG_RAT_REPORTED);
-    quest_award_reward(GIANT_RAT_EXPERIENCE, GIANT_RAT_GOLD);
+    quest_award_reward(QUEST_GIANT_RAT, GIANT_RAT_EXPERIENCE, GIANT_RAT_GOLD);
 }
 
 void story_push_boulder(NPC_ID id) {
-    sfx_play(npc_push(id, game.player.facing, positions::BoulderGateRegion) ? SFX_GRIND_OPEN
+    sfx_play(npc_push(id, game.player.facing, positions::BoulderGateRegion) ? SFX_BOULDER_ROLL
                                                                             : SFX_ERROR);
 }

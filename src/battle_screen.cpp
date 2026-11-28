@@ -1028,6 +1028,7 @@ RPG_NOINLINE static BATTLE_RESULT show_battle_result(BattleScreen const& screen)
     if(rewards.levels.members) {
         render_level_up_notice(F("LEVEL UP"), rewards.levels);
         avm_display(false);
+        sfx_play(SFX_LEVEL_UP);
         input_wait_press(BTN_A);
     }
     BATTLE_RESULT result = state.result;
@@ -1035,6 +1036,8 @@ RPG_NOINLINE static BATTLE_RESULT show_battle_result(BattleScreen const& screen)
     dialogue_close();
     fade_to_black();
     battle_running = false;
+    // The battle is done with the workspace. The caller's victory code may update quests.
+    quest_resume_after_battle();
     if(result == BATTLE_VICTORY)
         music_play_area();
     // Synchronize so that no button state carries into the dialogue or exploration that follows.
@@ -1045,6 +1048,9 @@ RPG_NOINLINE static BATTLE_RESULT show_battle_result(BattleScreen const& screen)
 }
 
 BATTLE_RESULT battle_show(BattleEncounter const PROGMEM* encounter) {
+    // Waiting quest panels show now: the battle takes over the workspace that holds them.
+    show_quest_updates();
+
     // Battles cannot nest; reuse the one fixed screen, clearing it on every entry.
     BattleScreen& screen = active_screen;
     screen = {};

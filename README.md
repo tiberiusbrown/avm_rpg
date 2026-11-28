@@ -181,6 +181,8 @@ surroundings never cut off a sound that answers the player.
 | Effect | Heard when |
 |---|---|
 | `battle_start`, `victory`, `defeat` | A battle opens, and its result appears |
+| `quest_start`, `quest_complete` | A Quest Start or Quest Complete panel appears |
+| `level_up` | A level-up notice appears, after a quest panel or a battle result |
 | `cursor_move`, `cursor_edge` | The cursor moves a cell, or is pushed against the board's edge |
 | `select`, `cancel`, `error` | A hero is selected, the selection is cancelled, or A changes nothing. Menus use `select` for A and `cancel` for B |
 | `step`, `leap` | Each footfall of a walking unit, and a rogue's jump and landing |
@@ -193,7 +195,8 @@ surroundings never cut off a sound that answers the player.
 | `lever_on`, `lever_off` | A lever is thrown on, and back off |
 | `plate_down` | A pressure plate sinks under the player |
 | `door_unlock`, `orb_light`, `chest_open` | A barred door is forced, the orb wakes, a chest opens |
-| `grind_open`, `grind_close` | A boulder rolls, or a gate, archway or block of stone slides open or shut |
+| `boulder_roll` | A pushed boulder rolls one tile and settles, for as long as the slide lasts |
+| `grind_open`, `grind_close` | A gate, archway or block of stone slides open or shut |
 | `scrape_open`, `scrape_close` | Spikes sink into the floor, or thrust up out of it |
 | `bridge_extend`, `bridge_retract` | A bridge runs out over a chasm, or folds away |
 | `door_open`, `door_close` | The player enters a house, and leaves it |

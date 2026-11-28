@@ -597,10 +597,10 @@ RPG_NOINLINE static void show_quest_notices() {
         rpg_render_world();
         render_quest_notice(notice);
         avm_display(false);
-        bool started = notice.started != QUEST_NONE;
-        uint8_t pressed = input_wait_press(started ? BTN_A | BTN_B : BTN_A);
-        if(started && (pressed & BTN_A))
-            quest_select(notice.started);
+        sfx_play(notice.started ? SFX_QUEST_START : SFX_QUEST_COMPLETE);
+        uint8_t pressed = input_wait_press(notice.started ? BTN_A | BTN_B : BTN_A);
+        if(notice.started && (pressed & BTN_A))
+            quest_select(notice.quest);
         input_sync();
     }
 }
@@ -609,8 +609,15 @@ RPG_NOINLINE static void show_quest_level_ups(LevelUpNotice notice) {
     rpg_render_world();
     render_level_up_notice(F("LEVEL UP"), notice);
     avm_display(false);
+    sfx_play(SFX_LEVEL_UP);
     input_wait_press(BTN_A);
     input_sync();
+}
+
+void show_quest_updates() {
+    show_quest_notices();
+    if(LevelUpNotice notice = quest_take_level_ups(); notice.members)
+        show_quest_level_ups(notice);
 }
 
 static RPG_NOINLINE void world_remembers() {
@@ -650,9 +657,7 @@ __attribute__((noinline)) void explore() {
         dialogue_close();
         if(story_class_choice_due())
             class_choice_screen();
-        show_quest_notices();
-        if(LevelUpNotice notice = quest_take_level_ups(); notice.members)
-            show_quest_level_ups(notice);
+        show_quest_updates();
         input_wait_frame();
         uint8_t pressed = input_pressed();
 

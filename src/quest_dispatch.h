@@ -11,9 +11,6 @@
 #include <type_traits>
 #include <utility>
 
-// One bit per QUEST_ID, indexed by the ID itself so that ID 0 is never used.
-inline constexpr uint8_t QUEST_BYTES = (QUEST_ID_LIMIT + 7) / 8;
-
 // Quests without subscriptions inherit an empty Watch.
 template <typename QUEST, typename = void> struct QuestWatches {
     using type = Watch<>;

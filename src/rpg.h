@@ -638,6 +638,8 @@ MENU_EXIT menu_screen(BattleScreen const* battle = nullptr, PAUSE_ITEM initial =
 void audio_screen(BattleScreen const* battle = nullptr);
 void party_screen();
 void journal_screen();
+// Shows the waiting quest panels, then the level-up notice that their rewards earned.
+void show_quest_updates();
 void map_screen();
 void class_choice_screen();
 struct WorldMapView;

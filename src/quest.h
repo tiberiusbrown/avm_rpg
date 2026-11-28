@@ -6,6 +6,32 @@
 
 #include <type_traits>
 
+// An update that waits for its panel. Packed, so that host copies differ from the guest's only in
+// the width of the pointer.
+#pragma pack(push, 1)
+
+struct QuestNotice {
+    QUEST_ID quest;
+    bool started;                  // Otherwise a completion notice.
+    char const PROGMEM* objective; // The first goal of a quest that started.
+    uint8_t experience, gold;      // The reward of a quest that completed.
+};
+
+#pragma pack(pop)
+
+// Panels that can wait at once. Updates beyond these are not announced; they still happen.
+inline constexpr uint8_t QUEST_NOTICE_CAPACITY = 3;
+// One bit per QUEST_ID, indexed by the ID itself so that ID 0 is never used.
+inline constexpr uint8_t QUEST_BYTES = (QUEST_ID_LIMIT + 7) / 8;
+
+// The quest state that is not saved. It lives in the exploration share of the runtime workspace.
+struct QuestWorkspace {
+    QuestNotice notices[QUEST_NOTICE_CAPACITY]; // The oldest first.
+    uint8_t notice_count;
+    LevelUpNotice level_ups;
+    uint8_t pending[QUEST_BYTES]; // The quests due for evaluation.
+};
+
 // Derived by each quest from game state on every query. No generic status is stored.
 enum QUEST_STATUS : uint8_t { QUEST_NOT_STARTED, QUEST_ACTIVE, QUEST_COMPLETED, QUEST_FAILED };
 
@@ -113,20 +139,18 @@ template <NPC_ID ID> void quest_emit(NpcTalked<ID>) {
 // settle, and the tracked quest is cleared if it is no longer active.
 void quest_settle();
 
-struct QuestNotice {
-    QUEST_ID started; // QUEST_NONE identifies a completion notice.
-    char const PROGMEM* objective;
-    uint8_t experience, gold;
-};
-
-// Grants XP, credits as much gold as the wallet can hold, and queues a completion notice.
-// Call once, after a successful completion transition.
-void quest_award_reward(uint8_t experience, uint8_t gold);
+// Grants XP, credits as much gold as the wallet can hold, and queues the quest's completion
+// notice. Call once, after a successful completion transition.
+void quest_award_reward(QUEST_ID quest, uint8_t experience, uint8_t gold);
 bool quest_take_notice(QuestNotice& out);
 LevelUpNotice quest_take_level_ups();
 void render_quest_notice(QuestNotice const& notice);
 // Clears transient evaluations and notices on a new game or a loaded save.
 void quest_reset();
+// A battle borrows the workspace that holds the transient quest state, so its screen shows the
+// waiting notices first and calls this afterwards, before any victory code runs. The state starts
+// empty, and every quest that watches a flag is due for evaluation again, so no change is lost.
+void quest_resume_after_battle();
 // Saved quest state is valid when the selection names a defined ID and every quest is consistent.
 bool quest_saved_state_valid();
 // Clears a stale selection after a successful load.

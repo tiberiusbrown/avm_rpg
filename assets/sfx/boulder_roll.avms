@@ -1,0 +1,19 @@
+// A boulder rolls one tile: stone grinds on stone with a low sagging groan, and the mass
+// settles with a soft thud as it comes to rest. It lasts the 320 ms of the slide.
+sfx
+volume max
+automation 8ms
+instrument grind {
+    wave noise volume 9
+    noise_retrigger { every 36ms seed 17 }
+    volume_slide { delta -3 over 272ms }
+}
+instrument growl {
+    wave pulse duty 50% volume 8
+    frequency_slide { delta -200cents over 272ms }
+    lfo { target pitch depth 80cents period 56ms }
+    volume_slide { to 3 over 272ms }
+}
+instrument settle { wave noise volume 11 volume_slide { to 0 over 48ms } }
+channel 1 growl octave 2 { e:272ms }
+channel 3 octave 4 { c:272ms@grind c:48ms@settle }

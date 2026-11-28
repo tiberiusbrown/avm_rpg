@@ -7,6 +7,7 @@
 #include "cast.h"
 #include "quest.h"
 #include "quest_catalog_registry.h"
+#include "runtime_workspace.h"
 #include "story_stub.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -237,6 +238,47 @@ static void reset_discards_pending() {
     CHECK(quest_evaluations == before && test_evaluations[2] == 0);
 }
 
+// Three panels can wait. Later updates are not announced, but their rewards still apply.
+static void notice_queue() {
+    fresh();
+    QuestNotice notice;
+    CHECK(!quest_take_notice(notice));
+    CHECK(quest_start(Q(8)) && quest_start(QUEST_GO_HOME));
+    uint16_t gold = game.gold;
+    uint8_t experience = game.party.members[0].experience;
+    quest_award_reward(Q(5), 1, 2);
+    quest_award_reward(Q(6), 1, 4);
+    CHECK(game.gold == gold + 6 && game.party.members[0].experience == experience + 2);
+    // The first three wait, oldest first; the fourth was dropped.
+    CHECK(quest_take_notice(notice) && notice.quest == Q(8) && notice.started);
+    CHECK(quest_take_notice(notice) && notice.quest == QUEST_GO_HOME && notice.started);
+    CHECK(quest_take_notice(notice) && notice.quest == Q(5) && !notice.started &&
+          notice.experience == 1 && notice.gold == 2);
+    CHECK(!quest_take_notice(notice));
+    // A taken notice frees its place.
+    quest_award_reward(Q(6), 0, 1);
+    CHECK(quest_take_notice(notice) && notice.quest == Q(6) && !quest_take_notice(notice));
+}
+
+// A battle overwrites the workspace. Afterwards nothing stale remains, a change that waited for
+// evaluation is still seen, and victory code can queue a panel.
+static void battle_handover() {
+    fresh();
+    test_status[2] = test_status[11] = QUEST_ACTIVE;
+    game.set_flag(QUEST_FLAG_GATE);
+    memset(&runtime_workspace, 0xA5, sizeof(runtime_workspace));
+    quest_resume_after_battle();
+    QuestNotice notice;
+    CHECK(!quest_take_notice(notice) && !quest_take_level_ups().members);
+    quest_award_reward(Q(5), 0, 1);
+    unsigned before = quest_evaluations;
+    quest_settle();
+    CHECK(test_evaluations[2] == 1 && test_evaluations[11] == 1);
+    // Every watcher is due again, and only the active two are evaluated.
+    CHECK(quest_evaluations - before == 2 && test_evaluations[3] == 0);
+    CHECK(quest_take_notice(notice) && notice.quest == Q(5));
+}
+
 static void quiet_frames() {
     fresh();
     test_status[2] = test_status[3] = QUEST_ACTIVE;
@@ -258,6 +300,8 @@ int main() {
     markers();
     consistency();
     reset_discards_pending();
+    notice_queue();
+    battle_handover();
     quiet_frames();
     printf("quest catalog checks passed: %u\n", checks);
     return 0;

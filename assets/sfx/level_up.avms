@@ -1,0 +1,11 @@
+// A level is gained: a quick climb through two octaves to a bright, wavering ring.
+sfx
+volume max
+automation 8ms
+instrument rung { wave pulse duty 12.5% volume 11 gate 85% }
+instrument crown {
+    wave pulse duty 25% volume 12
+    lfo { target pitch depth 40cents period 64ms }
+    volume_slide { to 0 over 384ms }
+}
+channel 1 rung octave 4 { c:48ms e:48ms g:48ms c':48ms e':48ms g':48ms c'':384ms@crown }

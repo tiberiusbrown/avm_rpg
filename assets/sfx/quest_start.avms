@@ -1,0 +1,11 @@
+// A quest begins: a horn calls upward and holds the fifth, a question waiting for an answer.
+sfx
+volume max
+automation 8ms
+instrument horn { wave pulse duty 50% volume 11 gate 80% }
+instrument held {
+    wave pulse duty 50% volume 11
+    lfo { target pitch depth 15cents period 120ms }
+    volume_slide { to 0 over 360ms }
+}
+channel 1 horn octave 4 { g:120ms c':120ms d':96ms g':360ms@held }

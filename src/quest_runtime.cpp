@@ -1,5 +1,6 @@
 #include "quest.h"
 #include "quest_dispatch.h"
+#include "runtime_workspace.h"
 
 // The catalog is included once, here. Engine code reaches quests only through quest.h.
 #ifndef RPG_QUEST_REGISTRY_HEADER
@@ -19,13 +20,6 @@ namespace {
 // Settle passes per frame. A quest whose evaluation keeps notifying itself stays pending across
 // frames, so a cycle cannot stall the frame and no notification is dropped.
 constexpr uint8_t SETTLE_PASSES = 4;
-
-// Transient evaluation bits, one per QUEST_ID. They never reach the save.
-uint8_t pending[QUEST_BYTES];
-LevelUpNotice pending_level_ups;
-// Each quest can start and complete once per game. Keep their notices in transition order.
-QuestNotice pending_notices[2 * (QUEST_ID_LIMIT - 1)];
-uint16_t pending_notice_count;
 
 using StatusFn = QUEST_STATUS (*)();
 using TextFn = char const PROGMEM* (*)();
@@ -106,9 +100,15 @@ bool valid_npc(NPC_ID id) {
 
 bool pending_any() {
     for(uint8_t i = 0; i < QUEST_BYTES; ++i)
-        if(pending[i])
+        if(quest_workspace.pending[i])
             return true;
     return false;
+}
+
+// A panel only informs: with the queue full, an update goes unannounced.
+void queue_notice(QuestNotice const& notice) {
+    if(quest_workspace.notice_count < QUEST_NOTICE_CAPACITY)
+        quest_workspace.notices[quest_workspace.notice_count++] = notice;
 }
 
 // A tracked quest that is no longer active, such as one that just completed, stops being tracked.
@@ -147,7 +147,7 @@ bool quest_start(QUEST_ID id) {
         return false;
     if(Tables::status[id]() != QUEST_ACTIVE)
         return false;
-    pending_notices[pending_notice_count++] = {id, quest_objective(id), 0, 0};
+    queue_notice({id, true, quest_objective(id), 0, 0});
     return true;
 }
 
@@ -239,7 +239,7 @@ void quest_flag_changed(FLAG flag) {
     if(flag >= FLAG_COUNT)
         return;
     for(uint8_t i = 0; i < QUEST_BYTES; ++i)
-        pending[i] |= FLAG_WATCHERS.bits[flag][i];
+        quest_workspace.pending[i] |= FLAG_WATCHERS.bits[flag][i];
 }
 
 void quest_npc_talked(NPC_ID id) {
@@ -254,8 +254,8 @@ void quest_settle() {
         // and cleared first.
         uint8_t work[QUEST_BYTES];
         for(uint8_t i = 0; i < QUEST_BYTES; ++i) {
-            work[i] = pending[i];
-            pending[i] = 0;
+            work[i] = quest_workspace.pending[i];
+            quest_workspace.pending[i] = 0;
         }
         for(uint8_t id = 1; id < QUEST_ID_LIMIT; ++id) {
             if(!(work[id / 8] & (1u << (id % 8))))
@@ -272,36 +272,39 @@ void quest_settle() {
     validate_selection();
 }
 
-void quest_award_reward(uint8_t experience, uint8_t gold) {
+void quest_award_reward(QUEST_ID quest, uint8_t experience, uint8_t gold) {
     uint16_t room = UINT16_MAX - game.gold;
     uint8_t credited = gold < room ? gold : (uint8_t)room;
     game.gold += credited;
     for(uint8_t i = 0; i < game.party.count; ++i)
-        pending_level_ups.award(game.party, i, experience);
-    pending_notices[pending_notice_count++] = {QUEST_NONE, nullptr, experience, credited};
+        quest_workspace.level_ups.award(game.party, i, experience);
+    queue_notice({quest, false, nullptr, experience, credited});
 }
 
 bool quest_take_notice(QuestNotice& out) {
-    if(!pending_notice_count)
+    if(!quest_workspace.notice_count)
         return false;
-    out = pending_notices[0];
-    --pending_notice_count;
-    for(uint16_t i = 0; i < pending_notice_count; ++i)
-        pending_notices[i] = pending_notices[i + 1];
+    out = quest_workspace.notices[0];
+    --quest_workspace.notice_count;
+    for(uint8_t i = 0; i < quest_workspace.notice_count; ++i)
+        quest_workspace.notices[i] = quest_workspace.notices[i + 1];
     return true;
 }
 
 LevelUpNotice quest_take_level_ups() {
-    LevelUpNotice notice = pending_level_ups;
-    pending_level_ups = {};
+    LevelUpNotice notice = quest_workspace.level_ups;
+    quest_workspace.level_ups = {};
     return notice;
 }
 
 void quest_reset() {
-    pending_notice_count = 0;
-    pending_level_ups = {};
-    for(uint8_t i = 0; i < QUEST_BYTES; ++i)
-        pending[i] = 0;
+    quest_workspace = {};
+}
+
+void quest_resume_after_battle() {
+    quest_reset();
+    for(uint16_t flag = 0; flag < FLAG_COUNT; ++flag)
+        quest_flag_changed((FLAG)flag);
 }
 
 bool quest_saved_state_valid() {

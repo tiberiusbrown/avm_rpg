@@ -189,6 +189,11 @@ struct FrameTrace {
     }
 };
 
+// The one-shot effect stream's status byte in the interpreter's audio RAM, beside the music's:
+// nonzero while an effect plays. The platform's sfx_ambient and chained effects read the same fact
+// through avm_audio_status.
+constexpr unsigned AUDIO_SFX_STATUS = 0xa58;
+
 struct Device {
     std::unique_ptr<absim::arduboy_t> ab = std::make_unique<absim::arduboy_t>();
     unsigned game_addr, marker_addr, serial_addr, dialogue_addr, phase_addr = 0;
@@ -1636,7 +1641,36 @@ static void start_rat_contact(Device& d) {
     d.accept_formation();
 }
 
+// Writes one completion panel into the quest queue, in the guest's layout: seven bytes of quest,
+// start mark, objective, experience and gold, with the count after the records.
+static void plant_quest_notice(Device& d) {
+    uint8_t const record[] = {QUEST_GIANT_RAT, 0, 0, 0, 0, 5, 10};
+    unsigned queue = d.workspace_addr + offsetof(ExplorationWorkspace, quest);
+    memcpy(&d.ab->core_state.cpu.data[queue], record, sizeof(record));
+    d.ab->core_state.cpu.data[queue + QUEST_NOTICE_CAPACITY * sizeof(record)] = 1;
+}
+
 #ifndef RPG_DEVICE_TEST_LIBRARY
+// A quest panel that waits when a battle begins shows first, because the battle takes over the
+// workspace that holds it. Call with the rat beside the player: pressing toward it meets it.
+static void meet_with_waiting_notice(Device& d, fs::path const& out) {
+    auto& cpu = d.ab->core_state.cpu;
+    d.buttons = BTN_RIGHT;
+    // Wait out the current frame, so that the next one samples the held button before it begins.
+    uint64_t deadline = cpu.cycle_count + 32000000;
+    for(bool ended : {true, false})
+        while((cpu.data[d.marker_addr] == 0) != ended) {
+            d.step();
+            require(cpu.cycle_count < deadline, "the frame of the contact did not begin");
+        }
+    plant_quest_notice(d);
+    d.advance(BTN_RIGHT, 8000000);
+    require(d.battle_address() == 0 && cpu.data[AUDIO_SFX_STATUS] != 0,
+            "a waiting quest panel did not show before the battle");
+    d.capture(out / "notice-before-battle.pgm", true);
+    d.tap(BTN_A);
+}
+
 static void verify_battle_formation(Device& d, fs::path const& out) {
     Game world = d.state();
     world.party.count = 2;
@@ -1646,7 +1680,7 @@ static void verify_battle_formation(Device& d, fs::path const& out) {
     world.party.members[1].attack_class = ATTACK_SHOOT;
     d.set_state(world);
     place_rat_contact(d);
-    d.tap(BTN_RIGHT);
+    meet_with_waiting_notice(d, out);
     d.wait_for_battle(256, true);
     BattleState initial = d.battle_state();
     require(initial.unit_count == 3, "formation fixture did not deploy two allies and an enemy");
@@ -1987,6 +2021,8 @@ static void play_grove_battle(Device& d, bool verify_transition = false,
         require(d.battle_address() != 0 && d.prompt() == DIALOGUE_CLOSED &&
                     d.state().gold == gold_after,
                 "held A skipped the level-up notice or repeated the reward");
+        require(d.ab->core_state.cpu.data[AUDIO_SFX_STATUS] != 0,
+                "the battle's level-up notice appeared without a sound");
         d.advance(0);
         auto rewarded = d.state().party.members[0];
         require(rewarded.level == 2 && party_unspent_perks(rewarded) == 1,
@@ -2053,11 +2089,6 @@ static void verify_area_music(Device& d) {
     d.set_state(original);
     d.advance(0, 1600000);
 }
-
-// The one-shot effect stream's status byte in the interpreter's audio RAM, beside the music's:
-// nonzero while an effect plays. The platform's sfx_ambient and chained effects read the same fact
-// through avm_audio_status.
-constexpr unsigned AUDIO_SFX_STATUS = 0xa58;
 
 // How the effect stream behaved over a stretch of emulated time.
 struct SfxWatch {
@@ -2210,9 +2241,13 @@ static void verify_boulder_sounds(Device& d) {
     require(resting(NPC_BOULDER_C, c), "a blocked boulder moved");
 
     stand({a.area, a.x, (uint8_t)(a.y - 1)}, SOUTH);
+    // The boulder slides a tile at one pixel per 20 ms frame. Its sound lasts as long, within
+    // the frame in which the push is made.
+    constexpr uint64_t SLIDE = TILE * 20 * CYCLES_PER_MS;
     SfxWatch pushed = watch_sfx(d, BTN_A, 32000000, 1);
-    require(pushed.runs.size() == 1 && pushed.runs[0] > 400 * CYCLES_PER_MS,
+    require(pushed.runs.size() == 1 && pushed.runs[0] > SLIDE * 3 / 4,
             "a rolling boulder was not heard grinding");
+    require(pushed.runs[0] <= SLIDE + 20 * CYCLES_PER_MS, "the grinding outlasted the roll");
     d.advance(0, 1600000);
     require(resting(NPC_BOULDER_A, {a.area, a.x, (uint8_t)(a.y + 1)}),
             "the boulder did not roll one tile");
@@ -2599,6 +2634,7 @@ static void verify_journal_timing(Device& d, fs::path const& out) {
 // it.
 static void dismiss_notice(Device& d, fs::path const& capture) {
     d.advance(0, 4800000);
+    require(d.ab->core_state.cpu.data[AUDIO_SFX_STATUS] != 0, "a notice appeared without a sound");
     unsigned serial = d.serial();
     d.advance(0, 1600000);
     require(d.serial() == serial && d.prompt() == DIALOGUE_CLOSED, "expected a waiting notice");
@@ -2842,8 +2878,13 @@ static void verify_story(Device& d, fs::path const& package, fs::path const& out
             "the thrust did not win the fight");
     d.advance(0, 1600000);
     d.capture(out / "25-victory.pgm", true);
+    // Whatever the battle leaves in the workspace, no quest panel comes out of it.
+    plant_quest_notice(d);
     d.tap(BTN_A);
     d.advance(0, 4800000);
+    unsigned resumed = d.serial();
+    d.advance(0, 1600000);
+    require(d.serial() != resumed, "a quest panel survived the battle");
     d.frame();
     require(d.state().flags.get_flag(FLAG_RAT_DEFEATED) && d.state().area == AREA_INTERIORS &&
                 d.state().gold == 3,

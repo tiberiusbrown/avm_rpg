@@ -46,7 +46,7 @@ define the specialization. The contiguous range `1` to `QUEST_ID_LIMIT - 1` must
 | `marker` | no | `static bool marker(uint8_t area, TilePos& out)` | The objective's map position in an area. |
 | `start` | no | `static void start()` | Records the start fact. Without it, `quest_start` refuses. |
 | `consistent` | no | `static bool consistent()` | Rejects impossible saved states. |
-| `evaluate` | with `FlagChanged` | `static void evaluate()` | Progress when a watched flag changes. |
+| `evaluate` | with `FlagChanged` | `static void evaluate()` | Progress when a watched flag changes. It must change nothing when its facts have not changed. |
 | `on` | with `NpcTalked` | `static void on(NpcTalked<ID>)` | Handles one processed conversation. |
 
 Optional members are checked for their exact signature when they are declared. A member with the
@@ -70,6 +70,20 @@ combinations. `save_restore()` clears a selection that names an inactive quest.
 The save version and persistent-state contracts live in [game logic](game_logic.md).
 
 Computed statuses, summaries, markers, the Journal cursor, pending evaluations and quest notices are not saved.
+
+### Transient state
+
+Pending evaluation bits, the waiting panels and the pending level-up notice are the
+`QuestWorkspace` in the exploration share of the runtime workspace
+(`src/runtime_workspace.h`), so they take no RAM of their own. Their size grows by one byte
+per eight quests, for the pending bits. A battle borrows the workspace:
+
+- `battle_show` presents the waiting panels before it takes the workspace over.
+- When the battle is done with it, `quest_resume_after_battle()` empties the queue and the
+  level-up notice, and marks every quest that watches a flag as due again. A change that was
+  still waiting is therefore not lost, and an `evaluate` may run with nothing new to see.
+- Code that runs after `battle_show` returns, such as a victory hook, may update quests as usual.
+  Nothing may call into the quest runtime while the battle runs.
 
 ## Events
 
@@ -99,9 +113,9 @@ frame, and a deeper cascade continues in the next frame. Pending bits that remai
 settle are kept, so a notification is never dropped. Settling finishes by clearing a tracked
 quest that is no longer active.
 
-`quest_reset()` clears pending bits, and it runs on a new game and on a loaded save. Loading
-replays nothing, because flags are restored without notifications and discrete events are not
-saved.
+`quest_reset()` clears the transient state, and it runs on a new game and on a loaded save.
+Loading replays nothing, because flags are restored without notifications and discrete events
+are not saved.
 
 ## Selection
 
@@ -109,7 +123,7 @@ Tracking is separate from status and from the Journal's highlight.
 
 - Only an active quest can be tracked. `quest_select` refuses any other quest.
 - At most one quest is tracked. Selecting another replaces it.
-- `quest_start` queues a Quest Start panel with the starting objective. A (Track) selects it if it is still active. B (Close) keeps the current selection.
+- `quest_start` queues a Quest Start panel that names the quest and shows its starting objective. A (Track) selects it if it is still active. B (Close) keeps the current selection.
 - Completion or any other end of activity clears tracking for that quest.
 - Tracking changes no quest state.
 
@@ -193,11 +207,19 @@ A quest that reacts to a flag change should subscribe with `FlagChanged`, not po
 
 ## Rewards and notifications
 
-Content can call `quest_award_reward` after a confirmed completion. The runtime
-credits gold up to the wallet cap, queues a Quest Complete panel with party XP
-and credited gold, and records level-ups from awarding party XP. Exploration
-presents quest panels in transition order after dialogue closes, followed by
-any level-up notice. Earned perk choices remain available in Party.
+Content can call `quest_award_reward(quest, experience, gold)` after a confirmed
+completion. The runtime credits gold up to the wallet cap, queues a Quest Complete
+panel that names the quest and shows party XP and credited gold, and records
+level-ups from awarding party XP. Exploration presents quest panels in transition
+order after dialogue closes, followed by any level-up notice.
+
+Three panels (`QUEST_NOTICE_CAPACITY`) can wait at once. A start or completion beyond that is
+not announced; the quest still changes and its reward still applies, and level-ups are always
+announced. Panels only inform, so content must not rely on one being seen: its Track choice is
+lost with a dropped start panel. The quest name sits
+under each panel's title in the BR5D font, so keep titles within one panel row; a
+longer one is clipped. The panels play `quest_start` and `quest_complete`, and a
+level-up notice plays `level_up`. Earned perk choices remain available in Party.
 
 ## Limitations
 

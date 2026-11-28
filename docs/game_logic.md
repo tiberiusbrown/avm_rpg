@@ -117,8 +117,8 @@ eight bytes.
   static or immovable body comes from the current content. A save is rejected when its pool
   holds an unknown, repeated or party identity, a gap between actors, pursuit without an enemy,
   or an impossible facing, behavior or position.
-- **Quest tracking:** only one active quest may be selected. The Quest Start panel offers
-  A (Track) or B (Close). The story selects Go Home and Eliza's Giant Rat when it starts them.
+- **Quest tracking:** only one active quest may be selected. The Quest Start panel names the
+  quest and its starting objective and offers A (Track) or B (Close). The story selects Go Home and Eliza's Giant Rat when it starts them.
   A completed quest is untracked.
 - **Exploration guidance:** the tracked quest's objective, or the local exit toward it, has a
   bobbing down arrow above its tile while visible; off screen the arrow slides along the screen
@@ -314,8 +314,11 @@ and chest reward rules remain implemented (`src/shop.cpp`, `party_rest`,
 | Go Home | 3 XP per member | Once |
 | Eliza's Giant Rat | 5 XP per member and 10 G | Once |
 
-Gold credits up to the wallet limit. The Quest Complete panel reports party XP and gold after
-the completing dialogue, before any level-up notice. A new player who finishes both quests holds
+Gold credits up to the wallet limit. The Quest Complete panel names the quest and reports party
+XP and gold after the completing dialogue, before any level-up notice. Quest Start, Quest
+Complete and level-up notices each play their own sound effect; the level-up sound also plays
+for a level earned in battle. At most three quest panels wait at once. Further starts and
+completions are not announced, but they happen and reward as usual. A new player who finishes both quests holds
 10 XP, which reaches level 2, and 13 G.
 
 ## 5. Character classes, progression and perks
@@ -589,7 +592,8 @@ and four boulders are the only barrier between the clearing and the village.
 - A while facing a resting boulder slides it one tile away at one pixel per frame
   (`npc_push`). The destination must lie in the region and in the boulder's chunk, be free of
   terrain and of the player and other actors, and is reserved while the boulder slides. A push
-  that moves plays the grinding sound; a blocked push plays the error tone.
+  that moves plays a grinding sound that ends as the 16-frame slide does; a blocked push plays
+  the error tone.
 - Boulders return to their sites only when they unload (§1.2). Saving and loading keeps them
   where they are.
 - The authored arrangement takes at least four pushes. No order of pushes from either side can

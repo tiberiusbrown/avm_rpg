@@ -1025,19 +1025,21 @@ void render_quest_notice(QuestNotice const& notice) {
     constexpr int16_t WIDTH = 104, X = (DISPLAY_WIDTH - WIDTH) / 2, MARGIN = 6, ROW_HEIGHT = 8;
     constexpr uint8_t MAX_LINES = 3;
     uint8_t starts[MAX_LINES + 1];
-    bool started = notice.started != QUEST_NONE;
+    bool started = notice.started;
     avm_set_text_font(AVM_FONT_BR5D);
     uint8_t lines = notice.objective ? text_wrap(notice.objective, WIDTH - 2 * MARGIN,
                                                  TextRangeWidth{}, starts, MAX_LINES)
                                      : (uint8_t)((notice.experience != 0) + (notice.gold != 0));
-    int16_t height = 34 + ROW_HEIGHT * lines;
+    int16_t height = 40 + ROW_HEIGHT * lines;
     int16_t y = (64 - height) / 2;
     draw_menu_frame(X, y, WIDTH, height);
     draw_menu_title(X + MARGIN, started ? F("Quest Start") : F("Quest Complete"),
                     WIDTH - 2 * MARGIN, y + 10);
-    draw_menu_rule(X, y + 13, WIDTH);
+    // The quest's name, in the row font that the title leaves selected.
+    text_draw_clipped(X + MARGIN, y + 19, quest_title(notice.quest), WIDTH - 2 * MARGIN);
+    draw_menu_rule(X, y + 22, WIDTH);
 
-    int16_t baseline = y + 22;
+    int16_t baseline = y + 30;
     if(started) {
         for(uint8_t row = 0; row < lines; ++row) {
             uint8_t from = starts[row], to = starts[row + 1];

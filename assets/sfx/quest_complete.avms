@@ -1,0 +1,13 @@
+// A quest is done: a turn of the horn comes home to a chord that rings out under a soft cymbal.
+sfx
+volume max
+automation 8ms
+instrument horn { wave pulse duty 25% volume 12 gate 85% }
+instrument ring {
+    wave pulse duty 25% volume 12
+    arpeggio { offsets 0,4,7 step 32ms }
+    volume_slide { to 0 over 480ms }
+}
+instrument cymbal { wave noise volume 6 volume_slide { to 0 over 320ms } }
+channel 1 horn octave 5 { e:96ms f:96ms g:192ms e:96ms c':480ms@ring }
+channel 3 octave 6 { r:480ms c:320ms@cymbal }

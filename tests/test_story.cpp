@@ -73,6 +73,7 @@ static bool said(unsigned index, NPC_ID speaker, char const* start) {
 
 // Quest panels, as the exploration screen takes them after each frame.
 static unsigned notices;
+static QUEST_ID last_started, last_completed;
 static uint8_t last_experience, last_gold;
 
 static void frame() {
@@ -80,7 +81,10 @@ static void frame() {
     QuestNotice notice;
     while(quest_take_notice(notice)) {
         ++notices;
-        if(!notice.started) {
+        if(notice.started) {
+            last_started = notice.quest;
+        } else {
+            last_completed = notice.quest;
             last_experience = notice.experience;
             last_gold = notice.gold;
         }
@@ -142,6 +146,7 @@ static void way_home() {
     CHECK(line_count == 1 && said(0, NPC_ALDEN, "Now which way was home"));
     CHECK(quest_status(QUEST_GO_HOME) == QUEST_ACTIVE && quest_selected() == QUEST_GO_HOME);
     CHECK(!game.get_flag(FLAG_MENU_JOURNAL) && notices == 1);
+    CHECK(last_started == QUEST_GO_HOME);
     line_count = 0;
     frame();
     CHECK(line_count == 1 && said(0, NPC_NONE, "Press B to pause"));
@@ -177,6 +182,7 @@ static void way_home() {
     line_count = 0;
     frame();
     CHECK(quest_status(QUEST_GO_HOME) == QUEST_COMPLETED);
+    CHECK(last_completed == QUEST_GO_HOME);
     CHECK(last_experience == 3 && game.party.members[0].experience == experience + 3);
     frame();
     CHECK(line_count == 1 && said(0, NPC_ELIZA, "Alden! I've been looking"));
@@ -195,6 +201,7 @@ static void giant_rat() {
     talk(NPC_ELIZA);
     CHECK(line_count == 2 && said(1, NPC_ELIZA, "Thank you so much!"));
     CHECK(quest_status(QUEST_GIANT_RAT) == QUEST_ACTIVE && quest_selected() == QUEST_GIANT_RAT);
+    CHECK(last_started == QUEST_GIANT_RAT);
     CHECK(!strcmp(quest_objective(QUEST_GIANT_RAT), "Go to Eliza's home"));
     talk(NPC_ELIZA);
     CHECK(line_count == 1 && said(0, NPC_ELIZA, "I'll just wait here"));
@@ -250,6 +257,7 @@ static void giant_rat() {
     CHECK(line_count == 2 && said(0, NPC_ALDEN, "The rat is gone") &&
           said(1, NPC_ELIZA, "Oh, thank goodness"));
     CHECK(quest_status(QUEST_GIANT_RAT) == QUEST_COMPLETED);
+    CHECK(last_completed == QUEST_GIANT_RAT);
     CHECK(last_experience == 5 && last_gold == 10 && game.gold == gold + 10);
     CHECK(npc_location(NPC_ELIZA) == positions::ElizaGarden);
     talk(NPC_ELIZA);

@@ -3,13 +3,15 @@
 
 #include "battle_ai.h"
 #include "npc_types.h"
+#include "quest.h"
 #include "world_types.h"
 
 // One block of guest RAM serves exploration and battle, and only one of them is active at a time.
 // Exploration owns it normally. A battle takes it after the world has faded out, and battle exit
 // gives it back: world_reclaim_workspace rebuilds the tile window and camera from the world assets
 // and the persistent flags, and invalidates every cached collision answer. Nothing exploration
-// keeps in this block survives a battle, so the saved Game holds none of it.
+// keeps in this block survives a battle, so the saved Game holds none of it. The battle screen
+// shows waiting quest notices first, and quest_resume_after_battle rebuilds the quest state.
 
 // One entry of an NPC stage's admission list: the identity, its home, and its priority.
 struct NpcCandidate {
@@ -55,8 +57,9 @@ struct ChunkPlan {
     ChunkStageList stage[4];
 };
 
-// Camera comes first, so every member starts at the same offset on the host and on the AVM. A host
-// copy of the workspace then differs from the guest's only in its trailing padding.
+// Camera comes first, so every member starts at the same offset on the host and on the AVM. The
+// quest state comes last: its pointers are wider on the host, so a host copy of the workspace
+// differs from the guest's only there.
 struct ExplorationWorkspace {
     Camera camera;
     TileCache cache;
@@ -67,6 +70,7 @@ struct ExplorationWorkspace {
     // The area whose tiles the window holds, or 0 when the window must be loaded. The window is
     // exactly the assets' tiles at its origin, until a tile edit or a battle changes it.
     uint8_t tile_area;
+    QuestWorkspace quest;
 };
 
 // Each ply keeps its alpha and the next and end indices of its ordered actions in the shared action
@@ -105,6 +109,7 @@ inline constexpr uint8_t& candidate_count = runtime_workspace.explore.candidate_
 inline constexpr FootCache& foot_cache = runtime_workspace.explore.foot;
 inline constexpr ChunkPlan& chunk_plan = runtime_workspace.explore.plan;
 inline constexpr uint8_t& tile_area = runtime_workspace.explore.tile_area;
+inline constexpr QuestWorkspace& quest_workspace = runtime_workspace.explore.quest;
 inline constexpr BattleState (&ply_state)[BATTLE_AI_DEPTH] = runtime_workspace.battle.ply_state;
 inline constexpr SearchPly (&plies)[BATTLE_AI_DEPTH] = runtime_workspace.battle.plies;
 inline constexpr uint8_t (&killers)[BATTLE_AI_DEPTH] = runtime_workspace.battle.killers;
@@ -114,8 +119,9 @@ inline constexpr uint8_t (&battle_action_scratch)[BATTLE_ACTION_SCRATCH_CAPACITY
 static_assert(sizeof(RuntimeWorkspace) == 270, "the battle search is the larger of the two shares");
 #ifdef RPG_AVM
 static_assert(sizeof(ChunkPlan) == 6 + 4 * (1 + CHUNK_PLAN_CAPACITY), "byte-sized plan entries");
-static_assert(sizeof(ExplorationWorkspace) == 131 + sizeof(ChunkPlan) + 1,
-              "tile window, camera, admission, foot cache and chunk plan");
+static_assert(sizeof(QuestWorkspace) == 3 * 7 + 1 + 2 + QUEST_BYTES, "byte-sized quest state");
+static_assert(sizeof(ExplorationWorkspace) == 131 + sizeof(ChunkPlan) + 1 + sizeof(QuestWorkspace),
+              "tile window, camera, admission, foot cache, chunk plan and quest state");
 static_assert(sizeof(ExplorationWorkspace) <= sizeof(BattleWorkspace),
               "exploration must fit in the share that the battle search sizes");
 #endif
